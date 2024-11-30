@@ -94,6 +94,8 @@ module rec SpirvCodeGen =
         | O.New(func, argExprs, resultTy) ->
             match func.EmittedFunction with
             | SpirvFunction.BuiltIn(builtInFunc) ->
+                if not(builtInFunc.Flags.HasFlag(BuiltInFunctionFlags.Constructor)) then
+                    raise(InvalidOperationException("Expected a 'Call' expression."))
 #if DEBUG || CHECKED
                 OlyAssert.True(argExprs.Length >= 1)
                 argExprs
@@ -279,12 +281,33 @@ module rec SpirvCodeGen =
 
             | O.Call(func=irFunc) ->
                 let func = irFunc.EmittedFunction
-                let funcBuilder = func.AsBuilder
 
-                let idResult = cenv.Module.NewIdResult()
-                OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
-                |> emitInstruction cenv
-                idResult
+                match func with
+                | SpirvFunction.Variable var ->
+                    if idRefs.Length = 0 then
+                        // Get
+                        var.IdResult
+                    else
+                        // Set
+                        OlyAssert.Equal(1, idRefs.Length)
+                        OpStore(var.IdResult, idRefs |> Array.head, None)
+                        |> emitInstruction cenv
+                        IdRef0
+
+                | SpirvFunction.AccessChain
+                | SpirvFunction.PtrAccessChain ->
+                    raise(InvalidOperationException("already handled"))
+
+                | SpirvFunction.BuiltIn builtInFunc ->
+                    if builtInFunc.Flags.HasFlag(BuiltInFunctionFlags.Constructor) then
+                        raise(InvalidOperationException("Expected a 'New' expression."))
+                    raise(NotImplementedException())
+
+                | SpirvFunction.Function(funcBuilder) ->
+                    let idResult = cenv.Module.NewIdResult()
+                    OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
+                    |> emitInstruction cenv
+                    idResult
 
             | _ ->
                 raise(NotImplementedException(op.ToString()))

@@ -10513,6 +10513,12 @@ module MAttribute =
       ^^^^^^^^^^^^
 """
             )
+            ("Invalid attribute.",
+                """
+    #[Test.M.Abc()]
+      ^^^^^^^^^^^^
+"""
+            )
         ]
     |> ignore
 

@@ -318,6 +318,7 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) isLate syntaxAttrs =
                             cenv.diagnostics.Error($"Invalid attribute '{value.Name}'.", 10, syntaxExpr)
                             None
                     | _ ->
+                        cenv.diagnostics.Error($"Invalid attribute.", 10, syntaxExpr)
                         None
                 else
                     None

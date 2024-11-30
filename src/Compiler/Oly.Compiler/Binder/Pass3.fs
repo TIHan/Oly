@@ -169,9 +169,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         | _ ->
             env
 
-    let syntaxMemberDecls = syntaxTyDeclBody.GetMemberDeclarations()
-    (syntaxMemberDecls, entBuilder.Bindings)
-    ||> ImArray.iter2 (fun (syntaxAttrs, syntax) (binding, isImpl) ->
+    let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
         let attrs = bindAttributes cenv env true syntaxAttrs
         let attrs = addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
         let attrs = addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
@@ -419,7 +417,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
-        | BindingProperty(prop=prop) ->
+        | BindingProperty(bindings, _) ->
             match syntax with
             // TODO:
             | _ ->
@@ -458,7 +456,10 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
-    )
+
+    let syntaxMemberDecls = syntaxTyDeclBody.GetMemberDeclarations()
+    (syntaxMemberDecls, entBuilder.Bindings)
+    ||> ImArray.iter2 processMember
 
     env
 

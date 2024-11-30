@@ -295,7 +295,7 @@ type SpirvFunctionBuilder(
     let pars = 
         if irFlags.IsEntryPoint then
             if not irPars.IsEmpty then
-                raise(InvalidOperationException())
+                raise(InvalidOperationException("Entry point must have no parameters."))
             ImArray.empty
         else   
             irPars
@@ -309,7 +309,7 @@ type SpirvFunctionBuilder(
 
     do
         if irFlags.IsEntryPoint && returnTy <> builder.GetTypeVoid() then
-            raise(InvalidOperationException())
+            raise(InvalidOperationException("Entry point must have a 'void' return type."))
 
     let funcTy = SpirvType.Function(builder.NewIdResult(), parTys, returnTy)
 
@@ -329,8 +329,7 @@ type SpirvFunctionBuilder(
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of BuiltInFunction
-    | InputVariable of IdRef * ty: SpirvType
-    | OutputVariable of IdRef * ty: SpirvType
+    | Variable of SpirvVariable
     | AccessChain
     | PtrAccessChain
 
@@ -977,6 +976,10 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
             | _ -> ()
 
+        match ty with
+        | SpirvType.Pointer _ -> ()
+        | _ -> raise(InvalidOperationException("Expected a pointer type."))
+
         let isUniform = 
             irAttrs
             |> ImArray.exists (fun x -> 
@@ -1117,7 +1120,10 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             else
                 []
 
-        SpirvVariable(idResult, ty, decorateInstrs)
+        let var = SpirvVariable(idResult, ty, decorateInstrs)
+        if isGlobal then
+            globalVars.Add(var)
+        var
 
     member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType) =
         let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy, name, irFlags, irPars, returnTy)

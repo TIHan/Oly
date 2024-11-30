@@ -146,13 +146,19 @@ let ``Blank vertex shader`` () =
 
 //void main()
 //{
+//    fsin_color = vec4(0)
 //}
     let src =
         """
-main(#[location(0)] outColor: outref<vec4>): () =
-    ()
+outColor: vec4
+    #[location(0)]
+    #[import("spirv-var", "", "set_outColor")]
+    set
+
+main(): () =
+    outColor <- vec4(0)
         """
-    OlyVertex src
+    OlyVertex src // should show white
 
 [<Fact>]
 let ``Blank vertex shader but has output`` () =

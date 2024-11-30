@@ -132,16 +132,17 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             | Some(info) ->
                 match info.Platform with
                 | "spirv-var" when info.Path.IsEmpty ->
-                    raise(NotImplementedException())
                     if flags.IsStatic then
                         if pars.IsEmpty then
                             if returnTy = builder.GetTypeVoid() then
                                 raise(InvalidOperationException())
                             let ty = builder.GetTypePointer(StorageClass.Input, returnTy)
-                            SpirvFunction.InputVariable(builder.NewIdResult(), ty)
+                            let var = builder.CreateVariable((* global *) true, attrs, ty)
+                            SpirvFunction.Variable var
                         elif pars.Length = 1 && returnTy = builder.GetTypeVoid() then
-                            let ty = builder.GetTypePointer(StorageClass.Input, pars[0].Type)
-                            SpirvFunction.OutputVariable(builder.NewIdResult(), ty)
+                            let ty = builder.GetTypePointer(StorageClass.Output, pars[0].Type)
+                            let var = builder.CreateVariable((* global *) true, attrs, ty)
+                            SpirvFunction.Variable var
                         else
                             raise(InvalidOperationException())                           
                     else

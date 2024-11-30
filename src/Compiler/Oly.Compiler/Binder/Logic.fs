@@ -351,7 +351,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
                                     true // Setter functions are always considered mutable.
                                 else
                                     false
-                            createFunctionValueSemantic enclosing ImArray.empty name ImArray.empty setterPars TypeSymbol.Unit memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
+                            createFunctionValueSemantic enclosing attrs name ImArray.empty setterPars TypeSymbol.Unit memberFlags FunctionFlags.None FunctionSemantic.SetterFunction WellKnownFunction.None None isMutable
                             |> Some
                         else
                             None
