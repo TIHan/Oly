@@ -91,7 +91,7 @@ module rec SpirvCodeGen =
 
     let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
-        | BuiltInOperations.AccessChain(_, baseExpr, indexExprs, resultTy) ->
+        | BuiltInOperations.AccessChain(baseExpr, indexExprs, resultTy) ->
             match resultTy with
             | SpirvType.Pointer _ -> ()
             | _ -> raise(InvalidOperationException("Expected a pointer type."))
@@ -105,18 +105,29 @@ module rec SpirvCodeGen =
                 raise(InvalidOperationException("Expected a pointer type."))
 #endif
 
-            let envNotReturnable = env.NotReturnable
-            let baseIdRef = GenExpression cenv envNotReturnable baseExpr
-            let indexIdRefs =
-                indexExprs
-                |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
+            match baseExpr with
+            // Optimization: Combine access chains into one.
+            | E.Operation(op=BuiltInOperations.AccessChain(innerBaseExpr, innerIndexExprs, _)) ->
+                let combinedAccessChainExpr =
+                    BuiltInExpressions.AccessChain(
+                        innerBaseExpr, 
+                        (innerIndexExprs |> ROMem.toImArray).AddRange(indexExprs |> ROMem.toImArray),
+                        resultTy
+                    )
+                GenExpression cenv env combinedAccessChainExpr
+            | _ ->
+                let envNotReturnable = env.NotReturnable
+                let baseIdRef = GenExpression cenv envNotReturnable baseExpr
+                let indexIdRefs =
+                    indexExprs
+                    |> ROMem.mapAsList (GenExpression cenv envNotReturnable)
 
-            let idResult = cenv.Module.NewIdResult()
-            OpAccessChain(resultTy.IdResult, idResult, baseIdRef, indexIdRefs)
-            |> emitInstruction cenv
-            idResult
+                let idResult = cenv.Module.NewIdResult()
+                OpAccessChain(resultTy.IdResult, idResult, baseIdRef, indexIdRefs)
+                |> emitInstruction cenv
+                idResult
 
-        | BuiltInOperations.PtrAccessChain(_, baseExpr, elementExpr, indexExprs, resultTy) ->
+        | BuiltInOperations.PtrAccessChain(baseExpr, elementExpr, indexExprs, resultTy) ->
             match resultTy with
             | SpirvType.Pointer _ -> ()
             | _ -> raise(InvalidOperationException("Expected a pointer type."))

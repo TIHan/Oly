@@ -664,7 +664,7 @@ module BuiltInOperations =
         match op with
         | O.Call(irFunc, argExprs, resultTy) ->
             match irFunc.EmittedFunction with
-            | SpirvFunction.AccessChain as func ->
+            | SpirvFunction.AccessChain ->
                 OlyAssert.True(argExprs.Length >= 2)
                 let baseExpr = 
                     argExprs
@@ -673,7 +673,7 @@ module BuiltInOperations =
                     argExprs 
                     |> ROMem.ofImArray 
                     |> ROMem.skip 1
-                Some(func, baseExpr, indexExprs, resultTy)
+                Some(baseExpr, indexExprs, resultTy)
             | _ ->
                 None
         | _ ->
@@ -683,7 +683,7 @@ module BuiltInOperations =
         match op with
         | O.Call(irFunc, argExprs, resultTy) ->
             match irFunc.EmittedFunction with
-            | SpirvFunction.PtrAccessChain as func ->
+            | SpirvFunction.PtrAccessChain ->
                 OlyAssert.True(argExprs.Length >= 3)
                 let baseExpr = 
                     argExprs
@@ -694,7 +694,7 @@ module BuiltInOperations =
                     argExprs 
                     |> ROMem.ofImArray 
                     |> ROMem.skip 2
-                Some(func, baseExpr, elementExpr, indexExprs, resultTy)
+                Some(baseExpr, elementExpr, indexExprs, resultTy)
             | _ ->
                 None
         | _ ->

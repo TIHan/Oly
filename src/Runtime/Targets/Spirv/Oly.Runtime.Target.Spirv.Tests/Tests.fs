@@ -760,3 +760,38 @@ main(): () =
     |> OlyCompute 
         [|{ Value = { Value = 0f } };{ Value = { Value =   0f } };{ Value = { Value = 0f } }|] 
         [|{ Value = { Value = 0f } };{ Value = { Value = 123f } };{ Value = { Value = 0f } }|]
+
+[<Struct;NoComparison>]
+type TestData3 =
+    {
+        Value: TestData2
+    }
+
+[<Fact>]
+let ``Basic compute shader 7`` () =
+    let src =
+        """
+struct TestData =
+    public field mutable Value: float32 = 0
+
+struct TestData2 =
+    public field mutable Value: TestData = TestData()
+
+struct TestData3 =
+    public field mutable Value: TestData2 = TestData2()
+
+buffer: mutable TestData3[]
+    #[storage_buffer]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
+
+main(): () =
+    let mutable tdata3 = TestData3()
+    tdata3.Value.Value.Value <- 123
+    buffer[1] <- tdata3
+        """
+    src
+    |> OlyCompute 
+        [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value=   0f } } };{ Value = { Value = { Value= 0f } } }|] 
+        [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value= 123f } } };{ Value = { Value = { Value= 0f } } }|]
