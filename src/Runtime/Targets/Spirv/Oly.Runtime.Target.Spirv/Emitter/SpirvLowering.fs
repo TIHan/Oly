@@ -222,6 +222,14 @@ module rec SpirvLowering =
                     handleCallVariable lazyVar.Value irFunc argExprs
                 | _ ->
                     newOp
+
+            | O.New(ctor, argExprs, resultTy) ->
+                match ctor.EmittedFunction with
+                | SpirvFunction.BuiltIn _ ->
+                    O.Call(ctor, argExprs, resultTy)
+                | _ ->
+                    raise(NotImplementedException(newOp.ToString()))
+
             | _ ->
                 newOp
 

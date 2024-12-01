@@ -91,39 +91,6 @@ module rec SpirvCodeGen =
 
     let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
-        | O.New(func, argExprs, resultTy) ->
-            match func.EmittedFunction with
-            | SpirvFunction.BuiltIn(builtInFunc) ->
-                if not(builtInFunc.Flags.HasFlag(BuiltInFunctionFlags.Constructor)) then
-                    raise(InvalidOperationException("Expected a 'Call' expression."))
-#if DEBUG || CHECKED
-                OlyAssert.True(argExprs.Length >= 1)
-                argExprs
-                |> ImArray.iter (fun argExpr ->
-                    match argExpr.ResultType with
-                    | SpirvType.Pointer _ ->
-                        raise(InvalidOperationException("Did not expect a pointer."))
-                    | _ ->
-                        ()
-                )
-#endif
-
-                match builtInFunc.Data with
-                | BuiltInFunctionData.Intrinsic(create) ->
-                    let args =
-                        let env = env.NotReturnable
-                        argExprs
-                        |> ImArray.map (fun argExpr ->
-                            argExpr.ResultType, GenExpression cenv env argExpr
-                        )
-                    let idRef, instrs = create cenv.Module args resultTy
-                    emitInstructions cenv instrs
-                    idRef
-                | _ ->
-                    raise(InvalidOperationException())
-            | _ ->
-               raise(NotImplementedException(op.ToString()))
-
         | BuiltInOperations.AccessChain(_, baseExpr, indexExprs, resultTy) ->
             match resultTy with
             | SpirvType.Pointer _ -> ()
@@ -187,9 +154,11 @@ module rec SpirvCodeGen =
         | op ->
             let argCount = op.ArgumentCount
             let idRefs = Array.zeroCreate argCount
+            let idTypeRefs = Array.zeroCreate argCount
             let envForArg = env.NotReturnable
             op.ForEachArgument(fun i argExpr ->
                 idRefs[i] <- GenExpression cenv envForArg argExpr
+                idTypeRefs[i] <- argExpr.ResultType
             )
             match op with
             | O.StoreToAddress(lhsExpr, rhsExpr, _) ->
@@ -270,6 +239,7 @@ module rec SpirvCodeGen =
                     raise(NotImplementedException())
                 idResult
 
+            | O.New _
             | O.Store _
             | O.StoreField _
             | O.LoadField _
@@ -319,9 +289,19 @@ module rec SpirvCodeGen =
                     raise(InvalidOperationException("already handled"))
 
                 | SpirvFunction.BuiltIn builtInFunc ->
-                    if builtInFunc.Flags.HasFlag(BuiltInFunctionFlags.Constructor) then
-                        raise(InvalidOperationException("Expected a 'New' expression."))
-                    raise(NotImplementedException())
+                    match builtInFunc.Data with
+                    | BuiltInFunctionData.Intrinsic(create) ->
+                        let args =
+                            idRefs
+                            |> Array.mapi (fun i idRef ->
+                                idTypeRefs[i], idRef
+                            )
+                            |> ImArray.ofSeq
+                        let idRef, instrs = create cenv.Module args op.ResultType
+                        emitInstructions cenv instrs
+                        idRef
+                    | _ ->
+                        raise(InvalidOperationException())
 
                 | SpirvFunction.Function(funcBuilder) ->
                     let idResult = cenv.Module.NewIdResult()
