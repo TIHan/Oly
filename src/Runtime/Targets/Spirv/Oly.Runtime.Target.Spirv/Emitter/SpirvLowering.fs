@@ -227,6 +227,9 @@ module rec SpirvLowering =
                 match ctor.EmittedFunction with
                 | SpirvFunction.BuiltIn _ ->
                     O.Call(ctor, argExprs, resultTy)
+                | SpirvFunction.Function(funcBuilder) ->
+                    OlyAssert.Equal(cenv.Module.GetTypeVoid(), funcBuilder.ReturnType)
+                    raise(NotImplementedException(newOp.ToString()))
                 | _ ->
                     raise(NotImplementedException(newOp.ToString()))
 
