@@ -28,7 +28,7 @@ module rec SpirvLowering =
 
         member this.IsEntryPoint = this.Function.IsEntryPoint
 
-        member this.AddLocal(localIndex: int32, ty: SpirvType) =
+        member this.SetLocal(localIndex: int32, ty: SpirvType) =
             let ty =
                 match ty with
                 | SpirvType.Pointer(elementTy=elementTy) -> 
@@ -36,15 +36,17 @@ module rec SpirvLowering =
                 | _ -> 
                     raise(InvalidOperationException("Expected a pointer type."))
 
-            let expectedLocalIndex = this.Locals.Count
-            if expectedLocalIndex <> localIndex then
-                // REVIEW: Hmm, this *could* happen. We really rely on the normalization pass to make this work.
-                //         If this is not reliable, consider using a dictionary.
-                raise(InvalidOperationException("Invalid local."))
-
             let idResult = this.Module.NewIdResult()
-            this.Locals.Add(idResult)
-            this.LocalTypes.Add(ty)
+            this.Locals[localIndex] <- idResult
+            this.LocalTypes[localIndex] <- ty
+            ty
+
+        member this.AddLocal(ty: SpirvType) =
+            let localIndex = this.Locals.Count
+            this.Locals.Add(0u) // placeholder
+            this.LocalTypes.Add(SpirvType.Invalid) // placeholder
+            let ty = this.SetLocal(localIndex, ty)
+            ty, localIndex
 
     [<NoEquality;NoComparison>]
     type private env =
@@ -103,9 +105,11 @@ module rec SpirvLowering =
             let resultTy = newRhsExpr.ResultType
             match resultTy with
             | SpirvType.Pointer _ ->
-                cenv.AddLocal(localIndex, resultTy)
+                cenv.SetLocal(localIndex, resultTy)
+                |> ignore
             | _ ->
-                cenv.AddLocal(localIndex, cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                cenv.SetLocal(localIndex, cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                |> ignore
             E.Sequential(
                 // Lower Store to StoreToAddress.
                 E.Operation(EmptyTextRange, O.Store(localIndex, newRhsExpr, cenv.Module.GetTypeVoid()))
@@ -222,23 +226,37 @@ module rec SpirvLowering =
                     handleCallVariable lazyVar.Value irFunc argExprs
                 | _ ->
                     newOp
-
-            | O.New(ctor, argExprs, resultTy) ->
-                match ctor.EmittedFunction with
-                | SpirvFunction.BuiltIn _ ->
-                    O.Call(ctor, argExprs, resultTy)
-                | SpirvFunction.Function(funcBuilder) ->
-                    OlyAssert.Equal(cenv.Module.GetTypeVoid(), funcBuilder.ReturnType)
-                    raise(NotImplementedException(newOp.ToString()))
-                | _ ->
-                    raise(NotImplementedException(newOp.ToString()))
-
             | _ ->
                 newOp
 
         match newOp with
         | O.LoadFromAddress(bodyExpr, _) ->
             bodyExpr
+        | O.New(ctor, argExprs, resultTy) ->
+            match ctor.EmittedFunction with
+            | SpirvFunction.BuiltIn _ ->
+                E.Operation(textRange, O.Call(ctor, argExprs, resultTy))
+
+            | SpirvFunction.Function(funcBuilder) ->
+                OlyAssert.Equal(cenv.Module.GetTypeVoid(), funcBuilder.ReturnType)
+                let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+                E.CreateSequential(
+                    [
+                        E.Operation(textRange,
+                            O.Call(ctor,
+                                argExprs
+                                |> ImArray.prependOne valueExpr,
+                                funcBuilder.ReturnType
+                            )
+                        )
+                        valueExpr
+                    ]
+                    |> ImArray.ofSeq
+                )
+
+            | _ ->
+                raise(NotImplementedException(newOp.ToString()))
         | _ ->
             if newOp = op then
                 origExpr

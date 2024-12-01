@@ -131,9 +131,10 @@ type SpirvType =
         | Function _ ->
             raise(NotSupportedException())
         | RuntimeArray _ ->
-            raise(NotSupportedException())
-        | Struct _ ->
-            raise(NotImplementedException())
+            0u // size is unknown, so return 0
+        | Struct(structBuilder) ->
+            structBuilder.Fields
+            |> Seq.sumBy (fun x -> x.Type.GetSizeInBytes())
         | Void _
         | Module _
         | Invalid ->
@@ -195,9 +196,12 @@ type SpirvType =
                         | _ ->
                             raise(InvalidOperationException())
 
-                // TODO: We should actually do this for any struct type.
-                if this.IsStructRuntimeArray then
-                    OpMemberDecorate(structBuilder.IdResult, 0u, Decoration.Offset 0u)
+                let mutable currentIndex = 0u
+                let mutable currentOffset = 0u
+                for field in structBuilder.Fields do
+                    OpMemberDecorate(structBuilder.IdResult, currentIndex, Decoration.Offset currentOffset)
+                    currentIndex <- currentIndex + 1u
+                    currentOffset <- currentOffset + uint(field.Type.GetSizeInBytes())
 
                 for attr in structBuilder.Attributes do
                     match attr.Data with

@@ -91,7 +91,13 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             let funcBuilder = (match func with SpirvFunction.Function(x) -> x | _ -> raise(InvalidOperationException()))
             let body = body.Value
 
-            let loweringCenv = { SpirvLowering.cenv.Module = builder; SpirvLowering.cenv.Function = funcBuilder; SpirvLowering.cenv.Locals = List(); SpirvLowering.cenv.LocalTypes = List() }
+            let loweringCenv = 
+                { 
+                    SpirvLowering.cenv.Module = builder
+                    SpirvLowering.cenv.Function = funcBuilder
+                    SpirvLowering.cenv.Locals = List(Array.zeroCreate body.LocalCount)
+                    SpirvLowering.cenv.LocalTypes = List(Array.zeroCreate body.LocalCount) 
+                }
             let codeGenCenv = 
                 { 
                     Instructions = List()
