@@ -139,7 +139,10 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                                 | OlyIRAttribute(ctor=ctor) ->
                                     match ctor.TryGetBuiltIn() with
                                     | ValueSome builtInFunc ->
-                                        builtInFunc.Name = "position"
+                                        match builtInFunc.Name with
+                                        | "position"
+                                        | "global_invocation_id" -> true
+                                        | _ -> false
                                     | _ ->
                                         false
                             )
@@ -147,16 +150,14 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                             if returnTy = builder.GetTypeVoid() then
                                 raise(InvalidOperationException())
                             let createVar() =
-                                let ty = builder.GetTypePointer(StorageClass.Input, returnTy)
-                                builder.CreateVariable((* global *) true, attrs, ty)
+                                builder.CreateVariable((* global *) true, StorageClass.Input, attrs, returnTy)
                             if isLazy then
                                 SpirvFunction.LazyVariable (lazy createVar())
                             else
                                 SpirvFunction.Variable (createVar())
                         elif pars.Length = 1 && returnTy = builder.GetTypeVoid() then
                             let createVar() =
-                                let ty = builder.GetTypePointer(StorageClass.Output, pars[0].Type)
-                                builder.CreateVariable((* global *) true, attrs, ty)
+                                builder.CreateVariable((* global *) true, StorageClass.Output, attrs, pars[0].Type)
                             if isLazy then
                                 SpirvFunction.LazyVariable (lazy createVar())
                             else

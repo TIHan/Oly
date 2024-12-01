@@ -221,27 +221,19 @@ module rec SpirvLowering =
                     raise(NotImplementedException(op.ToString()))
             )
 
-        let handleCallVariable (var: SpirvVariable) irFunc argExprs resultTy =
-#if DEBUG || CHECKED
-            match var.Type with
-            | SpirvType.Pointer(elementTy=elementTy) ->
-                if not(resultTy = cenv.Module.GetTypeVoid()) then
-                    OlyAssert.True(elementTy = resultTy || var.Type = resultTy)
-            | _ ->
-                raise(InvalidOperationException("Expected a pointer type."))
-#endif
+        let handleCallVariable (var: SpirvVariable) irFunc argExprs =
             O.Call(irFunc, argExprs, var.Type)
 
         let newOp =
             match newOp with
-            | O.Call(irFunc, argExprs, resultTy) ->
+            | O.Call(irFunc, argExprs, _) ->
                 match irFunc.EmittedFunction with
                 | SpirvFunction.Variable var ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
-                    handleCallVariable var irFunc argExprs resultTy
+                    handleCallVariable var irFunc argExprs
                 | SpirvFunction.LazyVariable lazyVar ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
-                    handleCallVariable lazyVar.Value irFunc argExprs resultTy
+                    handleCallVariable lazyVar.Value irFunc argExprs
                 | _ ->
                     newOp
             | _ ->

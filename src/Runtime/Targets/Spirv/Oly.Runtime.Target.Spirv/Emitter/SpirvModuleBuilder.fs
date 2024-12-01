@@ -300,7 +300,7 @@ type SpirvFunctionBuilder(
         else   
             irPars
             |> ImArray.map (fun irPar ->
-                builder.CreateVariable(false, irPar.Attributes, irPar.Type)
+                builder.CreateVariable(false, StorageClass.Function, irPar.Attributes, irPar.Type)
             )
 
     let parTys =
@@ -971,15 +971,11 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             failwith "Unable to add type while the module is building."
         types.Add(ty)
 
-    member private this.CreateVariableType(isGlobal: bool, irAttrs: OlyIRAttribute<SpirvType, SpirvFunction> imarray, ty: SpirvType) =
+    member private this.CreateVariableType(isGlobal: bool, defaultGlobalStorageClass: StorageClass, irAttrs: OlyIRAttribute<SpirvType, SpirvFunction> imarray, ty: SpirvType) =
         let checkParameterElementType elementTy =
             match elementTy with
             | SpirvType.RuntimeArray _ -> raise(InvalidOperationException("Parameters cannot be runtime array types."))
             | _ -> ()
-
-        match ty with
-        | SpirvType.Pointer _ -> ()
-        | _ -> raise(InvalidOperationException("Expected a pointer type."))
 
         let isUniform = 
             irAttrs
@@ -1016,7 +1012,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             )
 
         match ty with
-        | SpirvType.OlyByRef(OlyIRByRefKind.ReadOnly, elementTy) ->
+        | SpirvType.OlyByRef(_, elementTy) ->
             checkParameterElementType elementTy
 
             if isUniform then
@@ -1025,20 +1021,9 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                 this.GetTypePointer(StorageClass.StorageBuffer, elementTy)
             else
                 if isGlobal then
-                    this.GetTypePointer(StorageClass.Input, elementTy)
+                    this.GetTypePointer(defaultGlobalStorageClass, elementTy)
                 else
                     this.GetTypePointer(StorageClass.Function, elementTy)
-
-        | SpirvType.OlyByRef(OlyIRByRefKind.WriteOnly, elementTy) ->
-            checkParameterElementType elementTy
-
-            if isUniform || isStorageBuffer then
-                raise(InvalidOperationException())
-
-            if isGlobal then
-                this.GetTypePointer(StorageClass.Output, elementTy)
-            else
-                this.GetTypePointer(StorageClass.Function, elementTy)
 
         | SpirvType.RuntimeArray(elementTy=elementTy) ->
             checkParameterElementType elementTy
@@ -1095,10 +1080,13 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             ty
 
         | ty ->
-            this.GetTypePointer(StorageClass.Function, ty)
+            if isGlobal then
+                this.GetTypePointer(defaultGlobalStorageClass, ty)
+            else
+                this.GetTypePointer(StorageClass.Function, ty)
 
-    member this.CreateVariable(isGlobal, irAttrs, ty) : SpirvVariable =
-        let ty = this.CreateVariableType(isGlobal, irAttrs, ty)
+    member this.CreateVariable(isGlobal, defaultGlobalStorageClass: StorageClass, irAttrs, ty) : SpirvVariable =
+        let ty = this.CreateVariableType(isGlobal, defaultGlobalStorageClass, irAttrs, ty)
         let idResult = this.NewIdResult()
 
         let decorateInstrs = 

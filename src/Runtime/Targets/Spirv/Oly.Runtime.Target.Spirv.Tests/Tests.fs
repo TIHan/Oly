@@ -240,10 +240,15 @@ let ``Basic fragment shader`` () =
 //}
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     outColor <- color
         """
     OlyFragment src
@@ -252,20 +257,21 @@ main(
 let ``Should create a new value and use it`` () =
     let src =
         """
-#[block]
-struct VertexOutput =
+position: vec2
+    #[location(0)]
+    get
 
-    #[position]
-    public field mutable Position: vec4 = default
+color: vec4
+    #[location(1)]
+    get
 
-main(
-        #[location(0)] position: inref<vec2>, 
-        #[location(1)] color: inref<vec4>, 
-        #[location(0)] outColor: outref<vec4>, 
-        output: outref<VertexOutput>
-    ): () =
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let position = position
-    output.Position <- vec4(position, 0, 1)
+    BuiltIn.Position <- vec4(position, 0, 1)
     outColor <- color
         """
     OlyVertex src
@@ -274,10 +280,15 @@ main(
 let ``Should mutate a new value and use it`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     outColor <- color
@@ -288,10 +299,15 @@ main(
 let ``Should use if/else`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     if (color.X == 1)
@@ -304,10 +320,15 @@ main(
 let ``Should use if/else 2`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     if (color.X == 1)
@@ -322,10 +343,15 @@ main(
 let ``Should use if/else 3`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     if (color.X == 1.1)
@@ -340,10 +366,15 @@ main(
 let ``Should use if/else 4`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -359,10 +390,15 @@ main(
 let ``Should use if/else 5`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -385,10 +421,15 @@ main(
 let ``Should use if/else 6`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -404,10 +445,15 @@ main(
 let ``Should use if/else 7`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -425,10 +471,15 @@ main(
 let ``Should use if/else 8`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -446,10 +497,15 @@ main(
 let ``Should use if/else 9`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(0)
     color <-
@@ -467,10 +523,15 @@ main(
 let ``Should use if/else 10`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -491,10 +552,15 @@ main(
 let ``Should use if/else 11`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -512,10 +578,15 @@ main(
 let ``Should use if/else 12`` () =
     let src =
         """
-main(
-        #[location(0)] color: inref<vec4>,
-        #[location(0)] outColor: outref<vec4>
-    ): () =
+color: vec4
+    #[location(0)]
+    get
+
+outColor: vec4
+    #[location(0)]
+    set
+
+main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
@@ -560,12 +631,8 @@ buffer: mutable float32[]
     #[binding(0)]
     get
 
-giid: uvec3
-    #[global_invocation_id]
-    get
-
 main(): () =
-    let index = giid.X
+    let index = BuiltIn.GlobalInvocationId.X
     buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
@@ -581,85 +648,39 @@ let ``Basic compute shader 2`` () =
 
 //void main()
 //{
-//    uint index = gl_GlobalInvocationID.x;
-//    data[index] = 123;
-//}
-    let src =
-        """
-main(
-        #[storage_buffer]
-        #[descriptor_set(0)]
-        #[binding(0)]
-        buffer: mutable float32[],
-
-        #[global_invocation_id] 
-        giid: inref<uvec3>
-    ): () =
-    let index = giid.X
-    buffer[int32(index)] <- 123
-        """
-    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
-
-[<Fact>]
-let ``Basic compute shader 3`` () =
-//#version 450
-
-//layout(set = 0, binding = 0) buffer Buffer
-//{
-//    float data[];
-//};
-
-//void main()
-//{
 //    uvec3 abc = gl_GlobalInvocationID;
 //    uint index = abc.x;
 //    data[index] = 123;
 //}
     let src =
         """
-main(
-        #[storage_buffer]
-        #[descriptor_set(0)]
-        #[binding(0)]
-        buffer: mutable float32[],
+buffer: mutable float32[]
+    #[uniform]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
 
-        #[global_invocation_id] 
-        giid: inref<uvec3>
-    ): () =
-    let abc = giid
+main(): () =
+    let abc = BuiltIn.GlobalInvocationId
     let index = abc.X
     buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
-let ``Basic compute shader 4`` () =
+let ``Basic compute shader 3`` () =
     let src =
         """
+buffer: mutable float32[]
+    #[uniform]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
+
 GetValue(x: float32): float32 =
     x
 
-main(
-        #[storage_buffer]
-        #[descriptor_set(0)]
-        #[binding(0)]
-        buffer: mutable float32[]
-    ): () =
+main(): () =
     buffer[1] <- GetValue(123)
-        """
-    OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
-
-[<Fact>]
-let ``Basic compute shader 5`` () =
-    let src =
-        """
-main(
-        #[storage_buffer]
-        #[descriptor_set(0)]
-        #[binding(0)]
-        buffer: mutable float32[]
-    ): () =
-    let buffer2 = buffer
-    buffer2[1] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
