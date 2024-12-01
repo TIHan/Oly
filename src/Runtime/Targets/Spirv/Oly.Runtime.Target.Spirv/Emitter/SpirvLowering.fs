@@ -181,6 +181,7 @@ module rec SpirvLowering =
                         AutoDereferenceIfPossible newArgExpr
 
                 | O.LoadField _
+                | O.LoadFieldAddress _
                 | O.LoadFromAddress _ ->
                     AssertPointerType newArgExpr
                     newArgExpr
@@ -321,11 +322,11 @@ module rec SpirvLowering =
         match expr with
         | E.Operation(textRange, op) ->
             match op with
-            | O.LoadFieldAddress _ 
             | O.LoadArrayElementAddress _ ->
                 raise(NotImplementedException(op.ToString()))
 
-            | O.LoadField(field, receiverExpr, resultTy) ->
+            | O.LoadField(field, receiverExpr, resultTy)
+            | O.LoadFieldAddress(field, receiverExpr, _, SpirvType.Pointer(elementTy=resultTy)) ->
                 let field = field.EmittedField
                 OlyAssert.Equal(field.Type, resultTy)
 
