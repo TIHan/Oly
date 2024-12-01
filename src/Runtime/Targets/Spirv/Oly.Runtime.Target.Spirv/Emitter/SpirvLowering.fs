@@ -100,7 +100,12 @@ module rec SpirvLowering =
         | E.Let(_, localIndex, rhsExpr, bodyExpr) ->
             let envNotReturnable = env.NotReturnable
             let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
-            cenv.AddLocal(localIndex, newRhsExpr.ResultType)
+            let resultTy = newRhsExpr.ResultType
+            match resultTy with
+            | SpirvType.Pointer _ ->
+                cenv.AddLocal(localIndex, resultTy)
+            | _ ->
+                cenv.AddLocal(localIndex, cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
             E.Sequential(
                 // Lower Store to StoreToAddress.
                 E.Operation(EmptyTextRange, O.Store(localIndex, newRhsExpr, cenv.Module.GetTypeVoid()))

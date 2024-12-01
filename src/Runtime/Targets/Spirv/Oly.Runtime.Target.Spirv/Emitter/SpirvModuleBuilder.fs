@@ -298,10 +298,16 @@ type SpirvFunctionBuilder(
                 raise(InvalidOperationException("Entry point must have no parameters."))
             ImArray.empty
         else   
-            irPars
-            |> ImArray.map (fun irPar ->
-                builder.CreateVariable(false, StorageClass.Function, irPar.Attributes, irPar.Type)
-            )
+            let pars =
+                irPars
+                |> ImArray.map (fun irPar ->
+                    builder.CreateVariable(false, StorageClass.Function, irPar.Attributes, irPar.Type)
+                )
+            if irFlags.IsStatic then
+                pars
+            else
+                pars
+                |> ImArray.prependOne (builder.CreateVariable(false, StorageClass.Function, ImArray.empty, enclosingTy))
 
     let parTys =
         pars

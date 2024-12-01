@@ -84,7 +84,7 @@ void main()
 {
 }"
 
-    let output = compute_floats(glsl_to_compute computeCode, [|0f|])
+    let output = compute(glsl_to_compute computeCode, [|0f|])
     Assert.Equal(0f, output[0])
 
 [<Fact>]
@@ -109,7 +109,7 @@ void main()
     data[index] = GetValue(123);
 }"
 
-    let output = compute_floats(glsl_to_compute computeCode, [|0f;0f;0f;0f|])
+    let output = compute(glsl_to_compute computeCode, [|0f;0f;0f;0f|])
     Assert.Equal(123f, output[0])
     Assert.Equal(123f, output[1])
     Assert.Equal(123f, output[2])

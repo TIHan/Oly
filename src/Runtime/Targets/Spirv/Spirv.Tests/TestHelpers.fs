@@ -168,22 +168,6 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     graphicsDevice.WaitForIdle()
     commandList.Dispose()
 
-    //let texture = graphicsDevice.SwapchainFramebuffer.ColorTargets[0].Target
-    //let readTexture = factory.CreateTexture(TextureDescription(texture.Width, texture.Height, texture.Depth, texture.MipLevels, texture.ArrayLayers, texture.Format, TextureUsage.Staging, texture.Type))
-
-    //let commandList = factory.CreateCommandList()
-    //commandList.CopyTexture(texture, readTexture, 0u, 0u)
-    //commandList.End()
-    //graphicsDevice.SubmitCommands(commandList)
-    //graphicsDevice.WaitForIdle()
-    //commandList.Dispose()
-    
-    //let output = Array.zeroCreate (int32(texture.Width) * int32(texture.Height) * sizeof<Vector4>)
-    //let mapped = graphicsDevice.Map(texture, MapMode.Read)
-    //let mappedSpan = Span<byte>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<byte>)
-    //mappedSpan.CopyTo(Span(output))
-    //graphicsDevice.Unmap(texture)
-
     System.Threading.Thread.Sleep(1000)
 
     // ----
@@ -198,7 +182,7 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     indexBuffer.Dispose()
     graphicsDevice.Dispose()
 
-let compute_floats (spvCompute: SpirvModule, input: float32 array) =
+let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (spvCompute: SpirvModule, input: 'T array) =
 
     use spvComputeBytes = new MemoryStream()
 
@@ -226,7 +210,7 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
 
     // ----
 
-    let buffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.StructuredBufferReadWrite, uint32(sizeof<float32>), true))
+    let buffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.StructuredBufferReadWrite, uint32(sizeof<'T>), true))
     graphicsDevice.UpdateBuffer(buffer, 0u, input)
 
     let computeShaderDesc = ShaderDescription(
@@ -247,7 +231,7 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
     let resSetDesc = ResourceSetDescription(layout, buffer)
     let resSet = factory.CreateResourceSet(resSetDesc)
 
-    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<float32> * input.Length), BufferUsage.Staging, 0u, false))
+    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.Staging, 0u, false))
     graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<float32> input.Length)
 
     let commandList = factory.CreateCommandList()
@@ -258,7 +242,7 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
     commandList.SetComputeResourceSet(0u, resSet)
     commandList.Dispatch(uint32(input.Length), 1u, 1u)
 
-    commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<float32> * input.Length))
+    commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<'T> * input.Length))
 
     commandList.End()
 
@@ -268,7 +252,7 @@ let compute_floats (spvCompute: SpirvModule, input: float32 array) =
 
     let output = Array.zeroCreate input.Length
     let mapped = graphicsDevice.Map(readBuffer, MapMode.Read)
-    let mappedSpan = Span<float32>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<float32>)
+    let mappedSpan = Span<'T>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<'T>)
     mappedSpan.CopyTo(Span(output))
     graphicsDevice.Unmap(readBuffer)
 

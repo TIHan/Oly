@@ -107,7 +107,7 @@ let shouldRunCompute input (program: OlyProgram) =
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
 
-    compute_floats(sm, input)
+    compute(sm, input)
 
 let OlyVertex (src: string) =
     let src = $"""
@@ -127,16 +127,16 @@ let OlyFragment (src: string) =
     OlyShaderPrelude true src |> shouldRunFragment
     OlyShaderPrelude false src |> shouldRunFragment
 
-let OlyCompute input expectedOutput (src: string) =
+let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
 #target "spirv: compute, 1.3"
 
 {src}
 """
     let output = OlyShaderPrelude true src |> shouldRunCompute input
-    Assert.Equal<float32>(expectedOutput, output)
+    Assert.Equal<'T>(expectedOutput, output)
     let output = OlyShaderPrelude false src |> shouldRunCompute input
-    Assert.Equal<float32>(expectedOutput, output)
+    Assert.Equal<'T>(expectedOutput, output)
 
 [<Fact>]
 let ``Blank vertex shader`` () =
@@ -684,3 +684,47 @@ main(): () =
     buffer[1] <- GetValue(123)
         """
     OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
+
+[<Fact>]
+let ``Basic compute shader 4`` () =
+    let src =
+        """
+buffer: mutable int32[]
+    #[uniform]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
+
+main(): () =
+    buffer[1] <- 123
+        """
+    OlyCompute [|0;0;0;0|] [|0;123;0;0|] src
+
+[<Struct;NoComparison>]
+type TestData =
+    {
+        Value: float32
+    }
+
+[<Fact>]
+let ``Basic compute shader 5`` () =
+    let src =
+        """
+struct TestData =
+    public field mutable Value: float32 = 0
+
+buffer: mutable TestData[]
+    #[storage_buffer]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
+
+main(): () =
+    let mutable tdata = TestData()
+    tdata.Value <- 123
+    buffer[1] <- tdata
+        """
+    src
+    |> OlyCompute 
+        [|{ Value = 0f };{ Value = 0f };{ Value = 0f }|] 
+        [|{ Value = 0f };{ Value = 123f };{ Value = 0f }|]
