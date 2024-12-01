@@ -2,6 +2,9 @@
 [<AutoOpen>]
 module rec Spirv.Core
 
+// Do not warn if we do not handle all cases in a match statement. It's fine that it will throw an exception.
+#nowarn "104"
+
 open System
 open System.IO
 open InternalHelpers
@@ -51,6 +54,27 @@ type ImageOperands =
        | Nontemporal -> 0x4000u
        | Offsets _ -> 0x10000u
 
+    member x.Version =
+       match x with
+       | None -> 65536u
+       | Bias _ -> 65536u
+       | Lod _ -> 65536u
+       | Grad _ -> 65536u
+       | ConstOffset _ -> 65536u
+       | Offset _ -> 65536u
+       | ConstOffsets _ -> 65536u
+       | Sample _ -> 65536u
+       | MinLod _ -> 65536u
+       | MakeTexelAvailable _ -> 66816u
+       | MakeTexelVisible _ -> 66816u
+       | NonPrivateTexel -> 66816u
+       | VolatileTexel -> 66816u
+       | SignExtend -> 66560u
+       | ZeroExtend -> 66560u
+       | Nontemporal -> 67072u
+       | Offsets _ -> 65536u
+
+
 type FPFastMathMode =
    | None = 0x0000u
    | NotNaN = 0x0001u
@@ -62,10 +86,32 @@ type FPFastMathMode =
    | AllowReassoc = 0x20000u
    | AllowTransform = 0x40000u
 
+module FPFastMathMode =
+
+    let GetVersion x =
+       match x with
+       | FPFastMathMode.None -> 65536u
+       | FPFastMathMode.NotNaN -> 65536u
+       | FPFastMathMode.NotInf -> 65536u
+       | FPFastMathMode.NSZ -> 65536u
+       | FPFastMathMode.AllowRecip -> 65536u
+       | FPFastMathMode.Fast -> 65536u
+       | FPFastMathMode.AllowContract -> 65536u
+       | FPFastMathMode.AllowReassoc -> 65536u
+       | FPFastMathMode.AllowTransform -> 65536u
+
 type SelectionControl =
    | None = 0x0000u
    | Flatten = 0x0001u
    | DontFlatten = 0x0002u
+
+module SelectionControl =
+
+    let GetVersion x =
+       match x with
+       | SelectionControl.None -> 65536u
+       | SelectionControl.Flatten -> 65536u
+       | SelectionControl.DontFlatten -> 65536u
 
 [<RequireQualifiedAccess>]
 type LoopControl =
@@ -113,6 +159,30 @@ type LoopControl =
        | LoopCountINTEL _ -> 0x1000000u
        | MaxReinvocationDelayINTEL _ -> 0x2000000u
 
+    member x.Version =
+       match x with
+       | None -> 65536u
+       | Unroll -> 65536u
+       | DontUnroll -> 65536u
+       | DependencyInfinite -> 65792u
+       | DependencyLength _ -> 65792u
+       | MinIterations _ -> 66560u
+       | MaxIterations _ -> 66560u
+       | IterationMultiple _ -> 66560u
+       | PeelCount _ -> 66560u
+       | PartialCount _ -> 66560u
+       | InitiationIntervalINTEL _ -> 65536u
+       | MaxConcurrencyINTEL _ -> 65536u
+       | DependencyArrayINTEL _ -> 65536u
+       | PipelineEnableINTEL _ -> 65536u
+       | LoopCoalesceINTEL _ -> 65536u
+       | MaxInterleavingINTEL _ -> 65536u
+       | SpeculatedIterationsINTEL _ -> 65536u
+       | NoFusionINTEL -> 65536u
+       | LoopCountINTEL _ -> 65536u
+       | MaxReinvocationDelayINTEL _ -> 65536u
+
+
 type FunctionControl =
    | None = 0x0000u
    | Inline = 0x0001u
@@ -120,6 +190,17 @@ type FunctionControl =
    | Pure = 0x0004u
    | Const = 0x0008u
    | OptNoneEXT = 0x10000u
+
+module FunctionControl =
+
+    let GetVersion x =
+       match x with
+       | FunctionControl.None -> 65536u
+       | FunctionControl.Inline -> 65536u
+       | FunctionControl.DontInline -> 65536u
+       | FunctionControl.Pure -> 65536u
+       | FunctionControl.Const -> 65536u
+       | FunctionControl.OptNoneEXT -> 65536u
 
 type MemorySemantics =
    | Relaxed = 0x0000u
@@ -137,6 +218,26 @@ type MemorySemantics =
    | MakeAvailable = 0x2000u
    | MakeVisible = 0x4000u
    | Volatile = 0x8000u
+
+module MemorySemantics =
+
+    let GetVersion x =
+       match x with
+       | MemorySemantics.Relaxed -> 65536u
+       | MemorySemantics.Acquire -> 65536u
+       | MemorySemantics.Release -> 65536u
+       | MemorySemantics.AcquireRelease -> 65536u
+       | MemorySemantics.SequentiallyConsistent -> 65536u
+       | MemorySemantics.UniformMemory -> 65536u
+       | MemorySemantics.SubgroupMemory -> 65536u
+       | MemorySemantics.WorkgroupMemory -> 65536u
+       | MemorySemantics.CrossWorkgroupMemory -> 65536u
+       | MemorySemantics.AtomicCounterMemory -> 65536u
+       | MemorySemantics.ImageMemory -> 65536u
+       | MemorySemantics.OutputMemory -> 66816u
+       | MemorySemantics.MakeAvailable -> 66816u
+       | MemorySemantics.MakeVisible -> 66816u
+       | MemorySemantics.Volatile -> 66816u
 
 [<RequireQualifiedAccess>]
 type MemoryAccess =
@@ -162,9 +263,29 @@ type MemoryAccess =
        | AliasScopeINTELMask _ -> 0x10000u
        | NoAliasINTELMask _ -> 0x20000u
 
+    member x.Version =
+       match x with
+       | None -> 65536u
+       | Volatile -> 65536u
+       | Aligned _ -> 65536u
+       | Nontemporal -> 65536u
+       | MakePointerAvailable _ -> 66816u
+       | MakePointerVisible _ -> 66816u
+       | NonPrivatePointer -> 66816u
+       | AliasScopeINTELMask _ -> 65536u
+       | NoAliasINTELMask _ -> 65536u
+
+
 type KernelProfilingInfo =
    | None = 0x0000u
    | CmdExecTime = 0x0001u
+
+module KernelProfilingInfo =
+
+    let GetVersion x =
+       match x with
+       | KernelProfilingInfo.None -> 65536u
+       | KernelProfilingInfo.CmdExecTime -> 65536u
 
 type RayFlags =
    | NoneKHR = 0x0000u
@@ -180,16 +301,50 @@ type RayFlags =
    | SkipAABBsKHR = 0x0200u
    | ForceOpacityMicromap2StateEXT = 0x0400u
 
+module RayFlags =
+
+    let GetVersion x =
+       match x with
+       | RayFlags.NoneKHR -> 65536u
+       | RayFlags.OpaqueKHR -> 65536u
+       | RayFlags.NoOpaqueKHR -> 65536u
+       | RayFlags.TerminateOnFirstHitKHR -> 65536u
+       | RayFlags.SkipClosestHitShaderKHR -> 65536u
+       | RayFlags.CullBackFacingTrianglesKHR -> 65536u
+       | RayFlags.CullFrontFacingTrianglesKHR -> 65536u
+       | RayFlags.CullOpaqueKHR -> 65536u
+       | RayFlags.CullNoOpaqueKHR -> 65536u
+       | RayFlags.SkipTrianglesKHR -> 65536u
+       | RayFlags.SkipAABBsKHR -> 65536u
+       | RayFlags.ForceOpacityMicromap2StateEXT -> 65536u
+
 type FragmentShadingRate =
    | Vertical2Pixels = 0x0001u
    | Vertical4Pixels = 0x0002u
    | Horizontal2Pixels = 0x0004u
    | Horizontal4Pixels = 0x0008u
 
+module FragmentShadingRate =
+
+    let GetVersion x =
+       match x with
+       | FragmentShadingRate.Vertical2Pixels -> 65536u
+       | FragmentShadingRate.Vertical4Pixels -> 65536u
+       | FragmentShadingRate.Horizontal2Pixels -> 65536u
+       | FragmentShadingRate.Horizontal4Pixels -> 65536u
+
 type RawAccessChainOperands =
    | None = 0x0000u
    | RobustnessPerComponentNV = 0x0001u
    | RobustnessPerElementNV = 0x0002u
+
+module RawAccessChainOperands =
+
+    let GetVersion x =
+       match x with
+       | RawAccessChainOperands.None -> 65536u
+       | RawAccessChainOperands.RobustnessPerComponentNV -> 65536u
+       | RawAccessChainOperands.RobustnessPerElementNV -> 65536u
 
 type SourceLanguage =
    | Unknown = 0u
@@ -205,6 +360,24 @@ type SourceLanguage =
    | WGSL = 10u
    | Slang = 11u
    | Zig = 12u
+
+module SourceLanguage =
+
+    let GetVersion x =
+       match x with
+       | SourceLanguage.Unknown -> 65536u
+       | SourceLanguage.ESSL -> 65536u
+       | SourceLanguage.GLSL -> 65536u
+       | SourceLanguage.OpenCL_C -> 65536u
+       | SourceLanguage.OpenCL_CPP -> 65536u
+       | SourceLanguage.HLSL -> 65536u
+       | SourceLanguage.CPP_for_OpenCL -> 65536u
+       | SourceLanguage.SYCL -> 65536u
+       | SourceLanguage.HERO_C -> 65536u
+       | SourceLanguage.NZSL -> 65536u
+       | SourceLanguage.WGSL -> 65536u
+       | SourceLanguage.Slang -> 65536u
+       | SourceLanguage.Zig -> 65536u
 
 type ExecutionModel =
    | Vertex = 0u
@@ -225,17 +398,57 @@ type ExecutionModel =
    | TaskEXT = 5364u
    | MeshEXT = 5365u
 
+module ExecutionModel =
+
+    let GetVersion x =
+       match x with
+       | ExecutionModel.Vertex -> 65536u
+       | ExecutionModel.TessellationControl -> 65536u
+       | ExecutionModel.TessellationEvaluation -> 65536u
+       | ExecutionModel.Geometry -> 65536u
+       | ExecutionModel.Fragment -> 65536u
+       | ExecutionModel.GLCompute -> 65536u
+       | ExecutionModel.Kernel -> 65536u
+       | ExecutionModel.TaskNV -> 65536u
+       | ExecutionModel.MeshNV -> 65536u
+       | ExecutionModel.RayGenerationKHR -> 65536u
+       | ExecutionModel.IntersectionKHR -> 65536u
+       | ExecutionModel.AnyHitKHR -> 65536u
+       | ExecutionModel.ClosestHitKHR -> 65536u
+       | ExecutionModel.MissKHR -> 65536u
+       | ExecutionModel.CallableKHR -> 65536u
+       | ExecutionModel.TaskEXT -> 65536u
+       | ExecutionModel.MeshEXT -> 65536u
+
 type AddressingModel =
    | Logical = 0u
    | Physical32 = 1u
    | Physical64 = 2u
    | PhysicalStorageBuffer64 = 5348u
 
+module AddressingModel =
+
+    let GetVersion x =
+       match x with
+       | AddressingModel.Logical -> 65536u
+       | AddressingModel.Physical32 -> 65536u
+       | AddressingModel.Physical64 -> 65536u
+       | AddressingModel.PhysicalStorageBuffer64 -> 66816u
+
 type MemoryModel =
    | Simple = 0u
    | GLSL450 = 1u
    | OpenCL = 2u
    | Vulkan = 3u
+
+module MemoryModel =
+
+    let GetVersion x =
+       match x with
+       | MemoryModel.Simple -> 65536u
+       | MemoryModel.GLSL450 -> 65536u
+       | MemoryModel.OpenCL -> 65536u
+       | MemoryModel.Vulkan -> 66816u
 
 [<RequireQualifiedAccess>]
 type ExecutionMode =
@@ -431,6 +644,104 @@ type ExecutionMode =
        | MaximumRegistersIdINTEL _ -> 6462u
        | NamedMaximumRegistersINTEL _ -> 6463u
 
+    member x.Version =
+       match x with
+       | Invocations _ -> 65536u
+       | SpacingEqual -> 65536u
+       | SpacingFractionalEven -> 65536u
+       | SpacingFractionalOdd -> 65536u
+       | VertexOrderCw -> 65536u
+       | VertexOrderCcw -> 65536u
+       | PixelCenterInteger -> 65536u
+       | OriginUpperLeft -> 65536u
+       | OriginLowerLeft -> 65536u
+       | EarlyFragmentTests -> 65536u
+       | PointMode -> 65536u
+       | Xfb -> 65536u
+       | DepthReplacing -> 65536u
+       | DepthGreater -> 65536u
+       | DepthLess -> 65536u
+       | DepthUnchanged -> 65536u
+       | LocalSize _ -> 65536u
+       | LocalSizeHint _ -> 65536u
+       | InputPoints -> 65536u
+       | InputLines -> 65536u
+       | InputLinesAdjacency -> 65536u
+       | Triangles -> 65536u
+       | InputTrianglesAdjacency -> 65536u
+       | Quads -> 65536u
+       | Isolines -> 65536u
+       | OutputVertices _ -> 65536u
+       | OutputPoints -> 65536u
+       | OutputLineStrip -> 65536u
+       | OutputTriangleStrip -> 65536u
+       | VecTypeHint _ -> 65536u
+       | ContractionOff -> 65536u
+       | Initializer -> 65792u
+       | Finalizer -> 65792u
+       | SubgroupSize _ -> 65792u
+       | SubgroupsPerWorkgroup _ -> 65792u
+       | SubgroupsPerWorkgroupId _ -> 66048u
+       | LocalSizeId _ -> 66048u
+       | LocalSizeHintId _ -> 66048u
+       | NonCoherentColorAttachmentReadEXT -> 65536u
+       | NonCoherentDepthAttachmentReadEXT -> 65536u
+       | NonCoherentStencilAttachmentReadEXT -> 65536u
+       | SubgroupUniformControlFlowKHR -> 65536u
+       | PostDepthCoverage -> 65536u
+       | DenormPreserve _ -> 66560u
+       | DenormFlushToZero _ -> 66560u
+       | SignedZeroInfNanPreserve _ -> 66560u
+       | RoundingModeRTE _ -> 66560u
+       | RoundingModeRTZ _ -> 66560u
+       | EarlyAndLateFragmentTestsAMD -> 65536u
+       | StencilRefReplacingEXT -> 65536u
+       | CoalescingAMDX -> 65536u
+       | IsApiEntryAMDX _ -> 65536u
+       | MaxNodeRecursionAMDX _ -> 65536u
+       | StaticNumWorkgroupsAMDX _ -> 65536u
+       | ShaderIndexAMDX _ -> 65536u
+       | MaxNumWorkgroupsAMDX _ -> 65536u
+       | StencilRefUnchangedFrontAMD -> 65536u
+       | StencilRefGreaterFrontAMD -> 65536u
+       | StencilRefLessFrontAMD -> 65536u
+       | StencilRefUnchangedBackAMD -> 65536u
+       | StencilRefGreaterBackAMD -> 65536u
+       | StencilRefLessBackAMD -> 65536u
+       | QuadDerivativesKHR -> 65536u
+       | RequireFullQuadsKHR -> 65536u
+       | SharesInputWithAMDX _ -> 65536u
+       | OutputLinesEXT -> 65536u
+       | OutputPrimitivesEXT _ -> 65536u
+       | DerivativeGroupQuadsKHR -> 65536u
+       | DerivativeGroupLinearKHR -> 65536u
+       | OutputTrianglesEXT -> 65536u
+       | PixelInterlockOrderedEXT -> 65536u
+       | PixelInterlockUnorderedEXT -> 65536u
+       | SampleInterlockOrderedEXT -> 65536u
+       | SampleInterlockUnorderedEXT -> 65536u
+       | ShadingRateInterlockOrderedEXT -> 65536u
+       | ShadingRateInterlockUnorderedEXT -> 65536u
+       | SharedLocalMemorySizeINTEL _ -> 65536u
+       | RoundingModeRTPINTEL _ -> 65536u
+       | RoundingModeRTNINTEL _ -> 65536u
+       | FloatingPointModeALTINTEL _ -> 65536u
+       | FloatingPointModeIEEEINTEL _ -> 65536u
+       | MaxWorkgroupSizeINTEL _ -> 65536u
+       | MaxWorkDimINTEL _ -> 65536u
+       | NoGlobalOffsetINTEL -> 65536u
+       | NumSIMDWorkitemsINTEL _ -> 65536u
+       | SchedulerTargetFmaxMhzINTEL _ -> 65536u
+       | MaximallyReconvergesKHR -> 65536u
+       | FPFastMathDefault _ -> 65536u
+       | StreamingInterfaceINTEL _ -> 65536u
+       | RegisterMapInterfaceINTEL _ -> 65536u
+       | NamedBarrierCountINTEL _ -> 65536u
+       | MaximumRegistersINTEL _ -> 65536u
+       | MaximumRegistersIdINTEL _ -> 65536u
+       | NamedMaximumRegistersINTEL _ -> 65536u
+
+
 type StorageClass =
    | UniformConstant = 0u
    | Input = 1u
@@ -460,6 +771,38 @@ type StorageClass =
    | DeviceOnlyINTEL = 5936u
    | HostOnlyINTEL = 5937u
 
+module StorageClass =
+
+    let GetVersion x =
+       match x with
+       | StorageClass.UniformConstant -> 65536u
+       | StorageClass.Input -> 65536u
+       | StorageClass.Uniform -> 65536u
+       | StorageClass.Output -> 65536u
+       | StorageClass.Workgroup -> 65536u
+       | StorageClass.CrossWorkgroup -> 65536u
+       | StorageClass.Private -> 65536u
+       | StorageClass.Function -> 65536u
+       | StorageClass.Generic -> 65536u
+       | StorageClass.PushConstant -> 65536u
+       | StorageClass.AtomicCounter -> 65536u
+       | StorageClass.Image -> 65536u
+       | StorageClass.StorageBuffer -> 66304u
+       | StorageClass.TileImageEXT -> 65536u
+       | StorageClass.NodePayloadAMDX -> 65536u
+       | StorageClass.CallableDataKHR -> 65536u
+       | StorageClass.IncomingCallableDataKHR -> 65536u
+       | StorageClass.RayPayloadKHR -> 65536u
+       | StorageClass.HitAttributeKHR -> 65536u
+       | StorageClass.IncomingRayPayloadKHR -> 65536u
+       | StorageClass.ShaderRecordBufferKHR -> 65536u
+       | StorageClass.PhysicalStorageBuffer -> 66816u
+       | StorageClass.HitObjectAttributeNV -> 65536u
+       | StorageClass.TaskPayloadWorkgroupEXT -> 66560u
+       | StorageClass.CodeSectionINTEL -> 65536u
+       | StorageClass.DeviceOnlyINTEL -> 65536u
+       | StorageClass.HostOnlyINTEL -> 65536u
+
 type Dim =
    | One = 0u
    | Two = 1u
@@ -470,6 +813,19 @@ type Dim =
    | SubpassData = 6u
    | TileImageDataEXT = 4173u
 
+module Dim =
+
+    let GetVersion x =
+       match x with
+       | Dim.One -> 65536u
+       | Dim.Two -> 65536u
+       | Dim.Three -> 65536u
+       | Dim.Cube -> 65536u
+       | Dim.Rect -> 65536u
+       | Dim.Buffer -> 65536u
+       | Dim.SubpassData -> 65536u
+       | Dim.TileImageDataEXT -> 65536u
+
 type SamplerAddressingMode =
    | None = 0u
    | ClampToEdge = 1u
@@ -477,9 +833,26 @@ type SamplerAddressingMode =
    | Repeat = 3u
    | RepeatMirrored = 4u
 
+module SamplerAddressingMode =
+
+    let GetVersion x =
+       match x with
+       | SamplerAddressingMode.None -> 65536u
+       | SamplerAddressingMode.ClampToEdge -> 65536u
+       | SamplerAddressingMode.Clamp -> 65536u
+       | SamplerAddressingMode.Repeat -> 65536u
+       | SamplerAddressingMode.RepeatMirrored -> 65536u
+
 type SamplerFilterMode =
    | Nearest = 0u
    | Linear = 1u
+
+module SamplerFilterMode =
+
+    let GetVersion x =
+       match x with
+       | SamplerFilterMode.Nearest -> 65536u
+       | SamplerFilterMode.Linear -> 65536u
 
 type ImageFormat =
    | Unknown = 0u
@@ -525,6 +898,53 @@ type ImageFormat =
    | R64ui = 40u
    | R64i = 41u
 
+module ImageFormat =
+
+    let GetVersion x =
+       match x with
+       | ImageFormat.Unknown -> 65536u
+       | ImageFormat.Rgba32f -> 65536u
+       | ImageFormat.Rgba16f -> 65536u
+       | ImageFormat.R32f -> 65536u
+       | ImageFormat.Rgba8 -> 65536u
+       | ImageFormat.Rgba8Snorm -> 65536u
+       | ImageFormat.Rg32f -> 65536u
+       | ImageFormat.Rg16f -> 65536u
+       | ImageFormat.R11fG11fB10f -> 65536u
+       | ImageFormat.R16f -> 65536u
+       | ImageFormat.Rgba16 -> 65536u
+       | ImageFormat.Rgb10A2 -> 65536u
+       | ImageFormat.Rg16 -> 65536u
+       | ImageFormat.Rg8 -> 65536u
+       | ImageFormat.R16 -> 65536u
+       | ImageFormat.R8 -> 65536u
+       | ImageFormat.Rgba16Snorm -> 65536u
+       | ImageFormat.Rg16Snorm -> 65536u
+       | ImageFormat.Rg8Snorm -> 65536u
+       | ImageFormat.R16Snorm -> 65536u
+       | ImageFormat.R8Snorm -> 65536u
+       | ImageFormat.Rgba32i -> 65536u
+       | ImageFormat.Rgba16i -> 65536u
+       | ImageFormat.Rgba8i -> 65536u
+       | ImageFormat.R32i -> 65536u
+       | ImageFormat.Rg32i -> 65536u
+       | ImageFormat.Rg16i -> 65536u
+       | ImageFormat.Rg8i -> 65536u
+       | ImageFormat.R16i -> 65536u
+       | ImageFormat.R8i -> 65536u
+       | ImageFormat.Rgba32ui -> 65536u
+       | ImageFormat.Rgba16ui -> 65536u
+       | ImageFormat.Rgba8ui -> 65536u
+       | ImageFormat.R32ui -> 65536u
+       | ImageFormat.Rgb10a2ui -> 65536u
+       | ImageFormat.Rg32ui -> 65536u
+       | ImageFormat.Rg16ui -> 65536u
+       | ImageFormat.Rg8ui -> 65536u
+       | ImageFormat.R16ui -> 65536u
+       | ImageFormat.R8ui -> 65536u
+       | ImageFormat.R64ui -> 65536u
+       | ImageFormat.R64i -> 65536u
+
 type ImageChannelOrder =
    | R = 0u
    | A = 1u
@@ -546,6 +966,31 @@ type ImageChannelOrder =
    | sRGBA = 17u
    | sBGRA = 18u
    | ABGR = 19u
+
+module ImageChannelOrder =
+
+    let GetVersion x =
+       match x with
+       | ImageChannelOrder.R -> 65536u
+       | ImageChannelOrder.A -> 65536u
+       | ImageChannelOrder.RG -> 65536u
+       | ImageChannelOrder.RA -> 65536u
+       | ImageChannelOrder.RGB -> 65536u
+       | ImageChannelOrder.RGBA -> 65536u
+       | ImageChannelOrder.BGRA -> 65536u
+       | ImageChannelOrder.ARGB -> 65536u
+       | ImageChannelOrder.Intensity -> 65536u
+       | ImageChannelOrder.Luminance -> 65536u
+       | ImageChannelOrder.Rx -> 65536u
+       | ImageChannelOrder.RGx -> 65536u
+       | ImageChannelOrder.RGBx -> 65536u
+       | ImageChannelOrder.Depth -> 65536u
+       | ImageChannelOrder.DepthStencil -> 65536u
+       | ImageChannelOrder.sRGB -> 65536u
+       | ImageChannelOrder.sRGBx -> 65536u
+       | ImageChannelOrder.sRGBA -> 65536u
+       | ImageChannelOrder.sBGRA -> 65536u
+       | ImageChannelOrder.ABGR -> 65536u
 
 type ImageChannelDataType =
    | SnormInt8 = 0u
@@ -569,15 +1014,56 @@ type ImageChannelDataType =
    | UnsignedIntRaw12EXT = 20u
    | UnormInt2_101010EXT = 21u
 
+module ImageChannelDataType =
+
+    let GetVersion x =
+       match x with
+       | ImageChannelDataType.SnormInt8 -> 65536u
+       | ImageChannelDataType.SnormInt16 -> 65536u
+       | ImageChannelDataType.UnormInt8 -> 65536u
+       | ImageChannelDataType.UnormInt16 -> 65536u
+       | ImageChannelDataType.UnormShort565 -> 65536u
+       | ImageChannelDataType.UnormShort555 -> 65536u
+       | ImageChannelDataType.UnormInt101010 -> 65536u
+       | ImageChannelDataType.SignedInt8 -> 65536u
+       | ImageChannelDataType.SignedInt16 -> 65536u
+       | ImageChannelDataType.SignedInt32 -> 65536u
+       | ImageChannelDataType.UnsignedInt8 -> 65536u
+       | ImageChannelDataType.UnsignedInt16 -> 65536u
+       | ImageChannelDataType.UnsignedInt32 -> 65536u
+       | ImageChannelDataType.HalfFloat -> 65536u
+       | ImageChannelDataType.Float -> 65536u
+       | ImageChannelDataType.UnormInt24 -> 65536u
+       | ImageChannelDataType.UnormInt101010_2 -> 65536u
+       | ImageChannelDataType.UnsignedIntRaw10EXT -> 65536u
+       | ImageChannelDataType.UnsignedIntRaw12EXT -> 65536u
+       | ImageChannelDataType.UnormInt2_101010EXT -> 65536u
+
 type FPRoundingMode =
    | RTE = 0u
    | RTZ = 1u
    | RTP = 2u
    | RTN = 3u
 
+module FPRoundingMode =
+
+    let GetVersion x =
+       match x with
+       | FPRoundingMode.RTE -> 65536u
+       | FPRoundingMode.RTZ -> 65536u
+       | FPRoundingMode.RTP -> 65536u
+       | FPRoundingMode.RTN -> 65536u
+
 type FPDenormMode =
    | Preserve = 0u
    | FlushToZero = 1u
+
+module FPDenormMode =
+
+    let GetVersion x =
+       match x with
+       | FPDenormMode.Preserve -> 65536u
+       | FPDenormMode.FlushToZero -> 65536u
 
 type QuantizationModes =
    | TRN = 0u
@@ -589,9 +1075,29 @@ type QuantizationModes =
    | RND_CONV = 6u
    | RND_CONV_ODD = 7u
 
+module QuantizationModes =
+
+    let GetVersion x =
+       match x with
+       | QuantizationModes.TRN -> 65536u
+       | QuantizationModes.TRN_ZERO -> 65536u
+       | QuantizationModes.RND -> 65536u
+       | QuantizationModes.RND_ZERO -> 65536u
+       | QuantizationModes.RND_INF -> 65536u
+       | QuantizationModes.RND_MIN_INF -> 65536u
+       | QuantizationModes.RND_CONV -> 65536u
+       | QuantizationModes.RND_CONV_ODD -> 65536u
+
 type FPOperationMode =
    | IEEE = 0u
    | ALT = 1u
+
+module FPOperationMode =
+
+    let GetVersion x =
+       match x with
+       | FPOperationMode.IEEE -> 65536u
+       | FPOperationMode.ALT -> 65536u
 
 type OverflowModes =
    | WRAP = 0u
@@ -599,21 +1105,55 @@ type OverflowModes =
    | SAT_ZERO = 2u
    | SAT_SYM = 3u
 
+module OverflowModes =
+
+    let GetVersion x =
+       match x with
+       | OverflowModes.WRAP -> 65536u
+       | OverflowModes.SAT -> 65536u
+       | OverflowModes.SAT_ZERO -> 65536u
+       | OverflowModes.SAT_SYM -> 65536u
+
 type LinkageType =
    | Export = 0u
    | Import = 1u
    | LinkOnceODR = 2u
+
+module LinkageType =
+
+    let GetVersion x =
+       match x with
+       | LinkageType.Export -> 65536u
+       | LinkageType.Import -> 65536u
+       | LinkageType.LinkOnceODR -> 65536u
 
 type AccessQualifier =
    | ReadOnly = 0u
    | WriteOnly = 1u
    | ReadWrite = 2u
 
+module AccessQualifier =
+
+    let GetVersion x =
+       match x with
+       | AccessQualifier.ReadOnly -> 65536u
+       | AccessQualifier.WriteOnly -> 65536u
+       | AccessQualifier.ReadWrite -> 65536u
+
 type HostAccessQualifier =
    | NoneINTEL = 0u
    | ReadINTEL = 1u
    | WriteINTEL = 2u
    | ReadWriteINTEL = 3u
+
+module HostAccessQualifier =
+
+    let GetVersion x =
+       match x with
+       | HostAccessQualifier.NoneINTEL -> 65536u
+       | HostAccessQualifier.ReadINTEL -> 65536u
+       | HostAccessQualifier.WriteINTEL -> 65536u
+       | HostAccessQualifier.ReadWriteINTEL -> 65536u
 
 type FunctionParameterAttribute =
    | Zext = 0u
@@ -625,6 +1165,20 @@ type FunctionParameterAttribute =
    | NoWrite = 6u
    | NoReadWrite = 7u
    | RuntimeAlignedINTEL = 5940u
+
+module FunctionParameterAttribute =
+
+    let GetVersion x =
+       match x with
+       | FunctionParameterAttribute.Zext -> 65536u
+       | FunctionParameterAttribute.Sext -> 65536u
+       | FunctionParameterAttribute.ByVal -> 65536u
+       | FunctionParameterAttribute.Sret -> 65536u
+       | FunctionParameterAttribute.NoAlias -> 65536u
+       | FunctionParameterAttribute.NoCapture -> 65536u
+       | FunctionParameterAttribute.NoWrite -> 65536u
+       | FunctionParameterAttribute.NoReadWrite -> 65536u
+       | FunctionParameterAttribute.RuntimeAlignedINTEL -> 65536u
 
 [<RequireQualifiedAccess>]
 type Decoration =
@@ -916,6 +1470,152 @@ type Decoration =
        | CacheControlLoadINTEL _ -> 6442u
        | CacheControlStoreINTEL _ -> 6443u
 
+    member x.Version =
+       match x with
+       | RelaxedPrecision -> 65536u
+       | SpecId _ -> 65536u
+       | Block -> 65536u
+       | BufferBlock -> 65536u
+       | RowMajor -> 65536u
+       | ColMajor -> 65536u
+       | ArrayStride _ -> 65536u
+       | MatrixStride _ -> 65536u
+       | GLSLShared -> 65536u
+       | GLSLPacked -> 65536u
+       | CPacked -> 65536u
+       | BuiltIn _ -> 65536u
+       | NoPerspective -> 65536u
+       | Flat -> 65536u
+       | Patch -> 65536u
+       | Centroid -> 65536u
+       | Sample -> 65536u
+       | Invariant -> 65536u
+       | Restrict -> 65536u
+       | Aliased -> 65536u
+       | Volatile -> 65536u
+       | Constant -> 65536u
+       | Coherent -> 65536u
+       | NonWritable -> 65536u
+       | NonReadable -> 65536u
+       | Uniform -> 65536u
+       | UniformId _ -> 66560u
+       | SaturatedConversion -> 65536u
+       | Stream _ -> 65536u
+       | Location _ -> 65536u
+       | Component _ -> 65536u
+       | Index _ -> 65536u
+       | Binding _ -> 65536u
+       | DescriptorSet _ -> 65536u
+       | Offset _ -> 65536u
+       | XfbBuffer _ -> 65536u
+       | XfbStride _ -> 65536u
+       | FuncParamAttr _ -> 65536u
+       | FPRoundingMode _ -> 65536u
+       | FPFastMathMode _ -> 65536u
+       | LinkageAttributes _ -> 65536u
+       | NoContraction -> 65536u
+       | InputAttachmentIndex _ -> 65536u
+       | Alignment _ -> 65536u
+       | MaxByteOffset _ -> 65792u
+       | AlignmentId _ -> 66048u
+       | MaxByteOffsetId _ -> 66048u
+       | NoSignedWrap -> 66560u
+       | NoUnsignedWrap -> 66560u
+       | WeightTextureQCOM -> 65536u
+       | BlockMatchTextureQCOM -> 65536u
+       | BlockMatchSamplerQCOM -> 65536u
+       | ExplicitInterpAMD -> 65536u
+       | NodeSharesPayloadLimitsWithAMDX _ -> 65536u
+       | NodeMaxPayloadsAMDX _ -> 65536u
+       | TrackFinishWritingAMDX -> 65536u
+       | PayloadNodeNameAMDX _ -> 65536u
+       | PayloadNodeBaseIndexAMDX _ -> 65536u
+       | PayloadNodeSparseArrayAMDX -> 65536u
+       | PayloadNodeArraySizeAMDX _ -> 65536u
+       | PayloadDispatchIndirectAMDX -> 65536u
+       | OverrideCoverageNV -> 65536u
+       | PassthroughNV -> 65536u
+       | ViewportRelativeNV -> 65536u
+       | SecondaryViewportRelativeNV _ -> 65536u
+       | PerPrimitiveEXT -> 65536u
+       | PerViewNV -> 65536u
+       | PerTaskNV -> 65536u
+       | PerVertexKHR -> 65536u
+       | NonUniform -> 66816u
+       | RestrictPointer -> 66816u
+       | AliasedPointer -> 66816u
+       | HitObjectShaderRecordBufferNV -> 65536u
+       | BindlessSamplerNV -> 65536u
+       | BindlessImageNV -> 65536u
+       | BoundSamplerNV -> 65536u
+       | BoundImageNV -> 65536u
+       | SIMTCallINTEL _ -> 65536u
+       | ReferencedIndirectlyINTEL -> 65536u
+       | ClobberINTEL _ -> 65536u
+       | SideEffectsINTEL -> 65536u
+       | VectorComputeVariableINTEL -> 65536u
+       | FuncParamIOKindINTEL _ -> 65536u
+       | VectorComputeFunctionINTEL -> 65536u
+       | StackCallINTEL -> 65536u
+       | GlobalVariableOffsetINTEL _ -> 65536u
+       | CounterBuffer _ -> 66560u
+       | UserSemantic _ -> 66560u
+       | UserTypeGOOGLE _ -> 65536u
+       | FunctionRoundingModeINTEL _ -> 65536u
+       | FunctionDenormModeINTEL _ -> 65536u
+       | RegisterINTEL -> 65536u
+       | MemoryINTEL _ -> 65536u
+       | NumbanksINTEL _ -> 65536u
+       | BankwidthINTEL _ -> 65536u
+       | MaxPrivateCopiesINTEL _ -> 65536u
+       | SinglepumpINTEL -> 65536u
+       | DoublepumpINTEL -> 65536u
+       | MaxReplicatesINTEL _ -> 65536u
+       | SimpleDualPortINTEL -> 65536u
+       | MergeINTEL _ -> 65536u
+       | BankBitsINTEL _ -> 65536u
+       | ForcePow2DepthINTEL _ -> 65536u
+       | StridesizeINTEL _ -> 65536u
+       | WordsizeINTEL _ -> 65536u
+       | TrueDualPortINTEL -> 65536u
+       | BurstCoalesceINTEL -> 65536u
+       | CacheSizeINTEL _ -> 65536u
+       | DontStaticallyCoalesceINTEL -> 65536u
+       | PrefetchINTEL _ -> 65536u
+       | StallEnableINTEL -> 65536u
+       | FuseLoopsInFunctionINTEL -> 65536u
+       | MathOpDSPModeINTEL _ -> 65536u
+       | AliasScopeINTEL _ -> 65536u
+       | NoAliasINTEL _ -> 65536u
+       | InitiationIntervalINTEL _ -> 65536u
+       | MaxConcurrencyINTEL _ -> 65536u
+       | PipelineEnableINTEL _ -> 65536u
+       | BufferLocationINTEL _ -> 65536u
+       | IOPipeStorageINTEL _ -> 65536u
+       | FunctionFloatingPointModeINTEL _ -> 65536u
+       | SingleElementVectorINTEL -> 65536u
+       | VectorComputeCallableFunctionINTEL -> 65536u
+       | MediaBlockIOINTEL -> 65536u
+       | StallFreeINTEL -> 65536u
+       | FPMaxErrorDecorationINTEL _ -> 65536u
+       | LatencyControlLabelINTEL _ -> 65536u
+       | LatencyControlConstraintINTEL _ -> 65536u
+       | ConduitKernelArgumentINTEL -> 65536u
+       | RegisterMapKernelArgumentINTEL -> 65536u
+       | MMHostInterfaceAddressWidthINTEL _ -> 65536u
+       | MMHostInterfaceDataWidthINTEL _ -> 65536u
+       | MMHostInterfaceLatencyINTEL _ -> 65536u
+       | MMHostInterfaceReadWriteModeINTEL _ -> 65536u
+       | MMHostInterfaceMaxBurstINTEL _ -> 65536u
+       | MMHostInterfaceWaitRequestINTEL _ -> 65536u
+       | StableKernelArgumentINTEL -> 65536u
+       | HostAccessINTEL _ -> 65536u
+       | InitModeINTEL _ -> 65536u
+       | ImplementInRegisterMapINTEL _ -> 65536u
+       | CacheControlLoadINTEL _ -> 65536u
+       | CacheControlStoreINTEL _ -> 65536u
+
+
 type BuiltIn =
    | Position = 0u
    | PointSize = 1u
@@ -1034,6 +1734,127 @@ type BuiltIn =
    | HitKindBackFacingMicroTriangleNV = 5406u
    | CullMaskKHR = 6021u
 
+module BuiltIn =
+
+    let GetVersion x =
+       match x with
+       | BuiltIn.Position -> 65536u
+       | BuiltIn.PointSize -> 65536u
+       | BuiltIn.ClipDistance -> 65536u
+       | BuiltIn.CullDistance -> 65536u
+       | BuiltIn.VertexId -> 65536u
+       | BuiltIn.InstanceId -> 65536u
+       | BuiltIn.PrimitiveId -> 65536u
+       | BuiltIn.InvocationId -> 65536u
+       | BuiltIn.Layer -> 65536u
+       | BuiltIn.ViewportIndex -> 65536u
+       | BuiltIn.TessLevelOuter -> 65536u
+       | BuiltIn.TessLevelInner -> 65536u
+       | BuiltIn.TessCoord -> 65536u
+       | BuiltIn.PatchVertices -> 65536u
+       | BuiltIn.FragCoord -> 65536u
+       | BuiltIn.PointCoord -> 65536u
+       | BuiltIn.FrontFacing -> 65536u
+       | BuiltIn.SampleId -> 65536u
+       | BuiltIn.SamplePosition -> 65536u
+       | BuiltIn.SampleMask -> 65536u
+       | BuiltIn.FragDepth -> 65536u
+       | BuiltIn.HelperInvocation -> 65536u
+       | BuiltIn.NumWorkgroups -> 65536u
+       | BuiltIn.WorkgroupSize -> 65536u
+       | BuiltIn.WorkgroupId -> 65536u
+       | BuiltIn.LocalInvocationId -> 65536u
+       | BuiltIn.GlobalInvocationId -> 65536u
+       | BuiltIn.LocalInvocationIndex -> 65536u
+       | BuiltIn.WorkDim -> 65536u
+       | BuiltIn.GlobalSize -> 65536u
+       | BuiltIn.EnqueuedWorkgroupSize -> 65536u
+       | BuiltIn.GlobalOffset -> 65536u
+       | BuiltIn.GlobalLinearId -> 65536u
+       | BuiltIn.SubgroupSize -> 65536u
+       | BuiltIn.SubgroupMaxSize -> 65536u
+       | BuiltIn.NumSubgroups -> 65536u
+       | BuiltIn.NumEnqueuedSubgroups -> 65536u
+       | BuiltIn.SubgroupId -> 65536u
+       | BuiltIn.SubgroupLocalInvocationId -> 65536u
+       | BuiltIn.VertexIndex -> 65536u
+       | BuiltIn.InstanceIndex -> 65536u
+       | BuiltIn.CoreIDARM -> 65536u
+       | BuiltIn.CoreCountARM -> 65536u
+       | BuiltIn.CoreMaxIDARM -> 65536u
+       | BuiltIn.WarpIDARM -> 65536u
+       | BuiltIn.WarpMaxIDARM -> 65536u
+       | BuiltIn.SubgroupEqMask -> 66304u
+       | BuiltIn.SubgroupGeMask -> 66304u
+       | BuiltIn.SubgroupGtMask -> 66304u
+       | BuiltIn.SubgroupLeMask -> 66304u
+       | BuiltIn.SubgroupLtMask -> 66304u
+       | BuiltIn.BaseVertex -> 66304u
+       | BuiltIn.BaseInstance -> 66304u
+       | BuiltIn.DrawIndex -> 66304u
+       | BuiltIn.PrimitiveShadingRateKHR -> 65536u
+       | BuiltIn.DeviceIndex -> 66304u
+       | BuiltIn.ViewIndex -> 66304u
+       | BuiltIn.ShadingRateKHR -> 65536u
+       | BuiltIn.BaryCoordNoPerspAMD -> 65536u
+       | BuiltIn.BaryCoordNoPerspCentroidAMD -> 65536u
+       | BuiltIn.BaryCoordNoPerspSampleAMD -> 65536u
+       | BuiltIn.BaryCoordSmoothAMD -> 65536u
+       | BuiltIn.BaryCoordSmoothCentroidAMD -> 65536u
+       | BuiltIn.BaryCoordSmoothSampleAMD -> 65536u
+       | BuiltIn.BaryCoordPullModelAMD -> 65536u
+       | BuiltIn.FragStencilRefEXT -> 65536u
+       | BuiltIn.RemainingRecursionLevelsAMDX -> 65536u
+       | BuiltIn.ShaderIndexAMDX -> 65536u
+       | BuiltIn.ViewportMaskNV -> 65536u
+       | BuiltIn.SecondaryPositionNV -> 65536u
+       | BuiltIn.SecondaryViewportMaskNV -> 65536u
+       | BuiltIn.PositionPerViewNV -> 65536u
+       | BuiltIn.ViewportMaskPerViewNV -> 65536u
+       | BuiltIn.FullyCoveredEXT -> 65536u
+       | BuiltIn.TaskCountNV -> 65536u
+       | BuiltIn.PrimitiveCountNV -> 65536u
+       | BuiltIn.PrimitiveIndicesNV -> 65536u
+       | BuiltIn.ClipDistancePerViewNV -> 65536u
+       | BuiltIn.CullDistancePerViewNV -> 65536u
+       | BuiltIn.LayerPerViewNV -> 65536u
+       | BuiltIn.MeshViewCountNV -> 65536u
+       | BuiltIn.MeshViewIndicesNV -> 65536u
+       | BuiltIn.BaryCoordKHR -> 65536u
+       | BuiltIn.BaryCoordNoPerspKHR -> 65536u
+       | BuiltIn.FragSizeEXT -> 65536u
+       | BuiltIn.FragInvocationCountEXT -> 65536u
+       | BuiltIn.PrimitivePointIndicesEXT -> 65536u
+       | BuiltIn.PrimitiveLineIndicesEXT -> 65536u
+       | BuiltIn.PrimitiveTriangleIndicesEXT -> 65536u
+       | BuiltIn.CullPrimitiveEXT -> 65536u
+       | BuiltIn.LaunchIdKHR -> 65536u
+       | BuiltIn.LaunchSizeKHR -> 65536u
+       | BuiltIn.WorldRayOriginKHR -> 65536u
+       | BuiltIn.WorldRayDirectionKHR -> 65536u
+       | BuiltIn.ObjectRayOriginKHR -> 65536u
+       | BuiltIn.ObjectRayDirectionKHR -> 65536u
+       | BuiltIn.RayTminKHR -> 65536u
+       | BuiltIn.RayTmaxKHR -> 65536u
+       | BuiltIn.InstanceCustomIndexKHR -> 65536u
+       | BuiltIn.ObjectToWorldKHR -> 65536u
+       | BuiltIn.WorldToObjectKHR -> 65536u
+       | BuiltIn.HitTNV -> 65536u
+       | BuiltIn.HitKindKHR -> 65536u
+       | BuiltIn.CurrentRayTimeNV -> 65536u
+       | BuiltIn.HitTriangleVertexPositionsKHR -> 65536u
+       | BuiltIn.HitMicroTriangleVertexPositionsNV -> 65536u
+       | BuiltIn.HitMicroTriangleVertexBarycentricsNV -> 65536u
+       | BuiltIn.IncomingRayFlagsKHR -> 65536u
+       | BuiltIn.RayGeometryIndexKHR -> 65536u
+       | BuiltIn.WarpsPerSMNV -> 65536u
+       | BuiltIn.SMCountNV -> 65536u
+       | BuiltIn.WarpIDNV -> 65536u
+       | BuiltIn.SMIDNV -> 65536u
+       | BuiltIn.HitKindFrontFacingMicroTriangleNV -> 65536u
+       | BuiltIn.HitKindBackFacingMicroTriangleNV -> 65536u
+       | BuiltIn.CullMaskKHR -> 65536u
+
 type Scope =
    | CrossDevice = 0u
    | Device = 1u
@@ -1042,6 +1863,18 @@ type Scope =
    | Invocation = 4u
    | QueueFamily = 5u
    | ShaderCallKHR = 6u
+
+module Scope =
+
+    let GetVersion x =
+       match x with
+       | Scope.CrossDevice -> 65536u
+       | Scope.Device -> 65536u
+       | Scope.Workgroup -> 65536u
+       | Scope.Subgroup -> 65536u
+       | Scope.Invocation -> 65536u
+       | Scope.QueueFamily -> 66816u
+       | Scope.ShaderCallKHR -> 65536u
 
 type GroupOperation =
    | Reduce = 0u
@@ -1052,10 +1885,30 @@ type GroupOperation =
    | PartitionedInclusiveScanNV = 7u
    | PartitionedExclusiveScanNV = 8u
 
+module GroupOperation =
+
+    let GetVersion x =
+       match x with
+       | GroupOperation.Reduce -> 65536u
+       | GroupOperation.InclusiveScan -> 65536u
+       | GroupOperation.ExclusiveScan -> 65536u
+       | GroupOperation.ClusteredReduce -> 66304u
+       | GroupOperation.PartitionedReduceNV -> 65536u
+       | GroupOperation.PartitionedInclusiveScanNV -> 65536u
+       | GroupOperation.PartitionedExclusiveScanNV -> 65536u
+
 type KernelEnqueueFlags =
    | NoWait = 0u
    | WaitKernel = 1u
    | WaitWorkGroup = 2u
+
+module KernelEnqueueFlags =
+
+    let GetVersion x =
+       match x with
+       | KernelEnqueueFlags.NoWait -> 65536u
+       | KernelEnqueueFlags.WaitKernel -> 65536u
+       | KernelEnqueueFlags.WaitWorkGroup -> 65536u
 
 type Capability =
    | Matrix = 0u
@@ -1304,21 +2157,299 @@ type Capability =
    | CacheControlsINTEL = 6441u
    | RegisterLimitsINTEL = 6460u
 
+module Capability =
+
+    let GetVersion x =
+       match x with
+       | Capability.Matrix -> 65536u
+       | Capability.Shader -> 65536u
+       | Capability.Geometry -> 65536u
+       | Capability.Tessellation -> 65536u
+       | Capability.Addresses -> 65536u
+       | Capability.Linkage -> 65536u
+       | Capability.Kernel -> 65536u
+       | Capability.Vector16 -> 65536u
+       | Capability.Float16Buffer -> 65536u
+       | Capability.Float16 -> 65536u
+       | Capability.Float64 -> 65536u
+       | Capability.Int64 -> 65536u
+       | Capability.Int64Atomics -> 65536u
+       | Capability.ImageBasic -> 65536u
+       | Capability.ImageReadWrite -> 65536u
+       | Capability.ImageMipmap -> 65536u
+       | Capability.Pipes -> 65536u
+       | Capability.Groups -> 65536u
+       | Capability.DeviceEnqueue -> 65536u
+       | Capability.LiteralSampler -> 65536u
+       | Capability.AtomicStorage -> 65536u
+       | Capability.Int16 -> 65536u
+       | Capability.TessellationPointSize -> 65536u
+       | Capability.GeometryPointSize -> 65536u
+       | Capability.ImageGatherExtended -> 65536u
+       | Capability.StorageImageMultisample -> 65536u
+       | Capability.UniformBufferArrayDynamicIndexing -> 65536u
+       | Capability.SampledImageArrayDynamicIndexing -> 65536u
+       | Capability.StorageBufferArrayDynamicIndexing -> 65536u
+       | Capability.StorageImageArrayDynamicIndexing -> 65536u
+       | Capability.ClipDistance -> 65536u
+       | Capability.CullDistance -> 65536u
+       | Capability.ImageCubeArray -> 65536u
+       | Capability.SampleRateShading -> 65536u
+       | Capability.ImageRect -> 65536u
+       | Capability.SampledRect -> 65536u
+       | Capability.GenericPointer -> 65536u
+       | Capability.Int8 -> 65536u
+       | Capability.InputAttachment -> 65536u
+       | Capability.SparseResidency -> 65536u
+       | Capability.MinLod -> 65536u
+       | Capability.Sampled1D -> 65536u
+       | Capability.Image1D -> 65536u
+       | Capability.SampledCubeArray -> 65536u
+       | Capability.SampledBuffer -> 65536u
+       | Capability.ImageBuffer -> 65536u
+       | Capability.ImageMSArray -> 65536u
+       | Capability.StorageImageExtendedFormats -> 65536u
+       | Capability.ImageQuery -> 65536u
+       | Capability.DerivativeControl -> 65536u
+       | Capability.InterpolationFunction -> 65536u
+       | Capability.TransformFeedback -> 65536u
+       | Capability.GeometryStreams -> 65536u
+       | Capability.StorageImageReadWithoutFormat -> 65536u
+       | Capability.StorageImageWriteWithoutFormat -> 65536u
+       | Capability.MultiViewport -> 65536u
+       | Capability.SubgroupDispatch -> 65792u
+       | Capability.NamedBarrier -> 65792u
+       | Capability.PipeStorage -> 65792u
+       | Capability.GroupNonUniform -> 66304u
+       | Capability.GroupNonUniformVote -> 66304u
+       | Capability.GroupNonUniformArithmetic -> 66304u
+       | Capability.GroupNonUniformBallot -> 66304u
+       | Capability.GroupNonUniformShuffle -> 66304u
+       | Capability.GroupNonUniformShuffleRelative -> 66304u
+       | Capability.GroupNonUniformClustered -> 66304u
+       | Capability.GroupNonUniformQuad -> 66304u
+       | Capability.ShaderLayer -> 66816u
+       | Capability.ShaderViewportIndex -> 66816u
+       | Capability.UniformDecoration -> 67072u
+       | Capability.CoreBuiltinsARM -> 65536u
+       | Capability.TileImageColorReadAccessEXT -> 65536u
+       | Capability.TileImageDepthReadAccessEXT -> 65536u
+       | Capability.TileImageStencilReadAccessEXT -> 65536u
+       | Capability.CooperativeMatrixLayoutsARM -> 65536u
+       | Capability.FragmentShadingRateKHR -> 65536u
+       | Capability.SubgroupBallotKHR -> 65536u
+       | Capability.DrawParameters -> 66304u
+       | Capability.WorkgroupMemoryExplicitLayoutKHR -> 65536u
+       | Capability.WorkgroupMemoryExplicitLayout8BitAccessKHR -> 65536u
+       | Capability.WorkgroupMemoryExplicitLayout16BitAccessKHR -> 65536u
+       | Capability.SubgroupVoteKHR -> 65536u
+       | Capability.StorageBuffer16BitAccess -> 66304u
+       | Capability.UniformAndStorageBuffer16BitAccess -> 66304u
+       | Capability.StoragePushConstant16 -> 66304u
+       | Capability.StorageInputOutput16 -> 66304u
+       | Capability.DeviceGroup -> 66304u
+       | Capability.MultiView -> 66304u
+       | Capability.VariablePointersStorageBuffer -> 66304u
+       | Capability.VariablePointers -> 66304u
+       | Capability.AtomicStorageOps -> 65536u
+       | Capability.SampleMaskPostDepthCoverage -> 65536u
+       | Capability.StorageBuffer8BitAccess -> 66816u
+       | Capability.UniformAndStorageBuffer8BitAccess -> 66816u
+       | Capability.StoragePushConstant8 -> 66816u
+       | Capability.DenormPreserve -> 66560u
+       | Capability.DenormFlushToZero -> 66560u
+       | Capability.SignedZeroInfNanPreserve -> 66560u
+       | Capability.RoundingModeRTE -> 66560u
+       | Capability.RoundingModeRTZ -> 66560u
+       | Capability.RayQueryProvisionalKHR -> 65536u
+       | Capability.RayQueryKHR -> 65536u
+       | Capability.UntypedPointersKHR -> 65536u
+       | Capability.RayTraversalPrimitiveCullingKHR -> 65536u
+       | Capability.RayTracingKHR -> 65536u
+       | Capability.TextureSampleWeightedQCOM -> 65536u
+       | Capability.TextureBoxFilterQCOM -> 65536u
+       | Capability.TextureBlockMatchQCOM -> 65536u
+       | Capability.TextureBlockMatch2QCOM -> 65536u
+       | Capability.Float16ImageAMD -> 65536u
+       | Capability.ImageGatherBiasLodAMD -> 65536u
+       | Capability.FragmentMaskAMD -> 65536u
+       | Capability.StencilExportEXT -> 65536u
+       | Capability.ImageReadWriteLodAMD -> 65536u
+       | Capability.Int64ImageEXT -> 65536u
+       | Capability.ShaderClockKHR -> 65536u
+       | Capability.ShaderEnqueueAMDX -> 65536u
+       | Capability.QuadControlKHR -> 65536u
+       | Capability.SampleMaskOverrideCoverageNV -> 65536u
+       | Capability.GeometryShaderPassthroughNV -> 65536u
+       | Capability.ShaderViewportIndexLayerEXT -> 65536u
+       | Capability.ShaderViewportMaskNV -> 65536u
+       | Capability.ShaderStereoViewNV -> 65536u
+       | Capability.PerViewAttributesNV -> 65536u
+       | Capability.FragmentFullyCoveredEXT -> 65536u
+       | Capability.MeshShadingNV -> 65536u
+       | Capability.ImageFootprintNV -> 65536u
+       | Capability.MeshShadingEXT -> 65536u
+       | Capability.FragmentBarycentricKHR -> 65536u
+       | Capability.ComputeDerivativeGroupQuadsKHR -> 65536u
+       | Capability.FragmentDensityEXT -> 65536u
+       | Capability.GroupNonUniformPartitionedNV -> 65536u
+       | Capability.ShaderNonUniform -> 66816u
+       | Capability.RuntimeDescriptorArray -> 66816u
+       | Capability.InputAttachmentArrayDynamicIndexing -> 66816u
+       | Capability.UniformTexelBufferArrayDynamicIndexing -> 66816u
+       | Capability.StorageTexelBufferArrayDynamicIndexing -> 66816u
+       | Capability.UniformBufferArrayNonUniformIndexing -> 66816u
+       | Capability.SampledImageArrayNonUniformIndexing -> 66816u
+       | Capability.StorageBufferArrayNonUniformIndexing -> 66816u
+       | Capability.StorageImageArrayNonUniformIndexing -> 66816u
+       | Capability.InputAttachmentArrayNonUniformIndexing -> 66816u
+       | Capability.UniformTexelBufferArrayNonUniformIndexing -> 66816u
+       | Capability.StorageTexelBufferArrayNonUniformIndexing -> 66816u
+       | Capability.RayTracingPositionFetchKHR -> 65536u
+       | Capability.RayTracingNV -> 65536u
+       | Capability.RayTracingMotionBlurNV -> 65536u
+       | Capability.VulkanMemoryModel -> 66816u
+       | Capability.VulkanMemoryModelDeviceScope -> 66816u
+       | Capability.PhysicalStorageBufferAddresses -> 66816u
+       | Capability.ComputeDerivativeGroupLinearKHR -> 65536u
+       | Capability.RayTracingProvisionalKHR -> 65536u
+       | Capability.CooperativeMatrixNV -> 65536u
+       | Capability.FragmentShaderSampleInterlockEXT -> 65536u
+       | Capability.FragmentShaderShadingRateInterlockEXT -> 65536u
+       | Capability.ShaderSMBuiltinsNV -> 65536u
+       | Capability.FragmentShaderPixelInterlockEXT -> 65536u
+       | Capability.DemoteToHelperInvocation -> 67072u
+       | Capability.DisplacementMicromapNV -> 65536u
+       | Capability.RayTracingOpacityMicromapEXT -> 65536u
+       | Capability.ShaderInvocationReorderNV -> 65536u
+       | Capability.BindlessTextureNV -> 65536u
+       | Capability.RayQueryPositionFetchKHR -> 65536u
+       | Capability.AtomicFloat16VectorNV -> 65536u
+       | Capability.RayTracingDisplacementMicromapNV -> 65536u
+       | Capability.RawAccessChainsNV -> 65536u
+       | Capability.CooperativeMatrixReductionsNV -> 65536u
+       | Capability.CooperativeMatrixConversionsNV -> 65536u
+       | Capability.CooperativeMatrixPerElementOperationsNV -> 65536u
+       | Capability.CooperativeMatrixTensorAddressingNV -> 65536u
+       | Capability.CooperativeMatrixBlockLoadsNV -> 65536u
+       | Capability.TensorAddressingNV -> 65536u
+       | Capability.SubgroupShuffleINTEL -> 65536u
+       | Capability.SubgroupBufferBlockIOINTEL -> 65536u
+       | Capability.SubgroupImageBlockIOINTEL -> 65536u
+       | Capability.SubgroupImageMediaBlockIOINTEL -> 65536u
+       | Capability.RoundToInfinityINTEL -> 65536u
+       | Capability.FloatingPointModeINTEL -> 65536u
+       | Capability.IntegerFunctions2INTEL -> 65536u
+       | Capability.FunctionPointersINTEL -> 65536u
+       | Capability.IndirectReferencesINTEL -> 65536u
+       | Capability.AsmINTEL -> 65536u
+       | Capability.AtomicFloat32MinMaxEXT -> 65536u
+       | Capability.AtomicFloat64MinMaxEXT -> 65536u
+       | Capability.AtomicFloat16MinMaxEXT -> 65536u
+       | Capability.VectorComputeINTEL -> 65536u
+       | Capability.VectorAnyINTEL -> 65536u
+       | Capability.ExpectAssumeKHR -> 65536u
+       | Capability.SubgroupAvcMotionEstimationINTEL -> 65536u
+       | Capability.SubgroupAvcMotionEstimationIntraINTEL -> 65536u
+       | Capability.SubgroupAvcMotionEstimationChromaINTEL -> 65536u
+       | Capability.VariableLengthArrayINTEL -> 65536u
+       | Capability.FunctionFloatControlINTEL -> 65536u
+       | Capability.FPGAMemoryAttributesINTEL -> 65536u
+       | Capability.FPFastMathModeINTEL -> 65536u
+       | Capability.ArbitraryPrecisionIntegersINTEL -> 65536u
+       | Capability.ArbitraryPrecisionFloatingPointINTEL -> 65536u
+       | Capability.UnstructuredLoopControlsINTEL -> 65536u
+       | Capability.FPGALoopControlsINTEL -> 65536u
+       | Capability.KernelAttributesINTEL -> 65536u
+       | Capability.FPGAKernelAttributesINTEL -> 65536u
+       | Capability.FPGAMemoryAccessesINTEL -> 65536u
+       | Capability.FPGAClusterAttributesINTEL -> 65536u
+       | Capability.LoopFuseINTEL -> 65536u
+       | Capability.FPGADSPControlINTEL -> 65536u
+       | Capability.MemoryAccessAliasingINTEL -> 65536u
+       | Capability.FPGAInvocationPipeliningAttributesINTEL -> 65536u
+       | Capability.FPGABufferLocationINTEL -> 65536u
+       | Capability.ArbitraryPrecisionFixedPointINTEL -> 65536u
+       | Capability.USMStorageClassesINTEL -> 65536u
+       | Capability.RuntimeAlignedAttributeINTEL -> 65536u
+       | Capability.IOPipesINTEL -> 65536u
+       | Capability.BlockingPipesINTEL -> 65536u
+       | Capability.FPGARegINTEL -> 65536u
+       | Capability.DotProductInputAll -> 67072u
+       | Capability.DotProductInput4x8Bit -> 67072u
+       | Capability.DotProductInput4x8BitPacked -> 67072u
+       | Capability.DotProduct -> 67072u
+       | Capability.RayCullMaskKHR -> 65536u
+       | Capability.CooperativeMatrixKHR -> 65536u
+       | Capability.ReplicatedCompositesEXT -> 65536u
+       | Capability.BitInstructions -> 65536u
+       | Capability.GroupNonUniformRotateKHR -> 65536u
+       | Capability.FloatControls2 -> 65536u
+       | Capability.AtomicFloat32AddEXT -> 65536u
+       | Capability.AtomicFloat64AddEXT -> 65536u
+       | Capability.LongCompositesINTEL -> 65536u
+       | Capability.OptNoneEXT -> 65536u
+       | Capability.AtomicFloat16AddEXT -> 65536u
+       | Capability.DebugInfoModuleINTEL -> 65536u
+       | Capability.BFloat16ConversionINTEL -> 65536u
+       | Capability.SplitBarrierINTEL -> 65536u
+       | Capability.ArithmeticFenceEXT -> 65536u
+       | Capability.FPGAClusterAttributesV2INTEL -> 65536u
+       | Capability.FPGAKernelAttributesv2INTEL -> 65536u
+       | Capability.FPMaxErrorINTEL -> 65536u
+       | Capability.FPGALatencyControlINTEL -> 65536u
+       | Capability.FPGAArgumentInterfacesINTEL -> 65536u
+       | Capability.GlobalVariableHostAccessINTEL -> 65536u
+       | Capability.GlobalVariableFPGADecorationsINTEL -> 65536u
+       | Capability.SubgroupBufferPrefetchINTEL -> 65536u
+       | Capability.GroupUniformArithmeticKHR -> 65536u
+       | Capability.MaskedGatherScatterINTEL -> 65536u
+       | Capability.CacheControlsINTEL -> 65536u
+       | Capability.RegisterLimitsINTEL -> 65536u
+
 type RayQueryIntersection =
    | RayQueryCandidateIntersectionKHR = 0u
    | RayQueryCommittedIntersectionKHR = 1u
+
+module RayQueryIntersection =
+
+    let GetVersion x =
+       match x with
+       | RayQueryIntersection.RayQueryCandidateIntersectionKHR -> 65536u
+       | RayQueryIntersection.RayQueryCommittedIntersectionKHR -> 65536u
 
 type RayQueryCommittedIntersectionType =
    | RayQueryCommittedIntersectionNoneKHR = 0u
    | RayQueryCommittedIntersectionTriangleKHR = 1u
    | RayQueryCommittedIntersectionGeneratedKHR = 2u
 
+module RayQueryCommittedIntersectionType =
+
+    let GetVersion x =
+       match x with
+       | RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionNoneKHR -> 65536u
+       | RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionTriangleKHR -> 65536u
+       | RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionGeneratedKHR -> 65536u
+
 type RayQueryCandidateIntersectionType =
    | RayQueryCandidateIntersectionTriangleKHR = 0u
    | RayQueryCandidateIntersectionAABBKHR = 1u
 
+module RayQueryCandidateIntersectionType =
+
+    let GetVersion x =
+       match x with
+       | RayQueryCandidateIntersectionType.RayQueryCandidateIntersectionTriangleKHR -> 65536u
+       | RayQueryCandidateIntersectionType.RayQueryCandidateIntersectionAABBKHR -> 65536u
+
 type PackedVectorFormat =
    | PackedVectorFormat4x8Bit = 0u
+
+module PackedVectorFormat =
+
+    let GetVersion x =
+       match x with
+       | PackedVectorFormat.PackedVectorFormat4x8Bit -> 67072u
 
 type CooperativeMatrixOperands =
    | NoneKHR = 0x0000u
@@ -1328,21 +2459,57 @@ type CooperativeMatrixOperands =
    | MatrixResultSignedComponentsKHR = 0x0008u
    | SaturatingAccumulationKHR = 0x0010u
 
+module CooperativeMatrixOperands =
+
+    let GetVersion x =
+       match x with
+       | CooperativeMatrixOperands.NoneKHR -> 65536u
+       | CooperativeMatrixOperands.MatrixASignedComponentsKHR -> 65536u
+       | CooperativeMatrixOperands.MatrixBSignedComponentsKHR -> 65536u
+       | CooperativeMatrixOperands.MatrixCSignedComponentsKHR -> 65536u
+       | CooperativeMatrixOperands.MatrixResultSignedComponentsKHR -> 65536u
+       | CooperativeMatrixOperands.SaturatingAccumulationKHR -> 65536u
+
 type CooperativeMatrixLayout =
    | RowMajorKHR = 0u
    | ColumnMajorKHR = 1u
    | RowBlockedInterleavedARM = 4202u
    | ColumnBlockedInterleavedARM = 4203u
 
+module CooperativeMatrixLayout =
+
+    let GetVersion x =
+       match x with
+       | CooperativeMatrixLayout.RowMajorKHR -> 65536u
+       | CooperativeMatrixLayout.ColumnMajorKHR -> 65536u
+       | CooperativeMatrixLayout.RowBlockedInterleavedARM -> 65536u
+       | CooperativeMatrixLayout.ColumnBlockedInterleavedARM -> 65536u
+
 type CooperativeMatrixUse =
    | MatrixAKHR = 0u
    | MatrixBKHR = 1u
    | MatrixAccumulatorKHR = 2u
 
+module CooperativeMatrixUse =
+
+    let GetVersion x =
+       match x with
+       | CooperativeMatrixUse.MatrixAKHR -> 65536u
+       | CooperativeMatrixUse.MatrixBKHR -> 65536u
+       | CooperativeMatrixUse.MatrixAccumulatorKHR -> 65536u
+
 type CooperativeMatrixReduce =
    | Row = 0x0001u
    | Column = 0x0002u
    | TwoByTwo = 0x0004u
+
+module CooperativeMatrixReduce =
+
+    let GetVersion x =
+       match x with
+       | CooperativeMatrixReduce.Row -> 65536u
+       | CooperativeMatrixReduce.Column -> 65536u
+       | CooperativeMatrixReduce.TwoByTwo -> 65536u
 
 type TensorClampMode =
    | Undefined = 0u
@@ -1350,6 +2517,16 @@ type TensorClampMode =
    | ClampToEdge = 2u
    | Repeat = 3u
    | RepeatMirrored = 4u
+
+module TensorClampMode =
+
+    let GetVersion x =
+       match x with
+       | TensorClampMode.Undefined -> 65536u
+       | TensorClampMode.Constant -> 65536u
+       | TensorClampMode.ClampToEdge -> 65536u
+       | TensorClampMode.Repeat -> 65536u
+       | TensorClampMode.RepeatMirrored -> 65536u
 
 [<RequireQualifiedAccess>]
 type TensorAddressingOperands =
@@ -1363,9 +2540,23 @@ type TensorAddressingOperands =
        | TensorView _ -> 0x0001u
        | DecodeFunc _ -> 0x0002u
 
+    member x.Version =
+       match x with
+       | None -> 65536u
+       | TensorView _ -> 65536u
+       | DecodeFunc _ -> 65536u
+
+
 type InitializationModeQualifier =
    | InitOnDeviceReprogramINTEL = 0u
    | InitOnDeviceResetINTEL = 1u
+
+module InitializationModeQualifier =
+
+    let GetVersion x =
+       match x with
+       | InitializationModeQualifier.InitOnDeviceReprogramINTEL -> 65536u
+       | InitializationModeQualifier.InitOnDeviceResetINTEL -> 65536u
 
 type LoadCacheControl =
    | UncachedINTEL = 0u
@@ -1374,14 +2565,39 @@ type LoadCacheControl =
    | InvalidateAfterReadINTEL = 3u
    | ConstCachedINTEL = 4u
 
+module LoadCacheControl =
+
+    let GetVersion x =
+       match x with
+       | LoadCacheControl.UncachedINTEL -> 65536u
+       | LoadCacheControl.CachedINTEL -> 65536u
+       | LoadCacheControl.StreamingINTEL -> 65536u
+       | LoadCacheControl.InvalidateAfterReadINTEL -> 65536u
+       | LoadCacheControl.ConstCachedINTEL -> 65536u
+
 type StoreCacheControl =
    | UncachedINTEL = 0u
    | WriteThroughINTEL = 1u
    | WriteBackINTEL = 2u
    | StreamingINTEL = 3u
 
+module StoreCacheControl =
+
+    let GetVersion x =
+       match x with
+       | StoreCacheControl.UncachedINTEL -> 65536u
+       | StoreCacheControl.WriteThroughINTEL -> 65536u
+       | StoreCacheControl.WriteBackINTEL -> 65536u
+       | StoreCacheControl.StreamingINTEL -> 65536u
+
 type NamedMaximumNumberOfRegisters =
    | AutoINTEL = 0u
+
+module NamedMaximumNumberOfRegisters =
+
+    let GetVersion x =
+       match x with
+       | NamedMaximumNumberOfRegisters.AutoINTEL -> 65536u
 
 type FPEncoding =
    | FPEncoding = 0u
@@ -2949,765 +4165,765 @@ type Instruction =
 
     member x.Version =
        match x with
-       | OpNop -> 1.0m
-       | OpUndef _ -> 1.0m
-       | OpSourceContinued _ -> 1.0m
-       | OpSource _ -> 1.0m
-       | OpSourceExtension _ -> 1.0m
-       | OpName _ -> 1.0m
-       | OpMemberName _ -> 1.0m
-       | OpString _ -> 1.0m
-       | OpLine _ -> 1.0m
-       | OpExtension _ -> 1.0m
-       | OpExtInstImport _ -> 1.0m
-       | OpExtInst _ -> 1.0m
-       | OpMemoryModel _ -> 1.0m
-       | OpEntryPoint _ -> 1.0m
-       | OpExecutionMode _ -> 1.0m
-       | OpCapability _ -> 1.0m
-       | OpTypeVoid _ -> 1.0m
-       | OpTypeBool _ -> 1.0m
-       | OpTypeInt _ -> 1.0m
-       | OpTypeFloat _ -> 1.0m
-       | OpTypeVector _ -> 1.0m
-       | OpTypeMatrix _ -> 1.0m
-       | OpTypeImage _ -> 1.0m
-       | OpTypeSampler _ -> 1.0m
-       | OpTypeSampledImage _ -> 1.0m
-       | OpTypeArray _ -> 1.0m
-       | OpTypeRuntimeArray _ -> 1.0m
-       | OpTypeStruct _ -> 1.0m
-       | OpTypeOpaque _ -> 1.0m
-       | OpTypePointer _ -> 1.0m
-       | OpTypeFunction _ -> 1.0m
-       | OpTypeEvent _ -> 1.0m
-       | OpTypeDeviceEvent _ -> 1.0m
-       | OpTypeReserveId _ -> 1.0m
-       | OpTypeQueue _ -> 1.0m
-       | OpTypePipe _ -> 1.0m
-       | OpTypeForwardPointer _ -> 1.0m
-       | OpConstantTrue _ -> 1.0m
-       | OpConstantFalse _ -> 1.0m
-       | OpConstant _ -> 1.0m
-       | OpConstantComposite _ -> 1.0m
-       | OpConstantSampler _ -> 1.0m
-       | OpConstantNull _ -> 1.0m
-       | OpSpecConstantTrue _ -> 1.0m
-       | OpSpecConstantFalse _ -> 1.0m
-       | OpSpecConstant _ -> 1.0m
-       | OpSpecConstantComposite _ -> 1.0m
-       | OpSpecConstantOp _ -> 1.0m
-       | OpFunction _ -> 1.0m
-       | OpFunctionParameter _ -> 1.0m
-       | OpFunctionEnd -> 1.0m
-       | OpFunctionCall _ -> 1.0m
-       | OpVariable _ -> 1.0m
-       | OpImageTexelPointer _ -> 1.0m
-       | OpLoad _ -> 1.0m
-       | OpStore _ -> 1.0m
-       | OpCopyMemory _ -> 1.0m
-       | OpCopyMemorySized _ -> 1.0m
-       | OpAccessChain _ -> 1.0m
-       | OpInBoundsAccessChain _ -> 1.0m
-       | OpPtrAccessChain _ -> 1.0m
-       | OpArrayLength _ -> 1.0m
-       | OpGenericPtrMemSemantics _ -> 1.0m
-       | OpInBoundsPtrAccessChain _ -> 1.0m
-       | OpDecorate _ -> 1.0m
-       | OpMemberDecorate _ -> 1.0m
-       | OpDecorationGroup _ -> 1.0m
-       | OpGroupDecorate _ -> 1.0m
-       | OpGroupMemberDecorate _ -> 1.0m
-       | OpVectorExtractDynamic _ -> 1.0m
-       | OpVectorInsertDynamic _ -> 1.0m
-       | OpVectorShuffle _ -> 1.0m
-       | OpCompositeConstruct _ -> 1.0m
-       | OpCompositeExtract _ -> 1.0m
-       | OpCompositeInsert _ -> 1.0m
-       | OpCopyObject _ -> 1.0m
-       | OpTranspose _ -> 1.0m
-       | OpSampledImage _ -> 1.0m
-       | OpImageSampleImplicitLod _ -> 1.0m
-       | OpImageSampleExplicitLod _ -> 1.0m
-       | OpImageSampleDrefImplicitLod _ -> 1.0m
-       | OpImageSampleDrefExplicitLod _ -> 1.0m
-       | OpImageSampleProjImplicitLod _ -> 1.0m
-       | OpImageSampleProjExplicitLod _ -> 1.0m
-       | OpImageSampleProjDrefImplicitLod _ -> 1.0m
-       | OpImageSampleProjDrefExplicitLod _ -> 1.0m
-       | OpImageFetch _ -> 1.0m
-       | OpImageGather _ -> 1.0m
-       | OpImageDrefGather _ -> 1.0m
-       | OpImageRead _ -> 1.0m
-       | OpImageWrite _ -> 1.0m
-       | OpImage _ -> 1.0m
-       | OpImageQueryFormat _ -> 1.0m
-       | OpImageQueryOrder _ -> 1.0m
-       | OpImageQuerySizeLod _ -> 1.0m
-       | OpImageQuerySize _ -> 1.0m
-       | OpImageQueryLod _ -> 1.0m
-       | OpImageQueryLevels _ -> 1.0m
-       | OpImageQuerySamples _ -> 1.0m
-       | OpConvertFToU _ -> 1.0m
-       | OpConvertFToS _ -> 1.0m
-       | OpConvertSToF _ -> 1.0m
-       | OpConvertUToF _ -> 1.0m
-       | OpUConvert _ -> 1.0m
-       | OpSConvert _ -> 1.0m
-       | OpFConvert _ -> 1.0m
-       | OpQuantizeToF16 _ -> 1.0m
-       | OpConvertPtrToU _ -> 1.0m
-       | OpSatConvertSToU _ -> 1.0m
-       | OpSatConvertUToS _ -> 1.0m
-       | OpConvertUToPtr _ -> 1.0m
-       | OpPtrCastToGeneric _ -> 1.0m
-       | OpGenericCastToPtr _ -> 1.0m
-       | OpGenericCastToPtrExplicit _ -> 1.0m
-       | OpBitcast _ -> 1.0m
-       | OpSNegate _ -> 1.0m
-       | OpFNegate _ -> 1.0m
-       | OpIAdd _ -> 1.0m
-       | OpFAdd _ -> 1.0m
-       | OpISub _ -> 1.0m
-       | OpFSub _ -> 1.0m
-       | OpIMul _ -> 1.0m
-       | OpFMul _ -> 1.0m
-       | OpUDiv _ -> 1.0m
-       | OpSDiv _ -> 1.0m
-       | OpFDiv _ -> 1.0m
-       | OpUMod _ -> 1.0m
-       | OpSRem _ -> 1.0m
-       | OpSMod _ -> 1.0m
-       | OpFRem _ -> 1.0m
-       | OpFMod _ -> 1.0m
-       | OpVectorTimesScalar _ -> 1.0m
-       | OpMatrixTimesScalar _ -> 1.0m
-       | OpVectorTimesMatrix _ -> 1.0m
-       | OpMatrixTimesVector _ -> 1.0m
-       | OpMatrixTimesMatrix _ -> 1.0m
-       | OpOuterProduct _ -> 1.0m
-       | OpDot _ -> 1.0m
-       | OpIAddCarry _ -> 1.0m
-       | OpISubBorrow _ -> 1.0m
-       | OpUMulExtended _ -> 1.0m
-       | OpSMulExtended _ -> 1.0m
-       | OpAny _ -> 1.0m
-       | OpAll _ -> 1.0m
-       | OpIsNan _ -> 1.0m
-       | OpIsInf _ -> 1.0m
-       | OpIsFinite _ -> 1.0m
-       | OpIsNormal _ -> 1.0m
-       | OpSignBitSet _ -> 1.0m
-       | OpLessOrGreater _ -> 1.0m
-       | OpOrdered _ -> 1.0m
-       | OpUnordered _ -> 1.0m
-       | OpLogicalEqual _ -> 1.0m
-       | OpLogicalNotEqual _ -> 1.0m
-       | OpLogicalOr _ -> 1.0m
-       | OpLogicalAnd _ -> 1.0m
-       | OpLogicalNot _ -> 1.0m
-       | OpSelect _ -> 1.0m
-       | OpIEqual _ -> 1.0m
-       | OpINotEqual _ -> 1.0m
-       | OpUGreaterThan _ -> 1.0m
-       | OpSGreaterThan _ -> 1.0m
-       | OpUGreaterThanEqual _ -> 1.0m
-       | OpSGreaterThanEqual _ -> 1.0m
-       | OpULessThan _ -> 1.0m
-       | OpSLessThan _ -> 1.0m
-       | OpULessThanEqual _ -> 1.0m
-       | OpSLessThanEqual _ -> 1.0m
-       | OpFOrdEqual _ -> 1.0m
-       | OpFUnordEqual _ -> 1.0m
-       | OpFOrdNotEqual _ -> 1.0m
-       | OpFUnordNotEqual _ -> 1.0m
-       | OpFOrdLessThan _ -> 1.0m
-       | OpFUnordLessThan _ -> 1.0m
-       | OpFOrdGreaterThan _ -> 1.0m
-       | OpFUnordGreaterThan _ -> 1.0m
-       | OpFOrdLessThanEqual _ -> 1.0m
-       | OpFUnordLessThanEqual _ -> 1.0m
-       | OpFOrdGreaterThanEqual _ -> 1.0m
-       | OpFUnordGreaterThanEqual _ -> 1.0m
-       | OpShiftRightLogical _ -> 1.0m
-       | OpShiftRightArithmetic _ -> 1.0m
-       | OpShiftLeftLogical _ -> 1.0m
-       | OpBitwiseOr _ -> 1.0m
-       | OpBitwiseXor _ -> 1.0m
-       | OpBitwiseAnd _ -> 1.0m
-       | OpNot _ -> 1.0m
-       | OpBitFieldInsert _ -> 1.0m
-       | OpBitFieldSExtract _ -> 1.0m
-       | OpBitFieldUExtract _ -> 1.0m
-       | OpBitReverse _ -> 1.0m
-       | OpBitCount _ -> 1.0m
-       | OpDPdx _ -> 1.0m
-       | OpDPdy _ -> 1.0m
-       | OpFwidth _ -> 1.0m
-       | OpDPdxFine _ -> 1.0m
-       | OpDPdyFine _ -> 1.0m
-       | OpFwidthFine _ -> 1.0m
-       | OpDPdxCoarse _ -> 1.0m
-       | OpDPdyCoarse _ -> 1.0m
-       | OpFwidthCoarse _ -> 1.0m
-       | OpEmitVertex -> 1.0m
-       | OpEndPrimitive -> 1.0m
-       | OpEmitStreamVertex _ -> 1.0m
-       | OpEndStreamPrimitive _ -> 1.0m
-       | OpControlBarrier _ -> 1.0m
-       | OpMemoryBarrier _ -> 1.0m
-       | OpAtomicLoad _ -> 1.0m
-       | OpAtomicStore _ -> 1.0m
-       | OpAtomicExchange _ -> 1.0m
-       | OpAtomicCompareExchange _ -> 1.0m
-       | OpAtomicCompareExchangeWeak _ -> 1.0m
-       | OpAtomicIIncrement _ -> 1.0m
-       | OpAtomicIDecrement _ -> 1.0m
-       | OpAtomicIAdd _ -> 1.0m
-       | OpAtomicISub _ -> 1.0m
-       | OpAtomicSMin _ -> 1.0m
-       | OpAtomicUMin _ -> 1.0m
-       | OpAtomicSMax _ -> 1.0m
-       | OpAtomicUMax _ -> 1.0m
-       | OpAtomicAnd _ -> 1.0m
-       | OpAtomicOr _ -> 1.0m
-       | OpAtomicXor _ -> 1.0m
-       | OpPhi _ -> 1.0m
-       | OpLoopMerge _ -> 1.0m
-       | OpSelectionMerge _ -> 1.0m
-       | OpLabel _ -> 1.0m
-       | OpBranch _ -> 1.0m
-       | OpBranchConditional _ -> 1.0m
-       | OpSwitch _ -> 1.0m
-       | OpKill -> 1.0m
-       | OpReturn -> 1.0m
-       | OpReturnValue _ -> 1.0m
-       | OpUnreachable -> 1.0m
-       | OpLifetimeStart _ -> 1.0m
-       | OpLifetimeStop _ -> 1.0m
-       | OpGroupAsyncCopy _ -> 1.0m
-       | OpGroupWaitEvents _ -> 1.0m
-       | OpGroupAll _ -> 1.0m
-       | OpGroupAny _ -> 1.0m
-       | OpGroupBroadcast _ -> 1.0m
-       | OpGroupIAdd _ -> 1.0m
-       | OpGroupFAdd _ -> 1.0m
-       | OpGroupFMin _ -> 1.0m
-       | OpGroupUMin _ -> 1.0m
-       | OpGroupSMin _ -> 1.0m
-       | OpGroupFMax _ -> 1.0m
-       | OpGroupUMax _ -> 1.0m
-       | OpGroupSMax _ -> 1.0m
-       | OpReadPipe _ -> 1.0m
-       | OpWritePipe _ -> 1.0m
-       | OpReservedReadPipe _ -> 1.0m
-       | OpReservedWritePipe _ -> 1.0m
-       | OpReserveReadPipePackets _ -> 1.0m
-       | OpReserveWritePipePackets _ -> 1.0m
-       | OpCommitReadPipe _ -> 1.0m
-       | OpCommitWritePipe _ -> 1.0m
-       | OpIsValidReserveId _ -> 1.0m
-       | OpGetNumPipePackets _ -> 1.0m
-       | OpGetMaxPipePackets _ -> 1.0m
-       | OpGroupReserveReadPipePackets _ -> 1.0m
-       | OpGroupReserveWritePipePackets _ -> 1.0m
-       | OpGroupCommitReadPipe _ -> 1.0m
-       | OpGroupCommitWritePipe _ -> 1.0m
-       | OpEnqueueMarker _ -> 1.0m
-       | OpEnqueueKernel _ -> 1.0m
-       | OpGetKernelNDrangeSubGroupCount _ -> 1.0m
-       | OpGetKernelNDrangeMaxSubGroupSize _ -> 1.0m
-       | OpGetKernelWorkGroupSize _ -> 1.0m
-       | OpGetKernelPreferredWorkGroupSizeMultiple _ -> 1.0m
-       | OpRetainEvent _ -> 1.0m
-       | OpReleaseEvent _ -> 1.0m
-       | OpCreateUserEvent _ -> 1.0m
-       | OpIsValidEvent _ -> 1.0m
-       | OpSetUserEventStatus _ -> 1.0m
-       | OpCaptureEventProfilingInfo _ -> 1.0m
-       | OpGetDefaultQueue _ -> 1.0m
-       | OpBuildNDRange _ -> 1.0m
-       | OpImageSparseSampleImplicitLod _ -> 1.0m
-       | OpImageSparseSampleExplicitLod _ -> 1.0m
-       | OpImageSparseSampleDrefImplicitLod _ -> 1.0m
-       | OpImageSparseSampleDrefExplicitLod _ -> 1.0m
-       | OpImageSparseSampleProjImplicitLod _ -> 1.0m
-       | OpImageSparseSampleProjExplicitLod _ -> 1.0m
-       | OpImageSparseSampleProjDrefImplicitLod _ -> 1.0m
-       | OpImageSparseSampleProjDrefExplicitLod _ -> 1.0m
-       | OpImageSparseFetch _ -> 1.0m
-       | OpImageSparseGather _ -> 1.0m
-       | OpImageSparseDrefGather _ -> 1.0m
-       | OpImageSparseTexelsResident _ -> 1.0m
-       | OpNoLine -> 1.0m
-       | OpAtomicFlagTestAndSet _ -> 1.0m
-       | OpAtomicFlagClear _ -> 1.0m
-       | OpImageSparseRead _ -> 1.0m
-       | OpSizeOf _ -> 1.1m
-       | OpTypePipeStorage _ -> 1.1m
-       | OpConstantPipeStorage _ -> 1.1m
-       | OpCreatePipeFromPipeStorage _ -> 1.1m
-       | OpGetKernelLocalSizeForSubgroupCount _ -> 1.1m
-       | OpGetKernelMaxNumSubgroups _ -> 1.1m
-       | OpTypeNamedBarrier _ -> 1.1m
-       | OpNamedBarrierInitialize _ -> 1.1m
-       | OpMemoryNamedBarrier _ -> 1.1m
-       | OpModuleProcessed _ -> 1.1m
-       | OpExecutionModeId _ -> 1.2m
-       | OpDecorateId _ -> 1.2m
-       | OpGroupNonUniformElect _ -> 1.3m
-       | OpGroupNonUniformAll _ -> 1.3m
-       | OpGroupNonUniformAny _ -> 1.3m
-       | OpGroupNonUniformAllEqual _ -> 1.3m
-       | OpGroupNonUniformBroadcast _ -> 1.3m
-       | OpGroupNonUniformBroadcastFirst _ -> 1.3m
-       | OpGroupNonUniformBallot _ -> 1.3m
-       | OpGroupNonUniformInverseBallot _ -> 1.3m
-       | OpGroupNonUniformBallotBitExtract _ -> 1.3m
-       | OpGroupNonUniformBallotBitCount _ -> 1.3m
-       | OpGroupNonUniformBallotFindLSB _ -> 1.3m
-       | OpGroupNonUniformBallotFindMSB _ -> 1.3m
-       | OpGroupNonUniformShuffle _ -> 1.3m
-       | OpGroupNonUniformShuffleXor _ -> 1.3m
-       | OpGroupNonUniformShuffleUp _ -> 1.3m
-       | OpGroupNonUniformShuffleDown _ -> 1.3m
-       | OpGroupNonUniformIAdd _ -> 1.3m
-       | OpGroupNonUniformFAdd _ -> 1.3m
-       | OpGroupNonUniformIMul _ -> 1.3m
-       | OpGroupNonUniformFMul _ -> 1.3m
-       | OpGroupNonUniformSMin _ -> 1.3m
-       | OpGroupNonUniformUMin _ -> 1.3m
-       | OpGroupNonUniformFMin _ -> 1.3m
-       | OpGroupNonUniformSMax _ -> 1.3m
-       | OpGroupNonUniformUMax _ -> 1.3m
-       | OpGroupNonUniformFMax _ -> 1.3m
-       | OpGroupNonUniformBitwiseAnd _ -> 1.3m
-       | OpGroupNonUniformBitwiseOr _ -> 1.3m
-       | OpGroupNonUniformBitwiseXor _ -> 1.3m
-       | OpGroupNonUniformLogicalAnd _ -> 1.3m
-       | OpGroupNonUniformLogicalOr _ -> 1.3m
-       | OpGroupNonUniformLogicalXor _ -> 1.3m
-       | OpGroupNonUniformQuadBroadcast _ -> 1.3m
-       | OpGroupNonUniformQuadSwap _ -> 1.3m
-       | OpCopyLogical _ -> 1.4m
-       | OpPtrEqual _ -> 1.4m
-       | OpPtrNotEqual _ -> 1.4m
-       | OpPtrDiff _ -> 1.4m
-       | OpColorAttachmentReadEXT _ -> 1.0m
-       | OpDepthAttachmentReadEXT _ -> 1.0m
-       | OpStencilAttachmentReadEXT _ -> 1.0m
-       | OpTerminateInvocation -> 1.6m
-       | OpTypeUntypedPointerKHR _ -> 1.0m
-       | OpUntypedVariableKHR _ -> 1.0m
-       | OpUntypedAccessChainKHR _ -> 1.0m
-       | OpUntypedInBoundsAccessChainKHR _ -> 1.0m
-       | OpSubgroupBallotKHR _ -> 1.0m
-       | OpSubgroupFirstInvocationKHR _ -> 1.0m
-       | OpUntypedPtrAccessChainKHR _ -> 1.0m
-       | OpUntypedInBoundsPtrAccessChainKHR _ -> 1.0m
-       | OpUntypedArrayLengthKHR _ -> 1.0m
-       | OpUntypedPrefetchKHR _ -> 1.0m
-       | OpSubgroupAllKHR _ -> 1.0m
-       | OpSubgroupAnyKHR _ -> 1.0m
-       | OpSubgroupAllEqualKHR _ -> 1.0m
-       | OpGroupNonUniformRotateKHR _ -> 1.0m
-       | OpSubgroupReadInvocationKHR _ -> 1.0m
-       | OpExtInstWithForwardRefsKHR _ -> 1.0m
-       | OpTraceRayKHR _ -> 1.0m
-       | OpExecuteCallableKHR _ -> 1.0m
-       | OpConvertUToAccelerationStructureKHR _ -> 1.0m
-       | OpIgnoreIntersectionKHR -> 1.0m
-       | OpTerminateRayKHR -> 1.0m
-       | OpSDot _ -> 1.6m
-       | OpUDot _ -> 1.6m
-       | OpSUDot _ -> 1.6m
-       | OpSDotAccSat _ -> 1.6m
-       | OpUDotAccSat _ -> 1.6m
-       | OpSUDotAccSat _ -> 1.6m
-       | OpTypeCooperativeMatrixKHR _ -> 1.0m
-       | OpCooperativeMatrixLoadKHR _ -> 1.0m
-       | OpCooperativeMatrixStoreKHR _ -> 1.0m
-       | OpCooperativeMatrixMulAddKHR _ -> 1.0m
-       | OpCooperativeMatrixLengthKHR _ -> 1.0m
-       | OpConstantCompositeReplicateEXT _ -> 1.0m
-       | OpSpecConstantCompositeReplicateEXT _ -> 1.0m
-       | OpCompositeConstructReplicateEXT _ -> 1.0m
-       | OpTypeRayQueryKHR _ -> 1.0m
-       | OpRayQueryInitializeKHR _ -> 1.0m
-       | OpRayQueryTerminateKHR _ -> 1.0m
-       | OpRayQueryGenerateIntersectionKHR _ -> 1.0m
-       | OpRayQueryConfirmIntersectionKHR _ -> 1.0m
-       | OpRayQueryProceedKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionTypeKHR _ -> 1.0m
-       | OpImageSampleWeightedQCOM _ -> 1.0m
-       | OpImageBoxFilterQCOM _ -> 1.0m
-       | OpImageBlockMatchSSDQCOM _ -> 1.0m
-       | OpImageBlockMatchSADQCOM _ -> 1.0m
-       | OpImageBlockMatchWindowSSDQCOM _ -> 1.0m
-       | OpImageBlockMatchWindowSADQCOM _ -> 1.0m
-       | OpImageBlockMatchGatherSSDQCOM _ -> 1.0m
-       | OpImageBlockMatchGatherSADQCOM _ -> 1.0m
-       | OpGroupIAddNonUniformAMD _ -> 1.0m
-       | OpGroupFAddNonUniformAMD _ -> 1.0m
-       | OpGroupFMinNonUniformAMD _ -> 1.0m
-       | OpGroupUMinNonUniformAMD _ -> 1.0m
-       | OpGroupSMinNonUniformAMD _ -> 1.0m
-       | OpGroupFMaxNonUniformAMD _ -> 1.0m
-       | OpGroupUMaxNonUniformAMD _ -> 1.0m
-       | OpGroupSMaxNonUniformAMD _ -> 1.0m
-       | OpFragmentMaskFetchAMD _ -> 1.0m
-       | OpFragmentFetchAMD _ -> 1.0m
-       | OpReadClockKHR _ -> 1.0m
-       | OpAllocateNodePayloadsAMDX _ -> 1.0m
-       | OpEnqueueNodePayloadsAMDX _ -> 1.0m
-       | OpTypeNodePayloadArrayAMDX _ -> 1.0m
-       | OpFinishWritingNodePayloadAMDX _ -> 1.0m
-       | OpNodePayloadArrayLengthAMDX _ -> 1.0m
-       | OpIsNodePayloadValidAMDX _ -> 1.0m
-       | OpConstantStringAMDX _ -> 1.0m
-       | OpSpecConstantStringAMDX _ -> 1.0m
-       | OpGroupNonUniformQuadAllKHR _ -> 1.0m
-       | OpGroupNonUniformQuadAnyKHR _ -> 1.0m
-       | OpHitObjectRecordHitMotionNV _ -> 1.0m
-       | OpHitObjectRecordHitWithIndexMotionNV _ -> 1.0m
-       | OpHitObjectRecordMissMotionNV _ -> 1.0m
-       | OpHitObjectGetWorldToObjectNV _ -> 1.0m
-       | OpHitObjectGetObjectToWorldNV _ -> 1.0m
-       | OpHitObjectGetObjectRayDirectionNV _ -> 1.0m
-       | OpHitObjectGetObjectRayOriginNV _ -> 1.0m
-       | OpHitObjectTraceRayMotionNV _ -> 1.0m
-       | OpHitObjectGetShaderRecordBufferHandleNV _ -> 1.0m
-       | OpHitObjectGetShaderBindingTableRecordIndexNV _ -> 1.0m
-       | OpHitObjectRecordEmptyNV _ -> 1.0m
-       | OpHitObjectTraceRayNV _ -> 1.0m
-       | OpHitObjectRecordHitNV _ -> 1.0m
-       | OpHitObjectRecordHitWithIndexNV _ -> 1.0m
-       | OpHitObjectRecordMissNV _ -> 1.0m
-       | OpHitObjectExecuteShaderNV _ -> 1.0m
-       | OpHitObjectGetCurrentTimeNV _ -> 1.0m
-       | OpHitObjectGetAttributesNV _ -> 1.0m
-       | OpHitObjectGetHitKindNV _ -> 1.0m
-       | OpHitObjectGetPrimitiveIndexNV _ -> 1.0m
-       | OpHitObjectGetGeometryIndexNV _ -> 1.0m
-       | OpHitObjectGetInstanceIdNV _ -> 1.0m
-       | OpHitObjectGetInstanceCustomIndexNV _ -> 1.0m
-       | OpHitObjectGetWorldRayDirectionNV _ -> 1.0m
-       | OpHitObjectGetWorldRayOriginNV _ -> 1.0m
-       | OpHitObjectGetRayTMaxNV _ -> 1.0m
-       | OpHitObjectGetRayTMinNV _ -> 1.0m
-       | OpHitObjectIsEmptyNV _ -> 1.0m
-       | OpHitObjectIsHitNV _ -> 1.0m
-       | OpHitObjectIsMissNV _ -> 1.0m
-       | OpReorderThreadWithHitObjectNV _ -> 1.0m
-       | OpReorderThreadWithHintNV _ -> 1.0m
-       | OpTypeHitObjectNV _ -> 1.0m
-       | OpImageSampleFootprintNV _ -> 1.0m
-       | OpCooperativeMatrixConvertNV _ -> 1.0m
-       | OpEmitMeshTasksEXT _ -> 1.0m
-       | OpSetMeshOutputsEXT _ -> 1.0m
-       | OpGroupNonUniformPartitionNV _ -> 1.0m
-       | OpWritePackedPrimitiveIndices4x8NV _ -> 1.0m
-       | OpFetchMicroTriangleVertexPositionNV _ -> 1.0m
-       | OpFetchMicroTriangleVertexBarycentricNV _ -> 1.0m
-       | OpReportIntersectionKHR _ -> 1.0m
-       | OpIgnoreIntersectionNV -> 1.0m
-       | OpTerminateRayNV -> 1.0m
-       | OpTraceNV _ -> 1.0m
-       | OpTraceMotionNV _ -> 1.0m
-       | OpTraceRayMotionNV _ -> 1.0m
-       | OpRayQueryGetIntersectionTriangleVertexPositionsKHR _ -> 1.0m
-       | OpTypeAccelerationStructureKHR _ -> 1.0m
-       | OpExecuteCallableNV _ -> 1.0m
-       | OpTypeCooperativeMatrixNV _ -> 1.0m
-       | OpCooperativeMatrixLoadNV _ -> 1.0m
-       | OpCooperativeMatrixStoreNV _ -> 1.0m
-       | OpCooperativeMatrixMulAddNV _ -> 1.0m
-       | OpCooperativeMatrixLengthNV _ -> 1.0m
-       | OpBeginInvocationInterlockEXT -> 1.0m
-       | OpEndInvocationInterlockEXT -> 1.0m
-       | OpCooperativeMatrixReduceNV _ -> 1.0m
-       | OpCooperativeMatrixLoadTensorNV _ -> 1.0m
-       | OpCooperativeMatrixStoreTensorNV _ -> 1.0m
-       | OpCooperativeMatrixPerElementOpNV _ -> 1.0m
-       | OpTypeTensorLayoutNV _ -> 1.0m
-       | OpTypeTensorViewNV _ -> 1.0m
-       | OpCreateTensorLayoutNV _ -> 1.0m
-       | OpTensorLayoutSetDimensionNV _ -> 1.0m
-       | OpTensorLayoutSetStrideNV _ -> 1.0m
-       | OpTensorLayoutSliceNV _ -> 1.0m
-       | OpTensorLayoutSetClampValueNV _ -> 1.0m
-       | OpCreateTensorViewNV _ -> 1.0m
-       | OpTensorViewSetDimensionNV _ -> 1.0m
-       | OpTensorViewSetStrideNV _ -> 1.0m
-       | OpDemoteToHelperInvocation -> 1.6m
-       | OpIsHelperInvocationEXT _ -> 1.0m
-       | OpTensorViewSetClipNV _ -> 1.0m
-       | OpTensorLayoutSetBlockSizeNV _ -> 1.0m
-       | OpCooperativeMatrixTransposeNV _ -> 1.0m
-       | OpConvertUToImageNV _ -> 1.0m
-       | OpConvertUToSamplerNV _ -> 1.0m
-       | OpConvertImageToUNV _ -> 1.0m
-       | OpConvertSamplerToUNV _ -> 1.0m
-       | OpConvertUToSampledImageNV _ -> 1.0m
-       | OpConvertSampledImageToUNV _ -> 1.0m
-       | OpSamplerImageAddressingModeNV _ -> 1.0m
-       | OpRawAccessChainNV _ -> 1.0m
-       | OpSubgroupShuffleINTEL _ -> 1.0m
-       | OpSubgroupShuffleDownINTEL _ -> 1.0m
-       | OpSubgroupShuffleUpINTEL _ -> 1.0m
-       | OpSubgroupShuffleXorINTEL _ -> 1.0m
-       | OpSubgroupBlockReadINTEL _ -> 1.0m
-       | OpSubgroupBlockWriteINTEL _ -> 1.0m
-       | OpSubgroupImageBlockReadINTEL _ -> 1.0m
-       | OpSubgroupImageBlockWriteINTEL _ -> 1.0m
-       | OpSubgroupImageMediaBlockReadINTEL _ -> 1.0m
-       | OpSubgroupImageMediaBlockWriteINTEL _ -> 1.0m
-       | OpUCountLeadingZerosINTEL _ -> 1.0m
-       | OpUCountTrailingZerosINTEL _ -> 1.0m
-       | OpAbsISubINTEL _ -> 1.0m
-       | OpAbsUSubINTEL _ -> 1.0m
-       | OpIAddSatINTEL _ -> 1.0m
-       | OpUAddSatINTEL _ -> 1.0m
-       | OpIAverageINTEL _ -> 1.0m
-       | OpUAverageINTEL _ -> 1.0m
-       | OpIAverageRoundedINTEL _ -> 1.0m
-       | OpUAverageRoundedINTEL _ -> 1.0m
-       | OpISubSatINTEL _ -> 1.0m
-       | OpUSubSatINTEL _ -> 1.0m
-       | OpIMul32x16INTEL _ -> 1.0m
-       | OpUMul32x16INTEL _ -> 1.0m
-       | OpConstantFunctionPointerINTEL _ -> 1.0m
-       | OpFunctionPointerCallINTEL _ -> 1.0m
-       | OpAsmTargetINTEL _ -> 1.0m
-       | OpAsmINTEL _ -> 1.0m
-       | OpAsmCallINTEL _ -> 1.0m
-       | OpAtomicFMinEXT _ -> 1.0m
-       | OpAtomicFMaxEXT _ -> 1.0m
-       | OpAssumeTrueKHR _ -> 1.0m
-       | OpExpectKHR _ -> 1.0m
-       | OpDecorateString _ -> 1.4m
-       | OpMemberDecorateString _ -> 1.4m
-       | OpVmeImageINTEL _ -> 1.0m
-       | OpTypeVmeImageINTEL _ -> 1.0m
-       | OpTypeAvcImePayloadINTEL _ -> 1.0m
-       | OpTypeAvcRefPayloadINTEL _ -> 1.0m
-       | OpTypeAvcSicPayloadINTEL _ -> 1.0m
-       | OpTypeAvcMcePayloadINTEL _ -> 1.0m
-       | OpTypeAvcMceResultINTEL _ -> 1.0m
-       | OpTypeAvcImeResultINTEL _ -> 1.0m
-       | OpTypeAvcImeResultSingleReferenceStreamoutINTEL _ -> 1.0m
-       | OpTypeAvcImeResultDualReferenceStreamoutINTEL _ -> 1.0m
-       | OpTypeAvcImeSingleReferenceStreaminINTEL _ -> 1.0m
-       | OpTypeAvcImeDualReferenceStreaminINTEL _ -> 1.0m
-       | OpTypeAvcRefResultINTEL _ -> 1.0m
-       | OpTypeAvcSicResultINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetInterBaseMultiReferencePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultInterShapePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetInterShapePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultInterDirectionPenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetInterDirectionPenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultIntraLumaShapePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultInterMotionVectorCostTableINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultHighPenaltyCostTableINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultMediumPenaltyCostTableINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultLowPenaltyCostTableINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultIntraLumaModePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultNonDcLumaIntraPenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetDefaultIntraChromaModeBasePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetAcOnlyHaarINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetSourceInterlacedFieldPolarityINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetSingleReferenceInterlacedFieldPolarityINTEL _ -> 1.0m
-       | OpSubgroupAvcMceSetDualReferenceInterlacedFieldPolaritiesINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToImePayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToImeResultINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToRefPayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToRefResultINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToSicPayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcMceConvertToSicResultINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetMotionVectorsINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterDistortionsINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetBestInterDistortionsINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterMajorShapeINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterMinorShapeINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterDirectionsINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterMotionVectorCountINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterReferenceIdsINTEL _ -> 1.0m
-       | OpSubgroupAvcMceGetInterReferenceInterlacedFieldPolaritiesINTEL _ -> 1.0m
-       | OpSubgroupAvcImeInitializeINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetSingleReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetDualReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcImeRefWindowSizeINTEL _ -> 1.0m
-       | OpSubgroupAvcImeAdjustRefOffsetINTEL _ -> 1.0m
-       | OpSubgroupAvcImeConvertToMcePayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetMaxMotionVectorCountINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetUnidirectionalMixDisableINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetEarlySearchTerminationThresholdINTEL _ -> 1.0m
-       | OpSubgroupAvcImeSetWeightedSadINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithDualReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreamoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithDualReferenceStreamoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeConvertToMceResultINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetSingleReferenceStreaminINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetDualReferenceStreaminINTEL _ -> 1.0m
-       | OpSubgroupAvcImeStripSingleReferenceStreamoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeStripDualReferenceStreamoutINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeMotionVectorsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeDistortionsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeReferenceIdsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetBorderReachedINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetTruncatedSearchIndicationINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetUnidirectionalEarlySearchTerminationINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetWeightingPatternMinimumMotionVectorINTEL _ -> 1.0m
-       | OpSubgroupAvcImeGetWeightingPatternMinimumDistortionINTEL _ -> 1.0m
-       | OpSubgroupAvcFmeInitializeINTEL _ -> 1.0m
-       | OpSubgroupAvcBmeInitializeINTEL _ -> 1.0m
-       | OpSubgroupAvcRefConvertToMcePayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcRefSetBidirectionalMixDisableINTEL _ -> 1.0m
-       | OpSubgroupAvcRefSetBilinearFilterEnableINTEL _ -> 1.0m
-       | OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcRefEvaluateWithDualReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL _ -> 1.0m
-       | OpSubgroupAvcRefConvertToMceResultINTEL _ -> 1.0m
-       | OpSubgroupAvcSicInitializeINTEL _ -> 1.0m
-       | OpSubgroupAvcSicConfigureSkcINTEL _ -> 1.0m
-       | OpSubgroupAvcSicConfigureIpeLumaINTEL _ -> 1.0m
-       | OpSubgroupAvcSicConfigureIpeLumaChromaINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetMotionVectorMaskINTEL _ -> 1.0m
-       | OpSubgroupAvcSicConvertToMcePayloadINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetIntraLumaShapePenaltyINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetIntraChromaModeCostFunctionINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetBilinearFilterEnableINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetSkcForwardTransformEnableINTEL _ -> 1.0m
-       | OpSubgroupAvcSicSetBlockBasedRawSkipSadINTEL _ -> 1.0m
-       | OpSubgroupAvcSicEvaluateIpeINTEL _ -> 1.0m
-       | OpSubgroupAvcSicEvaluateWithSingleReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcSicEvaluateWithDualReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL _ -> 1.0m
-       | OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL _ -> 1.0m
-       | OpSubgroupAvcSicConvertToMceResultINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetIpeLumaShapeINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetBestIpeLumaDistortionINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetBestIpeChromaDistortionINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetPackedIpeLumaModesINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetIpeChromaModeINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL _ -> 1.0m
-       | OpSubgroupAvcSicGetInterRawSadsINTEL _ -> 1.0m
-       | OpVariableLengthArrayINTEL _ -> 1.0m
-       | OpSaveMemoryINTEL _ -> 1.0m
-       | OpRestoreMemoryINTEL _ -> 1.0m
-       | OpArbitraryFloatSinCosPiINTEL _ -> 1.0m
-       | OpArbitraryFloatCastINTEL _ -> 1.0m
-       | OpArbitraryFloatCastFromIntINTEL _ -> 1.0m
-       | OpArbitraryFloatCastToIntINTEL _ -> 1.0m
-       | OpArbitraryFloatAddINTEL _ -> 1.0m
-       | OpArbitraryFloatSubINTEL _ -> 1.0m
-       | OpArbitraryFloatMulINTEL _ -> 1.0m
-       | OpArbitraryFloatDivINTEL _ -> 1.0m
-       | OpArbitraryFloatGTINTEL _ -> 1.0m
-       | OpArbitraryFloatGEINTEL _ -> 1.0m
-       | OpArbitraryFloatLTINTEL _ -> 1.0m
-       | OpArbitraryFloatLEINTEL _ -> 1.0m
-       | OpArbitraryFloatEQINTEL _ -> 1.0m
-       | OpArbitraryFloatRecipINTEL _ -> 1.0m
-       | OpArbitraryFloatRSqrtINTEL _ -> 1.0m
-       | OpArbitraryFloatCbrtINTEL _ -> 1.0m
-       | OpArbitraryFloatHypotINTEL _ -> 1.0m
-       | OpArbitraryFloatSqrtINTEL _ -> 1.0m
-       | OpArbitraryFloatLogINTEL _ -> 1.0m
-       | OpArbitraryFloatLog2INTEL _ -> 1.0m
-       | OpArbitraryFloatLog10INTEL _ -> 1.0m
-       | OpArbitraryFloatLog1pINTEL _ -> 1.0m
-       | OpArbitraryFloatExpINTEL _ -> 1.0m
-       | OpArbitraryFloatExp2INTEL _ -> 1.0m
-       | OpArbitraryFloatExp10INTEL _ -> 1.0m
-       | OpArbitraryFloatExpm1INTEL _ -> 1.0m
-       | OpArbitraryFloatSinINTEL _ -> 1.0m
-       | OpArbitraryFloatCosINTEL _ -> 1.0m
-       | OpArbitraryFloatSinCosINTEL _ -> 1.0m
-       | OpArbitraryFloatSinPiINTEL _ -> 1.0m
-       | OpArbitraryFloatCosPiINTEL _ -> 1.0m
-       | OpArbitraryFloatASinINTEL _ -> 1.0m
-       | OpArbitraryFloatASinPiINTEL _ -> 1.0m
-       | OpArbitraryFloatACosINTEL _ -> 1.0m
-       | OpArbitraryFloatACosPiINTEL _ -> 1.0m
-       | OpArbitraryFloatATanINTEL _ -> 1.0m
-       | OpArbitraryFloatATanPiINTEL _ -> 1.0m
-       | OpArbitraryFloatATan2INTEL _ -> 1.0m
-       | OpArbitraryFloatPowINTEL _ -> 1.0m
-       | OpArbitraryFloatPowRINTEL _ -> 1.0m
-       | OpArbitraryFloatPowNINTEL _ -> 1.0m
-       | OpLoopControlINTEL _ -> 1.0m
-       | OpAliasDomainDeclINTEL _ -> 1.0m
-       | OpAliasScopeDeclINTEL _ -> 1.0m
-       | OpAliasScopeListDeclINTEL _ -> 1.0m
-       | OpFixedSqrtINTEL _ -> 1.0m
-       | OpFixedRecipINTEL _ -> 1.0m
-       | OpFixedRsqrtINTEL _ -> 1.0m
-       | OpFixedSinINTEL _ -> 1.0m
-       | OpFixedCosINTEL _ -> 1.0m
-       | OpFixedSinCosINTEL _ -> 1.0m
-       | OpFixedSinPiINTEL _ -> 1.0m
-       | OpFixedCosPiINTEL _ -> 1.0m
-       | OpFixedSinCosPiINTEL _ -> 1.0m
-       | OpFixedLogINTEL _ -> 1.0m
-       | OpFixedExpINTEL _ -> 1.0m
-       | OpPtrCastToCrossWorkgroupINTEL _ -> 1.0m
-       | OpCrossWorkgroupCastToPtrINTEL _ -> 1.0m
-       | OpReadPipeBlockingINTEL _ -> 1.0m
-       | OpWritePipeBlockingINTEL _ -> 1.0m
-       | OpFPGARegINTEL _ -> 1.0m
-       | OpRayQueryGetRayTMinKHR _ -> 1.0m
-       | OpRayQueryGetRayFlagsKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionTKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionInstanceCustomIndexKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionInstanceIdKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionInstanceShaderBindingTableRecordOffsetKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionGeometryIndexKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionPrimitiveIndexKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionBarycentricsKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionFrontFaceKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionCandidateAABBOpaqueKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionObjectRayDirectionKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionObjectRayOriginKHR _ -> 1.0m
-       | OpRayQueryGetWorldRayDirectionKHR _ -> 1.0m
-       | OpRayQueryGetWorldRayOriginKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionObjectToWorldKHR _ -> 1.0m
-       | OpRayQueryGetIntersectionWorldToObjectKHR _ -> 1.0m
-       | OpAtomicFAddEXT _ -> 1.0m
-       | OpTypeBufferSurfaceINTEL _ -> 1.0m
-       | OpTypeStructContinuedINTEL _ -> 1.0m
-       | OpConstantCompositeContinuedINTEL _ -> 1.0m
-       | OpSpecConstantCompositeContinuedINTEL _ -> 1.0m
-       | OpCompositeConstructContinuedINTEL _ -> 1.0m
-       | OpConvertFToBF16INTEL _ -> 1.0m
-       | OpConvertBF16ToFINTEL _ -> 1.0m
-       | OpControlBarrierArriveINTEL _ -> 1.0m
-       | OpControlBarrierWaitINTEL _ -> 1.0m
-       | OpArithmeticFenceEXT _ -> 1.0m
-       | OpSubgroupBlockPrefetchINTEL _ -> 1.0m
-       | OpGroupIMulKHR _ -> 1.0m
-       | OpGroupFMulKHR _ -> 1.0m
-       | OpGroupBitwiseAndKHR _ -> 1.0m
-       | OpGroupBitwiseOrKHR _ -> 1.0m
-       | OpGroupBitwiseXorKHR _ -> 1.0m
-       | OpGroupLogicalAndKHR _ -> 1.0m
-       | OpGroupLogicalOrKHR _ -> 1.0m
-       | OpGroupLogicalXorKHR _ -> 1.0m
-       | OpMaskedGatherINTEL _ -> 1.0m
-       | OpMaskedScatterINTEL _ -> 1.0m
+       | OpNop -> 65536u
+       | OpUndef _ -> 65536u
+       | OpSourceContinued _ -> 65536u
+       | OpSource _ -> 65536u
+       | OpSourceExtension _ -> 65536u
+       | OpName _ -> 65536u
+       | OpMemberName _ -> 65536u
+       | OpString _ -> 65536u
+       | OpLine _ -> 65536u
+       | OpExtension _ -> 65536u
+       | OpExtInstImport _ -> 65536u
+       | OpExtInst _ -> 65536u
+       | OpMemoryModel _ -> 65536u
+       | OpEntryPoint _ -> 65536u
+       | OpExecutionMode _ -> 65536u
+       | OpCapability _ -> 65536u
+       | OpTypeVoid _ -> 65536u
+       | OpTypeBool _ -> 65536u
+       | OpTypeInt _ -> 65536u
+       | OpTypeFloat _ -> 65536u
+       | OpTypeVector _ -> 65536u
+       | OpTypeMatrix _ -> 65536u
+       | OpTypeImage _ -> 65536u
+       | OpTypeSampler _ -> 65536u
+       | OpTypeSampledImage _ -> 65536u
+       | OpTypeArray _ -> 65536u
+       | OpTypeRuntimeArray _ -> 65536u
+       | OpTypeStruct _ -> 65536u
+       | OpTypeOpaque _ -> 65536u
+       | OpTypePointer _ -> 65536u
+       | OpTypeFunction _ -> 65536u
+       | OpTypeEvent _ -> 65536u
+       | OpTypeDeviceEvent _ -> 65536u
+       | OpTypeReserveId _ -> 65536u
+       | OpTypeQueue _ -> 65536u
+       | OpTypePipe _ -> 65536u
+       | OpTypeForwardPointer _ -> 65536u
+       | OpConstantTrue _ -> 65536u
+       | OpConstantFalse _ -> 65536u
+       | OpConstant _ -> 65536u
+       | OpConstantComposite _ -> 65536u
+       | OpConstantSampler _ -> 65536u
+       | OpConstantNull _ -> 65536u
+       | OpSpecConstantTrue _ -> 65536u
+       | OpSpecConstantFalse _ -> 65536u
+       | OpSpecConstant _ -> 65536u
+       | OpSpecConstantComposite _ -> 65536u
+       | OpSpecConstantOp _ -> 65536u
+       | OpFunction _ -> 65536u
+       | OpFunctionParameter _ -> 65536u
+       | OpFunctionEnd -> 65536u
+       | OpFunctionCall _ -> 65536u
+       | OpVariable _ -> 65536u
+       | OpImageTexelPointer _ -> 65536u
+       | OpLoad _ -> 65536u
+       | OpStore _ -> 65536u
+       | OpCopyMemory _ -> 65536u
+       | OpCopyMemorySized _ -> 65536u
+       | OpAccessChain _ -> 65536u
+       | OpInBoundsAccessChain _ -> 65536u
+       | OpPtrAccessChain _ -> 65536u
+       | OpArrayLength _ -> 65536u
+       | OpGenericPtrMemSemantics _ -> 65536u
+       | OpInBoundsPtrAccessChain _ -> 65536u
+       | OpDecorate _ -> 65536u
+       | OpMemberDecorate _ -> 65536u
+       | OpDecorationGroup _ -> 65536u
+       | OpGroupDecorate _ -> 65536u
+       | OpGroupMemberDecorate _ -> 65536u
+       | OpVectorExtractDynamic _ -> 65536u
+       | OpVectorInsertDynamic _ -> 65536u
+       | OpVectorShuffle _ -> 65536u
+       | OpCompositeConstruct _ -> 65536u
+       | OpCompositeExtract _ -> 65536u
+       | OpCompositeInsert _ -> 65536u
+       | OpCopyObject _ -> 65536u
+       | OpTranspose _ -> 65536u
+       | OpSampledImage _ -> 65536u
+       | OpImageSampleImplicitLod _ -> 65536u
+       | OpImageSampleExplicitLod _ -> 65536u
+       | OpImageSampleDrefImplicitLod _ -> 65536u
+       | OpImageSampleDrefExplicitLod _ -> 65536u
+       | OpImageSampleProjImplicitLod _ -> 65536u
+       | OpImageSampleProjExplicitLod _ -> 65536u
+       | OpImageSampleProjDrefImplicitLod _ -> 65536u
+       | OpImageSampleProjDrefExplicitLod _ -> 65536u
+       | OpImageFetch _ -> 65536u
+       | OpImageGather _ -> 65536u
+       | OpImageDrefGather _ -> 65536u
+       | OpImageRead _ -> 65536u
+       | OpImageWrite _ -> 65536u
+       | OpImage _ -> 65536u
+       | OpImageQueryFormat _ -> 65536u
+       | OpImageQueryOrder _ -> 65536u
+       | OpImageQuerySizeLod _ -> 65536u
+       | OpImageQuerySize _ -> 65536u
+       | OpImageQueryLod _ -> 65536u
+       | OpImageQueryLevels _ -> 65536u
+       | OpImageQuerySamples _ -> 65536u
+       | OpConvertFToU _ -> 65536u
+       | OpConvertFToS _ -> 65536u
+       | OpConvertSToF _ -> 65536u
+       | OpConvertUToF _ -> 65536u
+       | OpUConvert _ -> 65536u
+       | OpSConvert _ -> 65536u
+       | OpFConvert _ -> 65536u
+       | OpQuantizeToF16 _ -> 65536u
+       | OpConvertPtrToU _ -> 65536u
+       | OpSatConvertSToU _ -> 65536u
+       | OpSatConvertUToS _ -> 65536u
+       | OpConvertUToPtr _ -> 65536u
+       | OpPtrCastToGeneric _ -> 65536u
+       | OpGenericCastToPtr _ -> 65536u
+       | OpGenericCastToPtrExplicit _ -> 65536u
+       | OpBitcast _ -> 65536u
+       | OpSNegate _ -> 65536u
+       | OpFNegate _ -> 65536u
+       | OpIAdd _ -> 65536u
+       | OpFAdd _ -> 65536u
+       | OpISub _ -> 65536u
+       | OpFSub _ -> 65536u
+       | OpIMul _ -> 65536u
+       | OpFMul _ -> 65536u
+       | OpUDiv _ -> 65536u
+       | OpSDiv _ -> 65536u
+       | OpFDiv _ -> 65536u
+       | OpUMod _ -> 65536u
+       | OpSRem _ -> 65536u
+       | OpSMod _ -> 65536u
+       | OpFRem _ -> 65536u
+       | OpFMod _ -> 65536u
+       | OpVectorTimesScalar _ -> 65536u
+       | OpMatrixTimesScalar _ -> 65536u
+       | OpVectorTimesMatrix _ -> 65536u
+       | OpMatrixTimesVector _ -> 65536u
+       | OpMatrixTimesMatrix _ -> 65536u
+       | OpOuterProduct _ -> 65536u
+       | OpDot _ -> 65536u
+       | OpIAddCarry _ -> 65536u
+       | OpISubBorrow _ -> 65536u
+       | OpUMulExtended _ -> 65536u
+       | OpSMulExtended _ -> 65536u
+       | OpAny _ -> 65536u
+       | OpAll _ -> 65536u
+       | OpIsNan _ -> 65536u
+       | OpIsInf _ -> 65536u
+       | OpIsFinite _ -> 65536u
+       | OpIsNormal _ -> 65536u
+       | OpSignBitSet _ -> 65536u
+       | OpLessOrGreater _ -> 65536u
+       | OpOrdered _ -> 65536u
+       | OpUnordered _ -> 65536u
+       | OpLogicalEqual _ -> 65536u
+       | OpLogicalNotEqual _ -> 65536u
+       | OpLogicalOr _ -> 65536u
+       | OpLogicalAnd _ -> 65536u
+       | OpLogicalNot _ -> 65536u
+       | OpSelect _ -> 65536u
+       | OpIEqual _ -> 65536u
+       | OpINotEqual _ -> 65536u
+       | OpUGreaterThan _ -> 65536u
+       | OpSGreaterThan _ -> 65536u
+       | OpUGreaterThanEqual _ -> 65536u
+       | OpSGreaterThanEqual _ -> 65536u
+       | OpULessThan _ -> 65536u
+       | OpSLessThan _ -> 65536u
+       | OpULessThanEqual _ -> 65536u
+       | OpSLessThanEqual _ -> 65536u
+       | OpFOrdEqual _ -> 65536u
+       | OpFUnordEqual _ -> 65536u
+       | OpFOrdNotEqual _ -> 65536u
+       | OpFUnordNotEqual _ -> 65536u
+       | OpFOrdLessThan _ -> 65536u
+       | OpFUnordLessThan _ -> 65536u
+       | OpFOrdGreaterThan _ -> 65536u
+       | OpFUnordGreaterThan _ -> 65536u
+       | OpFOrdLessThanEqual _ -> 65536u
+       | OpFUnordLessThanEqual _ -> 65536u
+       | OpFOrdGreaterThanEqual _ -> 65536u
+       | OpFUnordGreaterThanEqual _ -> 65536u
+       | OpShiftRightLogical _ -> 65536u
+       | OpShiftRightArithmetic _ -> 65536u
+       | OpShiftLeftLogical _ -> 65536u
+       | OpBitwiseOr _ -> 65536u
+       | OpBitwiseXor _ -> 65536u
+       | OpBitwiseAnd _ -> 65536u
+       | OpNot _ -> 65536u
+       | OpBitFieldInsert _ -> 65536u
+       | OpBitFieldSExtract _ -> 65536u
+       | OpBitFieldUExtract _ -> 65536u
+       | OpBitReverse _ -> 65536u
+       | OpBitCount _ -> 65536u
+       | OpDPdx _ -> 65536u
+       | OpDPdy _ -> 65536u
+       | OpFwidth _ -> 65536u
+       | OpDPdxFine _ -> 65536u
+       | OpDPdyFine _ -> 65536u
+       | OpFwidthFine _ -> 65536u
+       | OpDPdxCoarse _ -> 65536u
+       | OpDPdyCoarse _ -> 65536u
+       | OpFwidthCoarse _ -> 65536u
+       | OpEmitVertex -> 65536u
+       | OpEndPrimitive -> 65536u
+       | OpEmitStreamVertex _ -> 65536u
+       | OpEndStreamPrimitive _ -> 65536u
+       | OpControlBarrier _ -> 65536u
+       | OpMemoryBarrier _ -> 65536u
+       | OpAtomicLoad _ -> 65536u
+       | OpAtomicStore _ -> 65536u
+       | OpAtomicExchange _ -> 65536u
+       | OpAtomicCompareExchange _ -> 65536u
+       | OpAtomicCompareExchangeWeak _ -> 65536u
+       | OpAtomicIIncrement _ -> 65536u
+       | OpAtomicIDecrement _ -> 65536u
+       | OpAtomicIAdd _ -> 65536u
+       | OpAtomicISub _ -> 65536u
+       | OpAtomicSMin _ -> 65536u
+       | OpAtomicUMin _ -> 65536u
+       | OpAtomicSMax _ -> 65536u
+       | OpAtomicUMax _ -> 65536u
+       | OpAtomicAnd _ -> 65536u
+       | OpAtomicOr _ -> 65536u
+       | OpAtomicXor _ -> 65536u
+       | OpPhi _ -> 65536u
+       | OpLoopMerge _ -> 65536u
+       | OpSelectionMerge _ -> 65536u
+       | OpLabel _ -> 65536u
+       | OpBranch _ -> 65536u
+       | OpBranchConditional _ -> 65536u
+       | OpSwitch _ -> 65536u
+       | OpKill -> 65536u
+       | OpReturn -> 65536u
+       | OpReturnValue _ -> 65536u
+       | OpUnreachable -> 65536u
+       | OpLifetimeStart _ -> 65536u
+       | OpLifetimeStop _ -> 65536u
+       | OpGroupAsyncCopy _ -> 65536u
+       | OpGroupWaitEvents _ -> 65536u
+       | OpGroupAll _ -> 65536u
+       | OpGroupAny _ -> 65536u
+       | OpGroupBroadcast _ -> 65536u
+       | OpGroupIAdd _ -> 65536u
+       | OpGroupFAdd _ -> 65536u
+       | OpGroupFMin _ -> 65536u
+       | OpGroupUMin _ -> 65536u
+       | OpGroupSMin _ -> 65536u
+       | OpGroupFMax _ -> 65536u
+       | OpGroupUMax _ -> 65536u
+       | OpGroupSMax _ -> 65536u
+       | OpReadPipe _ -> 65536u
+       | OpWritePipe _ -> 65536u
+       | OpReservedReadPipe _ -> 65536u
+       | OpReservedWritePipe _ -> 65536u
+       | OpReserveReadPipePackets _ -> 65536u
+       | OpReserveWritePipePackets _ -> 65536u
+       | OpCommitReadPipe _ -> 65536u
+       | OpCommitWritePipe _ -> 65536u
+       | OpIsValidReserveId _ -> 65536u
+       | OpGetNumPipePackets _ -> 65536u
+       | OpGetMaxPipePackets _ -> 65536u
+       | OpGroupReserveReadPipePackets _ -> 65536u
+       | OpGroupReserveWritePipePackets _ -> 65536u
+       | OpGroupCommitReadPipe _ -> 65536u
+       | OpGroupCommitWritePipe _ -> 65536u
+       | OpEnqueueMarker _ -> 65536u
+       | OpEnqueueKernel _ -> 65536u
+       | OpGetKernelNDrangeSubGroupCount _ -> 65536u
+       | OpGetKernelNDrangeMaxSubGroupSize _ -> 65536u
+       | OpGetKernelWorkGroupSize _ -> 65536u
+       | OpGetKernelPreferredWorkGroupSizeMultiple _ -> 65536u
+       | OpRetainEvent _ -> 65536u
+       | OpReleaseEvent _ -> 65536u
+       | OpCreateUserEvent _ -> 65536u
+       | OpIsValidEvent _ -> 65536u
+       | OpSetUserEventStatus _ -> 65536u
+       | OpCaptureEventProfilingInfo _ -> 65536u
+       | OpGetDefaultQueue _ -> 65536u
+       | OpBuildNDRange _ -> 65536u
+       | OpImageSparseSampleImplicitLod _ -> 65536u
+       | OpImageSparseSampleExplicitLod _ -> 65536u
+       | OpImageSparseSampleDrefImplicitLod _ -> 65536u
+       | OpImageSparseSampleDrefExplicitLod _ -> 65536u
+       | OpImageSparseSampleProjImplicitLod _ -> 65536u
+       | OpImageSparseSampleProjExplicitLod _ -> 65536u
+       | OpImageSparseSampleProjDrefImplicitLod _ -> 65536u
+       | OpImageSparseSampleProjDrefExplicitLod _ -> 65536u
+       | OpImageSparseFetch _ -> 65536u
+       | OpImageSparseGather _ -> 65536u
+       | OpImageSparseDrefGather _ -> 65536u
+       | OpImageSparseTexelsResident _ -> 65536u
+       | OpNoLine -> 65536u
+       | OpAtomicFlagTestAndSet _ -> 65536u
+       | OpAtomicFlagClear _ -> 65536u
+       | OpImageSparseRead _ -> 65536u
+       | OpSizeOf _ -> 65792u
+       | OpTypePipeStorage _ -> 65792u
+       | OpConstantPipeStorage _ -> 65792u
+       | OpCreatePipeFromPipeStorage _ -> 65792u
+       | OpGetKernelLocalSizeForSubgroupCount _ -> 65792u
+       | OpGetKernelMaxNumSubgroups _ -> 65792u
+       | OpTypeNamedBarrier _ -> 65792u
+       | OpNamedBarrierInitialize _ -> 65792u
+       | OpMemoryNamedBarrier _ -> 65792u
+       | OpModuleProcessed _ -> 65792u
+       | OpExecutionModeId _ -> 66048u
+       | OpDecorateId _ -> 66048u
+       | OpGroupNonUniformElect _ -> 66304u
+       | OpGroupNonUniformAll _ -> 66304u
+       | OpGroupNonUniformAny _ -> 66304u
+       | OpGroupNonUniformAllEqual _ -> 66304u
+       | OpGroupNonUniformBroadcast _ -> 66304u
+       | OpGroupNonUniformBroadcastFirst _ -> 66304u
+       | OpGroupNonUniformBallot _ -> 66304u
+       | OpGroupNonUniformInverseBallot _ -> 66304u
+       | OpGroupNonUniformBallotBitExtract _ -> 66304u
+       | OpGroupNonUniformBallotBitCount _ -> 66304u
+       | OpGroupNonUniformBallotFindLSB _ -> 66304u
+       | OpGroupNonUniformBallotFindMSB _ -> 66304u
+       | OpGroupNonUniformShuffle _ -> 66304u
+       | OpGroupNonUniformShuffleXor _ -> 66304u
+       | OpGroupNonUniformShuffleUp _ -> 66304u
+       | OpGroupNonUniformShuffleDown _ -> 66304u
+       | OpGroupNonUniformIAdd _ -> 66304u
+       | OpGroupNonUniformFAdd _ -> 66304u
+       | OpGroupNonUniformIMul _ -> 66304u
+       | OpGroupNonUniformFMul _ -> 66304u
+       | OpGroupNonUniformSMin _ -> 66304u
+       | OpGroupNonUniformUMin _ -> 66304u
+       | OpGroupNonUniformFMin _ -> 66304u
+       | OpGroupNonUniformSMax _ -> 66304u
+       | OpGroupNonUniformUMax _ -> 66304u
+       | OpGroupNonUniformFMax _ -> 66304u
+       | OpGroupNonUniformBitwiseAnd _ -> 66304u
+       | OpGroupNonUniformBitwiseOr _ -> 66304u
+       | OpGroupNonUniformBitwiseXor _ -> 66304u
+       | OpGroupNonUniformLogicalAnd _ -> 66304u
+       | OpGroupNonUniformLogicalOr _ -> 66304u
+       | OpGroupNonUniformLogicalXor _ -> 66304u
+       | OpGroupNonUniformQuadBroadcast _ -> 66304u
+       | OpGroupNonUniformQuadSwap _ -> 66304u
+       | OpCopyLogical _ -> 66560u
+       | OpPtrEqual _ -> 66560u
+       | OpPtrNotEqual _ -> 66560u
+       | OpPtrDiff _ -> 66560u
+       | OpColorAttachmentReadEXT _ -> 65536u
+       | OpDepthAttachmentReadEXT _ -> 65536u
+       | OpStencilAttachmentReadEXT _ -> 65536u
+       | OpTerminateInvocation -> 67072u
+       | OpTypeUntypedPointerKHR _ -> 65536u
+       | OpUntypedVariableKHR _ -> 65536u
+       | OpUntypedAccessChainKHR _ -> 65536u
+       | OpUntypedInBoundsAccessChainKHR _ -> 65536u
+       | OpSubgroupBallotKHR _ -> 65536u
+       | OpSubgroupFirstInvocationKHR _ -> 65536u
+       | OpUntypedPtrAccessChainKHR _ -> 65536u
+       | OpUntypedInBoundsPtrAccessChainKHR _ -> 65536u
+       | OpUntypedArrayLengthKHR _ -> 65536u
+       | OpUntypedPrefetchKHR _ -> 65536u
+       | OpSubgroupAllKHR _ -> 65536u
+       | OpSubgroupAnyKHR _ -> 65536u
+       | OpSubgroupAllEqualKHR _ -> 65536u
+       | OpGroupNonUniformRotateKHR _ -> 65536u
+       | OpSubgroupReadInvocationKHR _ -> 65536u
+       | OpExtInstWithForwardRefsKHR _ -> 65536u
+       | OpTraceRayKHR _ -> 65536u
+       | OpExecuteCallableKHR _ -> 65536u
+       | OpConvertUToAccelerationStructureKHR _ -> 65536u
+       | OpIgnoreIntersectionKHR -> 65536u
+       | OpTerminateRayKHR -> 65536u
+       | OpSDot _ -> 67072u
+       | OpUDot _ -> 67072u
+       | OpSUDot _ -> 67072u
+       | OpSDotAccSat _ -> 67072u
+       | OpUDotAccSat _ -> 67072u
+       | OpSUDotAccSat _ -> 67072u
+       | OpTypeCooperativeMatrixKHR _ -> 65536u
+       | OpCooperativeMatrixLoadKHR _ -> 65536u
+       | OpCooperativeMatrixStoreKHR _ -> 65536u
+       | OpCooperativeMatrixMulAddKHR _ -> 65536u
+       | OpCooperativeMatrixLengthKHR _ -> 65536u
+       | OpConstantCompositeReplicateEXT _ -> 65536u
+       | OpSpecConstantCompositeReplicateEXT _ -> 65536u
+       | OpCompositeConstructReplicateEXT _ -> 65536u
+       | OpTypeRayQueryKHR _ -> 65536u
+       | OpRayQueryInitializeKHR _ -> 65536u
+       | OpRayQueryTerminateKHR _ -> 65536u
+       | OpRayQueryGenerateIntersectionKHR _ -> 65536u
+       | OpRayQueryConfirmIntersectionKHR _ -> 65536u
+       | OpRayQueryProceedKHR _ -> 65536u
+       | OpRayQueryGetIntersectionTypeKHR _ -> 65536u
+       | OpImageSampleWeightedQCOM _ -> 65536u
+       | OpImageBoxFilterQCOM _ -> 65536u
+       | OpImageBlockMatchSSDQCOM _ -> 65536u
+       | OpImageBlockMatchSADQCOM _ -> 65536u
+       | OpImageBlockMatchWindowSSDQCOM _ -> 65536u
+       | OpImageBlockMatchWindowSADQCOM _ -> 65536u
+       | OpImageBlockMatchGatherSSDQCOM _ -> 65536u
+       | OpImageBlockMatchGatherSADQCOM _ -> 65536u
+       | OpGroupIAddNonUniformAMD _ -> 65536u
+       | OpGroupFAddNonUniformAMD _ -> 65536u
+       | OpGroupFMinNonUniformAMD _ -> 65536u
+       | OpGroupUMinNonUniformAMD _ -> 65536u
+       | OpGroupSMinNonUniformAMD _ -> 65536u
+       | OpGroupFMaxNonUniformAMD _ -> 65536u
+       | OpGroupUMaxNonUniformAMD _ -> 65536u
+       | OpGroupSMaxNonUniformAMD _ -> 65536u
+       | OpFragmentMaskFetchAMD _ -> 65536u
+       | OpFragmentFetchAMD _ -> 65536u
+       | OpReadClockKHR _ -> 65536u
+       | OpAllocateNodePayloadsAMDX _ -> 65536u
+       | OpEnqueueNodePayloadsAMDX _ -> 65536u
+       | OpTypeNodePayloadArrayAMDX _ -> 65536u
+       | OpFinishWritingNodePayloadAMDX _ -> 65536u
+       | OpNodePayloadArrayLengthAMDX _ -> 65536u
+       | OpIsNodePayloadValidAMDX _ -> 65536u
+       | OpConstantStringAMDX _ -> 65536u
+       | OpSpecConstantStringAMDX _ -> 65536u
+       | OpGroupNonUniformQuadAllKHR _ -> 65536u
+       | OpGroupNonUniformQuadAnyKHR _ -> 65536u
+       | OpHitObjectRecordHitMotionNV _ -> 65536u
+       | OpHitObjectRecordHitWithIndexMotionNV _ -> 65536u
+       | OpHitObjectRecordMissMotionNV _ -> 65536u
+       | OpHitObjectGetWorldToObjectNV _ -> 65536u
+       | OpHitObjectGetObjectToWorldNV _ -> 65536u
+       | OpHitObjectGetObjectRayDirectionNV _ -> 65536u
+       | OpHitObjectGetObjectRayOriginNV _ -> 65536u
+       | OpHitObjectTraceRayMotionNV _ -> 65536u
+       | OpHitObjectGetShaderRecordBufferHandleNV _ -> 65536u
+       | OpHitObjectGetShaderBindingTableRecordIndexNV _ -> 65536u
+       | OpHitObjectRecordEmptyNV _ -> 65536u
+       | OpHitObjectTraceRayNV _ -> 65536u
+       | OpHitObjectRecordHitNV _ -> 65536u
+       | OpHitObjectRecordHitWithIndexNV _ -> 65536u
+       | OpHitObjectRecordMissNV _ -> 65536u
+       | OpHitObjectExecuteShaderNV _ -> 65536u
+       | OpHitObjectGetCurrentTimeNV _ -> 65536u
+       | OpHitObjectGetAttributesNV _ -> 65536u
+       | OpHitObjectGetHitKindNV _ -> 65536u
+       | OpHitObjectGetPrimitiveIndexNV _ -> 65536u
+       | OpHitObjectGetGeometryIndexNV _ -> 65536u
+       | OpHitObjectGetInstanceIdNV _ -> 65536u
+       | OpHitObjectGetInstanceCustomIndexNV _ -> 65536u
+       | OpHitObjectGetWorldRayDirectionNV _ -> 65536u
+       | OpHitObjectGetWorldRayOriginNV _ -> 65536u
+       | OpHitObjectGetRayTMaxNV _ -> 65536u
+       | OpHitObjectGetRayTMinNV _ -> 65536u
+       | OpHitObjectIsEmptyNV _ -> 65536u
+       | OpHitObjectIsHitNV _ -> 65536u
+       | OpHitObjectIsMissNV _ -> 65536u
+       | OpReorderThreadWithHitObjectNV _ -> 65536u
+       | OpReorderThreadWithHintNV _ -> 65536u
+       | OpTypeHitObjectNV _ -> 65536u
+       | OpImageSampleFootprintNV _ -> 65536u
+       | OpCooperativeMatrixConvertNV _ -> 65536u
+       | OpEmitMeshTasksEXT _ -> 65536u
+       | OpSetMeshOutputsEXT _ -> 65536u
+       | OpGroupNonUniformPartitionNV _ -> 65536u
+       | OpWritePackedPrimitiveIndices4x8NV _ -> 65536u
+       | OpFetchMicroTriangleVertexPositionNV _ -> 65536u
+       | OpFetchMicroTriangleVertexBarycentricNV _ -> 65536u
+       | OpReportIntersectionKHR _ -> 65536u
+       | OpIgnoreIntersectionNV -> 65536u
+       | OpTerminateRayNV -> 65536u
+       | OpTraceNV _ -> 65536u
+       | OpTraceMotionNV _ -> 65536u
+       | OpTraceRayMotionNV _ -> 65536u
+       | OpRayQueryGetIntersectionTriangleVertexPositionsKHR _ -> 65536u
+       | OpTypeAccelerationStructureKHR _ -> 65536u
+       | OpExecuteCallableNV _ -> 65536u
+       | OpTypeCooperativeMatrixNV _ -> 65536u
+       | OpCooperativeMatrixLoadNV _ -> 65536u
+       | OpCooperativeMatrixStoreNV _ -> 65536u
+       | OpCooperativeMatrixMulAddNV _ -> 65536u
+       | OpCooperativeMatrixLengthNV _ -> 65536u
+       | OpBeginInvocationInterlockEXT -> 65536u
+       | OpEndInvocationInterlockEXT -> 65536u
+       | OpCooperativeMatrixReduceNV _ -> 65536u
+       | OpCooperativeMatrixLoadTensorNV _ -> 65536u
+       | OpCooperativeMatrixStoreTensorNV _ -> 65536u
+       | OpCooperativeMatrixPerElementOpNV _ -> 65536u
+       | OpTypeTensorLayoutNV _ -> 65536u
+       | OpTypeTensorViewNV _ -> 65536u
+       | OpCreateTensorLayoutNV _ -> 65536u
+       | OpTensorLayoutSetDimensionNV _ -> 65536u
+       | OpTensorLayoutSetStrideNV _ -> 65536u
+       | OpTensorLayoutSliceNV _ -> 65536u
+       | OpTensorLayoutSetClampValueNV _ -> 65536u
+       | OpCreateTensorViewNV _ -> 65536u
+       | OpTensorViewSetDimensionNV _ -> 65536u
+       | OpTensorViewSetStrideNV _ -> 65536u
+       | OpDemoteToHelperInvocation -> 67072u
+       | OpIsHelperInvocationEXT _ -> 65536u
+       | OpTensorViewSetClipNV _ -> 65536u
+       | OpTensorLayoutSetBlockSizeNV _ -> 65536u
+       | OpCooperativeMatrixTransposeNV _ -> 65536u
+       | OpConvertUToImageNV _ -> 65536u
+       | OpConvertUToSamplerNV _ -> 65536u
+       | OpConvertImageToUNV _ -> 65536u
+       | OpConvertSamplerToUNV _ -> 65536u
+       | OpConvertUToSampledImageNV _ -> 65536u
+       | OpConvertSampledImageToUNV _ -> 65536u
+       | OpSamplerImageAddressingModeNV _ -> 65536u
+       | OpRawAccessChainNV _ -> 65536u
+       | OpSubgroupShuffleINTEL _ -> 65536u
+       | OpSubgroupShuffleDownINTEL _ -> 65536u
+       | OpSubgroupShuffleUpINTEL _ -> 65536u
+       | OpSubgroupShuffleXorINTEL _ -> 65536u
+       | OpSubgroupBlockReadINTEL _ -> 65536u
+       | OpSubgroupBlockWriteINTEL _ -> 65536u
+       | OpSubgroupImageBlockReadINTEL _ -> 65536u
+       | OpSubgroupImageBlockWriteINTEL _ -> 65536u
+       | OpSubgroupImageMediaBlockReadINTEL _ -> 65536u
+       | OpSubgroupImageMediaBlockWriteINTEL _ -> 65536u
+       | OpUCountLeadingZerosINTEL _ -> 65536u
+       | OpUCountTrailingZerosINTEL _ -> 65536u
+       | OpAbsISubINTEL _ -> 65536u
+       | OpAbsUSubINTEL _ -> 65536u
+       | OpIAddSatINTEL _ -> 65536u
+       | OpUAddSatINTEL _ -> 65536u
+       | OpIAverageINTEL _ -> 65536u
+       | OpUAverageINTEL _ -> 65536u
+       | OpIAverageRoundedINTEL _ -> 65536u
+       | OpUAverageRoundedINTEL _ -> 65536u
+       | OpISubSatINTEL _ -> 65536u
+       | OpUSubSatINTEL _ -> 65536u
+       | OpIMul32x16INTEL _ -> 65536u
+       | OpUMul32x16INTEL _ -> 65536u
+       | OpConstantFunctionPointerINTEL _ -> 65536u
+       | OpFunctionPointerCallINTEL _ -> 65536u
+       | OpAsmTargetINTEL _ -> 65536u
+       | OpAsmINTEL _ -> 65536u
+       | OpAsmCallINTEL _ -> 65536u
+       | OpAtomicFMinEXT _ -> 65536u
+       | OpAtomicFMaxEXT _ -> 65536u
+       | OpAssumeTrueKHR _ -> 65536u
+       | OpExpectKHR _ -> 65536u
+       | OpDecorateString _ -> 66560u
+       | OpMemberDecorateString _ -> 66560u
+       | OpVmeImageINTEL _ -> 65536u
+       | OpTypeVmeImageINTEL _ -> 65536u
+       | OpTypeAvcImePayloadINTEL _ -> 65536u
+       | OpTypeAvcRefPayloadINTEL _ -> 65536u
+       | OpTypeAvcSicPayloadINTEL _ -> 65536u
+       | OpTypeAvcMcePayloadINTEL _ -> 65536u
+       | OpTypeAvcMceResultINTEL _ -> 65536u
+       | OpTypeAvcImeResultINTEL _ -> 65536u
+       | OpTypeAvcImeResultSingleReferenceStreamoutINTEL _ -> 65536u
+       | OpTypeAvcImeResultDualReferenceStreamoutINTEL _ -> 65536u
+       | OpTypeAvcImeSingleReferenceStreaminINTEL _ -> 65536u
+       | OpTypeAvcImeDualReferenceStreaminINTEL _ -> 65536u
+       | OpTypeAvcRefResultINTEL _ -> 65536u
+       | OpTypeAvcSicResultINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetInterBaseMultiReferencePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultInterShapePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetInterShapePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultInterDirectionPenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetInterDirectionPenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultIntraLumaShapePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultInterMotionVectorCostTableINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultHighPenaltyCostTableINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultMediumPenaltyCostTableINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultLowPenaltyCostTableINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultIntraLumaModePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultNonDcLumaIntraPenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetDefaultIntraChromaModeBasePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetAcOnlyHaarINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetSourceInterlacedFieldPolarityINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetSingleReferenceInterlacedFieldPolarityINTEL _ -> 65536u
+       | OpSubgroupAvcMceSetDualReferenceInterlacedFieldPolaritiesINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToImePayloadINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToImeResultINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToRefPayloadINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToRefResultINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToSicPayloadINTEL _ -> 65536u
+       | OpSubgroupAvcMceConvertToSicResultINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetMotionVectorsINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterDistortionsINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetBestInterDistortionsINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterMajorShapeINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterMinorShapeINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterDirectionsINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterMotionVectorCountINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterReferenceIdsINTEL _ -> 65536u
+       | OpSubgroupAvcMceGetInterReferenceInterlacedFieldPolaritiesINTEL _ -> 65536u
+       | OpSubgroupAvcImeInitializeINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetSingleReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetDualReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcImeRefWindowSizeINTEL _ -> 65536u
+       | OpSubgroupAvcImeAdjustRefOffsetINTEL _ -> 65536u
+       | OpSubgroupAvcImeConvertToMcePayloadINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetMaxMotionVectorCountINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetUnidirectionalMixDisableINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetEarlySearchTerminationThresholdINTEL _ -> 65536u
+       | OpSubgroupAvcImeSetWeightedSadINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithDualReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreamoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreamoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeConvertToMceResultINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetSingleReferenceStreaminINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetDualReferenceStreaminINTEL _ -> 65536u
+       | OpSubgroupAvcImeStripSingleReferenceStreamoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeStripDualReferenceStreamoutINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeMotionVectorsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeDistortionsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeReferenceIdsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetBorderReachedINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetTruncatedSearchIndicationINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetUnidirectionalEarlySearchTerminationINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetWeightingPatternMinimumMotionVectorINTEL _ -> 65536u
+       | OpSubgroupAvcImeGetWeightingPatternMinimumDistortionINTEL _ -> 65536u
+       | OpSubgroupAvcFmeInitializeINTEL _ -> 65536u
+       | OpSubgroupAvcBmeInitializeINTEL _ -> 65536u
+       | OpSubgroupAvcRefConvertToMcePayloadINTEL _ -> 65536u
+       | OpSubgroupAvcRefSetBidirectionalMixDisableINTEL _ -> 65536u
+       | OpSubgroupAvcRefSetBilinearFilterEnableINTEL _ -> 65536u
+       | OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcRefEvaluateWithDualReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL _ -> 65536u
+       | OpSubgroupAvcRefConvertToMceResultINTEL _ -> 65536u
+       | OpSubgroupAvcSicInitializeINTEL _ -> 65536u
+       | OpSubgroupAvcSicConfigureSkcINTEL _ -> 65536u
+       | OpSubgroupAvcSicConfigureIpeLumaINTEL _ -> 65536u
+       | OpSubgroupAvcSicConfigureIpeLumaChromaINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetMotionVectorMaskINTEL _ -> 65536u
+       | OpSubgroupAvcSicConvertToMcePayloadINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetIntraLumaShapePenaltyINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetIntraChromaModeCostFunctionINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetBilinearFilterEnableINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetSkcForwardTransformEnableINTEL _ -> 65536u
+       | OpSubgroupAvcSicSetBlockBasedRawSkipSadINTEL _ -> 65536u
+       | OpSubgroupAvcSicEvaluateIpeINTEL _ -> 65536u
+       | OpSubgroupAvcSicEvaluateWithSingleReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcSicEvaluateWithDualReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL _ -> 65536u
+       | OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL _ -> 65536u
+       | OpSubgroupAvcSicConvertToMceResultINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetIpeLumaShapeINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetBestIpeLumaDistortionINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetBestIpeChromaDistortionINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetPackedIpeLumaModesINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetIpeChromaModeINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL _ -> 65536u
+       | OpSubgroupAvcSicGetInterRawSadsINTEL _ -> 65536u
+       | OpVariableLengthArrayINTEL _ -> 65536u
+       | OpSaveMemoryINTEL _ -> 65536u
+       | OpRestoreMemoryINTEL _ -> 65536u
+       | OpArbitraryFloatSinCosPiINTEL _ -> 65536u
+       | OpArbitraryFloatCastINTEL _ -> 65536u
+       | OpArbitraryFloatCastFromIntINTEL _ -> 65536u
+       | OpArbitraryFloatCastToIntINTEL _ -> 65536u
+       | OpArbitraryFloatAddINTEL _ -> 65536u
+       | OpArbitraryFloatSubINTEL _ -> 65536u
+       | OpArbitraryFloatMulINTEL _ -> 65536u
+       | OpArbitraryFloatDivINTEL _ -> 65536u
+       | OpArbitraryFloatGTINTEL _ -> 65536u
+       | OpArbitraryFloatGEINTEL _ -> 65536u
+       | OpArbitraryFloatLTINTEL _ -> 65536u
+       | OpArbitraryFloatLEINTEL _ -> 65536u
+       | OpArbitraryFloatEQINTEL _ -> 65536u
+       | OpArbitraryFloatRecipINTEL _ -> 65536u
+       | OpArbitraryFloatRSqrtINTEL _ -> 65536u
+       | OpArbitraryFloatCbrtINTEL _ -> 65536u
+       | OpArbitraryFloatHypotINTEL _ -> 65536u
+       | OpArbitraryFloatSqrtINTEL _ -> 65536u
+       | OpArbitraryFloatLogINTEL _ -> 65536u
+       | OpArbitraryFloatLog2INTEL _ -> 65536u
+       | OpArbitraryFloatLog10INTEL _ -> 65536u
+       | OpArbitraryFloatLog1pINTEL _ -> 65536u
+       | OpArbitraryFloatExpINTEL _ -> 65536u
+       | OpArbitraryFloatExp2INTEL _ -> 65536u
+       | OpArbitraryFloatExp10INTEL _ -> 65536u
+       | OpArbitraryFloatExpm1INTEL _ -> 65536u
+       | OpArbitraryFloatSinINTEL _ -> 65536u
+       | OpArbitraryFloatCosINTEL _ -> 65536u
+       | OpArbitraryFloatSinCosINTEL _ -> 65536u
+       | OpArbitraryFloatSinPiINTEL _ -> 65536u
+       | OpArbitraryFloatCosPiINTEL _ -> 65536u
+       | OpArbitraryFloatASinINTEL _ -> 65536u
+       | OpArbitraryFloatASinPiINTEL _ -> 65536u
+       | OpArbitraryFloatACosINTEL _ -> 65536u
+       | OpArbitraryFloatACosPiINTEL _ -> 65536u
+       | OpArbitraryFloatATanINTEL _ -> 65536u
+       | OpArbitraryFloatATanPiINTEL _ -> 65536u
+       | OpArbitraryFloatATan2INTEL _ -> 65536u
+       | OpArbitraryFloatPowINTEL _ -> 65536u
+       | OpArbitraryFloatPowRINTEL _ -> 65536u
+       | OpArbitraryFloatPowNINTEL _ -> 65536u
+       | OpLoopControlINTEL _ -> 65536u
+       | OpAliasDomainDeclINTEL _ -> 65536u
+       | OpAliasScopeDeclINTEL _ -> 65536u
+       | OpAliasScopeListDeclINTEL _ -> 65536u
+       | OpFixedSqrtINTEL _ -> 65536u
+       | OpFixedRecipINTEL _ -> 65536u
+       | OpFixedRsqrtINTEL _ -> 65536u
+       | OpFixedSinINTEL _ -> 65536u
+       | OpFixedCosINTEL _ -> 65536u
+       | OpFixedSinCosINTEL _ -> 65536u
+       | OpFixedSinPiINTEL _ -> 65536u
+       | OpFixedCosPiINTEL _ -> 65536u
+       | OpFixedSinCosPiINTEL _ -> 65536u
+       | OpFixedLogINTEL _ -> 65536u
+       | OpFixedExpINTEL _ -> 65536u
+       | OpPtrCastToCrossWorkgroupINTEL _ -> 65536u
+       | OpCrossWorkgroupCastToPtrINTEL _ -> 65536u
+       | OpReadPipeBlockingINTEL _ -> 65536u
+       | OpWritePipeBlockingINTEL _ -> 65536u
+       | OpFPGARegINTEL _ -> 65536u
+       | OpRayQueryGetRayTMinKHR _ -> 65536u
+       | OpRayQueryGetRayFlagsKHR _ -> 65536u
+       | OpRayQueryGetIntersectionTKHR _ -> 65536u
+       | OpRayQueryGetIntersectionInstanceCustomIndexKHR _ -> 65536u
+       | OpRayQueryGetIntersectionInstanceIdKHR _ -> 65536u
+       | OpRayQueryGetIntersectionInstanceShaderBindingTableRecordOffsetKHR _ -> 65536u
+       | OpRayQueryGetIntersectionGeometryIndexKHR _ -> 65536u
+       | OpRayQueryGetIntersectionPrimitiveIndexKHR _ -> 65536u
+       | OpRayQueryGetIntersectionBarycentricsKHR _ -> 65536u
+       | OpRayQueryGetIntersectionFrontFaceKHR _ -> 65536u
+       | OpRayQueryGetIntersectionCandidateAABBOpaqueKHR _ -> 65536u
+       | OpRayQueryGetIntersectionObjectRayDirectionKHR _ -> 65536u
+       | OpRayQueryGetIntersectionObjectRayOriginKHR _ -> 65536u
+       | OpRayQueryGetWorldRayDirectionKHR _ -> 65536u
+       | OpRayQueryGetWorldRayOriginKHR _ -> 65536u
+       | OpRayQueryGetIntersectionObjectToWorldKHR _ -> 65536u
+       | OpRayQueryGetIntersectionWorldToObjectKHR _ -> 65536u
+       | OpAtomicFAddEXT _ -> 65536u
+       | OpTypeBufferSurfaceINTEL _ -> 65536u
+       | OpTypeStructContinuedINTEL _ -> 65536u
+       | OpConstantCompositeContinuedINTEL _ -> 65536u
+       | OpSpecConstantCompositeContinuedINTEL _ -> 65536u
+       | OpCompositeConstructContinuedINTEL _ -> 65536u
+       | OpConvertFToBF16INTEL _ -> 65536u
+       | OpConvertBF16ToFINTEL _ -> 65536u
+       | OpControlBarrierArriveINTEL _ -> 65536u
+       | OpControlBarrierWaitINTEL _ -> 65536u
+       | OpArithmeticFenceEXT _ -> 65536u
+       | OpSubgroupBlockPrefetchINTEL _ -> 65536u
+       | OpGroupIMulKHR _ -> 65536u
+       | OpGroupFMulKHR _ -> 65536u
+       | OpGroupBitwiseAndKHR _ -> 65536u
+       | OpGroupBitwiseOrKHR _ -> 65536u
+       | OpGroupBitwiseXorKHR _ -> 65536u
+       | OpGroupLogicalAndKHR _ -> 65536u
+       | OpGroupLogicalOrKHR _ -> 65536u
+       | OpGroupLogicalXorKHR _ -> 65536u
+       | OpMaskedGatherINTEL _ -> 65536u
+       | OpMaskedScatterINTEL _ -> 65536u
 
     static member internal Serialize(instr: Instruction, stream: SpirvStream) =
         match instr with

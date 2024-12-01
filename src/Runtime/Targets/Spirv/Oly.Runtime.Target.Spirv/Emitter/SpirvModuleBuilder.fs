@@ -1214,16 +1214,22 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                 |> List.ofSeq
             )
 
-        let normalizedInstrs = Normalization.Normalize instrs
-
         let version = SpirvModule.CreateVersion(majorVersion, minorVersion)
+        let normalizedInstrs = Normalization.NormalizeAndCheck version instrs
         let result = SpirvModule.Create(version, instrs = normalizedInstrs)
         isBuilding <- false
         result
 
 module private Normalization =
 
-    let Normalize (instrs: Instruction list) =
+    let NormalizeAndCheck version (instrs: Instruction list) =
+        let struct(majorVersion, minorVersion) = SpirvModule.ExtractVersion(version)
+
+        let checkVersion text version =
+            let struct(major, minor) = SpirvModule.ExtractVersion(version)
+            if (major > majorVersion) || (major = majorVersion && minor > minorVersion) then
+                invalidOp $"{text} requires version {major}.{minor} or later but is {majorVersion}{minorVersion}." 
+        
         let headerWithEntryPoint = List()
         let executionModes = List()
         let memberDecorates = List()
@@ -1234,13 +1240,19 @@ module private Normalization =
 
         instrs
         |> List.iter (fun instr ->
+            checkVersion $"Instruction '{instr}'" instr.Version               
+
             match instr with
-            | OpMemberDecorate _ ->
+            | OpMemberDecorate(_, _, decor) ->
+                checkVersion $"Decoration '{decor}'" decor.Version
+
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
                 memberDecorates.Add(instr)
 
-            | OpDecorate _ ->
+            | OpDecorate(_, decor) ->
+                checkVersion $"Decoration '{decor}'" decor.Version
+
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
                 decorates.Add(instr)
@@ -1249,7 +1261,9 @@ module private Normalization =
                 headerWithEntryPoint.Add(instr)
                 hasEntryPoint <- true
 
-            | OpExecutionMode _ ->
+            | OpExecutionMode(_, mode) ->
+                checkVersion $"ExecutionMode '{mode}'" mode.Version
+
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
                 executionModes.Add(instr)

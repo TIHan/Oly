@@ -18,6 +18,26 @@ let cleanName (name: string) =
     else
         String.Empty
 
+let cleanEnumCaseName (name: string) =
+    match name with
+    | "1D" -> "One"
+    | "2D" -> "Two"
+    | "3D" -> "Three"
+    | "2x2" -> "TwoByTwo"
+    | x -> x
+
+let CreateSpirvVersion(major: uint32, minor: uint32) = ((major <<< 16) ||| (minor <<< 8))
+
+let CreateSpirvVersionFromDecimal (n: decimal option) =
+    match n with 
+    | None -> CreateSpirvVersion(1u, 0u).ToString() + "u"
+    | Some version -> 
+        let majorVersion = Decimal.Truncate(version)
+        let minorVersion = version - majorVersion
+        let majorVersionString = majorVersion.ToString()
+        let minorVersionString = minorVersion.ToString().Replace("0.", "")
+        CreateSpirvVersion(UInt32.Parse(majorVersionString), UInt32.Parse(minorVersionString)).ToString() + "u"
+
 [<RequireQualifiedAccess>]
 type OperandType =
     | UInt16 of name: string
@@ -125,6 +145,26 @@ let genDuMemberValueMember enumerants =
      |> Array.map genDuMemberValueCase
      |> Array.reduce (fun x y -> x + "\n" + y))
 
+let genEnumVersionCase (explicitTypeName: string option) (enumerant: SpirvSpec.Enumerant) =
+    let underscore () =
+        if Array.isEmpty enumerant.Parameters then
+            String.Empty
+        else
+            " _"
+    "       | " + (match explicitTypeName with Some tyName -> $"{tyName}." | _ -> "") + cleanEnumCaseName(enumerant.Enumerant) + underscore () + " -> " + CreateSpirvVersionFromDecimal enumerant.Version.Number
+
+let genEnumVersionMember (explicitTypeName: string option) enumerants =
+    let str =
+        if explicitTypeName.IsSome then
+            "    let GetVersion x ="
+        else
+            "    member x.Version ="
+    $"{str}
+       match x with\n" +
+    (enumerants
+     |> Array.map (genEnumVersionCase explicitTypeName)
+     |> Array.reduce (fun x y -> x + "\n" + y))
+
 let genKind (kind: SpirvSpec.OperandKind) =
     let comment =
         match kind.Doc with
@@ -160,7 +200,8 @@ let genKind (kind: SpirvSpec.OperandKind) =
         (cases 
          |> List.map (genDiscriminatedUnionCase)
          |> List.reduce (fun x y -> x + "\n" + y)) + "\n\n" +
-         genDuMemberValueMember enumerants + "\n"
+         genDuMemberValueMember enumerants + "\n\n" +
+         genEnumVersionMember None enumerants + "\n\n"
     | "ValueEnum" | "BitEnum" ->
         "type " + kind.Kind + " =\n" +
         if enumerants.Length = 0 then
@@ -168,15 +209,10 @@ let genKind (kind: SpirvSpec.OperandKind) =
         else
             (enumerants
                 |> Array.map (fun case ->
-                    let name =
-                        match case.Enumerant with
-                        | "1D" -> "One"
-                        | "2D" -> "Two"
-                        | "3D" -> "Three"
-                        | "2x2" -> "TwoByTwo"
-                        | x -> x
+                    let name = cleanEnumCaseName case.Enumerant
                     "   | " + name + " = " + case.Value.String.Value + "u")
-                |> Array.reduce (fun case1 case2 -> case1 + "\n" + case2)) + "\n"
+                |> Array.reduce (fun case1 case2 -> case1 + "\n" + case2)) + "\n\n" +
+            ("module " + kind.Kind + " =\n\n" + genEnumVersionMember (Some kind.Kind) enumerants) + "\n"
     | "Composite" ->
         "type " + kind.Kind + " = " + kind.Kind + " of " + (kind.Bases |> Array.reduce (fun x y -> x + " * " + y)) + "\n"
     | _ ->
@@ -235,7 +271,7 @@ let genInstructionMemberVersionCase (instr: SpirvSpec.Instruction) =
             String.Empty
         else
             " _"
-    "       | " + instr.Opname + underscore () + " -> " + (match instr.Version.Number with None -> "1.0m" | Some version -> string version + "m")
+    "       | " + instr.Opname + underscore () + " -> " + CreateSpirvVersionFromDecimal instr.Version.Number
 
 let genInstructionMemberVersionMember () =
     "    member x.Version =
@@ -365,6 +401,9 @@ let genSource () =
     """// File is generated. Do not modify.
 [<AutoOpen>]
 module rec Spirv.Core
+
+// Do not warn if we do not handle all cases in a match statement. It's fine that it will throw an exception.
+#nowarn "104"
 
 open System
 open System.IO

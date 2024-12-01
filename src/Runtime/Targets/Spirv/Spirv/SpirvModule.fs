@@ -51,7 +51,11 @@ type SpirvModule =
         instrs: Instruction list
     }
 
-    static member CreateVersion(major: uint32, minor: uint32) = ((major <<< 16) ||| (minor <<< 8))
+    static member CreateVersion(major: uint32, minor: uint32) = 
+        ((uint32(byte(major)) <<< 16) ||| (uint32(byte(minor)) <<< 8))
+
+    static member ExtractVersion(version: uint32) : struct(uint32 * uint32) =
+        struct(uint32(byte(version >>> 16)), uint32(byte(version >>> 8)))
 
     static member Create (?version: uint32, ?bound: uint32, ?instrs) =
         let version = defaultArg version 65536u
