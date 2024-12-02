@@ -2589,7 +2589,7 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         if valueFlags &&& ValueFlags.Mutable = ValueFlags.Mutable then
             failwith "Properties cannot be marked 'mutable'"
 
-    let mutable backingFieldOpt = None
+    let mutable backingFieldOpt = backingFieldOpt
 
     member _.Id = id
     member _.Type = propTy

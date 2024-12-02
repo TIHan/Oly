@@ -20,10 +20,11 @@ open Oly.Compiler.Internal.BoundTreePatterns
 open System.Diagnostics
 
 [<Sealed>]
-type PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness) =
+type PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness, memberFlags: MemberFlags) =
     member _.Name = name
     member _.Type = ty
     member _.Explicitness = explicitness
+    member _.MemberFlags = memberFlags
 
 let private createInstancePars cenv syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
@@ -163,7 +164,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         else
             false
 
-    let bindFunction env1 funcName (hasRequire, tyPars: TypeParameterSymbol imarray) (returnTy: TypeSymbol) syntaxNode (syntaxPars: OlySyntaxParameters) =
+    let bindFunction env1 funcName (hasRequire, tyPars: TypeParameterSymbol imarray) (returnTy: TypeSymbol) syntaxNode (syntaxPars: OlySyntaxParameters) memberFlags =
         let funcSemantic =
             if isExplicitSet then SetterFunction
             elif isExplicitGet then GetterFunction
@@ -306,14 +307,19 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
 
         func
 
-    let bindPropertyGetterSetter (cenv: cenv) env syntaxNode (syntaxParsOpt: OlySyntaxParameters option) propName propTy =
+    let bindPropertyGetterSetter (cenv: cenv) env syntaxNode (syntaxParsOpt: OlySyntaxParameters option) propName propTy (propMemberFlags: MemberFlags) =
+        let memberFlags = 
+            if (propMemberFlags &&& MemberFlags.AccessorMask) > (memberFlags &&& MemberFlags.AccessorMask) then
+                (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| (propMemberFlags &&& MemberFlags.AccessorMask)
+            else
+                memberFlags
         match syntaxParsOpt with
         | Some syntaxPars ->
             let returnTy =
                 if isExplicitSet then TypeSymbol.Unit
                 else propTy
     
-            let func = bindFunction env propName (false, ImArray.empty) returnTy syntaxNode syntaxPars
+            let func = bindFunction env propName (false, ImArray.empty) returnTy syntaxNode syntaxPars memberFlags
     
             let logicalPars = func.LogicalParameters
             if isExplicitSet && (logicalPars.IsEmpty || not (areTypesEqual logicalPars.[0].Type propTy)) then
@@ -439,7 +445,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         bindConstraintClauseList cenv env1 syntaxConstrClauseList.ChildrenOfType
         let returnTy = bindReturnTypeAnnotation cenv env1 syntaxReturnTyAnnot
 
-        let func = bindFunction env1 syntaxIdent.ValueText (syntaxTyPars.HasRequire, tyPars) returnTy syntaxIdent syntaxPars
+        let func = bindFunction env1 syntaxIdent.ValueText (syntaxTyPars.HasRequire, tyPars) returnTy syntaxIdent syntaxPars memberFlags
         if func.IsLocal then
             BindingLocalFunction(func)
             |> Choice2Of2
@@ -538,7 +544,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             None
 
         | Some propInfo ->
-            bindPropertyGetterSetter cenv env syntaxGetOrSetToken (Some syntaxPars) propInfo.Name propInfo.Type
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken (Some syntaxPars) propInfo.Name propInfo.Type propInfo.MemberFlags
 
     | OlySyntaxBindingDeclaration.Get(syntaxGetOrSetToken)
     | OlySyntaxBindingDeclaration.Set(syntaxGetOrSetToken) ->
@@ -547,7 +553,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
             cenv.diagnostics.Error("Invalid declaration. Unexpected 'get' or 'set' binding declaration.", 10, syntaxBindingDecl)
             None
         | Some propInfo ->
-            bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propInfo.Name propInfo.Type
+            bindPropertyGetterSetter cenv env syntaxGetOrSetToken None propInfo.Name propInfo.Type propInfo.MemberFlags
 
     | OlySyntaxBindingDeclaration.Error(_) ->
         None

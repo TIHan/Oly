@@ -76,7 +76,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
             | OlySyntaxValueDeclarationKind.Error _ -> ()
             | _ ->
                 cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-            bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
+            bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness, memberFlags))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
         | _ ->
             raise(InternalCompilerUnreachedException())
 
@@ -89,7 +89,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
                 | OlySyntaxValueDeclarationKind.Error _ -> ()
                 | _ ->
                     cenv.diagnostics.Error("Invalid value declaration.", 10, syntaxBinding)
-                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
+                let bindingInfo = bindTopLevelValueDeclaration cenv env (Some(PropertyInfo(propName, propTy, valueExplicitness, memberFlags))) syntaxAttrs syntaxAccessor syntaxValueDeclPremodifiers.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifiers.ChildrenOfType syntaxBinding
                 Some bindingInfo
             | _ ->
                 raise(InternalCompilerUnreachedException())
@@ -188,14 +188,11 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
             | _ ->
                 flags1
 
-        match principalFlags, flags1, flags2 with
-        | MemberFlags.Public, _, _ -> 
-            if LanguagePrimitives.EnumToValue(flags1) < LanguagePrimitives.EnumToValue(flags2) then
-                flags1
-            else
-                flags2
-        | _ ->
-            principalFlags
+        System.Math.Min(     
+            System.Math.Max(LanguagePrimitives.EnumToValue(flags1), LanguagePrimitives.EnumToValue(principalFlags)),
+            System.Math.Max(LanguagePrimitives.EnumToValue(flags2), LanguagePrimitives.EnumToValue(principalFlags))
+        )
+        |> LanguagePrimitives.EnumOfValue
 
     let memberFlags = (memberFlags &&& ~~~MemberFlags.AccessorMask) ||| memberAccessorFlags
 

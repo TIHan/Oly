@@ -10590,3 +10590,22 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Use of import attribute should not allow an implementation``() =
+    let src =
+        """
+#[import("doot", "doot", "doot")]
+Doot(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO:",
+                """
+Doot(): () = ()
+^^^^
+"""
+            )
+        ]
+    |> ignore
