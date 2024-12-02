@@ -1229,7 +1229,17 @@ module private Normalization =
             let struct(major, minor) = SpirvModule.ExtractVersion(version)
             if (major > majorVersion) || (major = majorVersion && minor > minorVersion) then
                 invalidOp $"{text} requires version {major}.{minor} or later but is {majorVersion}{minorVersion}." 
-        
+
+        let capabilities = HashSet()
+        let checkCapabilities text xs =
+            let result =
+                xs
+                |> List.forall (fun x ->
+                    capabilities.Contains(x)
+                )
+            if not result then
+                invalidOp $"{text} requires capabilities {xs |> List.sort} but has {capabilities |> List.ofSeq |> List.sort}."
+
         let headerWithEntryPoint = List()
         let executionModes = List()
         let memberDecorates = List()
@@ -1240,18 +1250,32 @@ module private Normalization =
 
         instrs
         |> List.iter (fun instr ->
-            checkVersion $"Instruction '{instr}'" instr.Version               
+            let text = $"Instruction '{instr}'"
+            checkVersion text instr.Version
+            checkCapabilities text instr.Capabilities
 
             match instr with
+            | OpCapability capability ->
+                if not(capabilities.Add(capability)) then
+                    invalidOp $"Capability '{capability}' already added."
+
+                if hasEntryPoint then
+                    raise(InvalidOperationException())
+                headerWithEntryPoint.Add(instr)
+
             | OpMemberDecorate(_, _, decor) ->
-                checkVersion $"Decoration '{decor}'" decor.Version
+                let text = $"Decoration '{decor}'"
+                checkVersion text decor.Version
+                checkCapabilities text decor.Capabilities
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
                 memberDecorates.Add(instr)
 
             | OpDecorate(_, decor) ->
-                checkVersion $"Decoration '{decor}'" decor.Version
+                let text = $"Decoration '{decor}'"
+                checkVersion text decor.Version
+                checkCapabilities text decor.Capabilities
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
@@ -1262,7 +1286,9 @@ module private Normalization =
                 hasEntryPoint <- true
 
             | OpExecutionMode(_, mode) ->
-                checkVersion $"ExecutionMode '{mode}'" mode.Version
+                let text = $"ExecutionMode '{mode}'"
+                checkVersion text mode.Version
+                checkCapabilities text mode.Capabilities
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())

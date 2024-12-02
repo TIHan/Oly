@@ -74,6 +74,26 @@ type ImageOperands =
        | Nontemporal -> 67072u
        | Offsets _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | None -> []
+       | Bias _ -> [Capability.Shader]
+       | Lod _ -> []
+       | Grad _ -> []
+       | ConstOffset _ -> []
+       | Offset _ -> [Capability.ImageGatherExtended]
+       | ConstOffsets _ -> [Capability.ImageGatherExtended]
+       | Sample _ -> []
+       | MinLod _ -> [Capability.MinLod]
+       | MakeTexelAvailable _ -> [Capability.VulkanMemoryModel]
+       | MakeTexelVisible _ -> [Capability.VulkanMemoryModel]
+       | NonPrivateTexel -> [Capability.VulkanMemoryModel]
+       | VolatileTexel -> [Capability.VulkanMemoryModel]
+       | SignExtend -> []
+       | ZeroExtend -> []
+       | Nontemporal -> []
+       | Offsets _ -> []
+
 
 type FPFastMathMode =
    | None = 0x0000u
@@ -100,6 +120,18 @@ module FPFastMathMode =
        | FPFastMathMode.AllowReassoc -> 65536u
        | FPFastMathMode.AllowTransform -> 65536u
 
+    let GetCapabilities x =
+       match x with
+       | FPFastMathMode.None -> []
+       | FPFastMathMode.NotNaN -> []
+       | FPFastMathMode.NotInf -> []
+       | FPFastMathMode.NSZ -> []
+       | FPFastMathMode.AllowRecip -> []
+       | FPFastMathMode.Fast -> []
+       | FPFastMathMode.AllowContract -> [Capability.FloatControls2;Capability.FPFastMathModeINTEL]
+       | FPFastMathMode.AllowReassoc -> [Capability.FloatControls2;Capability.FPFastMathModeINTEL]
+       | FPFastMathMode.AllowTransform -> [Capability.FloatControls2]
+
 type SelectionControl =
    | None = 0x0000u
    | Flatten = 0x0001u
@@ -112,6 +144,12 @@ module SelectionControl =
        | SelectionControl.None -> 65536u
        | SelectionControl.Flatten -> 65536u
        | SelectionControl.DontFlatten -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | SelectionControl.None -> []
+       | SelectionControl.Flatten -> []
+       | SelectionControl.DontFlatten -> []
 
 [<RequireQualifiedAccess>]
 type LoopControl =
@@ -182,6 +220,29 @@ type LoopControl =
        | LoopCountINTEL _ -> 65536u
        | MaxReinvocationDelayINTEL _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | None -> []
+       | Unroll -> []
+       | DontUnroll -> []
+       | DependencyInfinite -> []
+       | DependencyLength _ -> []
+       | MinIterations _ -> []
+       | MaxIterations _ -> []
+       | IterationMultiple _ -> []
+       | PeelCount _ -> []
+       | PartialCount _ -> []
+       | InitiationIntervalINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | MaxConcurrencyINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | DependencyArrayINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | PipelineEnableINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | LoopCoalesceINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | MaxInterleavingINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | SpeculatedIterationsINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | NoFusionINTEL -> [Capability.FPGALoopControlsINTEL]
+       | LoopCountINTEL _ -> [Capability.FPGALoopControlsINTEL]
+       | MaxReinvocationDelayINTEL _ -> [Capability.FPGALoopControlsINTEL]
+
 
 type FunctionControl =
    | None = 0x0000u
@@ -201,6 +262,15 @@ module FunctionControl =
        | FunctionControl.Pure -> 65536u
        | FunctionControl.Const -> 65536u
        | FunctionControl.OptNoneEXT -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | FunctionControl.None -> []
+       | FunctionControl.Inline -> []
+       | FunctionControl.DontInline -> []
+       | FunctionControl.Pure -> []
+       | FunctionControl.Const -> []
+       | FunctionControl.OptNoneEXT -> [Capability.OptNoneEXT]
 
 type MemorySemantics =
    | Relaxed = 0x0000u
@@ -239,6 +309,24 @@ module MemorySemantics =
        | MemorySemantics.MakeVisible -> 66816u
        | MemorySemantics.Volatile -> 66816u
 
+    let GetCapabilities x =
+       match x with
+       | MemorySemantics.Relaxed -> []
+       | MemorySemantics.Acquire -> []
+       | MemorySemantics.Release -> []
+       | MemorySemantics.AcquireRelease -> []
+       | MemorySemantics.SequentiallyConsistent -> []
+       | MemorySemantics.UniformMemory -> [Capability.Shader]
+       | MemorySemantics.SubgroupMemory -> []
+       | MemorySemantics.WorkgroupMemory -> []
+       | MemorySemantics.CrossWorkgroupMemory -> []
+       | MemorySemantics.AtomicCounterMemory -> [Capability.AtomicStorage]
+       | MemorySemantics.ImageMemory -> []
+       | MemorySemantics.OutputMemory -> [Capability.VulkanMemoryModel]
+       | MemorySemantics.MakeAvailable -> [Capability.VulkanMemoryModel]
+       | MemorySemantics.MakeVisible -> [Capability.VulkanMemoryModel]
+       | MemorySemantics.Volatile -> [Capability.VulkanMemoryModel]
+
 [<RequireQualifiedAccess>]
 type MemoryAccess =
     | None
@@ -275,6 +363,18 @@ type MemoryAccess =
        | AliasScopeINTELMask _ -> 65536u
        | NoAliasINTELMask _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | None -> []
+       | Volatile -> []
+       | Aligned _ -> []
+       | Nontemporal -> []
+       | MakePointerAvailable _ -> [Capability.VulkanMemoryModel]
+       | MakePointerVisible _ -> [Capability.VulkanMemoryModel]
+       | NonPrivatePointer -> [Capability.VulkanMemoryModel]
+       | AliasScopeINTELMask _ -> [Capability.MemoryAccessAliasingINTEL]
+       | NoAliasINTELMask _ -> [Capability.MemoryAccessAliasingINTEL]
+
 
 type KernelProfilingInfo =
    | None = 0x0000u
@@ -286,6 +386,11 @@ module KernelProfilingInfo =
        match x with
        | KernelProfilingInfo.None -> 65536u
        | KernelProfilingInfo.CmdExecTime -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | KernelProfilingInfo.None -> []
+       | KernelProfilingInfo.CmdExecTime -> [Capability.Kernel]
 
 type RayFlags =
    | NoneKHR = 0x0000u
@@ -318,6 +423,21 @@ module RayFlags =
        | RayFlags.SkipAABBsKHR -> 65536u
        | RayFlags.ForceOpacityMicromap2StateEXT -> 65536u
 
+    let GetCapabilities x =
+       match x with
+       | RayFlags.NoneKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.OpaqueKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.NoOpaqueKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.TerminateOnFirstHitKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.SkipClosestHitShaderKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.CullBackFacingTrianglesKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.CullFrontFacingTrianglesKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.CullOpaqueKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.CullNoOpaqueKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayFlags.SkipTrianglesKHR -> [Capability.RayTraversalPrimitiveCullingKHR]
+       | RayFlags.SkipAABBsKHR -> [Capability.RayTraversalPrimitiveCullingKHR]
+       | RayFlags.ForceOpacityMicromap2StateEXT -> [Capability.RayTracingOpacityMicromapEXT]
+
 type FragmentShadingRate =
    | Vertical2Pixels = 0x0001u
    | Vertical4Pixels = 0x0002u
@@ -333,6 +453,13 @@ module FragmentShadingRate =
        | FragmentShadingRate.Horizontal2Pixels -> 65536u
        | FragmentShadingRate.Horizontal4Pixels -> 65536u
 
+    let GetCapabilities x =
+       match x with
+       | FragmentShadingRate.Vertical2Pixels -> [Capability.FragmentShadingRateKHR]
+       | FragmentShadingRate.Vertical4Pixels -> [Capability.FragmentShadingRateKHR]
+       | FragmentShadingRate.Horizontal2Pixels -> [Capability.FragmentShadingRateKHR]
+       | FragmentShadingRate.Horizontal4Pixels -> [Capability.FragmentShadingRateKHR]
+
 type RawAccessChainOperands =
    | None = 0x0000u
    | RobustnessPerComponentNV = 0x0001u
@@ -345,6 +472,12 @@ module RawAccessChainOperands =
        | RawAccessChainOperands.None -> 65536u
        | RawAccessChainOperands.RobustnessPerComponentNV -> 65536u
        | RawAccessChainOperands.RobustnessPerElementNV -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | RawAccessChainOperands.None -> []
+       | RawAccessChainOperands.RobustnessPerComponentNV -> [Capability.RawAccessChainsNV]
+       | RawAccessChainOperands.RobustnessPerElementNV -> [Capability.RawAccessChainsNV]
 
 [<RequireQualifiedAccess>]
 type SourceLanguage =
@@ -393,6 +526,22 @@ type SourceLanguage =
        | WGSL -> 65536u
        | Slang -> 65536u
        | Zig -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | Unknown -> []
+       | ESSL -> []
+       | GLSL -> []
+       | OpenCL_C -> []
+       | OpenCL_CPP -> []
+       | HLSL -> []
+       | CPP_for_OpenCL -> []
+       | SYCL -> []
+       | HERO_C -> []
+       | NZSL -> []
+       | WGSL -> []
+       | Slang -> []
+       | Zig -> []
 
 
 [<RequireQualifiedAccess>]
@@ -455,6 +604,26 @@ type ExecutionModel =
        | TaskEXT -> 65536u
        | MeshEXT -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Vertex -> [Capability.Shader]
+       | TessellationControl -> [Capability.Tessellation]
+       | TessellationEvaluation -> [Capability.Tessellation]
+       | Geometry -> [Capability.Geometry]
+       | Fragment -> [Capability.Shader]
+       | GLCompute -> [Capability.Shader]
+       | Kernel -> [Capability.Kernel]
+       | TaskNV -> [Capability.MeshShadingNV]
+       | MeshNV -> [Capability.MeshShadingNV]
+       | RayGenerationKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | IntersectionKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | AnyHitKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | ClosestHitKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | MissKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | CallableKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | TaskEXT -> [Capability.MeshShadingEXT]
+       | MeshEXT -> [Capability.MeshShadingEXT]
+
 
 [<RequireQualifiedAccess>]
 type AddressingModel =
@@ -477,6 +646,13 @@ type AddressingModel =
        | Physical64 -> 65536u
        | PhysicalStorageBuffer64 -> 66816u
 
+    member x.Capabilities =
+       match x with
+       | Logical -> []
+       | Physical32 -> [Capability.Addresses]
+       | Physical64 -> [Capability.Addresses]
+       | PhysicalStorageBuffer64 -> [Capability.PhysicalStorageBufferAddresses]
+
 
 [<RequireQualifiedAccess>]
 type MemoryModel =
@@ -498,6 +674,13 @@ type MemoryModel =
        | GLSL450 -> 65536u
        | OpenCL -> 65536u
        | Vulkan -> 66816u
+
+    member x.Capabilities =
+       match x with
+       | Simple -> [Capability.Shader]
+       | GLSL450 -> [Capability.Shader]
+       | OpenCL -> [Capability.Kernel]
+       | Vulkan -> [Capability.VulkanMemoryModel]
 
 
 [<RequireQualifiedAccess>]
@@ -791,6 +974,103 @@ type ExecutionMode =
        | MaximumRegistersIdINTEL _ -> 65536u
        | NamedMaximumRegistersINTEL _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Invocations _ -> [Capability.Geometry]
+       | SpacingEqual -> [Capability.Tessellation]
+       | SpacingFractionalEven -> [Capability.Tessellation]
+       | SpacingFractionalOdd -> [Capability.Tessellation]
+       | VertexOrderCw -> [Capability.Tessellation]
+       | VertexOrderCcw -> [Capability.Tessellation]
+       | PixelCenterInteger -> [Capability.Shader]
+       | OriginUpperLeft -> [Capability.Shader]
+       | OriginLowerLeft -> [Capability.Shader]
+       | EarlyFragmentTests -> [Capability.Shader]
+       | PointMode -> [Capability.Tessellation]
+       | Xfb -> [Capability.TransformFeedback]
+       | DepthReplacing -> [Capability.Shader]
+       | DepthGreater -> [Capability.Shader]
+       | DepthLess -> [Capability.Shader]
+       | DepthUnchanged -> [Capability.Shader]
+       | LocalSize _ -> []
+       | LocalSizeHint _ -> [Capability.Kernel]
+       | InputPoints -> [Capability.Geometry]
+       | InputLines -> [Capability.Geometry]
+       | InputLinesAdjacency -> [Capability.Geometry]
+       | Triangles -> [Capability.Geometry;Capability.Tessellation]
+       | InputTrianglesAdjacency -> [Capability.Geometry]
+       | Quads -> [Capability.Tessellation]
+       | Isolines -> [Capability.Tessellation]
+       | OutputVertices _ -> [Capability.Geometry;Capability.Tessellation;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | OutputPoints -> [Capability.Geometry;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | OutputLineStrip -> [Capability.Geometry]
+       | OutputTriangleStrip -> [Capability.Geometry]
+       | VecTypeHint _ -> [Capability.Kernel]
+       | ContractionOff -> [Capability.Kernel]
+       | Initializer -> [Capability.Kernel]
+       | Finalizer -> [Capability.Kernel]
+       | SubgroupSize _ -> [Capability.SubgroupDispatch]
+       | SubgroupsPerWorkgroup _ -> [Capability.SubgroupDispatch]
+       | SubgroupsPerWorkgroupId _ -> [Capability.SubgroupDispatch]
+       | LocalSizeId _ -> []
+       | LocalSizeHintId _ -> [Capability.Kernel]
+       | NonCoherentColorAttachmentReadEXT -> [Capability.TileImageColorReadAccessEXT]
+       | NonCoherentDepthAttachmentReadEXT -> [Capability.TileImageDepthReadAccessEXT]
+       | NonCoherentStencilAttachmentReadEXT -> [Capability.TileImageStencilReadAccessEXT]
+       | SubgroupUniformControlFlowKHR -> [Capability.Shader]
+       | PostDepthCoverage -> [Capability.SampleMaskPostDepthCoverage]
+       | DenormPreserve _ -> [Capability.DenormPreserve]
+       | DenormFlushToZero _ -> [Capability.DenormFlushToZero]
+       | SignedZeroInfNanPreserve _ -> [Capability.SignedZeroInfNanPreserve]
+       | RoundingModeRTE _ -> [Capability.RoundingModeRTE]
+       | RoundingModeRTZ _ -> [Capability.RoundingModeRTZ]
+       | EarlyAndLateFragmentTestsAMD -> [Capability.Shader]
+       | StencilRefReplacingEXT -> [Capability.StencilExportEXT]
+       | CoalescingAMDX -> [Capability.ShaderEnqueueAMDX]
+       | IsApiEntryAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | MaxNodeRecursionAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | StaticNumWorkgroupsAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | ShaderIndexAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | MaxNumWorkgroupsAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | StencilRefUnchangedFrontAMD -> [Capability.StencilExportEXT]
+       | StencilRefGreaterFrontAMD -> [Capability.StencilExportEXT]
+       | StencilRefLessFrontAMD -> [Capability.StencilExportEXT]
+       | StencilRefUnchangedBackAMD -> [Capability.StencilExportEXT]
+       | StencilRefGreaterBackAMD -> [Capability.StencilExportEXT]
+       | StencilRefLessBackAMD -> [Capability.StencilExportEXT]
+       | QuadDerivativesKHR -> [Capability.QuadControlKHR]
+       | RequireFullQuadsKHR -> [Capability.QuadControlKHR]
+       | SharesInputWithAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OutputLinesEXT -> [Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | OutputPrimitivesEXT _ -> [Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | DerivativeGroupQuadsKHR -> [Capability.ComputeDerivativeGroupQuadsKHR;Capability.ComputeDerivativeGroupQuadsKHR]
+       | DerivativeGroupLinearKHR -> [Capability.ComputeDerivativeGroupLinearKHR;Capability.ComputeDerivativeGroupLinearKHR]
+       | OutputTrianglesEXT -> [Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | PixelInterlockOrderedEXT -> [Capability.FragmentShaderPixelInterlockEXT]
+       | PixelInterlockUnorderedEXT -> [Capability.FragmentShaderPixelInterlockEXT]
+       | SampleInterlockOrderedEXT -> [Capability.FragmentShaderSampleInterlockEXT]
+       | SampleInterlockUnorderedEXT -> [Capability.FragmentShaderSampleInterlockEXT]
+       | ShadingRateInterlockOrderedEXT -> [Capability.FragmentShaderShadingRateInterlockEXT]
+       | ShadingRateInterlockUnorderedEXT -> [Capability.FragmentShaderShadingRateInterlockEXT]
+       | SharedLocalMemorySizeINTEL _ -> [Capability.VectorComputeINTEL]
+       | RoundingModeRTPINTEL _ -> [Capability.RoundToInfinityINTEL]
+       | RoundingModeRTNINTEL _ -> [Capability.RoundToInfinityINTEL]
+       | FloatingPointModeALTINTEL _ -> [Capability.RoundToInfinityINTEL]
+       | FloatingPointModeIEEEINTEL _ -> [Capability.RoundToInfinityINTEL]
+       | MaxWorkgroupSizeINTEL _ -> [Capability.KernelAttributesINTEL]
+       | MaxWorkDimINTEL _ -> [Capability.KernelAttributesINTEL]
+       | NoGlobalOffsetINTEL -> [Capability.KernelAttributesINTEL]
+       | NumSIMDWorkitemsINTEL _ -> [Capability.FPGAKernelAttributesINTEL]
+       | SchedulerTargetFmaxMhzINTEL _ -> [Capability.FPGAKernelAttributesINTEL]
+       | MaximallyReconvergesKHR -> [Capability.Shader]
+       | FPFastMathDefault _ -> [Capability.FloatControls2]
+       | StreamingInterfaceINTEL _ -> [Capability.FPGAKernelAttributesINTEL]
+       | RegisterMapInterfaceINTEL _ -> [Capability.FPGAKernelAttributesv2INTEL]
+       | NamedBarrierCountINTEL _ -> [Capability.VectorComputeINTEL]
+       | MaximumRegistersINTEL _ -> [Capability.RegisterLimitsINTEL]
+       | MaximumRegistersIdINTEL _ -> [Capability.RegisterLimitsINTEL]
+       | NamedMaximumRegistersINTEL _ -> [Capability.RegisterLimitsINTEL]
+
 
 [<RequireQualifiedAccess>]
 type StorageClass =
@@ -882,6 +1162,36 @@ type StorageClass =
        | DeviceOnlyINTEL -> 65536u
        | HostOnlyINTEL -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | UniformConstant -> []
+       | Input -> []
+       | Uniform -> [Capability.Shader]
+       | Output -> [Capability.Shader]
+       | Workgroup -> []
+       | CrossWorkgroup -> []
+       | Private -> [Capability.Shader;Capability.VectorComputeINTEL]
+       | Function -> []
+       | Generic -> [Capability.GenericPointer]
+       | PushConstant -> [Capability.Shader]
+       | AtomicCounter -> [Capability.AtomicStorage]
+       | Image -> []
+       | StorageBuffer -> [Capability.Shader]
+       | TileImageEXT -> [Capability.TileImageColorReadAccessEXT]
+       | NodePayloadAMDX -> [Capability.ShaderEnqueueAMDX]
+       | CallableDataKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | IncomingCallableDataKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | RayPayloadKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | HitAttributeKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | IncomingRayPayloadKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | ShaderRecordBufferKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | PhysicalStorageBuffer -> [Capability.PhysicalStorageBufferAddresses]
+       | HitObjectAttributeNV -> [Capability.ShaderInvocationReorderNV]
+       | TaskPayloadWorkgroupEXT -> [Capability.MeshShadingEXT]
+       | CodeSectionINTEL -> [Capability.FunctionPointersINTEL]
+       | DeviceOnlyINTEL -> [Capability.USMStorageClassesINTEL]
+       | HostOnlyINTEL -> [Capability.USMStorageClassesINTEL]
+
 
 [<RequireQualifiedAccess>]
 type Dim =
@@ -916,6 +1226,17 @@ type Dim =
        | SubpassData -> 65536u
        | TileImageDataEXT -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | One -> [Capability.Sampled1D]
+       | Two -> []
+       | Three -> []
+       | Cube -> [Capability.Shader]
+       | Rect -> [Capability.SampledRect]
+       | Buffer -> [Capability.SampledBuffer]
+       | SubpassData -> [Capability.InputAttachment]
+       | TileImageDataEXT -> [Capability.TileImageColorReadAccessEXT]
+
 
 [<RequireQualifiedAccess>]
 type SamplerAddressingMode =
@@ -941,6 +1262,14 @@ type SamplerAddressingMode =
        | Repeat -> 65536u
        | RepeatMirrored -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | None -> []
+       | ClampToEdge -> []
+       | Clamp -> []
+       | Repeat -> []
+       | RepeatMirrored -> []
+
 
 [<RequireQualifiedAccess>]
 type SamplerFilterMode =
@@ -956,6 +1285,11 @@ type SamplerFilterMode =
        match x with
        | Nearest -> 65536u
        | Linear -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | Nearest -> []
+       | Linear -> []
 
 
 [<RequireQualifiedAccess>]
@@ -1093,6 +1427,51 @@ type ImageFormat =
        | R64ui -> 65536u
        | R64i -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Unknown -> []
+       | Rgba32f -> [Capability.Shader]
+       | Rgba16f -> [Capability.Shader]
+       | R32f -> [Capability.Shader]
+       | Rgba8 -> [Capability.Shader]
+       | Rgba8Snorm -> [Capability.Shader]
+       | Rg32f -> [Capability.StorageImageExtendedFormats]
+       | Rg16f -> [Capability.StorageImageExtendedFormats]
+       | R11fG11fB10f -> [Capability.StorageImageExtendedFormats]
+       | R16f -> [Capability.StorageImageExtendedFormats]
+       | Rgba16 -> [Capability.StorageImageExtendedFormats]
+       | Rgb10A2 -> [Capability.StorageImageExtendedFormats]
+       | Rg16 -> [Capability.StorageImageExtendedFormats]
+       | Rg8 -> [Capability.StorageImageExtendedFormats]
+       | R16 -> [Capability.StorageImageExtendedFormats]
+       | R8 -> [Capability.StorageImageExtendedFormats]
+       | Rgba16Snorm -> [Capability.StorageImageExtendedFormats]
+       | Rg16Snorm -> [Capability.StorageImageExtendedFormats]
+       | Rg8Snorm -> [Capability.StorageImageExtendedFormats]
+       | R16Snorm -> [Capability.StorageImageExtendedFormats]
+       | R8Snorm -> [Capability.StorageImageExtendedFormats]
+       | Rgba32i -> [Capability.Shader]
+       | Rgba16i -> [Capability.Shader]
+       | Rgba8i -> [Capability.Shader]
+       | R32i -> [Capability.Shader]
+       | Rg32i -> [Capability.StorageImageExtendedFormats]
+       | Rg16i -> [Capability.StorageImageExtendedFormats]
+       | Rg8i -> [Capability.StorageImageExtendedFormats]
+       | R16i -> [Capability.StorageImageExtendedFormats]
+       | R8i -> [Capability.StorageImageExtendedFormats]
+       | Rgba32ui -> [Capability.Shader]
+       | Rgba16ui -> [Capability.Shader]
+       | Rgba8ui -> [Capability.Shader]
+       | R32ui -> [Capability.Shader]
+       | Rgb10a2ui -> [Capability.StorageImageExtendedFormats]
+       | Rg32ui -> [Capability.StorageImageExtendedFormats]
+       | Rg16ui -> [Capability.StorageImageExtendedFormats]
+       | Rg8ui -> [Capability.StorageImageExtendedFormats]
+       | R16ui -> [Capability.StorageImageExtendedFormats]
+       | R8ui -> [Capability.StorageImageExtendedFormats]
+       | R64ui -> [Capability.Int64ImageEXT]
+       | R64i -> [Capability.Int64ImageEXT]
+
 
 [<RequireQualifiedAccess>]
 type ImageChannelOrder =
@@ -1162,6 +1541,29 @@ type ImageChannelOrder =
        | StdRGBA -> 65536u
        | StdBGRA -> 65536u
        | ABGR -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | R -> []
+       | A -> []
+       | RG -> []
+       | RA -> []
+       | RGB -> []
+       | RGBA -> []
+       | BGRA -> []
+       | ARGB -> []
+       | Intensity -> []
+       | Luminance -> []
+       | Rx -> []
+       | RGx -> []
+       | RGBx -> []
+       | Depth -> []
+       | DepthStencil -> []
+       | StdRGB -> []
+       | StdRGBx -> []
+       | StdRGBA -> []
+       | StdBGRA -> []
+       | ABGR -> []
 
 
 [<RequireQualifiedAccess>]
@@ -1233,6 +1635,29 @@ type ImageChannelDataType =
        | UnsignedIntRaw12EXT -> 65536u
        | UnormInt2_101010EXT -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | SnormInt8 -> []
+       | SnormInt16 -> []
+       | UnormInt8 -> []
+       | UnormInt16 -> []
+       | UnormShort565 -> []
+       | UnormShort555 -> []
+       | UnormInt101010 -> []
+       | SignedInt8 -> []
+       | SignedInt16 -> []
+       | SignedInt32 -> []
+       | UnsignedInt8 -> []
+       | UnsignedInt16 -> []
+       | UnsignedInt32 -> []
+       | HalfFloat -> []
+       | Float -> []
+       | UnormInt24 -> []
+       | UnormInt101010_2 -> []
+       | UnsignedIntRaw10EXT -> []
+       | UnsignedIntRaw12EXT -> []
+       | UnormInt2_101010EXT -> []
+
 
 [<RequireQualifiedAccess>]
 type FPRoundingMode =
@@ -1255,6 +1680,13 @@ type FPRoundingMode =
        | RTP -> 65536u
        | RTN -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | RTE -> []
+       | RTZ -> []
+       | RTP -> []
+       | RTN -> []
+
 
 [<RequireQualifiedAccess>]
 type FPDenormMode =
@@ -1270,6 +1702,11 @@ type FPDenormMode =
        match x with
        | Preserve -> 65536u
        | FlushToZero -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | Preserve -> [Capability.FunctionFloatControlINTEL]
+       | FlushToZero -> [Capability.FunctionFloatControlINTEL]
 
 
 [<RequireQualifiedAccess>]
@@ -1305,6 +1742,17 @@ type QuantizationModes =
        | RND_CONV -> 65536u
        | RND_CONV_ODD -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | TRN -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | TRN_ZERO -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND_ZERO -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND_INF -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND_MIN_INF -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND_CONV -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | RND_CONV_ODD -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+
 
 [<RequireQualifiedAccess>]
 type FPOperationMode =
@@ -1320,6 +1768,11 @@ type FPOperationMode =
        match x with
        | IEEE -> 65536u
        | ALT -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | IEEE -> [Capability.FunctionFloatControlINTEL]
+       | ALT -> [Capability.FunctionFloatControlINTEL]
 
 
 [<RequireQualifiedAccess>]
@@ -1343,6 +1796,13 @@ type OverflowModes =
        | SAT_ZERO -> 65536u
        | SAT_SYM -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | WRAP -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | SAT -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | SAT_ZERO -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | SAT_SYM -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+
 
 [<RequireQualifiedAccess>]
 type LinkageType =
@@ -1362,6 +1822,12 @@ type LinkageType =
        | Import -> 65536u
        | LinkOnceODR -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Export -> [Capability.Linkage]
+       | Import -> [Capability.Linkage]
+       | LinkOnceODR -> [Capability.Linkage]
+
 
 [<RequireQualifiedAccess>]
 type AccessQualifier =
@@ -1380,6 +1846,12 @@ type AccessQualifier =
        | ReadOnly -> 65536u
        | WriteOnly -> 65536u
        | ReadWrite -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | ReadOnly -> [Capability.Kernel]
+       | WriteOnly -> [Capability.Kernel]
+       | ReadWrite -> [Capability.Kernel]
 
 
 [<RequireQualifiedAccess>]
@@ -1402,6 +1874,13 @@ type HostAccessQualifier =
        | ReadINTEL -> 65536u
        | WriteINTEL -> 65536u
        | ReadWriteINTEL -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | NoneINTEL -> [Capability.GlobalVariableHostAccessINTEL]
+       | ReadINTEL -> [Capability.GlobalVariableHostAccessINTEL]
+       | WriteINTEL -> [Capability.GlobalVariableHostAccessINTEL]
+       | ReadWriteINTEL -> [Capability.GlobalVariableHostAccessINTEL]
 
 
 [<RequireQualifiedAccess>]
@@ -1439,6 +1918,18 @@ type FunctionParameterAttribute =
        | NoWrite -> 65536u
        | NoReadWrite -> 65536u
        | RuntimeAlignedINTEL -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | Zext -> [Capability.Kernel]
+       | Sext -> [Capability.Kernel]
+       | ByVal -> [Capability.Kernel]
+       | Sret -> [Capability.Kernel]
+       | NoAlias -> [Capability.Kernel]
+       | NoCapture -> [Capability.Kernel]
+       | NoWrite -> [Capability.Kernel]
+       | NoReadWrite -> [Capability.Kernel]
+       | RuntimeAlignedINTEL -> [Capability.RuntimeAlignedAttributeINTEL]
 
 
 [<RequireQualifiedAccess>]
@@ -1876,6 +2367,151 @@ type Decoration =
        | CacheControlLoadINTEL _ -> 65536u
        | CacheControlStoreINTEL _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | RelaxedPrecision -> [Capability.Shader]
+       | SpecId _ -> [Capability.Shader;Capability.Kernel]
+       | Block -> [Capability.Shader]
+       | BufferBlock -> [Capability.Shader]
+       | RowMajor -> [Capability.Matrix]
+       | ColMajor -> [Capability.Matrix]
+       | ArrayStride _ -> [Capability.Shader]
+       | MatrixStride _ -> [Capability.Matrix]
+       | GLSLShared -> [Capability.Shader]
+       | GLSLPacked -> [Capability.Shader]
+       | CPacked -> [Capability.Kernel]
+       | BuiltIn _ -> []
+       | NoPerspective -> [Capability.Shader]
+       | Flat -> [Capability.Shader]
+       | Patch -> [Capability.Tessellation]
+       | Centroid -> [Capability.Shader]
+       | Sample -> [Capability.SampleRateShading]
+       | Invariant -> [Capability.Shader]
+       | Restrict -> []
+       | Aliased -> []
+       | Volatile -> []
+       | Constant -> [Capability.Kernel]
+       | Coherent -> []
+       | NonWritable -> []
+       | NonReadable -> []
+       | Uniform -> [Capability.Shader;Capability.UniformDecoration]
+       | UniformId _ -> [Capability.Shader;Capability.UniformDecoration]
+       | SaturatedConversion -> [Capability.Kernel]
+       | Stream _ -> [Capability.GeometryStreams]
+       | Location _ -> [Capability.Shader]
+       | Component _ -> [Capability.Shader]
+       | Index _ -> [Capability.Shader]
+       | Binding _ -> [Capability.Shader]
+       | DescriptorSet _ -> [Capability.Shader]
+       | Offset _ -> [Capability.Shader]
+       | XfbBuffer _ -> [Capability.TransformFeedback]
+       | XfbStride _ -> [Capability.TransformFeedback]
+       | FuncParamAttr _ -> [Capability.Kernel]
+       | FPRoundingMode _ -> []
+       | FPFastMathMode _ -> [Capability.Kernel;Capability.FloatControls2]
+       | LinkageAttributes _ -> [Capability.Linkage]
+       | NoContraction -> [Capability.Shader]
+       | InputAttachmentIndex _ -> [Capability.InputAttachment]
+       | Alignment _ -> [Capability.Kernel]
+       | MaxByteOffset _ -> [Capability.Addresses]
+       | AlignmentId _ -> [Capability.Kernel]
+       | MaxByteOffsetId _ -> [Capability.Addresses]
+       | NoSignedWrap -> []
+       | NoUnsignedWrap -> []
+       | WeightTextureQCOM -> []
+       | BlockMatchTextureQCOM -> []
+       | BlockMatchSamplerQCOM -> []
+       | ExplicitInterpAMD -> []
+       | NodeSharesPayloadLimitsWithAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | NodeMaxPayloadsAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | TrackFinishWritingAMDX -> [Capability.ShaderEnqueueAMDX]
+       | PayloadNodeNameAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | PayloadNodeBaseIndexAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | PayloadNodeSparseArrayAMDX -> [Capability.ShaderEnqueueAMDX]
+       | PayloadNodeArraySizeAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | PayloadDispatchIndirectAMDX -> [Capability.ShaderEnqueueAMDX]
+       | OverrideCoverageNV -> [Capability.SampleMaskOverrideCoverageNV]
+       | PassthroughNV -> [Capability.GeometryShaderPassthroughNV]
+       | ViewportRelativeNV -> [Capability.ShaderViewportMaskNV]
+       | SecondaryViewportRelativeNV _ -> [Capability.ShaderStereoViewNV]
+       | PerPrimitiveEXT -> [Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | PerViewNV -> [Capability.MeshShadingNV]
+       | PerTaskNV -> [Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | PerVertexKHR -> [Capability.FragmentBarycentricKHR]
+       | NonUniform -> [Capability.ShaderNonUniform]
+       | RestrictPointer -> [Capability.PhysicalStorageBufferAddresses]
+       | AliasedPointer -> [Capability.PhysicalStorageBufferAddresses]
+       | HitObjectShaderRecordBufferNV -> [Capability.ShaderInvocationReorderNV]
+       | BindlessSamplerNV -> [Capability.BindlessTextureNV]
+       | BindlessImageNV -> [Capability.BindlessTextureNV]
+       | BoundSamplerNV -> [Capability.BindlessTextureNV]
+       | BoundImageNV -> [Capability.BindlessTextureNV]
+       | SIMTCallINTEL _ -> [Capability.VectorComputeINTEL]
+       | ReferencedIndirectlyINTEL -> [Capability.IndirectReferencesINTEL]
+       | ClobberINTEL _ -> [Capability.AsmINTEL]
+       | SideEffectsINTEL -> [Capability.AsmINTEL]
+       | VectorComputeVariableINTEL -> [Capability.VectorComputeINTEL]
+       | FuncParamIOKindINTEL _ -> [Capability.VectorComputeINTEL]
+       | VectorComputeFunctionINTEL -> [Capability.VectorComputeINTEL]
+       | StackCallINTEL -> [Capability.VectorComputeINTEL]
+       | GlobalVariableOffsetINTEL _ -> [Capability.VectorComputeINTEL]
+       | CounterBuffer _ -> []
+       | UserSemantic _ -> []
+       | UserTypeGOOGLE _ -> []
+       | FunctionRoundingModeINTEL _ -> [Capability.FunctionFloatControlINTEL]
+       | FunctionDenormModeINTEL _ -> [Capability.FunctionFloatControlINTEL]
+       | RegisterINTEL -> [Capability.FPGAMemoryAttributesINTEL]
+       | MemoryINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | NumbanksINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | BankwidthINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | MaxPrivateCopiesINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | SinglepumpINTEL -> [Capability.FPGAMemoryAttributesINTEL]
+       | DoublepumpINTEL -> [Capability.FPGAMemoryAttributesINTEL]
+       | MaxReplicatesINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | SimpleDualPortINTEL -> [Capability.FPGAMemoryAttributesINTEL]
+       | MergeINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | BankBitsINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | ForcePow2DepthINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | StridesizeINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | WordsizeINTEL _ -> [Capability.FPGAMemoryAttributesINTEL]
+       | TrueDualPortINTEL -> [Capability.FPGAMemoryAttributesINTEL]
+       | BurstCoalesceINTEL -> [Capability.FPGAMemoryAccessesINTEL]
+       | CacheSizeINTEL _ -> [Capability.FPGAMemoryAccessesINTEL]
+       | DontStaticallyCoalesceINTEL -> [Capability.FPGAMemoryAccessesINTEL]
+       | PrefetchINTEL _ -> [Capability.FPGAMemoryAccessesINTEL]
+       | StallEnableINTEL -> [Capability.FPGAClusterAttributesINTEL]
+       | FuseLoopsInFunctionINTEL -> [Capability.LoopFuseINTEL]
+       | MathOpDSPModeINTEL _ -> [Capability.FPGADSPControlINTEL]
+       | AliasScopeINTEL _ -> [Capability.MemoryAccessAliasingINTEL]
+       | NoAliasINTEL _ -> [Capability.MemoryAccessAliasingINTEL]
+       | InitiationIntervalINTEL _ -> [Capability.FPGAInvocationPipeliningAttributesINTEL]
+       | MaxConcurrencyINTEL _ -> [Capability.FPGAInvocationPipeliningAttributesINTEL]
+       | PipelineEnableINTEL _ -> [Capability.FPGAInvocationPipeliningAttributesINTEL]
+       | BufferLocationINTEL _ -> [Capability.FPGABufferLocationINTEL]
+       | IOPipeStorageINTEL _ -> [Capability.IOPipesINTEL]
+       | FunctionFloatingPointModeINTEL _ -> [Capability.FunctionFloatControlINTEL]
+       | SingleElementVectorINTEL -> [Capability.VectorComputeINTEL]
+       | VectorComputeCallableFunctionINTEL -> [Capability.VectorComputeINTEL]
+       | MediaBlockIOINTEL -> [Capability.VectorComputeINTEL]
+       | StallFreeINTEL -> [Capability.FPGAClusterAttributesV2INTEL]
+       | FPMaxErrorDecorationINTEL _ -> [Capability.FPMaxErrorINTEL]
+       | LatencyControlLabelINTEL _ -> [Capability.FPGALatencyControlINTEL]
+       | LatencyControlConstraintINTEL _ -> [Capability.FPGALatencyControlINTEL]
+       | ConduitKernelArgumentINTEL -> [Capability.FPGAArgumentInterfacesINTEL]
+       | RegisterMapKernelArgumentINTEL -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceAddressWidthINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceDataWidthINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceLatencyINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceReadWriteModeINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceMaxBurstINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | MMHostInterfaceWaitRequestINTEL _ -> [Capability.FPGAArgumentInterfacesINTEL]
+       | StableKernelArgumentINTEL -> [Capability.FPGAArgumentInterfacesINTEL]
+       | HostAccessINTEL _ -> [Capability.GlobalVariableHostAccessINTEL]
+       | InitModeINTEL _ -> [Capability.GlobalVariableFPGADecorationsINTEL]
+       | ImplementInRegisterMapINTEL _ -> [Capability.GlobalVariableFPGADecorationsINTEL]
+       | CacheControlLoadINTEL _ -> [Capability.CacheControlsINTEL]
+       | CacheControlStoreINTEL _ -> [Capability.CacheControlsINTEL]
+
 
 [<RequireQualifiedAccess>]
 type BuiltIn =
@@ -2234,6 +2870,125 @@ type BuiltIn =
        | HitKindBackFacingMicroTriangleNV -> 65536u
        | CullMaskKHR -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Position -> [Capability.Shader]
+       | PointSize -> [Capability.Shader]
+       | ClipDistance -> [Capability.ClipDistance]
+       | CullDistance -> [Capability.CullDistance]
+       | VertexId -> [Capability.Shader]
+       | InstanceId -> [Capability.Shader]
+       | PrimitiveId -> [Capability.Geometry;Capability.Tessellation;Capability.RayTracingNV;Capability.RayTracingKHR;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | InvocationId -> [Capability.Geometry;Capability.Tessellation]
+       | Layer -> [Capability.Geometry;Capability.ShaderLayer;Capability.ShaderViewportIndexLayerEXT;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | ViewportIndex -> [Capability.MultiViewport;Capability.ShaderViewportIndex;Capability.ShaderViewportIndexLayerEXT;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | TessLevelOuter -> [Capability.Tessellation]
+       | TessLevelInner -> [Capability.Tessellation]
+       | TessCoord -> [Capability.Tessellation]
+       | PatchVertices -> [Capability.Tessellation]
+       | FragCoord -> [Capability.Shader]
+       | PointCoord -> [Capability.Shader]
+       | FrontFacing -> [Capability.Shader]
+       | SampleId -> [Capability.SampleRateShading]
+       | SamplePosition -> [Capability.SampleRateShading]
+       | SampleMask -> [Capability.Shader]
+       | FragDepth -> [Capability.Shader]
+       | HelperInvocation -> [Capability.Shader]
+       | NumWorkgroups -> []
+       | WorkgroupSize -> []
+       | WorkgroupId -> []
+       | LocalInvocationId -> []
+       | GlobalInvocationId -> []
+       | LocalInvocationIndex -> []
+       | WorkDim -> [Capability.Kernel]
+       | GlobalSize -> [Capability.Kernel]
+       | EnqueuedWorkgroupSize -> [Capability.Kernel]
+       | GlobalOffset -> [Capability.Kernel]
+       | GlobalLinearId -> [Capability.Kernel]
+       | SubgroupSize -> [Capability.Kernel;Capability.GroupNonUniform;Capability.SubgroupBallotKHR]
+       | SubgroupMaxSize -> [Capability.Kernel]
+       | NumSubgroups -> [Capability.Kernel;Capability.GroupNonUniform]
+       | NumEnqueuedSubgroups -> [Capability.Kernel]
+       | SubgroupId -> [Capability.Kernel;Capability.GroupNonUniform]
+       | SubgroupLocalInvocationId -> [Capability.Kernel;Capability.GroupNonUniform;Capability.SubgroupBallotKHR]
+       | VertexIndex -> [Capability.Shader]
+       | InstanceIndex -> [Capability.Shader]
+       | CoreIDARM -> [Capability.CoreBuiltinsARM]
+       | CoreCountARM -> [Capability.CoreBuiltinsARM]
+       | CoreMaxIDARM -> [Capability.CoreBuiltinsARM]
+       | WarpIDARM -> [Capability.CoreBuiltinsARM]
+       | WarpMaxIDARM -> [Capability.CoreBuiltinsARM]
+       | SubgroupEqMask -> [Capability.SubgroupBallotKHR;Capability.GroupNonUniformBallot]
+       | SubgroupGeMask -> [Capability.SubgroupBallotKHR;Capability.GroupNonUniformBallot]
+       | SubgroupGtMask -> [Capability.SubgroupBallotKHR;Capability.GroupNonUniformBallot]
+       | SubgroupLeMask -> [Capability.SubgroupBallotKHR;Capability.GroupNonUniformBallot]
+       | SubgroupLtMask -> [Capability.SubgroupBallotKHR;Capability.GroupNonUniformBallot]
+       | BaseVertex -> [Capability.DrawParameters]
+       | BaseInstance -> [Capability.DrawParameters]
+       | DrawIndex -> [Capability.DrawParameters;Capability.MeshShadingNV;Capability.MeshShadingEXT]
+       | PrimitiveShadingRateKHR -> [Capability.FragmentShadingRateKHR]
+       | DeviceIndex -> [Capability.DeviceGroup]
+       | ViewIndex -> [Capability.MultiView]
+       | ShadingRateKHR -> [Capability.FragmentShadingRateKHR]
+       | BaryCoordNoPerspAMD -> []
+       | BaryCoordNoPerspCentroidAMD -> []
+       | BaryCoordNoPerspSampleAMD -> []
+       | BaryCoordSmoothAMD -> []
+       | BaryCoordSmoothCentroidAMD -> []
+       | BaryCoordSmoothSampleAMD -> []
+       | BaryCoordPullModelAMD -> []
+       | FragStencilRefEXT -> [Capability.StencilExportEXT]
+       | RemainingRecursionLevelsAMDX -> [Capability.ShaderEnqueueAMDX]
+       | ShaderIndexAMDX -> [Capability.ShaderEnqueueAMDX]
+       | ViewportMaskNV -> [Capability.ShaderViewportMaskNV;Capability.MeshShadingNV]
+       | SecondaryPositionNV -> [Capability.ShaderStereoViewNV]
+       | SecondaryViewportMaskNV -> [Capability.ShaderStereoViewNV]
+       | PositionPerViewNV -> [Capability.PerViewAttributesNV;Capability.MeshShadingNV]
+       | ViewportMaskPerViewNV -> [Capability.PerViewAttributesNV;Capability.MeshShadingNV]
+       | FullyCoveredEXT -> [Capability.FragmentFullyCoveredEXT]
+       | TaskCountNV -> [Capability.MeshShadingNV]
+       | PrimitiveCountNV -> [Capability.MeshShadingNV]
+       | PrimitiveIndicesNV -> [Capability.MeshShadingNV]
+       | ClipDistancePerViewNV -> [Capability.MeshShadingNV]
+       | CullDistancePerViewNV -> [Capability.MeshShadingNV]
+       | LayerPerViewNV -> [Capability.MeshShadingNV]
+       | MeshViewCountNV -> [Capability.MeshShadingNV]
+       | MeshViewIndicesNV -> [Capability.MeshShadingNV]
+       | BaryCoordKHR -> [Capability.FragmentBarycentricKHR]
+       | BaryCoordNoPerspKHR -> [Capability.FragmentBarycentricKHR]
+       | FragSizeEXT -> [Capability.FragmentDensityEXT]
+       | FragInvocationCountEXT -> [Capability.FragmentDensityEXT]
+       | PrimitivePointIndicesEXT -> [Capability.MeshShadingEXT]
+       | PrimitiveLineIndicesEXT -> [Capability.MeshShadingEXT]
+       | PrimitiveTriangleIndicesEXT -> [Capability.MeshShadingEXT]
+       | CullPrimitiveEXT -> [Capability.MeshShadingEXT]
+       | LaunchIdKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | LaunchSizeKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | WorldRayOriginKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | WorldRayDirectionKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | ObjectRayOriginKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | ObjectRayDirectionKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | RayTminKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | RayTmaxKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | InstanceCustomIndexKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | ObjectToWorldKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | WorldToObjectKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | HitTNV -> [Capability.RayTracingNV]
+       | HitKindKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | CurrentRayTimeNV -> [Capability.RayTracingMotionBlurNV]
+       | HitTriangleVertexPositionsKHR -> [Capability.RayTracingPositionFetchKHR]
+       | HitMicroTriangleVertexPositionsNV -> [Capability.RayTracingDisplacementMicromapNV]
+       | HitMicroTriangleVertexBarycentricsNV -> [Capability.RayTracingDisplacementMicromapNV]
+       | IncomingRayFlagsKHR -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | RayGeometryIndexKHR -> [Capability.RayTracingKHR]
+       | WarpsPerSMNV -> [Capability.ShaderSMBuiltinsNV]
+       | SMCountNV -> [Capability.ShaderSMBuiltinsNV]
+       | WarpIDNV -> [Capability.ShaderSMBuiltinsNV]
+       | SMIDNV -> [Capability.ShaderSMBuiltinsNV]
+       | HitKindFrontFacingMicroTriangleNV -> [Capability.RayTracingDisplacementMicromapNV]
+       | HitKindBackFacingMicroTriangleNV -> [Capability.RayTracingDisplacementMicromapNV]
+       | CullMaskKHR -> [Capability.RayCullMaskKHR]
+
 
 [<RequireQualifiedAccess>]
 type Scope =
@@ -2264,6 +3019,16 @@ type Scope =
        | Invocation -> 65536u
        | QueueFamily -> 66816u
        | ShaderCallKHR -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | CrossDevice -> []
+       | Device -> []
+       | Workgroup -> []
+       | Subgroup -> []
+       | Invocation -> []
+       | QueueFamily -> [Capability.VulkanMemoryModel]
+       | ShaderCallKHR -> [Capability.RayTracingKHR]
 
 
 [<RequireQualifiedAccess>]
@@ -2296,6 +3061,16 @@ type GroupOperation =
        | PartitionedInclusiveScanNV -> 65536u
        | PartitionedExclusiveScanNV -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Reduce -> [Capability.Kernel;Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformBallot]
+       | InclusiveScan -> [Capability.Kernel;Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformBallot]
+       | ExclusiveScan -> [Capability.Kernel;Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformBallot]
+       | ClusteredReduce -> [Capability.GroupNonUniformClustered]
+       | PartitionedReduceNV -> [Capability.GroupNonUniformPartitionedNV]
+       | PartitionedInclusiveScanNV -> [Capability.GroupNonUniformPartitionedNV]
+       | PartitionedExclusiveScanNV -> [Capability.GroupNonUniformPartitionedNV]
+
 
 [<RequireQualifiedAccess>]
 type KernelEnqueueFlags =
@@ -2314,6 +3089,12 @@ type KernelEnqueueFlags =
        | NoWait -> 65536u
        | WaitKernel -> 65536u
        | WaitWorkGroup -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | NoWait -> [Capability.Kernel]
+       | WaitKernel -> [Capability.Kernel]
+       | WaitWorkGroup -> [Capability.Kernel]
 
 
 [<RequireQualifiedAccess>]
@@ -3060,6 +3841,254 @@ type Capability =
        | CacheControlsINTEL -> 65536u
        | RegisterLimitsINTEL -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Matrix -> []
+       | Shader -> [Capability.Matrix]
+       | Geometry -> [Capability.Shader]
+       | Tessellation -> [Capability.Shader]
+       | Addresses -> []
+       | Linkage -> []
+       | Kernel -> []
+       | Vector16 -> [Capability.Kernel]
+       | Float16Buffer -> [Capability.Kernel]
+       | Float16 -> []
+       | Float64 -> []
+       | Int64 -> []
+       | Int64Atomics -> [Capability.Int64]
+       | ImageBasic -> [Capability.Kernel]
+       | ImageReadWrite -> [Capability.ImageBasic]
+       | ImageMipmap -> [Capability.ImageBasic]
+       | Pipes -> [Capability.Kernel]
+       | Groups -> []
+       | DeviceEnqueue -> [Capability.Kernel]
+       | LiteralSampler -> [Capability.Kernel]
+       | AtomicStorage -> [Capability.Shader]
+       | Int16 -> []
+       | TessellationPointSize -> [Capability.Tessellation]
+       | GeometryPointSize -> [Capability.Geometry]
+       | ImageGatherExtended -> [Capability.Shader]
+       | StorageImageMultisample -> [Capability.Shader]
+       | UniformBufferArrayDynamicIndexing -> [Capability.Shader]
+       | SampledImageArrayDynamicIndexing -> [Capability.Shader]
+       | StorageBufferArrayDynamicIndexing -> [Capability.Shader]
+       | StorageImageArrayDynamicIndexing -> [Capability.Shader]
+       | ClipDistance -> [Capability.Shader]
+       | CullDistance -> [Capability.Shader]
+       | ImageCubeArray -> [Capability.SampledCubeArray]
+       | SampleRateShading -> [Capability.Shader]
+       | ImageRect -> [Capability.SampledRect]
+       | SampledRect -> [Capability.Shader]
+       | GenericPointer -> [Capability.Addresses]
+       | Int8 -> []
+       | InputAttachment -> [Capability.Shader]
+       | SparseResidency -> [Capability.Shader]
+       | MinLod -> [Capability.Shader]
+       | Sampled1D -> []
+       | Image1D -> [Capability.Sampled1D]
+       | SampledCubeArray -> [Capability.Shader]
+       | SampledBuffer -> []
+       | ImageBuffer -> [Capability.SampledBuffer]
+       | ImageMSArray -> [Capability.Shader]
+       | StorageImageExtendedFormats -> [Capability.Shader]
+       | ImageQuery -> [Capability.Shader]
+       | DerivativeControl -> [Capability.Shader]
+       | InterpolationFunction -> [Capability.Shader]
+       | TransformFeedback -> [Capability.Shader]
+       | GeometryStreams -> [Capability.Geometry]
+       | StorageImageReadWithoutFormat -> [Capability.Shader]
+       | StorageImageWriteWithoutFormat -> [Capability.Shader]
+       | MultiViewport -> [Capability.Geometry]
+       | SubgroupDispatch -> [Capability.DeviceEnqueue]
+       | NamedBarrier -> [Capability.Kernel]
+       | PipeStorage -> [Capability.Pipes]
+       | GroupNonUniform -> []
+       | GroupNonUniformVote -> [Capability.GroupNonUniform]
+       | GroupNonUniformArithmetic -> [Capability.GroupNonUniform]
+       | GroupNonUniformBallot -> [Capability.GroupNonUniform]
+       | GroupNonUniformShuffle -> [Capability.GroupNonUniform]
+       | GroupNonUniformShuffleRelative -> [Capability.GroupNonUniform]
+       | GroupNonUniformClustered -> [Capability.GroupNonUniform]
+       | GroupNonUniformQuad -> [Capability.GroupNonUniform]
+       | ShaderLayer -> []
+       | ShaderViewportIndex -> []
+       | UniformDecoration -> []
+       | CoreBuiltinsARM -> []
+       | TileImageColorReadAccessEXT -> []
+       | TileImageDepthReadAccessEXT -> []
+       | TileImageStencilReadAccessEXT -> []
+       | CooperativeMatrixLayoutsARM -> []
+       | FragmentShadingRateKHR -> [Capability.Shader]
+       | SubgroupBallotKHR -> []
+       | DrawParameters -> [Capability.Shader]
+       | WorkgroupMemoryExplicitLayoutKHR -> [Capability.Shader]
+       | WorkgroupMemoryExplicitLayout8BitAccessKHR -> [Capability.WorkgroupMemoryExplicitLayoutKHR]
+       | WorkgroupMemoryExplicitLayout16BitAccessKHR -> [Capability.WorkgroupMemoryExplicitLayoutKHR]
+       | SubgroupVoteKHR -> []
+       | StorageBuffer16BitAccess -> []
+       | UniformAndStorageBuffer16BitAccess -> [Capability.StorageBuffer16BitAccess]
+       | StoragePushConstant16 -> []
+       | StorageInputOutput16 -> []
+       | DeviceGroup -> []
+       | MultiView -> [Capability.Shader]
+       | VariablePointersStorageBuffer -> [Capability.Shader]
+       | VariablePointers -> [Capability.VariablePointersStorageBuffer]
+       | AtomicStorageOps -> []
+       | SampleMaskPostDepthCoverage -> []
+       | StorageBuffer8BitAccess -> []
+       | UniformAndStorageBuffer8BitAccess -> [Capability.StorageBuffer8BitAccess]
+       | StoragePushConstant8 -> []
+       | DenormPreserve -> []
+       | DenormFlushToZero -> []
+       | SignedZeroInfNanPreserve -> []
+       | RoundingModeRTE -> []
+       | RoundingModeRTZ -> []
+       | RayQueryProvisionalKHR -> [Capability.Shader]
+       | RayQueryKHR -> [Capability.Shader]
+       | UntypedPointersKHR -> []
+       | RayTraversalPrimitiveCullingKHR -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | RayTracingKHR -> [Capability.Shader]
+       | TextureSampleWeightedQCOM -> []
+       | TextureBoxFilterQCOM -> []
+       | TextureBlockMatchQCOM -> []
+       | TextureBlockMatch2QCOM -> []
+       | Float16ImageAMD -> [Capability.Shader]
+       | ImageGatherBiasLodAMD -> [Capability.Shader]
+       | FragmentMaskAMD -> [Capability.Shader]
+       | StencilExportEXT -> [Capability.Shader]
+       | ImageReadWriteLodAMD -> [Capability.Shader]
+       | Int64ImageEXT -> [Capability.Shader]
+       | ShaderClockKHR -> []
+       | ShaderEnqueueAMDX -> [Capability.Shader]
+       | QuadControlKHR -> []
+       | SampleMaskOverrideCoverageNV -> [Capability.SampleRateShading]
+       | GeometryShaderPassthroughNV -> [Capability.Geometry]
+       | ShaderViewportIndexLayerEXT -> [Capability.MultiViewport]
+       | ShaderViewportMaskNV -> [Capability.ShaderViewportIndexLayerEXT]
+       | ShaderStereoViewNV -> [Capability.ShaderViewportMaskNV]
+       | PerViewAttributesNV -> [Capability.MultiView]
+       | FragmentFullyCoveredEXT -> [Capability.Shader]
+       | MeshShadingNV -> [Capability.Shader]
+       | ImageFootprintNV -> []
+       | MeshShadingEXT -> [Capability.Shader]
+       | FragmentBarycentricKHR -> []
+       | ComputeDerivativeGroupQuadsKHR -> [Capability.Shader]
+       | FragmentDensityEXT -> [Capability.Shader]
+       | GroupNonUniformPartitionedNV -> []
+       | ShaderNonUniform -> [Capability.Shader]
+       | RuntimeDescriptorArray -> [Capability.Shader]
+       | InputAttachmentArrayDynamicIndexing -> [Capability.InputAttachment]
+       | UniformTexelBufferArrayDynamicIndexing -> [Capability.SampledBuffer]
+       | StorageTexelBufferArrayDynamicIndexing -> [Capability.ImageBuffer]
+       | UniformBufferArrayNonUniformIndexing -> [Capability.ShaderNonUniform]
+       | SampledImageArrayNonUniformIndexing -> [Capability.ShaderNonUniform]
+       | StorageBufferArrayNonUniformIndexing -> [Capability.ShaderNonUniform]
+       | StorageImageArrayNonUniformIndexing -> [Capability.ShaderNonUniform]
+       | InputAttachmentArrayNonUniformIndexing -> [Capability.InputAttachment;Capability.ShaderNonUniform]
+       | UniformTexelBufferArrayNonUniformIndexing -> [Capability.SampledBuffer;Capability.ShaderNonUniform]
+       | StorageTexelBufferArrayNonUniformIndexing -> [Capability.ImageBuffer;Capability.ShaderNonUniform]
+       | RayTracingPositionFetchKHR -> [Capability.Shader]
+       | RayTracingNV -> [Capability.Shader]
+       | RayTracingMotionBlurNV -> [Capability.Shader]
+       | VulkanMemoryModel -> []
+       | VulkanMemoryModelDeviceScope -> []
+       | PhysicalStorageBufferAddresses -> [Capability.Shader]
+       | ComputeDerivativeGroupLinearKHR -> [Capability.Shader]
+       | RayTracingProvisionalKHR -> [Capability.Shader]
+       | CooperativeMatrixNV -> [Capability.Shader]
+       | FragmentShaderSampleInterlockEXT -> [Capability.Shader]
+       | FragmentShaderShadingRateInterlockEXT -> [Capability.Shader]
+       | ShaderSMBuiltinsNV -> [Capability.Shader]
+       | FragmentShaderPixelInterlockEXT -> [Capability.Shader]
+       | DemoteToHelperInvocation -> [Capability.Shader]
+       | DisplacementMicromapNV -> [Capability.Shader]
+       | RayTracingOpacityMicromapEXT -> [Capability.RayQueryKHR;Capability.RayTracingKHR]
+       | ShaderInvocationReorderNV -> [Capability.RayTracingKHR]
+       | BindlessTextureNV -> []
+       | RayQueryPositionFetchKHR -> [Capability.Shader]
+       | AtomicFloat16VectorNV -> []
+       | RayTracingDisplacementMicromapNV -> [Capability.RayTracingKHR]
+       | RawAccessChainsNV -> []
+       | CooperativeMatrixReductionsNV -> []
+       | CooperativeMatrixConversionsNV -> []
+       | CooperativeMatrixPerElementOperationsNV -> []
+       | CooperativeMatrixTensorAddressingNV -> []
+       | CooperativeMatrixBlockLoadsNV -> []
+       | TensorAddressingNV -> []
+       | SubgroupShuffleINTEL -> []
+       | SubgroupBufferBlockIOINTEL -> []
+       | SubgroupImageBlockIOINTEL -> []
+       | SubgroupImageMediaBlockIOINTEL -> []
+       | RoundToInfinityINTEL -> []
+       | FloatingPointModeINTEL -> []
+       | IntegerFunctions2INTEL -> [Capability.Shader]
+       | FunctionPointersINTEL -> []
+       | IndirectReferencesINTEL -> []
+       | AsmINTEL -> []
+       | AtomicFloat32MinMaxEXT -> []
+       | AtomicFloat64MinMaxEXT -> []
+       | AtomicFloat16MinMaxEXT -> []
+       | VectorComputeINTEL -> [Capability.VectorAnyINTEL]
+       | VectorAnyINTEL -> []
+       | ExpectAssumeKHR -> []
+       | SubgroupAvcMotionEstimationINTEL -> []
+       | SubgroupAvcMotionEstimationIntraINTEL -> []
+       | SubgroupAvcMotionEstimationChromaINTEL -> []
+       | VariableLengthArrayINTEL -> []
+       | FunctionFloatControlINTEL -> []
+       | FPGAMemoryAttributesINTEL -> []
+       | FPFastMathModeINTEL -> [Capability.Kernel]
+       | ArbitraryPrecisionIntegersINTEL -> []
+       | ArbitraryPrecisionFloatingPointINTEL -> []
+       | UnstructuredLoopControlsINTEL -> []
+       | FPGALoopControlsINTEL -> []
+       | KernelAttributesINTEL -> []
+       | FPGAKernelAttributesINTEL -> []
+       | FPGAMemoryAccessesINTEL -> []
+       | FPGAClusterAttributesINTEL -> []
+       | LoopFuseINTEL -> []
+       | FPGADSPControlINTEL -> []
+       | MemoryAccessAliasingINTEL -> []
+       | FPGAInvocationPipeliningAttributesINTEL -> []
+       | FPGABufferLocationINTEL -> []
+       | ArbitraryPrecisionFixedPointINTEL -> []
+       | USMStorageClassesINTEL -> []
+       | RuntimeAlignedAttributeINTEL -> []
+       | IOPipesINTEL -> []
+       | BlockingPipesINTEL -> []
+       | FPGARegINTEL -> []
+       | DotProductInputAll -> []
+       | DotProductInput4x8Bit -> [Capability.Int8]
+       | DotProductInput4x8BitPacked -> []
+       | DotProduct -> []
+       | RayCullMaskKHR -> []
+       | CooperativeMatrixKHR -> []
+       | ReplicatedCompositesEXT -> []
+       | BitInstructions -> []
+       | GroupNonUniformRotateKHR -> [Capability.GroupNonUniform]
+       | FloatControls2 -> []
+       | AtomicFloat32AddEXT -> []
+       | AtomicFloat64AddEXT -> []
+       | LongCompositesINTEL -> []
+       | OptNoneEXT -> []
+       | AtomicFloat16AddEXT -> []
+       | DebugInfoModuleINTEL -> []
+       | BFloat16ConversionINTEL -> []
+       | SplitBarrierINTEL -> []
+       | ArithmeticFenceEXT -> []
+       | FPGAClusterAttributesV2INTEL -> [Capability.FPGAClusterAttributesINTEL]
+       | FPGAKernelAttributesv2INTEL -> [Capability.FPGAKernelAttributesINTEL]
+       | FPMaxErrorINTEL -> []
+       | FPGALatencyControlINTEL -> []
+       | FPGAArgumentInterfacesINTEL -> []
+       | GlobalVariableHostAccessINTEL -> []
+       | GlobalVariableFPGADecorationsINTEL -> []
+       | SubgroupBufferPrefetchINTEL -> []
+       | GroupUniformArithmeticKHR -> []
+       | MaskedGatherScatterINTEL -> []
+       | CacheControlsINTEL -> []
+       | RegisterLimitsINTEL -> []
+
 
 [<RequireQualifiedAccess>]
 type RayQueryIntersection =
@@ -3075,6 +4104,11 @@ type RayQueryIntersection =
        match x with
        | RayQueryCandidateIntersectionKHR -> 65536u
        | RayQueryCommittedIntersectionKHR -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | RayQueryCandidateIntersectionKHR -> [Capability.RayQueryKHR]
+       | RayQueryCommittedIntersectionKHR -> [Capability.RayQueryKHR]
 
 
 [<RequireQualifiedAccess>]
@@ -3095,6 +4129,12 @@ type RayQueryCommittedIntersectionType =
        | RayQueryCommittedIntersectionTriangleKHR -> 65536u
        | RayQueryCommittedIntersectionGeneratedKHR -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | RayQueryCommittedIntersectionNoneKHR -> [Capability.RayQueryKHR]
+       | RayQueryCommittedIntersectionTriangleKHR -> [Capability.RayQueryKHR]
+       | RayQueryCommittedIntersectionGeneratedKHR -> [Capability.RayQueryKHR]
+
 
 [<RequireQualifiedAccess>]
 type RayQueryCandidateIntersectionType =
@@ -3111,6 +4151,11 @@ type RayQueryCandidateIntersectionType =
        | RayQueryCandidateIntersectionTriangleKHR -> 65536u
        | RayQueryCandidateIntersectionAABBKHR -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | RayQueryCandidateIntersectionTriangleKHR -> [Capability.RayQueryKHR]
+       | RayQueryCandidateIntersectionAABBKHR -> [Capability.RayQueryKHR]
+
 
 [<RequireQualifiedAccess>]
 type PackedVectorFormat =
@@ -3123,6 +4168,10 @@ type PackedVectorFormat =
     member x.Version =
        match x with
        | PackedVectorFormat4x8Bit -> 67072u
+
+    member x.Capabilities =
+       match x with
+       | PackedVectorFormat4x8Bit -> []
 
 
 type CooperativeMatrixOperands =
@@ -3143,6 +4192,15 @@ module CooperativeMatrixOperands =
        | CooperativeMatrixOperands.MatrixCSignedComponentsKHR -> 65536u
        | CooperativeMatrixOperands.MatrixResultSignedComponentsKHR -> 65536u
        | CooperativeMatrixOperands.SaturatingAccumulationKHR -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | CooperativeMatrixOperands.NoneKHR -> []
+       | CooperativeMatrixOperands.MatrixASignedComponentsKHR -> []
+       | CooperativeMatrixOperands.MatrixBSignedComponentsKHR -> []
+       | CooperativeMatrixOperands.MatrixCSignedComponentsKHR -> []
+       | CooperativeMatrixOperands.MatrixResultSignedComponentsKHR -> []
+       | CooperativeMatrixOperands.SaturatingAccumulationKHR -> []
 
 [<RequireQualifiedAccess>]
 type CooperativeMatrixLayout =
@@ -3165,6 +4223,13 @@ type CooperativeMatrixLayout =
        | RowBlockedInterleavedARM -> 65536u
        | ColumnBlockedInterleavedARM -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | RowMajorKHR -> []
+       | ColumnMajorKHR -> []
+       | RowBlockedInterleavedARM -> []
+       | ColumnBlockedInterleavedARM -> []
+
 
 [<RequireQualifiedAccess>]
 type CooperativeMatrixUse =
@@ -3184,6 +4249,12 @@ type CooperativeMatrixUse =
        | MatrixBKHR -> 65536u
        | MatrixAccumulatorKHR -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | MatrixAKHR -> []
+       | MatrixBKHR -> []
+       | MatrixAccumulatorKHR -> []
+
 
 type CooperativeMatrixReduce =
    | Row = 0x0001u
@@ -3197,6 +4268,12 @@ module CooperativeMatrixReduce =
        | CooperativeMatrixReduce.Row -> 65536u
        | CooperativeMatrixReduce.Column -> 65536u
        | CooperativeMatrixReduce.TwoByTwo -> 65536u
+
+    let GetCapabilities x =
+       match x with
+       | CooperativeMatrixReduce.Row -> []
+       | CooperativeMatrixReduce.Column -> []
+       | CooperativeMatrixReduce.TwoByTwo -> []
 
 [<RequireQualifiedAccess>]
 type TensorClampMode =
@@ -3222,6 +4299,14 @@ type TensorClampMode =
        | Repeat -> 65536u
        | RepeatMirrored -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | Undefined -> []
+       | Constant -> []
+       | ClampToEdge -> []
+       | Repeat -> []
+       | RepeatMirrored -> []
+
 
 [<RequireQualifiedAccess>]
 type TensorAddressingOperands =
@@ -3241,6 +4326,12 @@ type TensorAddressingOperands =
        | TensorView _ -> 65536u
        | DecodeFunc _ -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | None -> []
+       | TensorView _ -> [Capability.CooperativeMatrixTensorAddressingNV]
+       | DecodeFunc _ -> [Capability.CooperativeMatrixBlockLoadsNV]
+
 
 [<RequireQualifiedAccess>]
 type InitializationModeQualifier =
@@ -3256,6 +4347,11 @@ type InitializationModeQualifier =
        match x with
        | InitOnDeviceReprogramINTEL -> 65536u
        | InitOnDeviceResetINTEL -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | InitOnDeviceReprogramINTEL -> [Capability.GlobalVariableFPGADecorationsINTEL]
+       | InitOnDeviceResetINTEL -> [Capability.GlobalVariableFPGADecorationsINTEL]
 
 
 [<RequireQualifiedAccess>]
@@ -3282,6 +4378,14 @@ type LoadCacheControl =
        | InvalidateAfterReadINTEL -> 65536u
        | ConstCachedINTEL -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | UncachedINTEL -> [Capability.CacheControlsINTEL]
+       | CachedINTEL -> [Capability.CacheControlsINTEL]
+       | StreamingINTEL -> [Capability.CacheControlsINTEL]
+       | InvalidateAfterReadINTEL -> [Capability.CacheControlsINTEL]
+       | ConstCachedINTEL -> [Capability.CacheControlsINTEL]
+
 
 [<RequireQualifiedAccess>]
 type StoreCacheControl =
@@ -3304,6 +4408,13 @@ type StoreCacheControl =
        | WriteBackINTEL -> 65536u
        | StreamingINTEL -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | UncachedINTEL -> [Capability.CacheControlsINTEL]
+       | WriteThroughINTEL -> [Capability.CacheControlsINTEL]
+       | WriteBackINTEL -> [Capability.CacheControlsINTEL]
+       | StreamingINTEL -> [Capability.CacheControlsINTEL]
+
 
 [<RequireQualifiedAccess>]
 type NamedMaximumNumberOfRegisters =
@@ -3317,10 +4428,16 @@ type NamedMaximumNumberOfRegisters =
        match x with
        | AutoINTEL -> 65536u
 
+    member x.Capabilities =
+       match x with
+       | AutoINTEL -> [Capability.RegisterLimitsINTEL]
+
 
 [<RequireQualifiedAccess>]
 type FPEncoding =
     | FPEncoding
+
+
 
 
 
@@ -5648,6 +6765,768 @@ type Instruction =
        | OpGroupLogicalXorKHR _ -> 65536u
        | OpMaskedGatherINTEL _ -> 65536u
        | OpMaskedScatterINTEL _ -> 65536u
+
+    member x.Capabilities =
+       match x with
+       | OpNop -> []
+       | OpUndef _ -> []
+       | OpSourceContinued _ -> []
+       | OpSource _ -> []
+       | OpSourceExtension _ -> []
+       | OpName _ -> []
+       | OpMemberName _ -> []
+       | OpString _ -> []
+       | OpLine _ -> []
+       | OpExtension _ -> []
+       | OpExtInstImport _ -> []
+       | OpExtInst _ -> []
+       | OpMemoryModel _ -> []
+       | OpEntryPoint _ -> []
+       | OpExecutionMode _ -> []
+       | OpCapability _ -> []
+       | OpTypeVoid _ -> []
+       | OpTypeBool _ -> []
+       | OpTypeInt _ -> []
+       | OpTypeFloat _ -> []
+       | OpTypeVector _ -> []
+       | OpTypeMatrix _ -> [Capability.Matrix]
+       | OpTypeImage _ -> []
+       | OpTypeSampler _ -> []
+       | OpTypeSampledImage _ -> []
+       | OpTypeArray _ -> []
+       | OpTypeRuntimeArray _ -> [Capability.Shader]
+       | OpTypeStruct _ -> []
+       | OpTypeOpaque _ -> [Capability.Kernel]
+       | OpTypePointer _ -> []
+       | OpTypeFunction _ -> []
+       | OpTypeEvent _ -> [Capability.Kernel]
+       | OpTypeDeviceEvent _ -> [Capability.DeviceEnqueue]
+       | OpTypeReserveId _ -> [Capability.Pipes]
+       | OpTypeQueue _ -> [Capability.DeviceEnqueue]
+       | OpTypePipe _ -> [Capability.Pipes]
+       | OpTypeForwardPointer _ -> [Capability.Addresses;Capability.PhysicalStorageBufferAddresses]
+       | OpConstantTrue _ -> []
+       | OpConstantFalse _ -> []
+       | OpConstant _ -> []
+       | OpConstantComposite _ -> []
+       | OpConstantSampler _ -> [Capability.LiteralSampler]
+       | OpConstantNull _ -> []
+       | OpSpecConstantTrue _ -> []
+       | OpSpecConstantFalse _ -> []
+       | OpSpecConstant _ -> []
+       | OpSpecConstantComposite _ -> []
+       | OpSpecConstantOp _ -> []
+       | OpFunction _ -> []
+       | OpFunctionParameter _ -> []
+       | OpFunctionEnd -> []
+       | OpFunctionCall _ -> []
+       | OpVariable _ -> []
+       | OpImageTexelPointer _ -> []
+       | OpLoad _ -> []
+       | OpStore _ -> []
+       | OpCopyMemory _ -> []
+       | OpCopyMemorySized _ -> [Capability.Addresses;Capability.UntypedPointersKHR]
+       | OpAccessChain _ -> []
+       | OpInBoundsAccessChain _ -> []
+       | OpPtrAccessChain _ -> [Capability.Addresses;Capability.VariablePointers;Capability.VariablePointersStorageBuffer;Capability.PhysicalStorageBufferAddresses]
+       | OpArrayLength _ -> [Capability.Shader]
+       | OpGenericPtrMemSemantics _ -> [Capability.Kernel]
+       | OpInBoundsPtrAccessChain _ -> [Capability.Addresses]
+       | OpDecorate _ -> []
+       | OpMemberDecorate _ -> []
+       | OpDecorationGroup _ -> []
+       | OpGroupDecorate _ -> []
+       | OpGroupMemberDecorate _ -> []
+       | OpVectorExtractDynamic _ -> []
+       | OpVectorInsertDynamic _ -> []
+       | OpVectorShuffle _ -> []
+       | OpCompositeConstruct _ -> []
+       | OpCompositeExtract _ -> []
+       | OpCompositeInsert _ -> []
+       | OpCopyObject _ -> []
+       | OpTranspose _ -> [Capability.Matrix]
+       | OpSampledImage _ -> []
+       | OpImageSampleImplicitLod _ -> [Capability.Shader]
+       | OpImageSampleExplicitLod _ -> []
+       | OpImageSampleDrefImplicitLod _ -> [Capability.Shader]
+       | OpImageSampleDrefExplicitLod _ -> [Capability.Shader]
+       | OpImageSampleProjImplicitLod _ -> [Capability.Shader]
+       | OpImageSampleProjExplicitLod _ -> [Capability.Shader]
+       | OpImageSampleProjDrefImplicitLod _ -> [Capability.Shader]
+       | OpImageSampleProjDrefExplicitLod _ -> [Capability.Shader]
+       | OpImageFetch _ -> []
+       | OpImageGather _ -> [Capability.Shader]
+       | OpImageDrefGather _ -> [Capability.Shader]
+       | OpImageRead _ -> []
+       | OpImageWrite _ -> []
+       | OpImage _ -> []
+       | OpImageQueryFormat _ -> [Capability.Kernel]
+       | OpImageQueryOrder _ -> [Capability.Kernel]
+       | OpImageQuerySizeLod _ -> [Capability.Kernel;Capability.ImageQuery]
+       | OpImageQuerySize _ -> [Capability.Kernel;Capability.ImageQuery]
+       | OpImageQueryLod _ -> [Capability.ImageQuery]
+       | OpImageQueryLevels _ -> [Capability.Kernel;Capability.ImageQuery]
+       | OpImageQuerySamples _ -> [Capability.Kernel;Capability.ImageQuery]
+       | OpConvertFToU _ -> []
+       | OpConvertFToS _ -> []
+       | OpConvertSToF _ -> []
+       | OpConvertUToF _ -> []
+       | OpUConvert _ -> []
+       | OpSConvert _ -> []
+       | OpFConvert _ -> []
+       | OpQuantizeToF16 _ -> []
+       | OpConvertPtrToU _ -> [Capability.Addresses;Capability.PhysicalStorageBufferAddresses]
+       | OpSatConvertSToU _ -> [Capability.Kernel]
+       | OpSatConvertUToS _ -> [Capability.Kernel]
+       | OpConvertUToPtr _ -> [Capability.Addresses;Capability.PhysicalStorageBufferAddresses]
+       | OpPtrCastToGeneric _ -> [Capability.Kernel]
+       | OpGenericCastToPtr _ -> [Capability.Kernel]
+       | OpGenericCastToPtrExplicit _ -> [Capability.Kernel]
+       | OpBitcast _ -> []
+       | OpSNegate _ -> []
+       | OpFNegate _ -> []
+       | OpIAdd _ -> []
+       | OpFAdd _ -> []
+       | OpISub _ -> []
+       | OpFSub _ -> []
+       | OpIMul _ -> []
+       | OpFMul _ -> []
+       | OpUDiv _ -> []
+       | OpSDiv _ -> []
+       | OpFDiv _ -> []
+       | OpUMod _ -> []
+       | OpSRem _ -> []
+       | OpSMod _ -> []
+       | OpFRem _ -> []
+       | OpFMod _ -> []
+       | OpVectorTimesScalar _ -> []
+       | OpMatrixTimesScalar _ -> [Capability.Matrix]
+       | OpVectorTimesMatrix _ -> [Capability.Matrix]
+       | OpMatrixTimesVector _ -> [Capability.Matrix]
+       | OpMatrixTimesMatrix _ -> [Capability.Matrix]
+       | OpOuterProduct _ -> [Capability.Matrix]
+       | OpDot _ -> []
+       | OpIAddCarry _ -> []
+       | OpISubBorrow _ -> []
+       | OpUMulExtended _ -> []
+       | OpSMulExtended _ -> []
+       | OpAny _ -> []
+       | OpAll _ -> []
+       | OpIsNan _ -> []
+       | OpIsInf _ -> []
+       | OpIsFinite _ -> [Capability.Kernel]
+       | OpIsNormal _ -> [Capability.Kernel]
+       | OpSignBitSet _ -> [Capability.Kernel]
+       | OpLessOrGreater _ -> [Capability.Kernel]
+       | OpOrdered _ -> [Capability.Kernel]
+       | OpUnordered _ -> [Capability.Kernel]
+       | OpLogicalEqual _ -> []
+       | OpLogicalNotEqual _ -> []
+       | OpLogicalOr _ -> []
+       | OpLogicalAnd _ -> []
+       | OpLogicalNot _ -> []
+       | OpSelect _ -> []
+       | OpIEqual _ -> []
+       | OpINotEqual _ -> []
+       | OpUGreaterThan _ -> []
+       | OpSGreaterThan _ -> []
+       | OpUGreaterThanEqual _ -> []
+       | OpSGreaterThanEqual _ -> []
+       | OpULessThan _ -> []
+       | OpSLessThan _ -> []
+       | OpULessThanEqual _ -> []
+       | OpSLessThanEqual _ -> []
+       | OpFOrdEqual _ -> []
+       | OpFUnordEqual _ -> []
+       | OpFOrdNotEqual _ -> []
+       | OpFUnordNotEqual _ -> []
+       | OpFOrdLessThan _ -> []
+       | OpFUnordLessThan _ -> []
+       | OpFOrdGreaterThan _ -> []
+       | OpFUnordGreaterThan _ -> []
+       | OpFOrdLessThanEqual _ -> []
+       | OpFUnordLessThanEqual _ -> []
+       | OpFOrdGreaterThanEqual _ -> []
+       | OpFUnordGreaterThanEqual _ -> []
+       | OpShiftRightLogical _ -> []
+       | OpShiftRightArithmetic _ -> []
+       | OpShiftLeftLogical _ -> []
+       | OpBitwiseOr _ -> []
+       | OpBitwiseXor _ -> []
+       | OpBitwiseAnd _ -> []
+       | OpNot _ -> []
+       | OpBitFieldInsert _ -> [Capability.Shader;Capability.BitInstructions]
+       | OpBitFieldSExtract _ -> [Capability.Shader;Capability.BitInstructions]
+       | OpBitFieldUExtract _ -> [Capability.Shader;Capability.BitInstructions]
+       | OpBitReverse _ -> [Capability.Shader;Capability.BitInstructions]
+       | OpBitCount _ -> []
+       | OpDPdx _ -> [Capability.Shader]
+       | OpDPdy _ -> [Capability.Shader]
+       | OpFwidth _ -> [Capability.Shader]
+       | OpDPdxFine _ -> [Capability.DerivativeControl]
+       | OpDPdyFine _ -> [Capability.DerivativeControl]
+       | OpFwidthFine _ -> [Capability.DerivativeControl]
+       | OpDPdxCoarse _ -> [Capability.DerivativeControl]
+       | OpDPdyCoarse _ -> [Capability.DerivativeControl]
+       | OpFwidthCoarse _ -> [Capability.DerivativeControl]
+       | OpEmitVertex -> [Capability.Geometry]
+       | OpEndPrimitive -> [Capability.Geometry]
+       | OpEmitStreamVertex _ -> [Capability.GeometryStreams]
+       | OpEndStreamPrimitive _ -> [Capability.GeometryStreams]
+       | OpControlBarrier _ -> []
+       | OpMemoryBarrier _ -> []
+       | OpAtomicLoad _ -> []
+       | OpAtomicStore _ -> []
+       | OpAtomicExchange _ -> []
+       | OpAtomicCompareExchange _ -> []
+       | OpAtomicCompareExchangeWeak _ -> [Capability.Kernel]
+       | OpAtomicIIncrement _ -> []
+       | OpAtomicIDecrement _ -> []
+       | OpAtomicIAdd _ -> []
+       | OpAtomicISub _ -> []
+       | OpAtomicSMin _ -> []
+       | OpAtomicUMin _ -> []
+       | OpAtomicSMax _ -> []
+       | OpAtomicUMax _ -> []
+       | OpAtomicAnd _ -> []
+       | OpAtomicOr _ -> []
+       | OpAtomicXor _ -> []
+       | OpPhi _ -> []
+       | OpLoopMerge _ -> []
+       | OpSelectionMerge _ -> []
+       | OpLabel _ -> []
+       | OpBranch _ -> []
+       | OpBranchConditional _ -> []
+       | OpSwitch _ -> []
+       | OpKill -> [Capability.Shader]
+       | OpReturn -> []
+       | OpReturnValue _ -> []
+       | OpUnreachable -> []
+       | OpLifetimeStart _ -> [Capability.Kernel]
+       | OpLifetimeStop _ -> [Capability.Kernel]
+       | OpGroupAsyncCopy _ -> [Capability.Kernel]
+       | OpGroupWaitEvents _ -> [Capability.Kernel]
+       | OpGroupAll _ -> [Capability.Groups]
+       | OpGroupAny _ -> [Capability.Groups]
+       | OpGroupBroadcast _ -> [Capability.Groups]
+       | OpGroupIAdd _ -> [Capability.Groups]
+       | OpGroupFAdd _ -> [Capability.Groups]
+       | OpGroupFMin _ -> [Capability.Groups]
+       | OpGroupUMin _ -> [Capability.Groups]
+       | OpGroupSMin _ -> [Capability.Groups]
+       | OpGroupFMax _ -> [Capability.Groups]
+       | OpGroupUMax _ -> [Capability.Groups]
+       | OpGroupSMax _ -> [Capability.Groups]
+       | OpReadPipe _ -> [Capability.Pipes]
+       | OpWritePipe _ -> [Capability.Pipes]
+       | OpReservedReadPipe _ -> [Capability.Pipes]
+       | OpReservedWritePipe _ -> [Capability.Pipes]
+       | OpReserveReadPipePackets _ -> [Capability.Pipes]
+       | OpReserveWritePipePackets _ -> [Capability.Pipes]
+       | OpCommitReadPipe _ -> [Capability.Pipes]
+       | OpCommitWritePipe _ -> [Capability.Pipes]
+       | OpIsValidReserveId _ -> [Capability.Pipes]
+       | OpGetNumPipePackets _ -> [Capability.Pipes]
+       | OpGetMaxPipePackets _ -> [Capability.Pipes]
+       | OpGroupReserveReadPipePackets _ -> [Capability.Pipes]
+       | OpGroupReserveWritePipePackets _ -> [Capability.Pipes]
+       | OpGroupCommitReadPipe _ -> [Capability.Pipes]
+       | OpGroupCommitWritePipe _ -> [Capability.Pipes]
+       | OpEnqueueMarker _ -> [Capability.DeviceEnqueue]
+       | OpEnqueueKernel _ -> [Capability.DeviceEnqueue]
+       | OpGetKernelNDrangeSubGroupCount _ -> [Capability.DeviceEnqueue]
+       | OpGetKernelNDrangeMaxSubGroupSize _ -> [Capability.DeviceEnqueue]
+       | OpGetKernelWorkGroupSize _ -> [Capability.DeviceEnqueue]
+       | OpGetKernelPreferredWorkGroupSizeMultiple _ -> [Capability.DeviceEnqueue]
+       | OpRetainEvent _ -> [Capability.DeviceEnqueue]
+       | OpReleaseEvent _ -> [Capability.DeviceEnqueue]
+       | OpCreateUserEvent _ -> [Capability.DeviceEnqueue]
+       | OpIsValidEvent _ -> [Capability.DeviceEnqueue]
+       | OpSetUserEventStatus _ -> [Capability.DeviceEnqueue]
+       | OpCaptureEventProfilingInfo _ -> [Capability.DeviceEnqueue]
+       | OpGetDefaultQueue _ -> [Capability.DeviceEnqueue]
+       | OpBuildNDRange _ -> [Capability.DeviceEnqueue]
+       | OpImageSparseSampleImplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleExplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleDrefImplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleDrefExplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleProjImplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleProjExplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleProjDrefImplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseSampleProjDrefExplicitLod _ -> [Capability.SparseResidency]
+       | OpImageSparseFetch _ -> [Capability.SparseResidency]
+       | OpImageSparseGather _ -> [Capability.SparseResidency]
+       | OpImageSparseDrefGather _ -> [Capability.SparseResidency]
+       | OpImageSparseTexelsResident _ -> [Capability.SparseResidency]
+       | OpNoLine -> []
+       | OpAtomicFlagTestAndSet _ -> [Capability.Kernel]
+       | OpAtomicFlagClear _ -> [Capability.Kernel]
+       | OpImageSparseRead _ -> [Capability.SparseResidency]
+       | OpSizeOf _ -> [Capability.Addresses]
+       | OpTypePipeStorage _ -> [Capability.PipeStorage]
+       | OpConstantPipeStorage _ -> [Capability.PipeStorage]
+       | OpCreatePipeFromPipeStorage _ -> [Capability.PipeStorage]
+       | OpGetKernelLocalSizeForSubgroupCount _ -> [Capability.SubgroupDispatch]
+       | OpGetKernelMaxNumSubgroups _ -> [Capability.SubgroupDispatch]
+       | OpTypeNamedBarrier _ -> [Capability.NamedBarrier]
+       | OpNamedBarrierInitialize _ -> [Capability.NamedBarrier]
+       | OpMemoryNamedBarrier _ -> [Capability.NamedBarrier]
+       | OpModuleProcessed _ -> []
+       | OpExecutionModeId _ -> []
+       | OpDecorateId _ -> []
+       | OpGroupNonUniformElect _ -> [Capability.GroupNonUniform]
+       | OpGroupNonUniformAll _ -> [Capability.GroupNonUniformVote]
+       | OpGroupNonUniformAny _ -> [Capability.GroupNonUniformVote]
+       | OpGroupNonUniformAllEqual _ -> [Capability.GroupNonUniformVote]
+       | OpGroupNonUniformBroadcast _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBroadcastFirst _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBallot _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformInverseBallot _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBallotBitExtract _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBallotBitCount _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBallotFindLSB _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformBallotFindMSB _ -> [Capability.GroupNonUniformBallot]
+       | OpGroupNonUniformShuffle _ -> [Capability.GroupNonUniformShuffle]
+       | OpGroupNonUniformShuffleXor _ -> [Capability.GroupNonUniformShuffle]
+       | OpGroupNonUniformShuffleUp _ -> [Capability.GroupNonUniformShuffleRelative]
+       | OpGroupNonUniformShuffleDown _ -> [Capability.GroupNonUniformShuffleRelative]
+       | OpGroupNonUniformIAdd _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformFAdd _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformIMul _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformFMul _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformSMin _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformUMin _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformFMin _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformSMax _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformUMax _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformFMax _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformBitwiseAnd _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformBitwiseOr _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformBitwiseXor _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformLogicalAnd _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformLogicalOr _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformLogicalXor _ -> [Capability.GroupNonUniformArithmetic;Capability.GroupNonUniformClustered;Capability.GroupNonUniformPartitionedNV]
+       | OpGroupNonUniformQuadBroadcast _ -> [Capability.GroupNonUniformQuad]
+       | OpGroupNonUniformQuadSwap _ -> [Capability.GroupNonUniformQuad]
+       | OpCopyLogical _ -> []
+       | OpPtrEqual _ -> []
+       | OpPtrNotEqual _ -> []
+       | OpPtrDiff _ -> [Capability.Addresses;Capability.VariablePointers;Capability.VariablePointersStorageBuffer]
+       | OpColorAttachmentReadEXT _ -> [Capability.TileImageColorReadAccessEXT]
+       | OpDepthAttachmentReadEXT _ -> [Capability.TileImageDepthReadAccessEXT]
+       | OpStencilAttachmentReadEXT _ -> [Capability.TileImageStencilReadAccessEXT]
+       | OpTerminateInvocation -> [Capability.Shader]
+       | OpTypeUntypedPointerKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedVariableKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedAccessChainKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedInBoundsAccessChainKHR _ -> [Capability.UntypedPointersKHR]
+       | OpSubgroupBallotKHR _ -> [Capability.SubgroupBallotKHR]
+       | OpSubgroupFirstInvocationKHR _ -> [Capability.SubgroupBallotKHR]
+       | OpUntypedPtrAccessChainKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedInBoundsPtrAccessChainKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedArrayLengthKHR _ -> [Capability.UntypedPointersKHR]
+       | OpUntypedPrefetchKHR _ -> [Capability.UntypedPointersKHR]
+       | OpSubgroupAllKHR _ -> [Capability.SubgroupVoteKHR]
+       | OpSubgroupAnyKHR _ -> [Capability.SubgroupVoteKHR]
+       | OpSubgroupAllEqualKHR _ -> [Capability.SubgroupVoteKHR]
+       | OpGroupNonUniformRotateKHR _ -> [Capability.GroupNonUniformRotateKHR]
+       | OpSubgroupReadInvocationKHR _ -> [Capability.SubgroupBallotKHR]
+       | OpExtInstWithForwardRefsKHR _ -> []
+       | OpTraceRayKHR _ -> [Capability.RayTracingKHR]
+       | OpExecuteCallableKHR _ -> [Capability.RayTracingKHR]
+       | OpConvertUToAccelerationStructureKHR _ -> [Capability.RayTracingKHR;Capability.RayQueryKHR]
+       | OpIgnoreIntersectionKHR -> [Capability.RayTracingKHR]
+       | OpTerminateRayKHR -> [Capability.RayTracingKHR]
+       | OpSDot _ -> [Capability.DotProduct]
+       | OpUDot _ -> [Capability.DotProduct]
+       | OpSUDot _ -> [Capability.DotProduct]
+       | OpSDotAccSat _ -> [Capability.DotProduct]
+       | OpUDotAccSat _ -> [Capability.DotProduct]
+       | OpSUDotAccSat _ -> [Capability.DotProduct]
+       | OpTypeCooperativeMatrixKHR _ -> [Capability.CooperativeMatrixKHR]
+       | OpCooperativeMatrixLoadKHR _ -> [Capability.CooperativeMatrixKHR]
+       | OpCooperativeMatrixStoreKHR _ -> [Capability.CooperativeMatrixKHR]
+       | OpCooperativeMatrixMulAddKHR _ -> [Capability.CooperativeMatrixKHR]
+       | OpCooperativeMatrixLengthKHR _ -> [Capability.CooperativeMatrixKHR]
+       | OpConstantCompositeReplicateEXT _ -> [Capability.ReplicatedCompositesEXT]
+       | OpSpecConstantCompositeReplicateEXT _ -> [Capability.ReplicatedCompositesEXT]
+       | OpCompositeConstructReplicateEXT _ -> [Capability.ReplicatedCompositesEXT]
+       | OpTypeRayQueryKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryInitializeKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryTerminateKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGenerateIntersectionKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryConfirmIntersectionKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryProceedKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionTypeKHR _ -> [Capability.RayQueryKHR]
+       | OpImageSampleWeightedQCOM _ -> [Capability.TextureSampleWeightedQCOM]
+       | OpImageBoxFilterQCOM _ -> [Capability.TextureBoxFilterQCOM]
+       | OpImageBlockMatchSSDQCOM _ -> [Capability.TextureBlockMatchQCOM]
+       | OpImageBlockMatchSADQCOM _ -> [Capability.TextureBlockMatchQCOM]
+       | OpImageBlockMatchWindowSSDQCOM _ -> [Capability.TextureBlockMatch2QCOM]
+       | OpImageBlockMatchWindowSADQCOM _ -> [Capability.TextureBlockMatch2QCOM]
+       | OpImageBlockMatchGatherSSDQCOM _ -> [Capability.TextureBlockMatch2QCOM]
+       | OpImageBlockMatchGatherSADQCOM _ -> [Capability.TextureBlockMatch2QCOM]
+       | OpGroupIAddNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupFAddNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupFMinNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupUMinNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupSMinNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupFMaxNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupUMaxNonUniformAMD _ -> [Capability.Groups]
+       | OpGroupSMaxNonUniformAMD _ -> [Capability.Groups]
+       | OpFragmentMaskFetchAMD _ -> [Capability.FragmentMaskAMD]
+       | OpFragmentFetchAMD _ -> [Capability.FragmentMaskAMD]
+       | OpReadClockKHR _ -> [Capability.ShaderClockKHR]
+       | OpAllocateNodePayloadsAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpEnqueueNodePayloadsAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpTypeNodePayloadArrayAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpFinishWritingNodePayloadAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpNodePayloadArrayLengthAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpIsNodePayloadValidAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpConstantStringAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpSpecConstantStringAMDX _ -> [Capability.ShaderEnqueueAMDX]
+       | OpGroupNonUniformQuadAllKHR _ -> [Capability.QuadControlKHR]
+       | OpGroupNonUniformQuadAnyKHR _ -> [Capability.QuadControlKHR]
+       | OpHitObjectRecordHitMotionNV _ -> [Capability.ShaderInvocationReorderNV;Capability.RayTracingMotionBlurNV]
+       | OpHitObjectRecordHitWithIndexMotionNV _ -> [Capability.ShaderInvocationReorderNV;Capability.RayTracingMotionBlurNV]
+       | OpHitObjectRecordMissMotionNV _ -> [Capability.ShaderInvocationReorderNV;Capability.RayTracingMotionBlurNV]
+       | OpHitObjectGetWorldToObjectNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetObjectToWorldNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetObjectRayDirectionNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetObjectRayOriginNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectTraceRayMotionNV _ -> [Capability.ShaderInvocationReorderNV;Capability.RayTracingMotionBlurNV]
+       | OpHitObjectGetShaderRecordBufferHandleNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetShaderBindingTableRecordIndexNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectRecordEmptyNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectTraceRayNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectRecordHitNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectRecordHitWithIndexNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectRecordMissNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectExecuteShaderNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetCurrentTimeNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetAttributesNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetHitKindNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetPrimitiveIndexNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetGeometryIndexNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetInstanceIdNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetInstanceCustomIndexNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetWorldRayDirectionNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetWorldRayOriginNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetRayTMaxNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectGetRayTMinNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectIsEmptyNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectIsHitNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpHitObjectIsMissNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpReorderThreadWithHitObjectNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpReorderThreadWithHintNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpTypeHitObjectNV _ -> [Capability.ShaderInvocationReorderNV]
+       | OpImageSampleFootprintNV _ -> [Capability.ImageFootprintNV]
+       | OpCooperativeMatrixConvertNV _ -> [Capability.CooperativeMatrixConversionsNV]
+       | OpEmitMeshTasksEXT _ -> [Capability.MeshShadingEXT]
+       | OpSetMeshOutputsEXT _ -> [Capability.MeshShadingEXT]
+       | OpGroupNonUniformPartitionNV _ -> [Capability.GroupNonUniformPartitionedNV]
+       | OpWritePackedPrimitiveIndices4x8NV _ -> [Capability.MeshShadingNV]
+       | OpFetchMicroTriangleVertexPositionNV _ -> [Capability.DisplacementMicromapNV]
+       | OpFetchMicroTriangleVertexBarycentricNV _ -> [Capability.DisplacementMicromapNV]
+       | OpReportIntersectionKHR _ -> [Capability.RayTracingNV;Capability.RayTracingKHR]
+       | OpIgnoreIntersectionNV -> [Capability.RayTracingNV]
+       | OpTerminateRayNV -> [Capability.RayTracingNV]
+       | OpTraceNV _ -> [Capability.RayTracingNV]
+       | OpTraceMotionNV _ -> [Capability.RayTracingMotionBlurNV]
+       | OpTraceRayMotionNV _ -> [Capability.RayTracingMotionBlurNV]
+       | OpRayQueryGetIntersectionTriangleVertexPositionsKHR _ -> [Capability.RayQueryPositionFetchKHR]
+       | OpTypeAccelerationStructureKHR _ -> [Capability.RayTracingNV;Capability.RayTracingKHR;Capability.RayQueryKHR]
+       | OpExecuteCallableNV _ -> [Capability.RayTracingNV]
+       | OpTypeCooperativeMatrixNV _ -> [Capability.CooperativeMatrixNV]
+       | OpCooperativeMatrixLoadNV _ -> [Capability.CooperativeMatrixNV]
+       | OpCooperativeMatrixStoreNV _ -> [Capability.CooperativeMatrixNV]
+       | OpCooperativeMatrixMulAddNV _ -> [Capability.CooperativeMatrixNV]
+       | OpCooperativeMatrixLengthNV _ -> [Capability.CooperativeMatrixNV]
+       | OpBeginInvocationInterlockEXT -> [Capability.FragmentShaderSampleInterlockEXT;Capability.FragmentShaderPixelInterlockEXT;Capability.FragmentShaderShadingRateInterlockEXT]
+       | OpEndInvocationInterlockEXT -> [Capability.FragmentShaderSampleInterlockEXT;Capability.FragmentShaderPixelInterlockEXT;Capability.FragmentShaderShadingRateInterlockEXT]
+       | OpCooperativeMatrixReduceNV _ -> [Capability.CooperativeMatrixReductionsNV]
+       | OpCooperativeMatrixLoadTensorNV _ -> [Capability.CooperativeMatrixTensorAddressingNV]
+       | OpCooperativeMatrixStoreTensorNV _ -> [Capability.CooperativeMatrixTensorAddressingNV]
+       | OpCooperativeMatrixPerElementOpNV _ -> [Capability.CooperativeMatrixPerElementOperationsNV]
+       | OpTypeTensorLayoutNV _ -> [Capability.TensorAddressingNV]
+       | OpTypeTensorViewNV _ -> [Capability.TensorAddressingNV]
+       | OpCreateTensorLayoutNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorLayoutSetDimensionNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorLayoutSetStrideNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorLayoutSliceNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorLayoutSetClampValueNV _ -> [Capability.TensorAddressingNV]
+       | OpCreateTensorViewNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorViewSetDimensionNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorViewSetStrideNV _ -> [Capability.TensorAddressingNV]
+       | OpDemoteToHelperInvocation -> [Capability.DemoteToHelperInvocation]
+       | OpIsHelperInvocationEXT _ -> [Capability.DemoteToHelperInvocation]
+       | OpTensorViewSetClipNV _ -> [Capability.TensorAddressingNV]
+       | OpTensorLayoutSetBlockSizeNV _ -> [Capability.TensorAddressingNV]
+       | OpCooperativeMatrixTransposeNV _ -> [Capability.CooperativeMatrixConversionsNV]
+       | OpConvertUToImageNV _ -> [Capability.BindlessTextureNV]
+       | OpConvertUToSamplerNV _ -> [Capability.BindlessTextureNV]
+       | OpConvertImageToUNV _ -> [Capability.BindlessTextureNV]
+       | OpConvertSamplerToUNV _ -> [Capability.BindlessTextureNV]
+       | OpConvertUToSampledImageNV _ -> [Capability.BindlessTextureNV]
+       | OpConvertSampledImageToUNV _ -> [Capability.BindlessTextureNV]
+       | OpSamplerImageAddressingModeNV _ -> [Capability.BindlessTextureNV]
+       | OpRawAccessChainNV _ -> [Capability.RawAccessChainsNV]
+       | OpSubgroupShuffleINTEL _ -> [Capability.SubgroupShuffleINTEL]
+       | OpSubgroupShuffleDownINTEL _ -> [Capability.SubgroupShuffleINTEL]
+       | OpSubgroupShuffleUpINTEL _ -> [Capability.SubgroupShuffleINTEL]
+       | OpSubgroupShuffleXorINTEL _ -> [Capability.SubgroupShuffleINTEL]
+       | OpSubgroupBlockReadINTEL _ -> [Capability.SubgroupBufferBlockIOINTEL]
+       | OpSubgroupBlockWriteINTEL _ -> [Capability.SubgroupBufferBlockIOINTEL]
+       | OpSubgroupImageBlockReadINTEL _ -> [Capability.SubgroupImageBlockIOINTEL]
+       | OpSubgroupImageBlockWriteINTEL _ -> [Capability.SubgroupImageBlockIOINTEL]
+       | OpSubgroupImageMediaBlockReadINTEL _ -> [Capability.SubgroupImageMediaBlockIOINTEL]
+       | OpSubgroupImageMediaBlockWriteINTEL _ -> [Capability.SubgroupImageMediaBlockIOINTEL]
+       | OpUCountLeadingZerosINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUCountTrailingZerosINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpAbsISubINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpAbsUSubINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpIAddSatINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUAddSatINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpIAverageINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUAverageINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpIAverageRoundedINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUAverageRoundedINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpISubSatINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUSubSatINTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpIMul32x16INTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpUMul32x16INTEL _ -> [Capability.IntegerFunctions2INTEL]
+       | OpConstantFunctionPointerINTEL _ -> [Capability.FunctionPointersINTEL]
+       | OpFunctionPointerCallINTEL _ -> [Capability.FunctionPointersINTEL]
+       | OpAsmTargetINTEL _ -> [Capability.AsmINTEL]
+       | OpAsmINTEL _ -> [Capability.AsmINTEL]
+       | OpAsmCallINTEL _ -> [Capability.AsmINTEL]
+       | OpAtomicFMinEXT _ -> [Capability.AtomicFloat16MinMaxEXT;Capability.AtomicFloat32MinMaxEXT;Capability.AtomicFloat64MinMaxEXT;Capability.AtomicFloat16VectorNV]
+       | OpAtomicFMaxEXT _ -> [Capability.AtomicFloat16MinMaxEXT;Capability.AtomicFloat32MinMaxEXT;Capability.AtomicFloat64MinMaxEXT;Capability.AtomicFloat16VectorNV]
+       | OpAssumeTrueKHR _ -> [Capability.ExpectAssumeKHR]
+       | OpExpectKHR _ -> [Capability.ExpectAssumeKHR]
+       | OpDecorateString _ -> []
+       | OpMemberDecorateString _ -> []
+       | OpVmeImageINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeVmeImageINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcRefPayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcSicPayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcMcePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcMceResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImeResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImeResultSingleReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImeResultDualReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImeSingleReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcImeDualReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcRefResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpTypeAvcSicResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetInterBaseMultiReferencePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultInterShapePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetInterShapePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultInterDirectionPenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetInterDirectionPenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultIntraLumaShapePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcMceGetDefaultInterMotionVectorCostTableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultHighPenaltyCostTableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultMediumPenaltyCostTableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultLowPenaltyCostTableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetDefaultIntraLumaModePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcMceGetDefaultNonDcLumaIntraPenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcMceGetDefaultIntraChromaModeBasePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationChromaINTEL]
+       | OpSubgroupAvcMceSetAcOnlyHaarINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetSourceInterlacedFieldPolarityINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetSingleReferenceInterlacedFieldPolarityINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceSetDualReferenceInterlacedFieldPolaritiesINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToImePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToImeResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToRefPayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToRefResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToSicPayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceConvertToSicResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetMotionVectorsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterDistortionsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetBestInterDistortionsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterMajorShapeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterMinorShapeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterDirectionsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterMotionVectorCountINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterReferenceIdsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcMceGetInterReferenceInterlacedFieldPolaritiesINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeInitializeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetSingleReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetDualReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeRefWindowSizeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeAdjustRefOffsetINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeConvertToMcePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetMaxMotionVectorCountINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetUnidirectionalMixDisableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetEarlySearchTerminationThresholdINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeSetWeightedSadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithDualReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithSingleReferenceStreaminoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeConvertToMceResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetSingleReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetDualReferenceStreaminINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeStripSingleReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeStripDualReferenceStreamoutINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeMotionVectorsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeDistortionsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeReferenceIdsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetBorderReachedINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetTruncatedSearchIndicationINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetUnidirectionalEarlySearchTerminationINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetWeightingPatternMinimumMotionVectorINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcImeGetWeightingPatternMinimumDistortionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcFmeInitializeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcBmeInitializeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefConvertToMcePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefSetBidirectionalMixDisableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefSetBilinearFilterEnableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefEvaluateWithDualReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcRefConvertToMceResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicInitializeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicConfigureSkcINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicConfigureIpeLumaINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicConfigureIpeLumaChromaINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationChromaINTEL]
+       | OpSubgroupAvcSicGetMotionVectorMaskINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicConvertToMcePayloadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicSetIntraLumaShapePenaltyINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicSetIntraChromaModeCostFunctionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationChromaINTEL]
+       | OpSubgroupAvcSicSetBilinearFilterEnableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicSetSkcForwardTransformEnableINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicSetBlockBasedRawSkipSadINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicEvaluateIpeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicEvaluateWithSingleReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicEvaluateWithDualReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicConvertToMceResultINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicGetIpeLumaShapeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicGetBestIpeLumaDistortionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicGetBestIpeChromaDistortionINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpSubgroupAvcSicGetPackedIpeLumaModesINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicGetIpeChromaModeINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationChromaINTEL]
+       | OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL;Capability.SubgroupAvcMotionEstimationIntraINTEL]
+       | OpSubgroupAvcSicGetInterRawSadsINTEL _ -> [Capability.SubgroupAvcMotionEstimationINTEL]
+       | OpVariableLengthArrayINTEL _ -> [Capability.VariableLengthArrayINTEL]
+       | OpSaveMemoryINTEL _ -> [Capability.VariableLengthArrayINTEL]
+       | OpRestoreMemoryINTEL _ -> [Capability.VariableLengthArrayINTEL]
+       | OpArbitraryFloatSinCosPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCastINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCastFromIntINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCastToIntINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatAddINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatSubINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatMulINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatDivINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatGTINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatGEINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLTINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLEINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatEQINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatRecipINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatRSqrtINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCbrtINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatHypotINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatSqrtINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLogINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLog2INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLog10INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatLog1pINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatExpINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatExp2INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatExp10INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatExpm1INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatSinINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCosINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatSinCosINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatSinPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatCosPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatASinINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatASinPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatACosINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatACosPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatATanINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatATanPiINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatATan2INTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatPowINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatPowRINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpArbitraryFloatPowNINTEL _ -> [Capability.ArbitraryPrecisionFloatingPointINTEL]
+       | OpLoopControlINTEL _ -> [Capability.UnstructuredLoopControlsINTEL]
+       | OpAliasDomainDeclINTEL _ -> [Capability.MemoryAccessAliasingINTEL]
+       | OpAliasScopeDeclINTEL _ -> [Capability.MemoryAccessAliasingINTEL]
+       | OpAliasScopeListDeclINTEL _ -> [Capability.MemoryAccessAliasingINTEL]
+       | OpFixedSqrtINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedRecipINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedRsqrtINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedSinINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedCosINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedSinCosINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedSinPiINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedCosPiINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedSinCosPiINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedLogINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpFixedExpINTEL _ -> [Capability.ArbitraryPrecisionFixedPointINTEL]
+       | OpPtrCastToCrossWorkgroupINTEL _ -> [Capability.USMStorageClassesINTEL]
+       | OpCrossWorkgroupCastToPtrINTEL _ -> [Capability.USMStorageClassesINTEL]
+       | OpReadPipeBlockingINTEL _ -> [Capability.BlockingPipesINTEL]
+       | OpWritePipeBlockingINTEL _ -> [Capability.BlockingPipesINTEL]
+       | OpFPGARegINTEL _ -> [Capability.FPGARegINTEL]
+       | OpRayQueryGetRayTMinKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetRayFlagsKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionTKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionInstanceCustomIndexKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionInstanceIdKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionInstanceShaderBindingTableRecordOffsetKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionGeometryIndexKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionPrimitiveIndexKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionBarycentricsKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionFrontFaceKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionCandidateAABBOpaqueKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionObjectRayDirectionKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionObjectRayOriginKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetWorldRayDirectionKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetWorldRayOriginKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionObjectToWorldKHR _ -> [Capability.RayQueryKHR]
+       | OpRayQueryGetIntersectionWorldToObjectKHR _ -> [Capability.RayQueryKHR]
+       | OpAtomicFAddEXT _ -> [Capability.AtomicFloat16AddEXT;Capability.AtomicFloat32AddEXT;Capability.AtomicFloat64AddEXT;Capability.AtomicFloat16VectorNV]
+       | OpTypeBufferSurfaceINTEL _ -> [Capability.VectorComputeINTEL]
+       | OpTypeStructContinuedINTEL _ -> [Capability.LongCompositesINTEL]
+       | OpConstantCompositeContinuedINTEL _ -> [Capability.LongCompositesINTEL]
+       | OpSpecConstantCompositeContinuedINTEL _ -> [Capability.LongCompositesINTEL]
+       | OpCompositeConstructContinuedINTEL _ -> [Capability.LongCompositesINTEL]
+       | OpConvertFToBF16INTEL _ -> [Capability.BFloat16ConversionINTEL]
+       | OpConvertBF16ToFINTEL _ -> [Capability.BFloat16ConversionINTEL]
+       | OpControlBarrierArriveINTEL _ -> [Capability.SplitBarrierINTEL]
+       | OpControlBarrierWaitINTEL _ -> [Capability.SplitBarrierINTEL]
+       | OpArithmeticFenceEXT _ -> [Capability.ArithmeticFenceEXT]
+       | OpSubgroupBlockPrefetchINTEL _ -> [Capability.SubgroupBufferPrefetchINTEL]
+       | OpGroupIMulKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupFMulKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupBitwiseAndKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupBitwiseOrKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupBitwiseXorKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupLogicalAndKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupLogicalOrKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpGroupLogicalXorKHR _ -> [Capability.GroupUniformArithmeticKHR]
+       | OpMaskedGatherINTEL _ -> [Capability.MaskedGatherScatterINTEL]
+       | OpMaskedScatterINTEL _ -> [Capability.MaskedGatherScatterINTEL]
 
     static member internal Serialize(instr: Instruction, stream: SpirvStream) =
         match instr with

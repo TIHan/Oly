@@ -38,6 +38,24 @@ let createIndentStr indent =
         |> ignore
     indentStrBuilder.ToString()
 
+let handleCapabilityAlias (name: string) =
+    match name with
+    | "ComputeDerivativeGroupQuadsNV" -> "ComputeDerivativeGroupQuadsKHR"
+    | "ComputeDerivativeGroupLinearNV" -> "ComputeDerivativeGroupLinearKHR"
+    | _ -> name
+
+let createCapabilitiesStr (capabilities: string array) =
+    if Array.isEmpty capabilities then
+        "[]"
+    else
+        "[" +
+        (
+            capabilities
+            |> Array.map (fun x -> "Capability." + handleCapabilityAlias x)
+            |> Array.reduce (fun x y -> x + ";" + y)
+        ) +
+        "]"
+
 let CreateSpirvVersion(major: uint32, minor: uint32) = ((major <<< 16) ||| (minor <<< 8))
 
 let CreateSpirvVersionFromDecimal (n: decimal option) =
@@ -187,6 +205,30 @@ let genEnumVersionMember (explicitTypeName: string option) enumerants =
      |> Array.map (genEnumVersionCase explicitTypeName)
      |> Array.reduce (fun x y -> x + "\n" + y))
 
+let genEnumCapabilitiesCase (explicitTypeName: string option) (enumerant: SpirvSpec.Enumerant) =
+    let underscore () =
+        if Array.isEmpty enumerant.Parameters then
+            String.Empty
+        else
+            " _"
+    "       | " + (match explicitTypeName with Some tyName -> $"{tyName}." | _ -> "") + cleanEnumCaseName(enumerant.Enumerant) + underscore () + " -> " + createCapabilitiesStr enumerant.Capabilities
+
+let genEnumCapabilitiesMember (explicitTypeName: string option) enumerants =
+    if Array.isEmpty enumerants then
+        ""
+    else
+
+    let str =
+        if explicitTypeName.IsSome then
+            "    let GetCapabilities x ="
+        else
+            "    member x.Capabilities ="
+    $"{str}
+       match x with\n" +
+    (enumerants
+     |> Array.map (genEnumCapabilitiesCase explicitTypeName)
+     |> Array.reduce (fun x y -> x + "\n" + y))
+
 let genKind (kind: SpirvSpec.OperandKind) =
     let comment =
         match kind.Doc with
@@ -230,7 +272,8 @@ let genKind (kind: SpirvSpec.OperandKind) =
              |> List.reduce (fun x y -> x + "\n" + y)) + "\n\n"
         ) +
          genDuMemberValueMember enumerants + "\n\n" +
-         genEnumVersionMember None enumerants + "\n\n"
+         genEnumVersionMember None enumerants + "\n\n" +
+         genEnumCapabilitiesMember None enumerants + "\n\n"
     | "BitEnum" ->
         "type " + kind.Kind + " =\n" +
         if enumerants.Length = 0 then
@@ -241,7 +284,7 @@ let genKind (kind: SpirvSpec.OperandKind) =
                     let name = cleanEnumCaseName case.Enumerant
                     "   | " + name + " = " + case.Value.String.Value + "u")
                 |> Array.reduce (fun case1 case2 -> case1 + "\n" + case2)) + "\n\n" +
-            ("module " + kind.Kind + " =\n\n" + genEnumVersionMember (Some kind.Kind) enumerants) + "\n"
+            ("module " + kind.Kind + " =\n\n" + genEnumVersionMember (Some kind.Kind) enumerants + "\n\n" + genEnumCapabilitiesMember (Some kind.Kind) enumerants) + "\n"
     | "Composite" ->
         "type " + kind.Kind + " = " + kind.Kind + " of " + (kind.Bases |> Array.reduce (fun x y -> x + " * " + y)) + "\n"
     | _ ->
@@ -307,6 +350,21 @@ let genInstructionMemberVersionMember () =
        match x with\n" +
     (instructions
      |> Array.map genInstructionMemberVersionCase
+     |> Array.reduce (fun x y -> x + "\n" + y))
+
+let genInstructionMemberCapabilitiesCase (instr: SpirvSpec.Instruction) =
+    let underscore () =
+        if Array.isEmpty instr.Operands then
+            String.Empty
+        else
+            " _"
+    "       | " + instr.Opname + underscore () + " -> " + createCapabilitiesStr instr.Capabilities
+
+let genInstructionMemberCapabilitiesMember () =
+    "    member x.Capabilities =
+       match x with\n" +
+    (instructions
+     |> Array.map genInstructionMemberCapabilitiesCase
      |> Array.reduce (fun x y -> x + "\n" + y))
 
 let genCaseArgsMatch argName count =
@@ -440,6 +498,7 @@ let genInstructions () =
      |> Array.reduce (fun x y -> x + "\n" + y)) + "\n\n" +
     genInstructionMemberOpcodeMember () + "\n\n" +
     genInstructionMemberVersionMember () + "\n\n" +
+    genInstructionMemberCapabilitiesMember () + "\n\n" +
     genSerializeInstructions () + "\n\n" +
     genDeserializeInstructions ()
 
