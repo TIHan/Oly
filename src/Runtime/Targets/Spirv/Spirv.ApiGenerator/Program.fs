@@ -11,20 +11,32 @@ let instructions =
     spec.Instructions
     |> Array.distinctBy (fun x -> x.Opcode)
 
-let cleanName (name: string) =
-    let results = name.Split(''')
-    if results.Length >= 2 then
-        results.[1].Replace(" ", "").Replace("~", "").Replace(",","").Replace(".","").Replace(">","").Replace("<<","").Replace("-","")
-    else
-        String.Empty
-
 let cleanEnumCaseName (name: string) =
     match name with
     | "1D" -> "One"
     | "2D" -> "Two"
     | "3D" -> "Three"
     | "2x2" -> "TwoByTwo"
+    | "sRGB" -> "StdRGB"
+    | "sRGBx" -> "StdRGBx"
+    | "sRGBA" -> "StdRGBA"
+    | "sBGRA" -> "StdBGRA"
     | x -> x
+
+let cleanName (name: string) =
+    let results = name.Split(''')
+    if results.Length >= 2 then
+        results.[1].Replace(" ", "").Replace("~", "").Replace(",","").Replace(".","").Replace(">","").Replace("<<","").Replace("-","")
+    else
+        String.Empty
+    |> cleanEnumCaseName
+
+let createIndentStr indent =
+    let indentStrBuilder = System.Text.StringBuilder()
+    for _ = 0 to indent - 1 do
+        indentStrBuilder.Append("    ")
+        |> ignore
+    indentStrBuilder.ToString()
 
 let CreateSpirvVersion(major: uint32, minor: uint32) = ((major <<< 16) ||| (minor <<< 8))
 
@@ -77,7 +89,9 @@ let rec getType (name: string) (category: string) (bases: string []) (pars: Disc
             OperandType.UInt32 name
     | "ValueEnum" | "BitEnum" when pars.Length > 0 ->
         OperandType.DiscriminatedUnion (name, pars)
-    | "ValueEnum" | "BitEnum" ->
+    | "ValueEnum" ->
+        OperandType.DiscriminatedUnion (name, List.empty)
+    | "BitEnum" ->
         OperandType.Enum name
     | "Composite" ->
         OperandType.Composite (name, bases |> List.ofArray |> List.map (fun x -> getType String.Empty x [||] []))
@@ -118,7 +132,7 @@ let createDiscriminatedUnionCases (e: SpirvSpec.Enumerant []) =
     |> Array.map (fun x ->
         let name = x.Enumerant
         let value = x.Value.String.Value
-        DiscriminatedUnionCase(name, value, createDiscriminatedUnionCaseItems x.Parameters)
+        DiscriminatedUnionCase(cleanEnumCaseName name, value, createDiscriminatedUnionCaseItems x.Parameters)
     )
     |> List.ofArray
 
@@ -136,9 +150,13 @@ let genDuMemberValueCase (instr: SpirvSpec.Enumerant) =
             String.Empty
         else
             " _"
-    "       | " + instr.Enumerant + underscore () + " -> " + genDuMemberValue instr + "u"
+    "       | " + cleanEnumCaseName(instr.Enumerant) + underscore () + " -> " + genDuMemberValue instr + "u"
 
 let genDuMemberValueMember enumerants =
+    if Array.isEmpty enumerants then
+        ""
+    else
+
     "    member x.Value =
        match x with\n" +
     (enumerants
@@ -154,6 +172,10 @@ let genEnumVersionCase (explicitTypeName: string option) (enumerant: SpirvSpec.E
     "       | " + (match explicitTypeName with Some tyName -> $"{tyName}." | _ -> "") + cleanEnumCaseName(enumerant.Enumerant) + underscore () + " -> " + CreateSpirvVersionFromDecimal enumerant.Version.Number
 
 let genEnumVersionMember (explicitTypeName: string option) enumerants =
+    if Array.isEmpty enumerants then
+        ""
+    else
+
     let str =
         if explicitTypeName.IsSome then
             "    let GetVersion x ="
@@ -176,6 +198,7 @@ let genKind (kind: SpirvSpec.OperandKind) =
         |> Array.distinctBy (fun x -> x.Value.String)
 
     let isDu = enumerants |> Array.exists (fun x -> x.Parameters.Length > 0)
+    let isDu = if isDu then isDu else kind.Category = "ValueEnum"
     let cases = 
         if isDu then
             createDiscriminatedUnionCases enumerants
@@ -197,12 +220,18 @@ let genKind (kind: SpirvSpec.OperandKind) =
         "type " + kind.Kind + " = " + tyName + "\n"
     | "ValueEnum" | "BitEnum" when isDu ->
         "[<RequireQualifiedAccess>]\ntype " + kind.Kind + " =\n" +
-        (cases 
-         |> List.map (genDiscriminatedUnionCase)
-         |> List.reduce (fun x y -> x + "\n" + y)) + "\n\n" +
+        (
+            if cases.IsEmpty then 
+                "    | " + kind.Kind
+            else
+
+            (cases 
+             |> List.map (genDiscriminatedUnionCase)
+             |> List.reduce (fun x y -> x + "\n" + y)) + "\n\n"
+        ) +
          genDuMemberValueMember enumerants + "\n\n" +
          genEnumVersionMember None enumerants + "\n\n"
-    | "ValueEnum" | "BitEnum" ->
+    | "BitEnum" ->
         "type " + kind.Kind + " =\n" +
         if enumerants.Length = 0 then
             "   | " + kind.Kind + " = 0u"
@@ -283,7 +312,8 @@ let genInstructionMemberVersionMember () =
 let genCaseArgsMatch argName count =
     "(" + (Array.init count (fun i -> argName + string i) |> Array.reduce (fun x y -> x + ", " + y)) + ")"
 
-let rec genSerializeType arg (ty: OperandType) =
+let rec genSerializeType indent arg (ty: OperandType) =
+    let indentStr = createIndentStr indent
     match ty with
     | OperandType.UInt16 _ -> "stream.WriteUInt16(" + arg + ")"
     | OperandType.UInt32 _ -> "stream.WriteUInt32(" + arg + ")"
@@ -291,26 +321,38 @@ let rec genSerializeType arg (ty: OperandType) =
     | OperandType.Enum _ -> "stream.WriteEnum(" + arg + ")"
     | OperandType.Composite (name, bases) ->
         "match " + arg + " with " + name + genCaseArgsMatch (arg + "_") bases.Length + " -> " +
-        (bases |> List.mapi (fun i x -> genSerializeType (arg + "_" + string i) x) |> List.reduce (fun x y -> x + ";" + y))
+        (bases |> List.mapi (fun i x -> genSerializeType (indent + 1) (arg + "_" + string i) x) |> List.reduce (fun x y -> x + ";" + y))
     | OperandType.Option ty ->
-        "stream.WriteOption(" + arg + ", fun v -> " + genSerializeType "v" ty + ")"
+        match ty with
+        | OperandType.DiscriminatedUnion(_, cases) when cases.IsEmpty ->
+            "stream.WriteOption(" + arg + ", fun v -> failwith \"invalid\" )"
+        | _ ->
+            "stream.WriteOption(" + arg + ", fun v -> " + genSerializeType (indent + 1) "v" ty + ")"
     | OperandType.List ty ->
-        "stream.WriteList(" + arg + ", fun v -> " + genSerializeType "v" ty + ")"
+        "stream.WriteList(" + arg + ", fun v -> " + genSerializeType (indent + 1) "v" ty + ")"
     | OperandType.DiscriminatedUnion (duName, cases) ->
-        "\n            match " + arg + " with\n" + genSerializeCases arg duName cases
+        $"\n            {indentStr}match " + arg + " with\n" + genSerializeCases (indent + 1) arg duName cases
 
-and genSerializeCases (inst: string) (duName: string) (cases: DiscriminatedUnionCase list) =
+and genSerializeCases indent (inst: string) (duName: string) (cases: DiscriminatedUnionCase list) =
+    if cases.IsEmpty then
+        ""
+    else
+
+    let indentStr = createIndentStr indent
+
     let argName = inst + "_arg"
     cases
     |> List.map (fun (DiscriminatedUnionCase(name, _, pars)) ->
         if pars.Length = 0 then
-            "            | " + duName + "." + name + " -> stream.WriteUInt32(" + inst + ".Value)"
+            indentStr + "        | " + duName + "." + name + " ->\n" +
+            indentStr + "            stream.WriteUInt32(" + inst + ".Value)"
         else
-            "            | " + duName + "." + name + genCaseArgsMatch argName pars.Length + " -> stream.WriteUInt32(" + inst + ".Value);" +
+            indentStr + "        | " + duName + "." + name + genCaseArgsMatch argName pars.Length + " ->\n" +
+            indentStr + "            stream.WriteUInt32(" + inst + ".Value)\n" + indentStr + "            " +
             (pars 
              |> List.mapi (fun i (DiscriminatedUnionCaseItem(_, ty)) -> 
-                genSerializeType (argName + string i) typeLookup.[ty]) 
-             |> List.reduce (fun x y -> x + ";" + y))
+                genSerializeType (indent) (argName + string i) typeLookup.[ty]) 
+             |> List.reduce (fun x y -> x + "\n" + indentStr + "            " + y))
     )
     |> List.reduce (fun x y -> x + "\n" + y)
         
@@ -330,6 +372,10 @@ let rec genDeserializeType (ty: OperandType) =
         "(match stream.ReadUInt32() with " + genDeserializeCases duName cases + """ | _ -> failwith "invalid" )"""
 
 and genDeserializeCases (duName: string) (cases: DiscriminatedUnionCase list) =
+    if cases.IsEmpty then
+        ""
+    else
+
     cases
     |> List.map (fun (DiscriminatedUnionCase(name, value, pars)) ->
         if pars.Length = 0 then
@@ -352,7 +398,7 @@ let genSerializeInstruction (instr: SpirvSpec.Instruction) =
     | [||] -> "            ()"
     | operands ->
         operands
-        |> Array.mapi (fun i x -> "            " + genSerializeType ("arg" + string i) (getOperandType x))
+        |> Array.mapi (fun i x -> "            " + genSerializeType 0 ("arg" + string i) (getOperandType x))
         |> Array.reduce (fun x y -> x + "\n" + y)
 
 let genDeserializeInstruction (instr: SpirvSpec.Instruction) =
