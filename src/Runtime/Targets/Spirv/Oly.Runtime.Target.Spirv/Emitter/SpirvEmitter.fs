@@ -87,7 +87,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitFieldInstance(enclosingTy: SpirvType, formalField: SpirvField): SpirvField = 
             raise(NotSupportedException())
 
-        member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, _tier: OlyIRFunctionTier, func: SpirvFunction): unit = 
+        member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, tier: OlyIRFunctionTier, func: SpirvFunction): unit = 
             let funcBuilder = (match func with SpirvFunction.Function(x) -> x | _ -> raise(InvalidOperationException()))
             let body = body.Value
 
@@ -100,6 +100,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 }
             let codeGenCenv = 
                 { 
+                    IsDebuggable = tier.HasMinimalOptimizations
                     Instructions = List()
                     Module = builder
                     Function = funcBuilder

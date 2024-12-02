@@ -321,7 +321,7 @@ type SpirvFunctionBuilder(
         if irFlags.IsEntryPoint && returnTy <> builder.GetTypeVoid() then
             raise(InvalidOperationException("Entry point must have a 'void' return type."))
 
-    let funcTy = SpirvType.Function(builder.NewIdResult(), parTys, returnTy)
+    let funcTy = builder.GetTypeFunction(parTys, returnTy)
 
     member _.IdResult = idResult
     member _.EnclosingType: SpirvType = enclosingTy
@@ -791,13 +791,16 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
 
     let pointerTys = Dictionary<(StorageClass * IdRef), SpirvType>()
     let arrayTys = Dictionary<(SpirvArrayKind * IdRef), SpirvType>()
+    let funcTys = Dictionary<(SpirvType * SpirvType imarray), SpirvType>()
+
+    let strings = Dictionary<string, IdResult>()
 
     let constantsInt32 = Dictionary<int32, IdResult>()
     let constantsUInt32 = Dictionary<uint32, IdResult>()
     let constantsFloat32 = Dictionary<float32, IdResult>()
     let constantsVectorFloat32 = Dictionary<IdRef list, IdResult>()
 
-    let vertexHeaderInstrs =
+    let headerInstrs =
         [
             OpCapability(Capability.Shader)
             if (majorVersion >= 1u && minorVersion >= 3u) then
@@ -965,6 +968,16 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             this.AddType(cachedTypeUVec3)
         cachedTypeUVec3
 
+    member this.GetTypeFunction(parTys: SpirvType imarray, returnTy: SpirvType) =
+        let key = (returnTy, parTys)
+        match funcTys.TryGetValue key with
+        | true, funcTy -> funcTy
+        | _ ->
+             let funcTy = SpirvType.Function(this.NewIdResult(), parTys, returnTy)
+             funcTys[key] <- funcTy
+             this.AddType(funcTy)
+             funcTy
+
     member this.GetTypeTuple(elementTys: SpirvType imarray, elementNames: string imarray): SpirvType = 
         raise(NotImplementedException())
 
@@ -980,6 +993,14 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
         if isBuilding then
             failwith "Unable to add type while the module is building."
         types.Add(ty)
+
+    member this.GetStringIdRef(value: string): IdRef =
+        match strings.TryGetValue value with
+        | true, idResult -> idResult
+        | _ ->
+            let idResult = this.NewIdResult()
+            strings[value] <- idResult
+            idResult
 
     member private this.CreateVariableType(isGlobal: bool, defaultGlobalStorageClass: StorageClass, irAttrs: OlyIRAttribute<SpirvType, SpirvFunction> imarray, ty: SpirvType) =
         let checkParameterElementType elementTy =
@@ -1127,9 +1148,6 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType) =
         let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy, name, irFlags, irPars, returnTy)
         funcs.Add(func)
-
-        this.AddType(func.Type) // TODO: Cache this!
-
         if func.IsEntryPoint then
             if isNull(box entryPoint) then
                 entryPoint <- func
@@ -1143,7 +1161,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
 
         isBuilding <- true
         let instrs =
-            vertexHeaderInstrs @
+            headerInstrs @
             (
                 let entryPointVarIdRefs =
                     globalVars
@@ -1164,6 +1182,12 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                         OpExecutionMode(entryPoint.IdResult, ExecutionMode.LocalSize(1u, 1u, 1u))
                 ]
                 
+            ) @
+            (
+                [
+                    for pair in strings do
+                        OpString(pair.Value, pair.Key)
+                ]
             ) @
             (
                 types
@@ -1242,6 +1266,7 @@ module private Normalization =
 
         let headerWithEntryPoint = List()
         let executionModes = List()
+        let debugInstrs = List()
         let memberDecorates = List()
         let decorates = List()
         let other = List()
@@ -1271,6 +1296,11 @@ module private Normalization =
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
                 memberDecorates.Add(instr)
+
+            | OpString _ ->
+                if hasEntryPoint |> not then
+                    raise(InvalidOperationException())
+                debugInstrs.Add(instr)
 
             | OpDecorate(_, decor) ->
                 let text = $"Decoration '{decor}'"
@@ -1304,6 +1334,7 @@ module private Normalization =
         [
             yield! headerWithEntryPoint
             yield! executionModes
+            yield! debugInstrs
             yield! memberDecorates
             yield! decorates
             yield! other

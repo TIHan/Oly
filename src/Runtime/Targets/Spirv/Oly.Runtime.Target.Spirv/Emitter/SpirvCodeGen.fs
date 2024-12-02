@@ -16,6 +16,7 @@ open Spirv.SpirvModule
 [<NoEquality;NoComparison>]
 type cenv =
     {
+        IsDebuggable: bool
         Function: SpirvFunctionBuilder
         Module: SpirvModuleBuilder
         Instructions: List<Instruction>
@@ -107,7 +108,7 @@ module rec SpirvCodeGen =
 
             match baseExpr with
             // Optimization: Combine access chains into one.
-            | E.Operation(op=BuiltInOperations.AccessChain(innerBaseExpr, innerIndexExprs, _)) ->
+            | E.Operation(op=BuiltInOperations.AccessChain(innerBaseExpr, innerIndexExprs, _)) when not cenv.IsDebuggable ->
                 let combinedAccessChainExpr =
                     BuiltInExpressions.AccessChain(
                         innerBaseExpr, 
@@ -364,7 +365,10 @@ module rec SpirvCodeGen =
         | E.None _ ->
             IdRef0 // Nothing
 
-        | E.Value(value=value) ->
+        | E.Value(textRange, value) ->
+            if cenv.IsDebuggable && not textRange.IsEmpty then
+                OpLine(cenv.Module.GetStringIdRef(textRange.Path.ToString()), uint32(textRange.StartLine), uint32(textRange.StartColumn))
+                |> emitInstruction cenv
             GenValue cenv env value
 
         | E.Operation(op=op) ->

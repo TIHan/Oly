@@ -793,8 +793,8 @@ main(): () =
         """
     src
     |> OlyCompute 
-        [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value=   0f } } };{ Value = { Value = { Value= 0f } } }|] 
-        [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value= 123f } } };{ Value = { Value = { Value= 0f } } }|]
+        [|{ Value = { Value = { Value = 0f } } };{ Value = { Value = { Value =   0f } } };{ Value = { Value = { Value = 0f } } }|] 
+        [|{ Value = { Value = { Value = 0f } } };{ Value = { Value = { Value = 123f } } };{ Value = { Value = { Value = 0f } } }|]
 
 type EmptyStruct = struct end
 
