@@ -1199,15 +1199,17 @@ type RuntimeType =
 
             | ByRef(elementTy1, kind1), ByRef(elementTy2, kind2) -> elementTy1 = elementTy2 && kind1 = kind2
 
-            | Function(inputTy1, outputTy1, kind1), Function(inputTy2, outputTy2, kind2) ->
-                inputTy1 = inputTy2 &&
+            | Function(inputTys1, outputTy1, kind1), Function(inputTys2, outputTy2, kind2) when inputTys1.Length = inputTys2.Length ->
                 outputTy1 = outputTy2 &&
-                kind1 = kind2
+                kind1 = kind2 &&
+                (inputTys1, inputTys2)
+                ||> ImArray.forall2 (=)
 
-            | NativeFunctionPtr(ilCc1, inputTy1, outputTy1), NativeFunctionPtr(ilCc2, inputTy2, outputTy2) ->
+            | NativeFunctionPtr(ilCc1, inputTys1, outputTy1), NativeFunctionPtr(ilCc2, inputTys2, outputTy2) when inputTys1.Length = inputTys2.Length ->
+                outputTy1 = outputTy2 &&
                 ilCc1 = ilCc2 &&
-                inputTy1 = inputTy2 &&
-                outputTy1 = outputTy2
+                (inputTys1, inputTys2)
+                ||> ImArray.forall2 (=)
 
             | Entity ent1, Entity ent2 -> ent1 = ent2
             | Variable(index1, ilKind1), Variable(index2, ilKind2) ->
