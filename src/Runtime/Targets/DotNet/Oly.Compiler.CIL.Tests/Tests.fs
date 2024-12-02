@@ -20006,7 +20006,7 @@ class A =
 print(__oly_object): ()
 
 getTuple(): (IA, __oly_int32) =
-    (A(), 9) // 'A' is the concrete type
+    (A() : IA, 9) // 'A' is the concrete type
 
 main(): () =
     let (a, v) = getTuple()

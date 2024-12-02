@@ -1418,26 +1418,27 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.ErrorWithType _ ->
         failwith "Cannot generate an error expression."
 
-    | E.NewTuple(_, exprs, ty) ->
-        if exprs.Length <= 1 then
-            failwith "Cannot generate an invalid tuple expression."
+    | E.NewTuple(_, exprs, exprTy) ->
+        OlyAssert.True(exprTy.IsAnyTuple)
+        OlyAssert.False(exprTy.IsOneTuple)
+        OlyAssert.Equal(exprs.Length, exprTy.TypeArguments.Length)
 
-        let ilParTys =
-            exprs
-            |> ImArray.map (fun expr -> emitILType cenv env expr.Type)
+        let ilItemTys =
+            exprTy.TypeArguments
+            |> ImArray.map (emitILType cenv env)
 
         let ilArgExprs =
             exprs
             |> ImArray.map (fun expr -> GenExpression cenv { env with isInArg = true } expr)
 
         let ilNameHandles =
-            match stripTypeEquationsAndBuiltIn ty with
+            match stripTypeEquationsAndBuiltIn exprTy with
             | TypeSymbol.Tuple(_, names) ->
                 GenTupleNames cenv names
             | _ ->
                 ImArray.empty
 
-        let ilOp = OlyILOperation.NewTuple(ilParTys, ilArgExprs, ilNameHandles)
+        let ilOp = OlyILOperation.NewTuple(ilItemTys, ilArgExprs, ilNameHandles)
         OlyILExpression.Operation(ilTextRange, ilOp)
 
     | E.NewArray(_, _, exprs, exprTy) ->
