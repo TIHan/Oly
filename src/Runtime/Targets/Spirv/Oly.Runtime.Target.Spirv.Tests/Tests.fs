@@ -129,7 +129,7 @@ let OlyFragment (src: string) =
 
 let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
-#target "spirv: compute, 1.3"
+#target "spirv: compute, 1.0"
 
 {src}
 """
@@ -638,7 +638,7 @@ main(): () =
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
-let ``Basic compute shader 2`` () =
+let ``Basic compute shader 2 - verify use of local creation`` () =
 //#version 450
 
 //layout(set = 0, binding = 0) buffer Buffer
@@ -668,7 +668,7 @@ main(): () =
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
-let ``Basic compute shader 3`` () =
+let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
 buffer: mutable float32[]
@@ -686,7 +686,7 @@ main(): () =
     OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
 
 [<Fact>]
-let ``Basic compute shader 4`` () =
+let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
 buffer: mutable int32[]
@@ -707,7 +707,7 @@ type TestData =
     }
 
 [<Fact>]
-let ``Basic compute shader 5`` () =
+let ``Basic compute shader 5 - verify struct`` () =
     let src =
         """
 struct TestData =
@@ -736,7 +736,7 @@ type TestData2 =
     }
 
 [<Fact>]
-let ``Basic compute shader 6`` () =
+let ``Basic compute shader 6 - verify nested struct`` () =
     let src =
         """
 struct TestData =
@@ -768,7 +768,7 @@ type TestData3 =
     }
 
 [<Fact>]
-let ``Basic compute shader 7`` () =
+let ``Basic compute shader 7 - verify doubly nested structs`` () =
     let src =
         """
 struct TestData =
@@ -795,3 +795,25 @@ main(): () =
     |> OlyCompute 
         [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value=   0f } } };{ Value = { Value = { Value= 0f } } }|] 
         [|{ Value = { Value = { Value= 0f } } };{ Value = { Value = { Value= 123f } } };{ Value = { Value = { Value= 0f } } }|]
+
+type EmptyStruct = struct end
+
+[<Fact>]
+let ``Basic compute shader 8 - verify empty struct`` () =
+    let src =
+        """
+struct EmptyStruct
+
+buffer: mutable EmptyStruct[]
+    #[storage_buffer]
+    #[descriptor_set(0)]
+    #[binding(0)]
+    get
+
+main(): () =
+    buffer[1] <- EmptyStruct()
+        """
+    src
+    |> OlyCompute 
+        [|EmptyStruct();EmptyStruct();EmptyStruct();EmptyStruct()|] 
+        [|EmptyStruct();EmptyStruct();EmptyStruct();EmptyStruct()|] 

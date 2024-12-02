@@ -232,7 +232,7 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
     let resSet = factory.CreateResourceSet(resSetDesc)
 
     let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.Staging, 0u, false))
-    graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<float32> input.Length)
+    graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<'T> input.Length)
 
     let commandList = factory.CreateCommandList()
 
