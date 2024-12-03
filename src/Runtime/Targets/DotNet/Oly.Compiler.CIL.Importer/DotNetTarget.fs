@@ -594,6 +594,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                                     if not(returnTy1.IsEqualTo(returnTy2)) then
                                         if not returnTy1.IsTypeAnyByRef || not returnTy2.IsTypeAnyByRef then
                                             allParsAreSame <- false
+                                    elif func.Parameters.IsEmpty then
+                                        allParsAreSame <- false
                                 | _ ->
                                     allParsAreSame <- false
 

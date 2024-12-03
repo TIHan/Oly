@@ -10609,3 +10609,32 @@ Doot(): () = ()
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Extension inside a newtype should have the right amount of constructor symbols``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[open]
+newtype ~^~AVal<T> =
+    internal field VarF: int32
+
+    #[open]
+    extension AValMonad =
+        inherits AVal<T>
+
+main(): () =
+    ()
+        """
+    let symbol = getSymbolByCursorIgnoreDiagnostics src
+    match symbol with
+    | :? OlyTypeSymbol as symbol ->
+        Assert.Equal(1, symbol.ImmediateFunctions.Length)
+        Assert.Equal(1, symbol.Functions.Length)
+    | _ ->
+        failwith "Expected a type symbol."

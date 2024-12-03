@@ -319,7 +319,12 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
         if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then
             ent.Entities
             |> Seq.map (fun ent -> 
-                queryMostSpecificIntrinsicFunctionsOfEntity benv (queryMemberFlags ||| QueryMemberFlags.Instance) (funcFlags ||| FunctionFlags.Constructor) nameOpt ent)
+                if ent.IsTypeExtension then
+                    // Do not get constructors based on the type extension.
+                    Seq.empty
+                else
+                    queryMostSpecificIntrinsicFunctionsOfEntity benv (queryMemberFlags ||| QueryMemberFlags.Instance) (funcFlags ||| FunctionFlags.Constructor) nameOpt ent
+            )
             |> Seq.concat
             |> filterValuesByAccessibility benv.ac queryMemberFlags
         else
@@ -379,7 +384,8 @@ let private queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
             |> Seq.choose (fun extMember ->
                 match extMember with
                 | ExtensionMemberSymbol.Function(func) -> 
-                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)    
+                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)
+                    // REVIEW: What is this doing again? Once we figure it out, comment about it.
                     func.NewSubstituteExtension(ty.TypeArguments)
                     |> Some
                 | ExtensionMemberSymbol.Property _ ->
