@@ -413,6 +413,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.Flags = lazyFlags.Value
     override _.Documentation = docText
 
+    /// Mutability
     member _.ChangeLocalClosureEnclosing(pass: CompilerPass, newEnclosing: EnclosingSymbol) =
         if pass <> CompilerPass.LambdaLifting then
             OlyAssert.Fail($"ChangeLocalClosureEnclosing - Invalid Pass {pass}")
@@ -2224,6 +2225,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
     member _.AssociatedFormalPattern = patOpt
 
     /// Mutability
+    /// TODO: Ok, we should be able to get rid of this.
     member this.SetWellKnownFunction(wkf) =
         wellKnownFunc <- wkf
 
@@ -2249,15 +2251,15 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         attrs <- newAttrs
 
     /// Mutability
-    member this.SetAssociatedFormalPattern_Pass2_NonConcurrent(pat: IPatternSymbol) =
-        OlyAssert.True(pat.IsFormal)
-        OlyAssert.True(this.IsPatternFunction)
-        OlyAssert.False(this.IsLocal)
-        patOpt <- Some pat
-
-    /// Mutability - only used in LambdaLifting
-    member this.SetStaticLocal() =
-        funcFlags <- funcFlags ||| FunctionFlags.StaticLocal
+    member this.SetAssociatedFormalPattern_Pass2_NonConcurrent(pass: CompilerPass, pat: IPatternSymbol) =
+        match pass with
+        | Pass2 ->
+            OlyAssert.True(pat.IsFormal)
+            OlyAssert.True(this.IsPatternFunction)
+            OlyAssert.False(this.IsLocal)
+            patOpt <- Some pat
+        | _ ->
+            failwith "Expected Pass2."
 
     /// Mutability
     member this.SetVirtualFinalNewSlot_Pass3() =
@@ -2470,7 +2472,7 @@ type FieldSymbol(attrs, enclosing, memberFlags, name, ty, valueFlags, associated
     member _.SetAttributes_Pass3_NonConcurrent(newAttrs) = attrs <- newAttrs
 
     /// Mutability
-    member _.SetConstant_Pass4_NonConcurrent(newConstant) = constant <- newConstant
+    member _.SetConstant_Pass3_NonConcurrent(newConstant) = constant <- newConstant
 
     member _.Name = name
     member _.Type = ty
@@ -2597,6 +2599,7 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
     member _.Setter = setterOpt
     member _.BackingField = backingFieldOpt
 
+    /// Mutability
     member _.RemoveBackingField_Pass3_NonConcurrent() =
         backingFieldOpt <- None
 

@@ -175,7 +175,7 @@ let private classifyConstantKind (constantSymbol: OlyConstantSymbol) =
     | OlyConstant.Char16 _ -> OlyClassificationKind.ConstantChar
     | OlyConstant.Utf16 _ -> OlyClassificationKind.ConstantUtf
     | OlyConstant.True
-    | OlyConstant.False _ -> OlyClassificationKind.ConstantBool
+    | OlyConstant.False -> OlyClassificationKind.ConstantBool
     | OlyConstant.Default -> OlyClassificationKind.ConstantDefault
     | OlyConstant.Null -> OlyClassificationKind.ConstantNull
     | OlyConstant.Array _ -> OlyClassificationKind.None // TODO: Maybe OlyClassificationKind.ConstantArray?

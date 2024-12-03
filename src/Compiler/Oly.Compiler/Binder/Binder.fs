@@ -277,7 +277,7 @@ let bindSyntaxTreePass3 cenv env (entBuilder: EntitySymbolBuilder) (syntaxTree: 
 let bindSyntaxTreePass4 cenv env (entBuilder: EntitySymbolBuilder) (syntaxTree: OlySyntaxTree) =
     let syntaxRoot = syntaxTree.GetRoot(cenv.ct) :?> OlySyntaxCompilationUnit
     let _, boundRoot = bindRootPass4 cenv env entBuilder syntaxRoot
-    BoundTree(cenv.asm, cenv.declTable.contents, syntaxTree, boundRoot, cenv.diagnostics.GetDiagnostics())
+    BoundTree(cenv.asm, cenv.declTable.contents, syntaxTree, boundRoot, entBuilder.Entity, cenv.diagnostics.GetDiagnostics())
 
 [<NoEquality;NoComparison>]
 type PassState =

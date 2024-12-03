@@ -20,6 +20,7 @@ open Oly.Compiler.Internal.ILGen
 open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Analysis
 
 type OlyCompilationOptions =
     {

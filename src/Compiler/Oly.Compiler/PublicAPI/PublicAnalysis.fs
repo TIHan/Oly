@@ -17,11 +17,12 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Binder
+open Oly.Compiler.Internal.BoundTreePatterns
 
 [<NoEquality;NoComparison;DebuggerDisplay("{DebugText}")>]
 type OlyAnalysisExpression =
     private
-    | Expression of BoundExpression * OlyBoundModel * ct: CancellationToken
+    | Expression of E * OlyBoundModel * ct: CancellationToken
 
     override this.ToString() =
         match this with
@@ -84,26 +85,26 @@ type OlyAnalysisMatchClause =
         match this with
         | MatchClause(matchClause, _, _) -> matchClause.Syntax
 
-let private cleanExpr (expr: BoundExpression) =
+let private cleanExpr (expr: E) =
     match expr with
-    | BoundExpression.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsLocal ->
-        BoundExpression.CreateSequential(expr.Syntax.Tree, [expr;BoundExpression.None(syntaxInfo)])
+    | E.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsLocal ->
+        E.CreateSequential(expr.Syntax.Tree, [expr;E.None(syntaxInfo)])
     | _ ->
         expr
 
-let rec private stripExpr (expr: BoundExpression) =
+let rec private stripExpr (expr: E) =
     let newExpr = expr.Strip()
     match newExpr with
-    | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic) as expr ->
+    | E.Sequential(syntaxInfo, expr1, expr2, semantic) as expr ->
         let newExpr2 = cleanExpr expr2
         match expr1, newExpr2 with
-        | BoundExpression.None _, _ -> newExpr2
-        | _, BoundExpression.None _ -> cleanExpr expr1
+        | E.None _, _ -> newExpr2
+        | _, E.None _ -> cleanExpr expr1
         | _ ->
             if newExpr2 = expr2 then
                 expr
             else
-                BoundExpression.Sequential(
+                E.Sequential(
                     syntaxInfo,
                     expr1,
                     newExpr2,
@@ -112,7 +113,7 @@ let rec private stripExpr (expr: BoundExpression) =
     | _ ->
         newExpr
 
-let rec private convert (boundModel: OlyBoundModel) (expr: BoundExpression) ct : OlyAnalysisExpression =
+let rec private convert (boundModel: OlyBoundModel) (expr: E) ct : OlyAnalysisExpression =
     Expression(stripExpr expr, boundModel, ct)
 
 type OlyAnalysisByRefKindDescription =
@@ -130,7 +131,7 @@ type OlyAnalysisTypeDescription =
     | ByRef of kind: OlyAnalysisByRefKindDescription * elementTy: OlyAnalysisTypeDescription
 
 type OlyAnalysisRule =
-    | OverloadedFunctionDefinitionsCannotDisambiguateType of OlyAnalysisTypeDescription
+    | OverloadedExportedFunctionDefinitionsCannotDisambiguateType of OlyAnalysisTypeDescription
 
 let rec private areTypesEqualWithDescription (tTy: OlyAnalysisTypeDescription) (ty1: TypeSymbol) (ty2: TypeSymbol) =
     match tTy with
@@ -156,110 +157,110 @@ let rec private areTypesEqualWithDescription (tTy: OlyAnalysisTypeDescription) (
 type OlyBoundModel with
 
     member this.CheckRules(rules: OlyAnalysisRule imarray, ct: CancellationToken) =
-        let diagLogger = OlyDiagnosticLogger.Create()
-        let boundTree = this.GetBoundTree(ct)
-        let diags = this.SyntaxTree.GetDiagnostics(ct).AddRange(this.GetDiagnostics(ct))
-        if diags |> ImArray.exists (fun x -> x.IsError) then
+        if this.SyntaxTree.HasErrors || this.HasErrors(ct) then
             ImArray.empty
         else
 
-            let rules_OverloadedFunctionDefinitionsCannotDisambiguateType =
-                rules
-                |> ImArray.choose (function
-                    | OverloadedFunctionDefinitionsCannotDisambiguateType(tTy) -> Some tTy
-                )
+        let diagLogger = OlyDiagnosticLogger.Create()
+        let boundTree = this.GetBoundTree(ct)
 
-            boundTree.ForEachForTooling(function
-                | :? BoundExpression as expr ->
-                    match expr with
-                    | BoundExpression.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
-                        match syntaxInfo.TryEnvironment with
-                        | None -> ()
-                        | Some benv ->
-                            if rules_OverloadedFunctionDefinitionsCannotDisambiguateType.IsEmpty then ()
+        let rules_OverloadedExportedFunctionDefinitionsCannotDisambiguateType =
+            rules
+            |> ImArray.choose (function
+                | OverloadedExportedFunctionDefinitionsCannotDisambiguateType(tTy) -> Some tTy
+            )
+
+        boundTree.ForEachForTooling(function
+            | :? E as expr ->
+                match expr with
+                | E.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
+                    match syntaxInfo.TryEnvironment with
+                    | None -> ()
+                    | Some benv ->
+                        if not ent.IsExported || rules_OverloadedExportedFunctionDefinitionsCannotDisambiguateType.IsEmpty then ()
+                        else
+                            let overloadedFunctions = 
+                                ent.Functions 
+                                |> Seq.groupBy (fun x -> (x.Name, x.TypeArguments.Length, x.Parameters.Length, x.IsInstance))
+                                |> Seq.choose (fun (_, funcs) ->
+                                    if Seq.isEmpty funcs then
+                                        None
+                                    else
+                                        Some(funcs |> ImArray.ofSeq)
+                                )
+                                |> ImArray.ofSeq
+
+                            if overloadedFunctions.IsEmpty then ()
                             else
-                                let overloadedFunctions = 
-                                    ent.Functions 
-                                    |> Seq.groupBy (fun x -> (x.Name, x.TypeArguments.Length, x.Parameters.Length, x.IsInstance))
-                                    |> Seq.choose (fun (_, funcs) ->
-                                        let funcs = funcs |> ImArray.ofSeq
-                                        if funcs.Length > 1 then
-                                            Some(funcs)
-                                        else
-                                            None
-                                    )
-                                    |> ImArray.ofSeq
-
-                                if overloadedFunctions.IsEmpty then ()
-                                else
-                                    overloadedFunctions
-                                    |> ImArray.iter (fun funcs ->
+                                overloadedFunctions
+                                |> ImArray.iter (fun funcs ->
+                                    funcs
+                                    |> ImArray.iter (fun func ->
                                         funcs
-                                        |> ImArray.iter (fun func ->
-                                            funcs
-                                            |> ImArray.iter (fun func2 ->
-                                                if obj.ReferenceEquals(func, func2) then ()
-                                                else
-                                                    rules_OverloadedFunctionDefinitionsCannotDisambiguateType
-                                                    |> ImArray.iter (fun tTy ->
-                                                        let mutable allParsAreSame = true
-                                                        (func.Parameters, func2.Parameters)
-                                                        ||> ImArray.iter2 (fun par1 par2 ->
-                                                            if not(areTypesEqual par1.Type par2.Type) then
-                                                                if not(areTypesEqualWithDescription tTy par1.Type par2.Type) then
-                                                                    allParsAreSame <- false                                                          
-                                                        )
-
-                                                        if not(areTypesEqual func.ReturnType func2.ReturnType) then
-                                                            if not(areTypesEqualWithDescription tTy func.ReturnType func2.ReturnType) then
-                                                                allParsAreSame <- false 
-
-                                                        if allParsAreSame then
-                                                            diagLogger.Error($"Unable to disambiguate types on function '{printValue benv func}'.", 10, syntaxInfo.Syntax)
+                                        |> ImArray.iter (fun func2 ->
+                                            if obj.ReferenceEquals(func, func2) then ()
+                                            else
+                                                rules_OverloadedExportedFunctionDefinitionsCannotDisambiguateType
+                                                |> ImArray.iter (fun tTy ->
+                                                    let mutable allParsAreSame = true
+                                                    (func.Parameters, func2.Parameters)
+                                                    ||> ImArray.iter2 (fun par1 par2 ->
+                                                        if not(areTypesEqual par1.Type par2.Type) then
+                                                            if not(areTypesEqualWithDescription tTy par1.Type par2.Type) then
+                                                                allParsAreSame <- false                                                          
                                                     )
-                                            )
+
+                                                    if not(areTypesEqual func.ReturnType func2.ReturnType) then
+                                                        if not(areTypesEqualWithDescription tTy func.ReturnType func2.ReturnType) then
+                                                            allParsAreSame <- false 
+
+                                                    if allParsAreSame then
+                                                        diagLogger.Error($"Unable to disambiguate types on function '{printValue benv func}'.", 10, syntaxInfo.Syntax)
+                                                )
                                         )
                                     )
-                    | _ ->
-                        ()
+                                )
                 | _ ->
                     ()
-            )
-            diagLogger.GetDiagnostics()
+            | _ ->
+                ()
+        )
+        diagLogger.GetDiagnostics()
 
     /// Runs the given analyzers against function implementations.
     /// If the bound model has errors, then this immediately returns an empty result.
     /// Analyzers will be run in parallel.
     member this.AnalyzeFunctionImplementations(analyzers: _ imarray, ct: CancellationToken) =
-        let diagLogger = OlyDiagnosticLogger.Create()
-        let boundTree = this.GetBoundTree(ct)
-        let diags = this.SyntaxTree.GetDiagnostics(ct).AddRange(this.GetDiagnostics(ct))
-        if diags |> ImArray.exists (fun x -> x.IsError) then
+        if this.SyntaxTree.HasErrors || this.HasErrors(ct) then
             ImArray.empty
         else
-            analyzers
-            |> ImArray.Parallel.iter (fun analyzer ->
-                boundTree.ForEachForTooling(function
-                    | :? BoundExpression as expr ->
-                        match expr with
-                        | BoundExpression.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsFunction ->
-                            match binding with
-                            | BoundBinding.Implementation(_, _, rhsExpr) ->
-                                match syntaxInfo.TrySyntaxAndEnvironment with
-                                | Some(syntaxNode, benv) ->
-                                    let valueSymbol = OlyValueSymbol(this, benv, syntaxNode, binding.Info.Value)
-                                    analyzer diagLogger valueSymbol (convert this rhsExpr ct) ct
-                                | _ ->
-                                    ()
+
+        let diagLogger = OlyDiagnosticLogger.Create()
+        let boundTree = this.GetBoundTree(ct)
+
+        analyzers
+        |> ImArray.Parallel.iter (fun analyzer ->
+            boundTree.ForEachForTooling(function
+                | :? E as expr ->
+                    match expr with
+                    | E.MemberDefinition(syntaxInfo, binding) when binding.Info.Value.IsFunction ->
+                        match binding with
+                        | BoundBinding.Implementation(_, _, rhsExpr) ->
+                            match syntaxInfo.TrySyntaxAndEnvironment with
+                            | Some(syntaxNode, benv) ->
+                                let valueSymbol = OlyValueSymbol(this, benv, syntaxNode, binding.Info.Value)
+                                analyzer diagLogger valueSymbol (convert this rhsExpr ct) ct
                             | _ ->
                                 ()
                         | _ ->
                             ()
                     | _ ->
                         ()
-                )
+                | _ ->
+                    ()
             )
-            diagLogger.GetDiagnostics()
+        )
+        diagLogger.GetDiagnostics()
             
 [<RequireQualifiedAccess>]
 type OlyCallKind =
@@ -270,7 +271,7 @@ module Patterns =
 
     let (|Sequential|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Sequential(_, expr1, expr2, _), boundModel, ct) ->
+        | Expression(E.Sequential(_, expr1, expr2, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel expr1 ct, convert boundModel expr2 ct)
         | _ ->
@@ -278,7 +279,7 @@ module Patterns =
 
     let private (|LocalValueDefinition|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.MemberDefinition(_, binding), boundModel, ct) when binding.Info.Value.IsLocal ->
+        | Expression(E.MemberDefinition(_, binding), boundModel, ct) when binding.Info.Value.IsLocal ->
             ct.ThrowIfCancellationRequested()
             let syntaxInfo = binding.SyntaxInfo
             match binding with
@@ -321,7 +322,7 @@ module Patterns =
             bodyExpr
           ) ->
             Some(value, rhsExpr, bodyExpr)
-        | Expression(BoundExpression.Let(syntaxInfo, binding, rhsExpr, bodyExpr), boundModel, ct) ->
+        | Expression(E.Let(syntaxInfo, binding, rhsExpr, bodyExpr), boundModel, ct) ->
             match binding with
             | BindingLocalFunction(func=func) when not func.IsFunctionGroup ->
                 match syntaxInfo.TrySyntaxAndEnvironment with
@@ -352,7 +353,7 @@ module Patterns =
 
     let (|Call|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value;flags=flags), boundModel, ct)
+        | Expression(E.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverExprOpt;args=argExprs;value=value;flags=flags), boundModel, ct)
                 when value.TryWellKnownFunction = ValueNone ->
             ct.ThrowIfCancellationRequested()
             let benv =
@@ -387,7 +388,7 @@ module Patterns =
 
     let (|ConstantInt32|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Literal(syntaxInfo, literal), _, ct) ->
+        | Expression(E.Literal(syntaxInfo, literal), _, ct) ->
             ct.ThrowIfCancellationRequested()
             if syntaxInfo.IsGenerated then
                 failwith "Should have user syntax."
@@ -407,7 +408,7 @@ module Patterns =
 
     let (|Value|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Value(syntaxInfo, value), boundModel, ct) ->
+        | Expression(E.Value(syntaxInfo, value), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let syntax, benv =
                 match syntaxInfo.TrySyntaxAndEnvironment with
@@ -423,7 +424,7 @@ module Patterns =
 
     let (|SetValue|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.SetValue(syntaxInfo, value, rhsExpr), boundModel, ct) ->
+        | Expression(E.SetValue(syntaxInfo, value, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let benv =
                 match syntaxInfo.TryEnvironment with
@@ -439,7 +440,7 @@ module Patterns =
 
     let (|SetContentsOfAddress|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.SetContentsOfAddress(_, lhsExpr, rhsExpr), boundModel, ct) ->
+        | Expression(E.SetContentsOfAddress(_, lhsExpr, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel lhsExpr ct, convert boundModel rhsExpr ct)
         | _ ->
@@ -447,7 +448,7 @@ module Patterns =
 
     let (|InstanceField|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.GetField(syntaxInfo, receiver, field), boundModel, ct) ->
+        | Expression(E.GetField(syntaxInfo, receiver, field), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let benv =
                 match syntaxInfo.TryEnvironment with
@@ -463,7 +464,7 @@ module Patterns =
 
     let (|SetInstanceField|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.SetField(syntaxInfo, receiver, field, rhsExpr), boundModel, ct) ->
+        | Expression(E.SetField(syntaxInfo, receiver, field, rhsExpr), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let benv =
                 match syntaxInfo.TryEnvironment with
@@ -479,7 +480,7 @@ module Patterns =
 
     let (|If|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.IfElse(_, conditionExpr, targetExpr, BoundExpression.None _, _), boundModel, ct) ->
+        | Expression(E.IfElse(_, conditionExpr, targetExpr, E.None _, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel conditionExpr ct, convert boundModel targetExpr ct)
         | _ ->
@@ -487,7 +488,7 @@ module Patterns =
 
     let (|IfElse|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, _), boundModel, ct) ->
+        | Expression(E.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel conditionExpr ct, convert boundModel trueTargetExpr ct, convert boundModel falseTargetExpr ct)
         | _ ->
@@ -495,7 +496,7 @@ module Patterns =
 
     let (|Match|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Match(_, _, matchInputExprs, matchClauses, _), boundModel, ct) ->
+        | Expression(E.Match(_, _, matchInputExprs, matchClauses, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             Some(matchInputExprs |> ImArray.map (fun x -> convert boundModel x ct), 
                  matchClauses |> ImArray.map (fun x -> MatchClause(x, boundModel, ct))  
@@ -609,7 +610,7 @@ module Patterns =
 
     let (|Unit|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Unit _, _, ct) ->
+        | Expression(E.Unit _, _, ct) ->
             ct.ThrowIfCancellationRequested()
             Some()
         | _ ->
@@ -617,7 +618,7 @@ module Patterns =
 
     let (|Lambda|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Lambda(syntaxInfo, _, tyPars, pars, lazyBodyExpr, _, _, _), boundModel, ct) ->
+        | Expression(E.Lambda(syntaxInfo, _, tyPars, pars, lazyBodyExpr, _, _, _), boundModel, ct) ->
             ct.ThrowIfCancellationRequested()
             let bodyExpr = lazyBodyExpr.Expression
 
@@ -687,7 +688,7 @@ module Patterns =
     // Intrinsics
     let (|AddressOf|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
+        | Expression(E.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
                 when argExprs.Length = 1 ->
             ct.ThrowIfCancellationRequested()
 
@@ -700,7 +701,7 @@ module Patterns =
 
     let (|FromAddress|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
+        | Expression(E.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
                 when value.TryWellKnownFunction = ValueSome WellKnownFunction.FromAddress && argExprs.Length = 1 ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel argExprs[0] ct)
@@ -709,7 +710,7 @@ module Patterns =
 
     let (|Equals|_|) (texpr: OlyAnalysisExpression) =
         match texpr with
-        | Expression(BoundExpression.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
+        | Expression(E.Call(receiverOpt=None;args=argExprs;value=value), boundModel, ct)
                 when value.TryWellKnownFunction = ValueSome WellKnownFunction.Equal && argExprs.Length = 2 ->
             ct.ThrowIfCancellationRequested()
             Some(convert boundModel argExprs[0] ct, convert boundModel argExprs[1] ct)

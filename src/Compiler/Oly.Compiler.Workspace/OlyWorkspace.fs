@@ -5,6 +5,7 @@ open Oly.Core.TaskExtensions
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
+open Oly.Compiler.Analysis
 open System
 open System.IO
 open System.IO.MemoryMappedFiles
@@ -137,6 +138,9 @@ type OlyBuild(platformName: string) =
     abstract GetImplicitExtendsForEnum: unit -> string option
     default _.GetImplicitExtendsForEnum() = None
 
+    abstract GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default _.GetAnalyzerDiagnostics(_, _) = ImArray.empty
+
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyProjectReference =
     | Compilation of OlyCompilationReference * disableTransitive: bool
@@ -162,7 +166,7 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
     
     member _.Path = documentPath
 
-    member _.Project = newProjectLazy.Value
+    member _.Project : OlyProject = newProjectLazy.Value
 
     member _.SyntaxTree = syntaxTree
 
@@ -182,6 +186,11 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
 
     member this.IsProjectDocument =
         documentPath.HasExtension(ProjectExtension)
+
+    member this.GetAnalyzerDiagnostics(ct) =
+        let project = this.Project
+        let boundModel = this.BoundModel
+        project.SharedBuild.GetAnalyzerDiagnostics(boundModel, ct)
 
 type ActiveConfigurationState =
     {
@@ -258,7 +267,7 @@ type OlyProject (
     member _.DocumentLookup = documents
     member _.PlatformName = platformName
     member _.TargetInfo = targetInfo
-    member _.SharedBuild =
+    member _.SharedBuild : OlyBuild =
         solution.Value.State.workspace.GetBuild(projPath)
     
     member _.Solution = solution.Value
@@ -375,6 +384,21 @@ type OlyProject (
             proj.Documents
             |> ImArray.iter (fun doc ->
                 builder.AddRange(doc.ExtraDiagnostics)
+            )
+        )
+        builder.ToImmutable()
+
+    member this.GetAnalyzerDiagnostics(ct: CancellationToken) : OlyDiagnostic imarray =
+        let builder = ImArray.builder()
+        this.Documents
+        |> ImArray.iter (fun doc -> builder.AddRange(doc.GetAnalyzerDiagnostics(ct)))
+        OlyAssert.True(solution.IsValueCreated)
+        let projs = getTransitiveProjectReferences solution.Value this.References ct
+        projs
+        |> ImArray.iter (fun (proj: OlyProject) ->
+            proj.Documents
+            |> ImArray.iter (fun doc ->
+                builder.AddRange(doc.GetAnalyzerDiagnostics(ct))
             )
         )
         builder.ToImmutable()

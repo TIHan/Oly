@@ -26,6 +26,19 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
             return Error(diags)
         else
 
+        let analyzerTask =
+            // This is to make the happy path of successful compilations
+            // faster as we can run the analyzers in the background
+            // while we are compiling to IL.
+            // TODO: Add a way to cancel this sooner.
+            System.Threading.Tasks.Task.Factory.StartNew(fun () ->
+                let diags = proj.GetAnalyzerDiagnostics(ct)
+                if diags |> ImArray.exists (fun x -> x.IsError) then
+                    Error(diags)
+                else
+                    Ok()
+            )
+
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
@@ -46,6 +59,10 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
         if refDiags.Count > 0 then
             return Error(refDiags.ToImmutable())
         else
+
+        match! analyzerTask with
+        | Error diags -> return Error(diags)
+        | _ ->
 
         runtime.ImportAssembly(asm.ToReadOnly())
 

@@ -905,7 +905,7 @@ type BoundDeclarationTable private (
         )
 
 [<Sealed>]
-type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot, diags: OlyDiagnostic imarray) =
+type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot, rootSymbol: EntitySymbol, diags: OlyDiagnostic imarray) =
 
     member _.Assembly = asm
 
@@ -922,18 +922,20 @@ type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree
         | BoundRoot.Namespace(benv=benv)
         | BoundRoot.Global(benv=benv) -> benv
 
+    member _.RootSymbol = rootSymbol
+
     member _.DeclarationTable = declTable
 
     member _.UpdateRoot(root) =
-        BoundTree(asm, declTable, syntaxTree, root, diags)
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, diags)
 
     member _.Diagnostics = diags
 
     member _.AppendDiagnostics(newDiags: OlyDiagnostic imarray) =
-        BoundTree(asm, declTable, syntaxTree, root, diags.AddRange(newDiags))
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, diags.AddRange(newDiags))
 
     member _.PrependDiagnostics(newDiags: OlyDiagnostic imarray) =
-        BoundTree(asm, declTable, syntaxTree, root, newDiags.AddRange(diags))
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, newDiags.AddRange(diags))
 
 [<Struct;NoEquality;NoComparison>]
 type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =

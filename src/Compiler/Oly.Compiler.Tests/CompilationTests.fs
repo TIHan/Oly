@@ -231,20 +231,29 @@ test(): () =
 let ``Basic rules analyzer`` () =
     let src1 =
         """
-module Module
+namespace Test
 
-#[intrinsic("int32")]
-alias int32
+#[open]
+module Prelude =
 
-#[intrinsic("int16")]
-alias int16
+    #[intrinsic("int32")]
+    alias int32
 
-#[intrinsic("by_ref")]
-alias byref<T>
+    #[intrinsic("int16")]
+    alias int16
 
-#[intrinsic("by_ref_read_only")]
-alias inref<T>
+    #[intrinsic("by_ref")]
+    alias byref<T>
 
+    #[intrinsic("by_ref_read_only")]
+    alias inref<T>
+
+class NonExportedOverloadTest =
+
+    M(x: byref<int32>): () = ()
+    M(x: inref<int32>): () = ()
+
+#[export]
 class OverloadTest =
 
     M(x: byref<int32>): () = ()
@@ -259,7 +268,7 @@ class OverloadTest =
     Assert.Equal(0, diags.Length)
 
     let rules = 
-        OverloadedFunctionDefinitionsCannotDisambiguateType(
+        OverloadedExportedFunctionDefinitionsCannotDisambiguateType(
             ByRef(
                 WildcardByRefKind, 
                 DefaultType
@@ -269,5 +278,3 @@ class OverloadTest =
 
     let diags = boundModel.CheckRules(rules, CancellationToken.None)
     Assert.Equal(2, diags.Length)
-    //Assert.Equal("    let y = 1
-    //    ^", diags[0].GetHelperText())

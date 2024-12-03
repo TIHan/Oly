@@ -453,7 +453,7 @@ let private bindBindingDeclarationAux (cenv: cenv) env (syntaxAttrs: OlySyntaxAt
         else
             if func.IsPatternFunction then
                 let pat = PatternSymbol(func.Enclosing, ImArray.empty, func.Name, func)
-                func.SetAssociatedFormalPattern_Pass2_NonConcurrent(pat)
+                func.SetAssociatedFormalPattern_Pass2_NonConcurrent(cenv.pass, pat)
                 BindingPattern(pat, func)
                 |> Choice1Of2
                 |> Some

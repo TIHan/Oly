@@ -140,8 +140,13 @@ let normalizeFilePath (path: string) =
 type OlyDocument with
 
     member this.ToLspDiagnostics(ct) =
-        this.GetDiagnostics(ct)
-        |> ImArray.map (fun diag -> createDiagnostic diag ct)
+        let diags =
+            this.GetDiagnostics(ct)
+            |> ImArray.map (fun diag -> createDiagnostic diag ct)
+        let analyzerDiags =
+            this.GetAnalyzerDiagnostics(ct)
+            |> ImArray.map (fun diag -> createDiagnostic diag ct)
+        diags.AddRange(analyzerDiags)
 
 type ILanguageServerFacade with
 

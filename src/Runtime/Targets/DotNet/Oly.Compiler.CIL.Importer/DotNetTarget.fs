@@ -17,6 +17,7 @@ open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
+open Oly.Compiler.Analysis
 open Oly.Runtime
 open Oly.Runtime.Clr.Emitter
 
@@ -347,6 +348,19 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             return Error(diags)
         else
 
+        let analyzerTask =
+            // This is to make the happy path of successful compilations
+            // faster as we can run the analyzers in the background
+            // while we are compiling to IL.
+            // TODO: Add a way to cancel this sooner.
+            System.Threading.Tasks.Task.Factory.StartNew(fun () ->
+                let diags = proj.GetAnalyzerDiagnostics(ct)
+                if diags |> ImArray.exists (fun x -> x.IsError) then
+                    Error(diags)
+                else
+                    Ok()
+            )
+
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
@@ -457,6 +471,10 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             return Error(refDiags.ToImmutable())
         else
 
+        match! analyzerTask with
+        | Error diags -> return Error(diags)
+        | _ ->
+
         runtime.ImportAssembly(asm.ToReadOnly())
 
         runtime.InitializeEmitter()
@@ -530,6 +548,80 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
     override _.GetImplicitExtendsForStruct() = Some "System.ValueType"
 
     override _.GetImplicitExtendsForEnum() = Some "System.Enum"
+
+    override _.GetAnalyzerDiagnostics(boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
+        let diagLogger = OlyDiagnosticLogger.Create()
+
+        let analyzeSymbol (symbol: OlySymbol) =
+            if (symbol.UseSyntax.IsDefinition || symbol.UseSyntax.IsCompilationUnit) && symbol.IsExported && symbol.IsType then
+                let ty = symbol.AsType
+                let funcGroups =
+                    ty.Functions
+                    |> Seq.filter (fun x ->
+                        if x.IsConstructor then
+                            x.Enclosing.TryType.Value.IsSimilarTo(ty)
+                        else
+                            true
+                    )
+                    |> Seq.groupBy (fun x -> (x.Name, x.TypeParameterCount, x.Parameters.Length, x.IsStatic))
+                    |> Seq.choose (fun (_, funcs) ->
+                        let funcs = funcs |> ImArray.ofSeq
+                        if funcs.Length <= 1 then
+                            None
+                        else
+                            Some(funcs)
+                    )
+                    |> ImArray.ofSeq
+
+                funcGroups
+                |> ImArray.iter (fun funcs ->
+                    funcs
+                    |> ImArray.iter (fun func ->
+                        funcs
+                        |> ImArray.iter (fun func2 ->
+                            if obj.ReferenceEquals(func, func2) then ()
+                            else
+                                let mutable allParsAreSame = true
+                                (func.Parameters, func2.Parameters)
+                                ||> ImArray.iter2 (fun par1 par2 ->
+                                    if not(par1.Type.IsEqualTo(par2.Type)) then
+                                        if not par1.Type.IsTypeAnyByRef || not par2.Type.IsTypeAnyByRef then
+                                            allParsAreSame <- false     
+                                )
+
+                                match func.ReturnType, func2.ReturnType with
+                                | Some(returnTy1), Some(returnTy2) ->
+                                    if not(returnTy1.IsEqualTo(returnTy2)) then
+                                        if not returnTy1.IsTypeAnyByRef || not returnTy2.IsTypeAnyByRef then
+                                            allParsAreSame <- false
+                                | _ ->
+                                    allParsAreSame <- false
+
+                                if allParsAreSame then
+                                    let location = func.TryGetDefinitionLocation(ct)
+                                    match location with
+                                    | Some(loc) ->
+                                        let textRange = loc.GetTextRange(ct)
+                                        let syntaxNode =
+                                            match loc.SyntaxTree.TryFindNode(textRange, ct) with
+                                            | Some syntaxNode -> syntaxNode
+                                            | _ -> func.UseSyntax
+                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, syntaxNode)
+                                    | _ ->
+                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, func.UseSyntax)
+                        )
+                    )
+                )
+
+        match boundModel.TryGetAnonymousModuleSymbol(ct) with
+        | Some symbol ->
+            analyzeSymbol symbol
+        | _ ->
+            ()
+
+        boundModel.ForEachSymbol(boundModel.SyntaxTree.GetRoot(ct), analyzeSymbol, ct)
+
+        diagLogger.GetDiagnostics()
 
     new (?copyReferences: bool) =
         let copyReferences =

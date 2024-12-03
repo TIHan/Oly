@@ -116,7 +116,7 @@ type OlyBuild =
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
     abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
-
+     
     abstract CanImportReference : path: OlyPath -> bool
 
     abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
@@ -132,6 +132,9 @@ type OlyBuild =
 
     abstract GetImplicitExtendsForEnum: unit -> string option
     default GetImplicitExtendsForEnum: unit -> string option
+
+    abstract GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlyProjectReference =
@@ -150,9 +153,9 @@ type OlyDocument =
     member SyntaxTree : OlySyntaxTree
     member BoundModel : OlyBoundModel
     member IsProjectDocument : bool
-    member ExtraDiagnostics : OlyDiagnostic imarray
     member GetSourceText : CancellationToken -> IOlySourceText
     member GetDiagnostics : CancellationToken -> OlyDiagnostic imarray
+    member GetAnalyzerDiagnostics : CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlyProjectConfiguration =
@@ -184,6 +187,7 @@ type OlyProject =
     member TryGetDocument : documentPath: OlyPath -> OlyDocument option
     member GetDocumentsExcept : documentPath: OlyPath -> OlyDocument imarray
     member GetDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
+    member GetAnalyzerDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlySolution =
