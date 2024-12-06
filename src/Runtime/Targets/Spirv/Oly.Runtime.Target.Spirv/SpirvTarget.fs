@@ -110,7 +110,8 @@ type SpirvTarget() =
                         match syntaxBinding with
                         | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
                             match syntaxBindingDecl with
-                            | OlySyntaxBindingDeclaration.Get _ when isSpirvInputName name
+                            | OlySyntaxBindingDeclaration.Get _ when isSpirvInputName name ->
+                                true
                             | OlySyntaxBindingDeclaration.Set _ when isSpirvOutputName name ->
                                 true
                             | _ ->
