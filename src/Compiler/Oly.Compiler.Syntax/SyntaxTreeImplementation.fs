@@ -694,6 +694,11 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxExpression -> true
             | _ -> false
 
+        member this.IsPropertyBinding =
+            match this.InternalNode with
+            | :? SyntaxPropertyBinding -> true
+            | _ -> false
+
         /// If possible, returns the root name if there is any.
         /// Otherwise, returns the same given node.
         member this.GetRootNameIfPossible() =
@@ -721,11 +726,12 @@ module OlySyntaxTreeExtensions =
 
         member this.IsDefinition =
             match this with
-            | :? OlySyntaxToken as token when token.Internal.IsIdentifierOrOperator ->
+            | :? OlySyntaxToken as token when token.Internal.IsIdentifierOrOperator || token.Internal.RawToken = Token.New ->
                 match this.Parent with
                 | :? OlySyntaxTypeDeclarationName
                 | :? OlySyntaxFunctionName
-                | :? OlySyntaxBindingDeclaration -> true
+                | :? OlySyntaxBindingDeclaration
+                | :? OlySyntaxPropertyBinding -> true
                 | _ -> false
             | _ ->
                 false
@@ -744,6 +750,15 @@ module OlySyntaxTreeExtensions =
                         Some(parentNode)
                 | _ ->
                     parentNode.TryGetParentExpression(ignoreSequentialExpr, ct)
+
+        member this.TryFindParent<'T when 'T :> OlySyntaxNode>(ct: CancellationToken) =
+            ct.ThrowIfCancellationRequested()
+            match this.Parent with
+            | null -> None
+            | parentNode ->
+                match parentNode with
+                | :? 'T as x -> Some x
+                | _ -> parentNode.TryFindParent<'T>(ct)
 
         member this.GetDescendantTokens(?skipTrivia: bool, ?ct: CancellationToken) : OlyToken imarray =
             let skipTrivia = defaultArg skipTrivia true
@@ -1341,6 +1356,25 @@ module OlySyntaxTreeExtensions =
                     | _ ->
                         ValueNone
                 tryGet syntaxBinding
+
+            | :? OlySyntaxPropertyBinding as syntaxPropBinding ->
+                let rec tryGet syntaxBinding =
+                    match syntaxBinding with
+                    | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                    | OlySyntaxBinding.Signature(syntaxBindingDecl)
+                    | OlySyntaxBinding.Property(syntaxBindingDecl, _) 
+                    | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
+                    | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                        ValueSome syntaxBindingDecl
+                    | _ ->
+                        ValueNone
+
+                match syntaxPropBinding with
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
+                    tryGet syntaxBinding
+                | _ ->
+                    ValueNone
+                   
             | _ ->
                 ValueNone
 

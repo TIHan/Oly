@@ -264,7 +264,6 @@ let hasErrorDiagnostics (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
     Assert.NotEmpty(errorMsgs)
 
-[<DebuggerHidden>]
 let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
     Assert.Equal(expected, errorMsgs)

@@ -10,10 +10,11 @@ type OlyIRLocalFlags =
     | Mutable                       = 0b00000001
                                        
     | ByRefType                     = 0b00000010
-    | ReadOnlyByRefType             = 0b00000110
-    | ReadWriteByRefType            = 0b00001010
+    | ReadWriteByRefType            = 0b00000110
+    | ReadOnlyByRefType             = 0b00001010
+    | WriteOnlyByRefType            = 0b00010010
     
-    | AddressExposed                = 0b00010000
+    | AddressExposed                = 0b00100000
 
 [<RequireQualifiedAccess>]
 type OlyIRTypeVariableKind =
@@ -44,6 +45,13 @@ type OlyIRFunctionSignatureKey =
     override this.Equals(o) =
         match o with
         | :? OlyIRFunctionSignatureKey as o ->
+            (this : IEquatable<_>).Equals(o)
+        | _ ->
+            false
+
+    interface IEquatable<OlyIRFunctionSignatureKey> with
+
+        member this.Equals(o: OlyIRFunctionSignatureKey) =
             this.Name = o.Name &&
             this.TypeArguments.Length = o.TypeArguments.Length &&
             this.ParameterTypes.Length = o.ParameterTypes.Length &&
@@ -54,8 +62,6 @@ type OlyIRFunctionSignatureKey =
             ||> ImArray.forall2 (fun parTy1 parTy2 -> parTy1.IsEqualTo(parTy2)) &&
             (this.TypeArguments, o.TypeArguments)
             ||> ImArray.forall2 (fun tyArg1 tyArg2 -> tyArg1.IsEqualTo(tyArg2))
-        | _ ->
-            false
 
 [<Struct>]
 [<RequireQualifiedAccess>]
@@ -76,13 +82,14 @@ type OlyIRFunctionKind =
     | Normal
     | Scoped
 
-// TODO: Rename this to RuntimeTypeFlags?
+[<Flags>]
 type internal RuntimeTypeFlags =
-    | None =           0x000000000
-    | ReadOnly =       0x000000001
-    | GenericsErased = 0x000000010
-    | Exported       = 0x000000100
+    | None =           0b000000000
+    | ReadOnly =       0b000000001
+    | GenericsErased = 0b000000010
+    | Exported       = 0b000000100
 
+[<Flags>]
 type internal RuntimeFunctionFlags =
     | None                 = 0b00000000
     | Exported             = 0b00000010

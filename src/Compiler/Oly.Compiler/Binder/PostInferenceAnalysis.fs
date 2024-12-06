@@ -2,6 +2,7 @@
 module internal Oly.Compiler.Internal.Binder.PostInferenceAnalysis
 
 open System
+
 open Oly.Core
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.BoundTree

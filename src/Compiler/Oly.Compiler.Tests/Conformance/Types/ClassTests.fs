@@ -548,7 +548,7 @@ test() : () =
     |> ignore
 
 [<Fact>]
-let ``Class inherits class - should as forgot to assign field y ``() =
+let ``Class inherits class - should fail as forgot to assign field y ``() =
     let src =
         """
 abstract class Class1 =
@@ -569,7 +569,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'y' is not initialized."
+        "Field 'y' is not initialized."
     ]
     |> ignore
 
@@ -1141,6 +1141,65 @@ abstract class BaseExample =
                 """
     GenericExample<T>(T): ()
     ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must specify 'new' on the concrete implementation``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    GenericExample<T>(x: T): () =
+        base.GenericExample(x)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("TODO:",
+                """
+    GenericExample<T>(x: T): () =
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement the interface member even though it is provided in the base class``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
 """
             )
         ]

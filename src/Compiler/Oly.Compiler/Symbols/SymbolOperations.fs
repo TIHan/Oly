@@ -859,7 +859,7 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
                 if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                         // TODO: This really isn't right.
                         let isInstance = func.IsInstance
-                        if not isInstance || not ty2.IsAnyStruct || (if superFunc.IsReadOnly then func.IsReadOnly else true) then
+                        if not isInstance || not ty2.IsAnyStruct || (if superFunc.IsImmutable then func.IsImmutable else true) then
                             let result =
                                 (superFunc.Parameters, func.Parameters)
                                 ||> ImArray.foralli2 (fun i par1 par2 ->
@@ -2397,9 +2397,6 @@ let createFieldValue (enclosing: EnclosingSymbol) attrs name fieldTy memberFlags
 
 let createPropertyValue (enclosing: EnclosingSymbol) attrs name propTy memberFlags getterOpt setterOpt backingFieldOpt =
     PropertySymbol(enclosing, attrs, name, ValueFlags.None, memberFlags, propTy, getterOpt, setterOpt, backingFieldOpt)
-
-let createPatternValue (enclosing: EnclosingSymbol) attrs name func =
-    PatternSymbol(enclosing, attrs, name, func) :> IPatternSymbol
 
 let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFlags constantSymbol =
 

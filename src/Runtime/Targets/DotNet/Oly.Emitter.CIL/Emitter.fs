@@ -47,7 +47,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
     | TypeGenericInstance of ClrTypeInfo * tyArgs: ClrTypeHandle imarray * appliedTyHandle: ClrTypeHandle
     | TypeReference of ClrTypeHandle * isReadOnly: bool * isStruct: bool
     | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
-    | ByRef of ClrTypeInfo * isReadOnly: bool * appliedTyHandle: ClrTypeHandle
+    | ByRef of ClrTypeInfo * kind: OlyIRByRefKind * appliedTyHandle: ClrTypeHandle
 
     member this.FullyQualifiedName =
         match this with
@@ -75,7 +75,12 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
         | TypeGenericInstance(x, _, _) -> x.IsReadOnly
         | TypeReference(isReadOnly=isReadOnly)
         | TypeDefinition(isReadOnly=isReadOnly) -> isReadOnly
-        | ByRef(isReadOnly=isReadOnly) -> isReadOnly
+        | ByRef(kind=kind) -> kind = OlyIRByRefKind.ReadOnly
+
+    member this.IsWriteOnly =
+        match this with
+        | ByRef(kind=kind) -> kind = OlyIRByRefKind.WriteOnly
+        | _ -> false
 
     member this.IsStruct =
         match this with
@@ -782,11 +787,12 @@ module rec ClrCodeGen =
             ()
 
     let createByRef (asmBuilder: ClrAssemblyBuilder) byRefKind ty =
-        // TODO: Do we need to do something special with 'WriteOnly/outref'?
         match byRefKind with
-        | OlyIRByRefKind.ReadWrite
+        | OlyIRByRefKind.ReadWrite ->
+            ClrTypeInfo.ByRef(ty, OlyIRByRefKind.ReadWrite, ClrTypeHandle.CreateByRef(ty.Handle))    
         | OlyIRByRefKind.WriteOnly ->
-            ClrTypeInfo.ByRef(ty, false, ClrTypeHandle.CreateByRef(ty.Handle))     
+            // TODO: Do we need to do something special with 'WriteOnly/outref'?
+            ClrTypeInfo.ByRef(ty, OlyIRByRefKind.WriteOnly, ClrTypeHandle.CreateByRef(ty.Handle))     
         | OlyIRByRefKind.ReadOnly ->
             let handle = 
                 match asmBuilder.tr_InAttribute with
@@ -794,7 +800,7 @@ module rec ClrCodeGen =
                     ClrTypeHandle.ModReq(tr_InAttribute, ClrTypeHandle.CreateByRef(ty.Handle))
                 | _ ->
                     ClrTypeHandle.CreateByRef(ty.Handle)
-            ClrTypeInfo.ByRef(ty, true, handle) 
+            ClrTypeInfo.ByRef(ty, OlyIRByRefKind.ReadOnly, handle) 
 
     let addressOf cenv byRefKind (expr: E<ClrTypeInfo, _, _>) =
         let exprTy = expr.ResultType
@@ -2145,19 +2151,27 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | Some originalOverrides when originalOverrides.specialKind = ClrMethodSpecialKind.External ->
                     name
                 | _ ->
-                    // We do not need to check the type arguments for byref/inref because
+                    // We do not need to check the type arguments for byref/inref/outref because
                     // they are not legal in the CLR, therefore the generics should be erased.
+                    // This is to make the method name unique.
                     let mutable readOnlyByRefCount = 0
+                    let mutable writeOnlyByRefCount = 0
                     pars
                     |> ImArray.iter (fun x ->
-                        if x.Type.IsByRef_t && x.Type.IsReadOnly then
-                            readOnlyByRefCount <- readOnlyByRefCount + 1
+                        if x.Type.IsByRef_t then
+                            if x.Type.IsReadOnly then
+                                readOnlyByRefCount <- readOnlyByRefCount + 1
+                            elif x.Type.IsWriteOnly then
+                                writeOnlyByRefCount <- writeOnlyByRefCount + 1
                     )
-                    if returnTy.IsByRef_t && returnTy.IsReadOnly then
-                        readOnlyByRefCount <- readOnlyByRefCount + 1
+                    if returnTy.IsByRef_t then
+                        if returnTy.IsReadOnly then
+                            readOnlyByRefCount <- readOnlyByRefCount + 1
+                        elif returnTy.IsWriteOnly then
+                            writeOnlyByRefCount <- writeOnlyByRefCount + 1
             
-                    if readOnlyByRefCount > 0 then
-                        name + "__oly_read_only_" + readOnlyByRefCount.ToString()
+                    if readOnlyByRefCount > 0 || writeOnlyByRefCount > 0 then
+                        name + "__oly_by_ref_" + readOnlyByRefCount.ToString() + "_" + writeOnlyByRefCount.ToString()
                     else
                         name
 
@@ -2782,7 +2796,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         ClrTypeInfo.TypeReference(asmBuilder.AddNativePointer(elementTy.Handle), false, true)
                     elif fieldTy.IsReadOnly then
                         // IMPORTANT: We cannot emit a read-only byref as a field, so emit it as a normal byref.
-                        ClrTypeInfo.ByRef(elementTy, false, ClrTypeHandle.CreateByRef(elementTy.Handle))
+                        ClrTypeInfo.ByRef(elementTy, OlyIRByRefKind.ReadWrite, ClrTypeHandle.CreateByRef(elementTy.Handle))
                     else
                         fieldTy
                 | _ ->
@@ -2991,7 +3005,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         match cilTy.TryTypeExtensionType with
                         | ValueSome(cilTy, _, _) -> 
                             if cilTy.IsStruct then
-                                ClrTypeInfo.ByRef(cilTy, false, ClrTypeHandle.CreateByRef(cilTy.Handle))
+                                ClrTypeInfo.ByRef(cilTy, OlyIRByRefKind.ReadWrite, ClrTypeHandle.CreateByRef(cilTy.Handle))
                             else
                                 cilTy
                         | _ -> cilTy
@@ -3002,7 +3016,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else if isMorphedScopedClosureStatic then
                     let cilTy =
                         let cilTy = enclosingTy
-                        ClrTypeInfo.ByRef(cilTy, false, ClrTypeHandle.CreateByRef(cilTy.Handle))
+                        ClrTypeInfo.ByRef(cilTy, OlyIRByRefKind.ReadWrite, ClrTypeHandle.CreateByRef(cilTy.Handle))
                     Seq.append
                         (seq { "this", cilTy })
                         pars
@@ -3153,7 +3167,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     if enclosingTy.IsStruct then
                         // Perhaps, the OlyRuntime can give all parameters even for instance functions instead of us
                         // having to do this manually.
-                        let thisTy = ClrTypeInfo.ByRef(enclosingTy, false, ClrTypeHandle.CreateByRef(enclosingTy.Handle))  
+                        let thisTy = ClrTypeInfo.ByRef(enclosingTy, OlyIRByRefKind.ReadWrite, ClrTypeHandle.CreateByRef(enclosingTy.Handle))  
                         ImArray.createOne("this", thisTy).AddRange(pars)
                     else
                         ImArray.createOne("this", enclosingTy).AddRange(pars)

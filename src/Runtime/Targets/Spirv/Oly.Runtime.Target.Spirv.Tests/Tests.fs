@@ -240,12 +240,12 @@ let ``Basic fragment shader`` () =
 //}
     let src =
         """
-color: vec4
-    #[location(0)]
+color: vec4    
+    #[location(0)] 
     get
 
-outColor: vec4
-    #[location(0)]
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =

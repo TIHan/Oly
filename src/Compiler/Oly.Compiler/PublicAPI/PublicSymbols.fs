@@ -69,6 +69,16 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
         | :? OlyValueSymbol as symbol -> symbol.IsFunction
         | _ -> false
 
+    member this.IsConstructor =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsConstructor
+        | _ -> false
+
+    member this.IsProperty =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsProperty
+        | _ -> false
+
     member this.IsFunctionGroup =
         match this with
         | :? OlyFunctionGroupSymbol -> true
@@ -1517,6 +1527,8 @@ type OlyBoundModel internal (
         match syntaxAttr with
         | OlySyntaxAttribute.Expression(syntaxExpr) ->
             match syntaxExpr, attr with
+            | OlySyntaxExpression.Name(syntaxName), AttributeSymbol.Constructor(ctor, _, _, _) ->
+                getSymbolsByNameAndValue addSymbol benv predicate syntaxName ctor None
             // TODO: namedArgs
             | OlySyntaxExpression.Call(syntaxReceiverExpr, syntaxArgs), AttributeSymbol.Constructor(ctor, args, namedArgs, _) ->
                 match syntaxArgs with
@@ -1810,11 +1822,30 @@ type OlyBoundModel internal (
             | _ ->
                 ()
 
-    let getBindingSymbols addSymbol benv predicate (syntax: OlySyntaxNode) (bindingInfo: BindingInfoSymbol) =
+    let rec getBindingSymbols addSymbol benv predicate (syntaxNode: OlySyntaxNode) (bindingInfo: BindingInfoSymbol) =
+
         match bindingInfo with
-        | BindingProperty(_, prop) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
+        | BindingProperty(propBindings, prop) ->
+            match syntaxNode with
+            | :? OlySyntaxExpression as syntaxExpr ->
+                match syntaxExpr with
+                | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
+                    match syntaxBinding with
+                    | OlySyntaxBinding.PropertyWithDefault(_, syntaxPropBindingList, _, _)
+                    | OlySyntaxBinding.Property(_, syntaxPropBindingList) ->
+                        syntaxPropBindingList.ChildrenOfType
+                        |> ImArray.iteri (fun i syntaxPropBinding ->
+                            getBindingSymbols addSymbol benv predicate syntaxPropBinding propBindings[i]
+                        )
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
+            | _ ->
+                ()
+
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent prop
@@ -1826,8 +1857,19 @@ type OlyBoundModel internal (
 
         | BindingFunction(func)
         | BindingPattern(_, func) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
+
+            match syntaxNode with
+            | :? OlySyntaxPropertyBinding as syntaxPropBinding ->
+                match syntaxPropBinding with
+                | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, _) ->
+                    getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values func.Attributes
+                | _ ->
+                    unreached()
+            | _ ->
+                ()
+
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Function(syntaxFuncName, syntaxTyPars, syntaxPars, syntaxReturnTyAnnot, syntaxConstrClauseList) ->
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxFuncName.Identifier func
@@ -1844,6 +1886,20 @@ type OlyBoundModel internal (
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent func
                     getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot func.Type
 
+                | OlySyntaxBindingDeclaration.Get(syntaxGetToken) ->
+                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxGetToken func
+
+                | OlySyntaxBindingDeclaration.Set(syntaxSetToken) ->
+                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxSetToken func
+
+                | OlySyntaxBindingDeclaration.Getter(syntaxGetToken, syntaxPars) ->
+                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxGetToken func
+                    getParameterSymbols addSymbol benv predicate syntaxPars func.LogicalParameters
+
+                | OlySyntaxBindingDeclaration.Setter(syntaxSetToken, syntaxPars) ->
+                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxSetToken func
+                    getParameterSymbols addSymbol benv predicate syntaxPars func.LogicalParameters
+
                 | _ ->
                     ()
 
@@ -1851,8 +1907,18 @@ type OlyBoundModel internal (
                 ()
 
         | BindingField(field) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
+            match syntaxNode with
+            | :? OlySyntaxExpression as syntaxExpr ->
+                match syntaxExpr with
+                | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, _) ->
+                    getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values (field: IFieldSymbol).Attributes
+                | _ ->
+                    ()
+            | _ ->
+                ()
+
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent field
@@ -1960,14 +2026,9 @@ type OlyBoundModel internal (
                     | _ ->
                         ()
 
-                let syntaxInfo = binding.SyntaxInfo
                 match syntaxInfo.TryEnvironment with
                 | Some benv ->
-                    let syntax =
-                        match syntaxInfo.Syntax.TryGetBindingDeclaration() with
-                        | ValueSome syntax -> syntax :> OlySyntaxNode
-                        | _ -> syntaxInfo.Syntax
-                    getBindingSymbols addSymbol benv predicate syntax binding.Info
+                    getBindingSymbols addSymbol benv predicate syntaxInfo.Syntax binding.Info
                 | _ ->
                     ()
 

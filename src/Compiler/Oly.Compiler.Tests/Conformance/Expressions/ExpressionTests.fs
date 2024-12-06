@@ -10079,7 +10079,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Outref should fail because of dereference 3``() =
+let ``Outref should fail because of dereference 3 - field``() =
     """
 #[intrinsic("int32")]
 alias int32
@@ -10104,20 +10104,221 @@ M2(value: int32): () = ()
 struct S =
     public field Value: int32 = 0
 
-M(outValue: outref<S>): () =
-    M2(outValue.Value)
+MS(outValueS: outref<S>): () =
+    M2(outValueS.Value)
+
+class C =
+    public field Value: int32 = 0
+
+MC(outValueC: outref<C>): () =
+    M2(outValueC.Value)
 
 main(): () =
     let mutable s = S()
-    M(&s)
+    MS(&s)
+    let mutable c = C()
+    MC(&c)
     """
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+            ("Cannot read from a write-only address.",
                 """
-    M2(outValue.Value)
+    M2(outValueS.Value)
+       ^^^^^^^^^^^^^^^
+"""
+            )
+            ("Cannot read from a write-only address.",
+                """
+    M2(outValueC.Value)
+       ^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of dereference 4 - property - getter``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M2(value: int32): () = ()
+
+struct S =
+    public field Value: int32 = 0
+
+    Prop: int32 get() = this.Value
+
+MS(outValueS: outref<S>): () =
+    M2(outValueS.Prop)
+
+class C =
+    public field Value: int32 = 0
+
+    Prop: int32 get() = this.Value
+
+MC(outValueC: outref<C>): () =
+    M2(outValueC.Prop)
+
+main(): () =
+    let mutable s = S()
+    MS(&s)
+    let mutable c = C()
+    MC(&c)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot read from a write-only address.",
+                """
+    M2(outValueS.Prop)
        ^^^^^^^^^^^^^^
+"""
+            )
+            ("Cannot read from a write-only address.",
+                """
+    M2(outValueC.Prop)
+       ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of dereference 5 - property - setter``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+struct S =
+    public field Value: int32 = 0
+
+    Prop: int32 set(value) = ()
+
+MS(outValueS: outref<S>): () =
+    outValueS.Prop <- 123
+
+class C =
+    public field Value: int32 = 0
+
+    Prop: int32 set(value) = ()
+
+MC(outValueC: outref<C>): () =
+    outValueC.Prop <- 123
+
+main(): () =
+    let mutable s = S()
+    MS(&s)
+    let mutable c = C()
+    MC(&c)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot read from a write-only address.",
+                """
+    outValueS.Prop <- 123
+    ^^^^^^^^^^^^^^
+"""
+            )
+            ("Cannot read from a write-only address.",
+                """
+    outValueC.Prop <- 123
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Outref should fail because of dereference 6 - function call``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M2(value: int32): () = ()
+
+struct S =
+    public field Value: int32 = 0
+
+    Func(): int32 = this.Value
+
+MS(outValueS: outref<S>): () =
+    M2(outValueS.Func())
+
+class C =
+    public field Value: int32 = 0
+
+    Func(): int32 = this.Value
+
+MC(outValueC: outref<C>): () =
+    M2(outValueC.Func())
+
+main(): () =
+    let mutable s = S()
+    MS(&s)
+    let mutable c = C()
+    MC(&c)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot read from a write-only address.",
+                """
+    M2(outValueS.Func())
+       ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Cannot read from a write-only address.",
+                """
+    M2(outValueC.Func())
+       ^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -10638,3 +10839,194 @@ main(): () =
         Assert.Equal(1, symbol.Functions.Length)
     | _ ->
         failwith "Expected a type symbol."
+
+[<Fact>]
+let ``Anonymous shape constraint with members that have generics with constraints should fail as the shape member has different constraints``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    GetX<U>(x: U): U = x
+
+M<T>(x: T): int32 where T: { GetX<U>(U): U where U: struct } =
+    x.GetX(5)
+
+main(): () =
+    let c = C()
+    print(M(c))
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Shape member 'GetX<U>(U): U where U: struct' has different constraints compared to 'GetX<U>(x: U): U'.",
+                """
+    print(M(c))
+          ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous shape constraint with members that have generics with constraints should fail as the shape member has different constraints 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    GetX<U>(x: U): U = x
+
+M<T>(x: T): int32 where T: { GetX<U>(U): U where U: { Doot(): () } } =
+    x.GetX(5)
+
+main(): () =
+    let c = C()
+    print(M(c))
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Shape member 'Doot(): ()' does not exist on 'int32'.",
+                """
+    x.GetX(5)
+    ^^^^^^
+"""
+            )
+            ("Shape member 'GetX<U>(U): U where U: { Doot(): () }' has different constraints compared to 'GetX<U>(x: U): U'.",
+                """
+    print(M(c))
+          ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous shape constraint with members that have generics with constraints should fail as the class member has different constraints``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    GetX<U>(x: U): U where U: struct = x
+
+M<T>(x: T): int32 where T: { GetX<U>(U): U } =
+    x.GetX(5)
+
+main(): () =
+    let c = C()
+    print(M(c))
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Shape member 'GetX<U>(U): U' has different constraints compared to 'GetX<U>(x: U): U where U: struct'.",
+                """
+    print(M(c))
+          ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error when missing a property initialization in the constructor``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    Prop1: int32 get
+    Prop2: int32 get
+
+    new() =
+        {
+            Prop1 = 1
+        }
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Property 'Prop2' is not initialized.",
+                """
+        {
+        ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error when missing a field initialization in the constructor``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+class C =
+
+    field value1: int32
+    field value2: int32
+
+    new() =
+        {
+            value1 = 1
+        }
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Field 'value2' is not initialized.",
+                """
+        {
+        ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error when missing a property initialization in the constructor with a base class``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+abstract class BaseC =
+
+    new(x: int32) = { }
+
+class C =
+    inherits BaseC
+
+    Prop1: int32 get
+    Prop2: int32 get
+
+    new() =
+        base(123) with {
+            Prop1 = 1
+        }
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Property 'Prop2' is not initialized.",
+                """
+        base(123) with {
+                       ^
+"""
+            )
+        ]
+    |> ignore

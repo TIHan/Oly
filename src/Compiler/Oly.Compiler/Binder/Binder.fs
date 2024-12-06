@@ -2,12 +2,12 @@
 module internal rec Oly.Compiler.Internal.Binder.Binder
 
 open System
+open System.Threading
+open System.Collections.Immutable
+
+open Oly.Core
 open Oly.Compiler
 open Oly.Compiler.Syntax
-open System.Threading
-open Oly.Compiler.Internal.Binder
-open System.Collections.Generic
-open System.Collections.Immutable
 open Oly.Compiler.Internal
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.Symbols
@@ -17,7 +17,8 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 open Oly.Compiler.Internal.CompilerImports
-open Oly.Core
+open Oly.Compiler.Internal.Binder.Attributes
+open Oly.Compiler.Internal.Binder.EarlyAttributes
 
 let importReferences (importer: Importer) (env: BinderEnvironment) (ct: CancellationToken) callback =
     let mutable env = env
@@ -74,7 +75,7 @@ let bindNamespaceOrModuleDefinitionPass0 (cenv: cenv) (env: BinderEnvironment) s
         else
             ImArray.empty
 
-    let env1, nestedEntBuilders = bindTypeDeclarationBodyPass0 cenv env syntaxNode entBuilder nestedEntBuilders syntaxTyDefBody
+    let env1, nestedEntBuilders = Pass0.bindTypeDeclarationBody cenv env syntaxNode entBuilder nestedEntBuilders syntaxTyDefBody
     entBuilder.SetEntities(cenv.pass, nestedEntBuilders)
     env1
 
@@ -82,27 +83,27 @@ let bindNamespaceOrModuleDefinitionPass1 (cenv: cenv) (env: BinderEnvironment) (
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
 
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass1 cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyPars syntaxConstrClauses syntaxTyDefBody
+    Pass1.bindTypeDeclarationBody cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyPars syntaxConstrClauses syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass2 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyPars syntaxTyDefBody =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass2 cenv env nestedEntBuilders entBuilder syntaxTyPars syntaxTyDefBody
+    Pass2.bindTypeDeclarationBody cenv env nestedEntBuilders entBuilder syntaxTyPars syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
-    bindTypeDeclarationBodyPass3 cenv env nestedEntBuilders entBuilder true syntaxTyDefBody
+    Pass3.bindTypeDeclarationBody cenv env nestedEntBuilders entBuilder true syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entBuilder: EntitySymbolBuilder) (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     let bindingInfos =
         let bindingInfosBuilder = ImmutableDictionary.CreateBuilder()
         (syntaxTyDeclBody, entBuilder.Bindings)
-        |> ForEachBinding (
+        |> Pass3.ForEachBinding (
             fun _syntaxAttrs syntaxBinding (binding, _) ->
                 bindingInfosBuilder.Add(syntaxBinding, binding)
         )
         bindingInfosBuilder.ToImmutable()
-    let expr = bindTypeDeclarationBodyPass4 cenv env entBuilder nestedEntBuilders bindingInfos true syntaxTyDeclBody
+    let expr = Pass4.bindTypeDeclarationBody cenv env entBuilder nestedEntBuilders bindingInfos true syntaxTyDeclBody
     if entBuilder.Entity.IsNamespace then
         env, BoundRoot.Namespace(syntaxToCapture, env.benv, entBuilder.Entity, expr)
     else
@@ -159,11 +160,11 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
         recordEntityDeclaration cenv anonModuleBuilder.Entity syntaxRoot
         bindNamespaceOrModuleDefinitionPass0 cenv env1 cenv.syntaxTree.DummyNode anonModuleBuilder syntaxTyDefBody, anonModuleBuilder
 
-    | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, syntaxName, _, syntaxTyDefBody, _) ->
+    | OlySyntaxCompilationUnit.Module(syntaxAttrs, _, _, syntaxName, _, syntaxTyDefBody, _) ->
         // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
-        let attrs = bindAttributes cenv env false syntaxAttrs
+        let attrs = bindEarlyAttributes cenv env syntaxAttrs
 
-        let flags = processAttributesForEntityFlags EntityFlags.None attrs
+        let flags = Pass0.processAttributesForEntityFlags EntityFlags.None attrs
 
         let entBuilder =
             match syntaxName.EnclosingPath with
@@ -232,7 +233,7 @@ let bindRootPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbo
     | OlySyntaxCompilationUnit.Module(syntaxAttrs, _, _, _, syntaxConstrClauseList, syntaxTyDefBody, _) ->
         checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxConstrClauseList.ChildrenOfType entBuilder.Entity.TypeParameters
 
-        let attrs = bindAttributes cenv env true syntaxAttrs
+        let attrs = bindAttributes cenv env syntaxAttrs
         entBuilder.SetAttributes(cenv.pass, attrs)
 
         bindNamespaceOrModuleDefinitionPass3 cenv env entBuilder syntaxTyDefBody
@@ -298,7 +299,7 @@ type BinderPass4(state: PassState) =
 
         let cenv =
             {
-                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref state.declTable
                 asm = state.asm
                 syntaxTree = state.syntaxTree
@@ -339,7 +340,7 @@ type BinderPass3(state: PassState) =
 
         let cenv =
             {
-                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref declTable
                 asm = state.asm
                 syntaxTree = state.syntaxTree
@@ -374,7 +375,7 @@ type BinderPass2(state: PassState) =
 
         let cenv =
             {
-                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref state.declTable
                 asm = state.asm
                 syntaxTree = state.syntaxTree
@@ -415,7 +416,7 @@ type BinderPass1(state: PassState) =
 
         let cenv =
             {
-                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref state.declTable
                 asm = state.asm
                 syntaxTree = state.syntaxTree
@@ -450,7 +451,7 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
         let diagLogger = OlyDiagnosticLogger.Create()
         let cenv =
             {
-                bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref declTable
                 asm = asm
                 syntaxTree = syntaxTree
@@ -600,7 +601,7 @@ let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =
             let diagLogger = OlyDiagnosticLogger.Create()
             let cenv =
                 {
-                    bindAnonymousShapeTypeHole = bindAnonymousShapeType
+                    bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                     declTable = ref declTable
                     asm = asm
                     syntaxTree = syntaxTree

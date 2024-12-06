@@ -2,7 +2,7 @@
 module internal rec Oly.Compiler.Internal.Binder.PrePass
 
 open Oly.Compiler.Syntax
-open Oly.Compiler.Internal.Binder
+open Oly.Compiler.Internal.Binder.OpenDeclarations
 
 /// PrePass - Open declarations only.
 let bindTopLevelExpressionPrePass (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (syntaxExpr: OlySyntaxExpression) =

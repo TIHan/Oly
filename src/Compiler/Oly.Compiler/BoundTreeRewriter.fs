@@ -98,7 +98,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                                 BoundMatchClause.MatchClause(syntaxMatchClause, matchPattern, newGuardExprOpt, newTargetExpr)
                     )
 
-                if (matchExprs, newMatchExprs) ||> ImArray.forall2 (=) && (matchClauses, newMatchClauses) ||> ImArray.forall2 (=) then
+                if ((matchExprs, newMatchExprs) ||> ImArray.forall2 (=)) && ((matchClauses, newMatchClauses) ||> ImArray.forall2 (=)) then
                     expr
                 else
                     // REVIEW: For 'cachedExprTy', do we need to re-evaluate the expression type?
@@ -115,12 +115,10 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                     BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, tyPars, parValues, lazyBody)
 
             | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, isVirtualCall) ->
-                let newReceiverOpt = 
-                    receiverOpt
-                    |> Option.map this.Rewrite
-                let newArgs = args |> Seq.map (fun arg -> this.Rewrite(arg)) |> ImmutableArray.CreateRange
+                let newReceiverOpt =  receiverOpt |> Option.map this.Rewrite
+                let newArgs = args |> ImArray.map (fun arg -> this.Rewrite(arg))
 
-                if newReceiverOpt = receiverOpt && newArgs = args then
+                if newReceiverOpt = receiverOpt && ((args, newArgs) ||> ImArray.forall2 (=)) then
                     expr
                 else
                     BoundExpression.Call(syntaxInfo, newReceiverOpt, witnessArgs, newArgs, value, isVirtualCall)
@@ -185,7 +183,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
             | BoundExpression.NewTuple(syntaxInfo, args, ty) ->
                 let newArgs = args |> ImArray.map (fun arg -> this.Rewrite(arg))
 
-                if args.Equals(newArgs) then
+                if (args, newArgs) ||> ImArray.forall2 (=) then
                     expr
                 else
                     BoundExpression.NewTuple(syntaxInfo, newArgs, ty)
@@ -193,7 +191,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
             | BoundExpression.NewArray(syntax, benv, elements, resultTy) ->
                 let newElements = elements |> ImArray.map (fun arg -> this.Rewrite(arg))
 
-                if elements.Equals(newElements) then
+                if (elements, newElements) ||> ImArray.forall2 (=) then
                     expr
                 else
                     BoundExpression.NewArray(syntax, benv, newElements, resultTy)

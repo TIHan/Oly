@@ -515,7 +515,36 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
             expectedFieldSet
             |> Seq.sort
             |> Seq.iter (fun fieldName ->
-                env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, expr.Syntax)
+                let syntaxNode =
+                    match expr.Syntax with
+                    | :? OlySyntaxExpression as syntaxExpr ->
+                        match syntaxExpr with
+                        | OlySyntaxExpression.CreateRecord(syntaxConstructTy)
+                        | OlySyntaxExpression.UpdateRecord(_, _, syntaxConstructTy) ->
+                            match syntaxConstructTy with
+                            // Show an error on the curly bracket instead of the entire construct.
+                            // We have tests for this.
+                            | OlySyntaxConstructType.Anonymous(syntaxLeftCurlyBracketToken, _, _) ->
+                                syntaxLeftCurlyBracketToken : OlySyntaxNode
+                            | OlySyntaxConstructType.Named(syntaxName, _, _, _) ->
+                                syntaxName
+                            | _ ->
+                                unreached()
+                        | _ ->
+                            syntaxExpr
+                    | syntaxNode ->
+                        syntaxNode
+
+                // TODO: Mainly for robustness, we should not have to search all the fields like this. 
+                let field = expectedFields |> ImArray.find (fun x -> x.Name = fieldName)
+                if field.AssociatedFormalPropertyId.IsSome then
+                    let prop = 
+                        // TODO: Mainly for robustness, we should not have to search all the properties like this.
+                        enclosingTy.Formal.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic)
+                        |> Seq.find (fun x -> x.Id = field.AssociatedFormalPropertyId.Value)
+                    env.diagnostics.Error($"Property '{prop.Name}' is not initialized.", 10, syntaxNode)
+                else
+                    env.diagnostics.Error($"Field '{fieldName}' is not initialized.", 10, syntaxNode)
             )
 
             expr
@@ -674,13 +703,19 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let reportError name syntax =
         env.diagnostics.Error(sprintf "'%s' is not mutable." name, 10, syntax)
+
+    let reportWriteOnlyError syntax =
+        env.diagnostics.Error("Cannot read from a write-only address.", 10, syntax)
     
-    let rec checkCall syntax (receiverOpt: BoundExpression option) (value: IValueSymbol) =
+    let rec checkCall syntaxOfFuncCall (receiverOpt: BoundExpression option) (value: IValueSymbol) =
         match receiverOpt with
-        | Some receiver when (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) ->
-            if not value.IsReadOnly then
-                if check value.Enclosing.IsWitnessShape receiver |> not then
-                    env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntax)
+        | Some receiver ->
+            if receiver.Type.IsWriteOnlyByRef then
+                reportWriteOnlyError receiver.Syntax
+            elif (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) then
+                if value.IsMutable then
+                    if check value.Enclosing.IsWitnessShape receiver |> not then
+                        env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntaxOfFuncCall)
         | _ ->
             ()
 
@@ -741,7 +776,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         if not lhsExpr.Type.IsReadWriteByRef && not lhsExpr.Type.IsWriteOnlyByRef then
             env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)  
 
-    | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
+    | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
         match prop.Setter with
         | Some(setter) ->
             checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt setter
@@ -757,6 +792,10 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
     | BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;value=value) ->
         checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
+
+    | BoundExpression.GetField(receiver=receiverExpr) ->
+        if receiverExpr.Type.IsWriteOnlyByRef then
+            reportWriteOnlyError expr.Syntax
 
     | _ ->
         ()

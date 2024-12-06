@@ -20530,6 +20530,9 @@ alias int32
 #[intrinsic("by_ref")]
 alias byref<T>
 
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
 
@@ -20548,4 +20551,29 @@ main(): () =
     print(x)
     """
     |> Oly
-    |> shouldCompile
+    |> withCompile
+    |> shouldRunWithExpectedOutput "4"
+
+[<Fact>]
+let ``Anonymous shape constraint with members that have generics with constraints``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C =
+
+    GetX<U>(x: U): U where U: struct = x
+
+M<T>(x: T): int32 where T: { GetX<U>(U): U where U: struct } =
+    x.GetX(5)
+
+main(): () =
+    let c = C()
+    print(M(c))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "5"

@@ -484,6 +484,83 @@ let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode 
     | _ ->
         bindIdentifierWithNoReceiverAsFormalItem cenv env syntaxNode resInfo ident
 
+let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.None)
+            when value.IsFunction ->
+
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(value.IsInstance)
+                OlyAssert.True(value.IsFunction)
+                OlyAssert.False(value.IsConstructor)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, CallFlags.None)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            let isVirtual = determineVirtual receiverExprOpt value.AsFunction
+            if isVirtual then
+                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.Virtual)
+            else
+                expr
+
+    | E.GetProperty(syntaxInfo, receiverExprOpt, prop, (* isVirtual *) false) ->
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(prop.IsInstance)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, (* isVirtual *) false)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            match prop.Getter with
+            | Some(getter) ->
+                let isVirtual = determineVirtual receiverExprOpt getter
+                if isVirtual then
+                    E.GetProperty(syntaxInfo, receiverExprOpt, prop, true)
+                else
+                    expr
+            | _ ->
+                expr
+
+    | E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, (* isVirtual *) false) ->
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(prop.IsInstance)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, rhsExpr, (* isVirtual *) false)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            match prop.Setter with
+            | Some(setter) ->
+                let isVirtual = determineVirtual receiverExprOpt setter
+                if isVirtual then
+                    E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, true)
+                else
+                    expr
+            | _ ->
+                expr
+
+    | _ ->
+        expr
+
 let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receiverInfoOpt syntaxNameOpt (prop: IPropertySymbol) =
     let syntaxInfo =
         BoundSyntaxInfo.User(
@@ -505,7 +582,8 @@ let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receive
             else
                 receiverExpr
         let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, false)
-        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
+        // TODO: Remove the commented code below if we deem it is safe.
+        //checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
         checkVirtualUsage cenv env expr
     | _ ->
         E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
@@ -1911,7 +1989,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
 
         let constrTy =
             match constrTy.TryEntity with
-            | ValueSome(ent) when ent.IsShape && ent.IsAnonymous ->
+            | ValueSome(ent) when ent.IsShape && ent.IsAnonymous && cenv.pass <> Pass1 ->
                 OlyAssert.True(ent.TypeParameters.IsEmpty)
 
                 let freeTyPars = constrTy.GetFreeTypeParameters()
@@ -2655,7 +2733,7 @@ let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnv
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs ImArray.empty value
         |> fst
 
-let private determineVirtual receiverExprOpt (func: IFunctionSymbol) =
+let determineVirtual receiverExprOpt (func: IFunctionSymbol) =
     if func.IsVirtual && not(func.Enclosing.IsAnyStruct) then
         match receiverExprOpt with
         | Some(BoundExpression.Value(value=value)) ->
@@ -2664,80 +2742,3 @@ let private determineVirtual receiverExprOpt (func: IFunctionSymbol) =
             true
     else
         false
-
-let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
-    match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.None)
-            when value.IsFunction ->
-
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(value.IsInstance)
-                OlyAssert.True(value.IsFunction)
-                OlyAssert.False(value.IsConstructor)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, CallFlags.None)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            let isVirtual = determineVirtual receiverExprOpt value.AsFunction
-            if isVirtual then
-                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.Virtual)
-            else
-                expr
-
-    | E.GetProperty(syntaxInfo, receiverExprOpt, prop, (* isVirtual *) false) ->
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(prop.IsInstance)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, (* isVirtual *) false)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            match prop.Getter with
-            | Some(getter) ->
-                let isVirtual = determineVirtual receiverExprOpt getter
-                if isVirtual then
-                    E.GetProperty(syntaxInfo, receiverExprOpt, prop, true)
-                else
-                    expr
-            | _ ->
-                expr
-
-    | E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, (* isVirtual *) false) ->
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(prop.IsInstance)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, rhsExpr, (* isVirtual *) false)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            match prop.Setter with
-            | Some(setter) ->
-                let isVirtual = determineVirtual receiverExprOpt setter
-                if isVirtual then
-                    E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, true)
-                else
-                    expr
-            | _ ->
-                expr
-
-    | _ ->
-        expr

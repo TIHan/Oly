@@ -1,26 +1,134 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module internal rec Oly.Compiler.Internal.Binder.Pass3
 
+open System.Diagnostics
 open System.Collections.Generic
-open System.Collections.Immutable
 
 open Oly.Core
-open Oly.Compiler
 open Oly.Compiler.Syntax
-open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.PrettyPrint
-open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal.Binder.OpenDeclarations
+open Oly.Compiler.Internal.Binder.Attributes
+
+let private addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs =
+    let mutable hasImport = false
+    let newAttrs =
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) ->
+            match ent.TryImportedInfo with
+            | Some(platform, path, name) ->
+                hasImport <- true
+                if attributesContainImport attrs then attrs
+                else
+                    attrs.Add(AttributeSymbol.Import(platform, path.Add(name), importName))
+            | _ ->
+                attrs
+        | _ ->
+            attrs
+
+    // An explicit 'import' will always take precedence over an attribute importer.
+    if hasImport then
+        newAttrs
+    else
+        let mutable hasImporter = false
+        newAttrs
+        |> ImArray.iter (fun attr ->
+            match attr with
+            | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
+                hasImporter <- true
+            | _ ->
+                ()
+        )
+        if hasImporter then
+            newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
+        else
+            newAttrs
+
+let private addExportAttributeIfNecessary (cenv: cenv) syntaxNode (enclosing: EnclosingSymbol) attrs =
+    match enclosing with
+    | EnclosingSymbol.Entity(ent) ->
+        if ent.IsExported then
+            if attributesContainExport attrs then 
+                cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+                attrs
+            else
+                attrs.Add(AttributeSymbol.Export)
+        else
+            attrs
+    | _ ->
+        attrs
+
+type private FakeUnit = FakeUnit
+
+let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, bindings: (BindingInfoSymbol * bool) imarray) =
+    let mutable bindingIndex = 0
+    let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
+        match expr with
+        | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+            let binding = bindings[bindingIndex]
+            bindingIndex <- bindingIndex + 1
+            let rec addBinding syntaxAttrs syntaxBinding binding =
+                match syntaxBinding with
+                | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
+                | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
+                    match (fst binding) with
+                    | BindingInfoSymbol.BindingProperty(innerBindings, _) ->
+                        syntaxPropBindingList.ChildrenOfType
+                        |> ImArray.iteri (fun i syntaxPropBinding ->
+                            match syntaxPropBinding with
+                            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                                let isImpl =
+                                    match syntaxBinding with
+                                    | OlySyntaxBinding.Signature _ -> false
+                                    | _ -> true
+                                projection syntaxAttrs syntaxBinding.Declaration (innerBindings[i],isImpl)
+                            | _ ->
+                                unreached()
+                        )
+                    | _ ->
+                        failwith "Expected a property binding."  
+                    projection syntaxAttrs syntaxBindingDecl binding
+
+                | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                    // TODO: What about the guard?
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | _ ->
+                    ()
+            addBinding syntaxAttrs syntaxBinding binding
+            cont(FakeUnit)
+        | OlySyntaxExpression.Sequential(expr1, expr2) ->
+            f expr1 (fun FakeUnit ->
+                f expr2 cont
+            )
+        | _ ->
+            cont(FakeUnit)
+
+    syntaxTyDeclBody.Children
+    |> ImArray.iter (function
+        | :? OlySyntaxExpression as expr ->
+            f expr id |> ignore
+        | _ ->
+            ()
+    )
+
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
 
 // Pass 3 check for duplicates
-let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent syntaxConstrClauses syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent syntaxConstrClauses syntaxTyDefBody =
     let envBody = unsetSkipCheckTypeConstructor env
 
     let entBuilder = entities.[cenv.entityDefIndex]
@@ -30,7 +138,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
-    let attrs = bindAttributes cenv envBody true syntaxAttrs
+    let attrs = bindAttributes cenv envBody syntaxAttrs
 
     // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
     //            In this case, it is OK because we always populate the attributes for the parent first before the children.
@@ -46,7 +154,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
         | _ ->
             ()
 
-    let _env: BinderEnvironment = bindTypeDeclarationBodyPass3 cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
+    let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
     if ent.IsNewtype then
         if ent.GetInstanceFields().Length <> 1 then
@@ -54,7 +162,7 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     env
 
-let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -164,15 +272,18 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | _ ->
                 ()
 
-            bindTopLevelExpressionPass3 cenv env isRoot entities syntaxBodyExpr
+            bindTopLevelExpression cenv env isRoot entities syntaxBodyExpr
             |> fst
         | _ ->
             env
 
     let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
-        let attrs = bindAttributes cenv env true syntaxAttrs
+        let attrs = bindAttributes cenv env syntaxAttrs
         let attrs = addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
         let attrs = addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
+
+        // IPatternSymbol should not show up here, only the function of it.
+        OlyAssert.False(binding.Value.IsPattern)
 
         match binding.Value with
         | :? FunctionSymbol as func -> 
@@ -198,7 +309,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                             | _ ->
                                 match logicalPar with
                                 | :? LocalParameterSymbol as par ->
-                                    par.SetAttributes_Pass3_NonConcurrent(bindAttributes cenv env true syntaxAttrs)
+                                    par.SetAttributes_Pass3_NonConcurrent(bindAttributes cenv env syntaxAttrs)
                                 | _ ->
                                     ()
                         | _ ->
@@ -208,6 +319,10 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 
         | :? FieldSymbol as field -> 
             field.SetAttributes_Pass3_NonConcurrent(attrs)
+
+        | :? PropertySymbol as prop ->
+            prop.SetAttributes_Pass3_NonConcurrent(cenv.pass, attrs)
+
         | _ -> ()
 
         let duplicateError (value: IValueSymbol) syntaxNode =
@@ -433,7 +548,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
 
     env
 
-let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment * bool =
+let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment * bool =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
@@ -448,12 +563,12 @@ let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (c
             env, canOpen
 
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1, canOpen = bindTopLevelExpressionPass3 cenv env canOpen entities syntaxExpr1
-        bindTopLevelExpressionPass3 cenv env1 canOpen entities syntaxExpr2
+        let env1, canOpen = bindTopLevelExpression cenv env canOpen entities syntaxExpr1
+        bindTopLevelExpression cenv env1 canOpen entities syntaxExpr2
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclarationPass3 cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let env = bindTypeDeclaration cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 

@@ -298,7 +298,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
         match expr with
         // Cannot take the address of a constant.
         | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
-            if value.IsReadOnly && not exprTy.IsTypeVariable then
+            if value.IsImmutable && not exprTy.IsTypeVariable then
                 AddressOf expr
             else
                 if isMutable then
@@ -321,7 +321,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                     AddressOfMutable expr
                 else
                     expr
-            elif field.IsReadOnly then
+            elif field.IsImmutable then
                 AddressOf expr
             else
                 match stripTypeEquations receiver.Type with

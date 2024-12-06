@@ -1,4 +1,4 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module internal rec Oly.Compiler.Internal.Binder.Pass4
 
 open System.Collections.Generic
@@ -20,20 +20,32 @@ open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.WellKnownExpressions
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal.Binder.Attributes
+open Oly.Compiler.Internal.Binder.EarlyAttributes
 
-let isInLocalLambda env = env.isInLocalLambda
+let private isInLocalLambda env = env.isInLocalLambda
 
-let setIsInLocalLambda (env: BinderEnvironment) =
+let private setIsInLocalLambda (env: BinderEnvironment) =
     if env.isInLocalLambda then 
         env
     else 
         { env with isInLocalLambda = true }
 
-let unsetIsInLocalLambda (env: BinderEnvironment) =
+let private unsetIsInLocalLambda (env: BinderEnvironment) =
     if env.isInLocalLambda then
         { env with isInLocalLambda = false }
     else
         env
+
+let private bindLetBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: AttributeSymbol imarray) onlyBindAsType (memberFlags: MemberFlags) valueExplicitness (syntaxBindingDecl: OlySyntaxBindingDeclaration) =  
+    match Pass2.bindBindingDeclarationCore cenv env (syntaxAttrs, attrs) onlyBindAsType memberFlags valueExplicitness syntaxBindingDecl with
+    | Some(Choice2Of2(bindingInfo)) ->
+        checkValueExport cenv syntaxBindingDecl.Identifier bindingInfo.Value
+        bindingInfo
+    | Some(Choice1Of2 _) ->
+        OlyAssert.Fail("Bad let binding.")
+    | _ ->
+        invalidLocalBinding syntaxBindingDecl.Identifier.ValueText
 
 // TODO: We should not be using EntitySymbolBuilder.
 //       The reason is because it is mutable and we do not want to do mutable things in this pass.
@@ -41,7 +53,7 @@ let unsetIsInLocalLambda (env: BinderEnvironment) =
 //       It's ok that we do not have this right now as AFAIK there is no mutability going on.
 
 /// Pass 4 - Bind entity definition implementation.
-let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) syntaxTyPars syntaxConstrClauseList (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
+let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) syntaxTyPars syntaxConstrClauseList (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     if isInLocalLambda env then
         cenv.diagnostics.Error("Type declarations are not allowed in local lambda expressions due to possible inference variables escaping.", 10, syntaxIdent)
         env, BoundExpression.None(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
@@ -56,13 +68,13 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
     let bindingInfos =
         let bindingInfosBuilder = ImmutableDictionary.CreateBuilder()
         (syntaxTyDeclBody, entBuilder.Bindings)
-        |> ForEachBinding (
+        |> Pass3.ForEachBinding (
             fun _syntaxAttrs syntaxBinding (binding, _) ->
                 bindingInfosBuilder.Add(syntaxBinding, binding)
         )
         bindingInfosBuilder.ToImmutable()
 
-    let boundExpr = bindTypeDeclarationBodyPass4 cenv env entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
+    let boundExpr = bindTypeDeclarationBody cenv env entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
 
     // Interfaces
     if ent.IsInterface then
@@ -83,7 +95,7 @@ let bindTypeDeclarationPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCaptu
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
 /// Pass 4 - Bind all implementations.
-let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos isRoot syntaxEntDefBody =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) bindingInfos isRoot syntaxEntDefBody =
     let env = env.UnsetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -109,14 +121,14 @@ let bindTypeDeclarationBodyPass4 (cenv: cenv) (env: BinderEnvironment) (entBuild
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr) ->
-        let _, boundExpr = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr
+        let _, boundExpr = bindTopLevelExpression cenv env entities bindingInfos syntaxExpr
         boundExpr
 
     | _ ->
         raise(InternalCompilerException())
 
 /// Pass 4 - Bind all implementations.
-let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (bindingInfos: ImmutableDictionary<OlySyntaxBindingDeclaration, BindingInfoSymbol>) (syntaxExpr: OlySyntaxExpression) =
+let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (bindingInfos: ImmutableDictionary<OlySyntaxBindingDeclaration, BindingInfoSymbol>) (syntaxExpr: OlySyntaxExpression) =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
@@ -148,19 +160,19 @@ let bindTopLevelExpressionPass4 (cenv: cenv) (env: BinderEnvironment) (entities:
 
     | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
-        let result = bindTypeDeclarationPass4 cenv env syntaxExpr entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let result = bindTypeDeclaration cenv env syntaxExpr entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         result
 
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1, boundExpr1 = bindTopLevelExpressionPass4 cenv env entities bindingInfos syntaxExpr1
-        let env2, boundExpr2 = bindTopLevelExpressionPass4 cenv env1 entities bindingInfos syntaxExpr2
+        let env1, boundExpr1 = bindTopLevelExpression cenv env entities bindingInfos syntaxExpr1
+        let env2, boundExpr2 = bindTopLevelExpression cenv env1 entities bindingInfos syntaxExpr2
         env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2, NormalSequential)
 
     | _ ->
         env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
-let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bindingInfo (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
+let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNode) syntaxNode bindingInfo (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
     let exprs =
         match bindingInfo with
         | BindingProperty(getterAndSetterBindings=bindings) ->
@@ -168,7 +180,7 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
             ||> ImArray.map2 (fun syntaxPropBinding bindingInfo ->
                 match syntaxPropBinding with
                 | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
-                    bindTopLevelBinding cenv env syntaxParentNode false bindingInfo syntaxBinding
+                    bindTopLevelBinding cenv env (syntaxPropBinding :> OlySyntaxNode) false bindingInfo syntaxBinding
                 | _ ->
                     raise(InternalCompilerUnreachedException())
             )
@@ -188,17 +200,19 @@ let private bindTopLevelPropertyBinding cenv env syntaxParentNode syntaxNode bin
 
     match expr with
     | E.None _ ->
+        OlyAssert.True(syntaxParentNode.IsExpression)
         BoundExpression.MemberDefinition(
             BoundSyntaxInfo.User(syntaxParentNode, env.benv),
             BoundBinding.Signature(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo)
         )
     | _ ->
+        OlyAssert.True(syntaxParentNode.IsExpression)
         BoundExpression.MemberDefinition(
             BoundSyntaxInfo.User(syntaxParentNode, env.benv),
             BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo, expr)
         )
 
-let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode isExplicitMutable (bindingInfo: BindingInfoSymbol) (syntaxBinding: OlySyntaxBinding) =
+let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isExplicitMutable (bindingInfo: BindingInfoSymbol) (syntaxBinding: OlySyntaxBinding) =
     match syntaxBinding with
     | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, syntaxRhs) ->
 
@@ -252,14 +266,17 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
         let rhsExpr = bindMemberValueRightSideExpression cenv { env3 with implicitThisOpt = implicitThisOpt } syntaxBindingDecl bindingInfo syntaxRhs
         let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxBinding bindingInfo rhsExpr
         let binding =
+            OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)
             BoundBinding.Implementation(
-                BoundSyntaxInfo.User(syntaxBinding, env.benv),
+                BoundSyntaxInfo.User(syntaxNode, env.benv),
                 bindingInfo,
                 rhsExpr
             )
+        OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)
         BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), binding)
 
     | OlySyntaxBinding.Signature(_) ->
+        OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)
         BoundExpression.MemberDefinition(
             BoundSyntaxInfo.User(syntaxNode, env.benv),
             BoundBinding.Signature(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo))
@@ -302,8 +319,9 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
             let bindingInfo = BindingFunction(func)
             let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxBinding bindingInfo rhsExpr
             let binding =
+                OlyAssert.True(syntaxNode.IsExpression)
                 BoundBinding.Implementation(
-                    BoundSyntaxInfo.User(syntaxBinding, env.benv),
+                    BoundSyntaxInfo.User(syntaxNode, env.benv),
                     bindingInfo,
                     rhsExpr
                 )
@@ -320,7 +338,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) syntaxNode
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindCallArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySyntaxArguments) =
+let private bindCallArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySyntaxArguments) =
     let env = env.SetPassedAsArgument(true)
 
     match syntaxArgs with
@@ -345,7 +363,7 @@ let bindCallArguments (cenv: cenv) (env: BinderEnvironment) (syntaxArgs: OlySynt
     | _ ->
         unreached()
 
-let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: ResolutionItem) =
+let private bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: ResolutionItem) =
     match nameRes with
     | ResolutionItem.Invalid(syntax)
     | ResolutionItem.Pattern(syntax, _, _) -> 
@@ -430,7 +448,7 @@ let bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes: Resolut
         | _ ->
             expr
 
-let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxNode (syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression>) =
+let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxNode (syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression>) =
     // Unit
     if syntaxExprList.ChildrenOfType.IsEmpty then
         match expectedTyOpt with
@@ -469,7 +487,7 @@ let bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
 
         env, checkExpression cenv env expectedTyOpt newTupleExpr
 
-let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxArguments) : BoundExpression =
+let private bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxArguments) : BoundExpression =
     let argExprs = bindCallArguments cenv (env.SetReturnable(false)) syntaxArgs
 
     match syntaxCallBodyExpr with
@@ -533,7 +551,7 @@ let bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (re
         cenv.diagnostics.Error("Invalid expression for function call.", 10, syntaxCallBodyExpr)
         BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
-let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxToCapture syntaxExpr1 syntaxExpr2 =
+let private bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxToCapture syntaxExpr1 syntaxExpr2 =
     let (env1: BinderEnvironment), expr1 = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxExpr1 syntaxExpr1
 
     let env2, expr2 =
@@ -542,7 +560,7 @@ let bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOp
     let boundExpression = BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxToCapture, env.benv), expr1, expr2, NormalSequential)
     env2, boundExpression
 
-let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
+let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
     let envRhs = envOfBinding
     let expectedRhsTyOpt =
         if not func.IsConstructor then
@@ -571,7 +589,7 @@ let bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (envOf
     checkLocalLambdaKind solverEnv rhsExpr pars func.IsStaticLocalFunction
     rhsExpr
 
-let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: TypeSymbol) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
+let private bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: TypeSymbol) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let _, rhsExpr = bindLocalExpression cenv (envOfBinding.SetReturnable(false)) (Some expectedTy) syntaxRhs syntaxRhs
     match rhsExpr with
     | E.Lambda _ ->
@@ -579,7 +597,7 @@ let bindValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (expected
     | _ ->
         rhsExpr
 
-let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (binding: BindingInfoSymbol) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
+let private bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (binding: BindingInfoSymbol) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding, pars =
         // TODO: Do we need to do anything else here? Handle other bindings?
         match binding with
@@ -634,7 +652,7 @@ let bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (sy
     | _ ->
         bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
-let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (binding: LocalBindingInfoSymbol) (syntaxBindingDecl: OlySyntaxBindingDeclaration) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
+let private bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (binding: LocalBindingInfoSymbol) (syntaxBindingDecl: OlySyntaxBindingDeclaration) (syntaxRhs: OlySyntaxExpression) : BoundExpression =
     let envOfBinding =
         match binding with
         | BindingLocalFunction(func=func) ->
@@ -654,7 +672,7 @@ let bindLetValueRightSideExpression (cenv: cenv) (env: BinderEnvironment) (bindi
     | _ ->
         bindValueRightSideExpression cenv env binding.Value.Type envOfBinding syntaxRhs
 
-let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind (syntaxPars: OlySyntaxParameters) syntaxBodyExpr =
+let private bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLambdaKind (syntaxPars: OlySyntaxParameters) syntaxBodyExpr =
 
     let isStatic =
         match syntaxLambdaKind with
@@ -749,7 +767,7 @@ let bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture s
         pars, bodyExpr
    
     let pars, bodyExpr =
-        let pars = bindParameters cenv env false syntaxPars
+        let pars = Pass2.bindParameters cenv env false syntaxPars
         bind pars isStatic syntaxBodyExpr
     
     let lambdaFlags =
@@ -1039,12 +1057,12 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
 
             if setFieldExprs.IsEmpty then
                 let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-                BoundExpression.CreateSequential(noneExpr, noneExpr, ConstructorInitSequential)
+                BoundExpression.CreateSequential(syntaxNode, env.benv, noneExpr, noneExpr, ConstructorInitSequential)
             elif setFieldExprs.Length = 1 then
                 let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-                BoundExpression.CreateSequential(noneExpr, setFieldExprs[0], ConstructorInitSequential)
+                BoundExpression.CreateSequential(syntaxNode, env.benv, noneExpr, setFieldExprs[0], ConstructorInitSequential)
             else
-                BoundExpression.CreateSequential(cenv.syntaxTree, setFieldExprs, ConstructorInitSequential)
+                BoundExpression.CreateSequential(syntaxNode, env.benv, setFieldExprs, ConstructorInitSequential)
         | _ ->
             cenv.diagnostics.Error("Construction of a type not allowed in this context.", 10, syntaxNode)
             invalidExpression syntaxNode env.benv
@@ -1095,7 +1113,7 @@ let private bindCatchOrFinallyExpression (cenv: cenv) (env: BinderEnvironment) (
         catchCasesBuilder.ToImmutable(), Some finallyBodyExpr
 
     | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, syntaxCatchBodyExpr, syntaxNextCatchOrFinallyExpr) ->
-        let (_, par) = bindParameter cenv env None false syntaxPar
+        let (_, par) = Pass2.bindParameter cenv env None false syntaxPar
 
         let envForCatchCase = env.AddUnqualifiedValue(par)
         let _, catchBodyExpr = bindLocalExpression cenv envForCatchCase expectedTyOpt syntaxCatchBodyExpr syntaxCatchBodyExpr
@@ -1217,30 +1235,30 @@ let private bindNameAsExpressionWithoutChecking (cenv: cenv) (env: BinderEnviron
     |> bindItemAsExpression cenv env
     |> AutoDereferenceIfPossible
 
-let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLhs syntaxRhs =
-    let lhs = 
-        match syntaxLhs with
+let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture syntaxLhsExpr syntaxRhs =
+    let lhsExpr = 
+        match syntaxLhsExpr with
         | OlySyntaxExpression.Name(syntaxName) ->
-            bindNameAsExpressionWithoutChecking cenv (env.SetReturnable(false)) None syntaxLhs syntaxName
+            bindNameAsExpressionWithoutChecking cenv (env.SetReturnable(false)) None syntaxLhsExpr syntaxName
         | _ ->
-            bindLocalExpression cenv (env.SetReturnable(false)) None syntaxLhs syntaxLhs
+            bindLocalExpression cenv (env.SetReturnable(false)) None syntaxLhsExpr syntaxLhsExpr
             |> snd
 
-    let _, rhs = bindLocalExpression cenv (env.SetReturnable(false)) (Some lhs.Type) syntaxRhs syntaxRhs
+    let _, rhsExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some lhsExpr.Type) syntaxRhs syntaxRhs
 
     let expr =
-        let rec setExpr lhs =
-            match lhs with
+        let rec setExpr lhsExpr =
+            match lhsExpr with
             | BoundExpression.Value(syntaxInfo, value) when not value.IsFunction ->
                 // REVIEW: We need force the lambda body expression evaluation.
                 //         Could we make this better?
-                match rhs with
+                match rhsExpr with
                 | BoundExpression.Lambda(body=lazyBodyExpr) when not lazyBodyExpr.HasExpression ->
                     OlyAssert.Fail("Lambda expression needs evaluation.")
                 | _ -> ()
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
-                BoundExpression.SetValue(syntaxInfo, value, rhs)
+                BoundExpression.SetValue(syntaxInfo, value, rhsExpr)
 
             | BoundExpression.GetField(syntaxInfo, receiver, field) ->
                 let receiverExpr =
@@ -1250,7 +1268,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                         receiver
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
-                BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhs)
+                BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr)
 
             | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
                 if prop.Setter.IsNone then
@@ -1262,20 +1280,20 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                         receiverOpt
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
-                BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhs, isVirtual)
+                BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, isVirtual)
 
             // Undo the automatic dereference when we are trying to set the value of the by-ref.
             | AutoDereferenced(undoDerefLhsExpr) ->
                 if undoDerefLhsExpr.Type.IsByRef_t then
-                    BoundExpression.SetContentsOfAddress(BoundSyntaxInfo.User(syntaxToCapture, env.benv), undoDerefLhsExpr, rhs)
+                    BoundExpression.SetContentsOfAddress(BoundSyntaxInfo.User(syntaxToCapture, env.benv), undoDerefLhsExpr, rhsExpr)
                 else
-                    cenv.diagnostics.Error("Left-hand expression is not a valid mutation.", 10, syntaxLhs)
+                    cenv.diagnostics.Error("Left-hand expression is not a valid mutation.", 10, syntaxLhsExpr)
                     invalidExpression syntaxToCapture env.benv // TODO: We should pass some kind of symbol here, or something.
             | _ ->
-                cenv.diagnostics.Error("Left-hand expression is not a valid mutation.", 10, syntaxLhs)
+                cenv.diagnostics.Error("Left-hand expression is not a valid mutation.", 10, syntaxLhsExpr)
                 invalidExpression syntaxToCapture env.benv // TODO: We should pass some kind of symbol here, or something.
 
-        setExpr lhs
+        setExpr lhsExpr
     expr
 
 let private bindSetIndexerExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (expectedTyOpt: TypeSymbol option) syntaxBodyExpr syntaxIndexArgExprs syntaxRhs =
@@ -1297,7 +1315,7 @@ let private bindLocalValueDeclaration
         | OlySyntaxValueDeclarationKind.LetBind _ -> true
         | _ -> false
 
-    let attrs = bindAttributes cenv env true syntaxAttrs
+    let attrs = bindAttributes cenv env syntaxAttrs
 
     match syntaxBinding with
     | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, syntaxRhs) ->
@@ -1656,13 +1674,13 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyDefKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let syntaxIdent = syntaxTyDefName.Identifier
         let innerEnv = setSkipCheckTypeConstructor env
-        let innerEnv, entities, entBuilder = bindTypeDeclarationPass0 { cenv with pass = Pass0; entityDefIndex = 0 } innerEnv syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty (syntaxExpr.GetLeadingCommentText())
+        let innerEnv, entities, entBuilder = Pass0.bindTypeDeclaration { cenv with pass = Pass0; entityDefIndex = 0 } innerEnv syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty (syntaxExpr.GetLeadingCommentText())
         let innerEnv = scopeInEntity innerEnv entBuilder.Entity
-        let innerEnv = bindTypeDeclarationPass1 { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
-        bindTypeDeclarationPass2 { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxTyDefBody
+        let innerEnv = Pass1.bindTypeDeclaration { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        Pass2.bindTypeDeclaration { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxTyDefBody
         let innerEnv = scopeInInstanceConstructors true innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
-        let innerEnv = bindTypeDeclarationPass3 { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
-        let innerEnv, expr = bindTypeDeclarationPass4 { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let innerEnv = Pass3.bindTypeDeclaration { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let innerEnv, expr = bindTypeDeclaration { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
 
         // REVIEW: This *could* be expensive if the locally declared type is complicated enough.
         //         We do this for better error reporting, otherwise, simply clearing all locals before
@@ -1685,7 +1703,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
+let private bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
     let env, expr = bindLocalExpressionAux cenv env expectedTyOpt syntaxToCapture syntaxExpr
 
     let expr =
@@ -1715,48 +1733,6 @@ let bindLocalExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: Ty
                 expr
 
     env, expr
-
-let bindAnonymousShapeType (cenv: cenv) (env: BinderEnvironment) (tyPars: TypeParameterSymbol imarray) (syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression>) =
-    let env =
-        if tyPars.IsEmpty then env
-        else
-            (env, tyPars)
-            ||> ImArray.fold (fun env tyPar ->
-                scopeInTypeParameter env tyPar
-            )
-    let entBuilder = EntitySymbolBuilder.CreateAnonymousShape(currentEnclosing env, cenv.asm)
-    let env = env.SetEnclosing(entBuilder.Entity.AsEnclosing).SetEnclosingTypeParameters(tyPars)
-
-    entBuilder.SetTypeParameters(Pass0, tyPars)
-
-    let syntaxExprs = syntaxExprList.ChildrenOfType
-
-    let env, entities =
-        let cenv = { cenv with pass = Pass0 }
-        ((env, ImArray.empty), syntaxExprs)
-        ||> ImArray.fold (fun (env, entities) syntaxExpr ->
-            bindTopLevelExpressionPass0 cenv env entities syntaxExpr
-        )
-    
-    let env =
-        let cenv = { cenv with pass = Pass1 }
-        (env, syntaxExprs)
-        ||> ImArray.fold (fun env syntaxExpr ->
-            let env, _ = bindTopLevelExpressionPass1 cenv env false entBuilder entities syntaxExpr
-            env
-        )
-
-    let bindingInfos, env =
-        let cenv = { cenv with pass = Pass2 }
-        ((ImArray.empty, env), syntaxExprs)
-        ||> ImArray.fold (fun (bindingInfos, env) syntaxExpr ->
-            let bindingInfos, env = bindTopLevelExpressionPass2 cenv env ImArray.empty entities bindingInfos syntaxExpr
-            bindingInfos, env
-        )
-
-    addBindingDeclarationsToEntityPass2 { cenv with pass = Pass2 } env bindingInfos entBuilder
-
-    entBuilder.Entity.AsType
 
 let private bindNameAsCasePattern (cenv: cenv) (env: BinderEnvironment) (solverEnv: SolverEnvironment) isActive syntaxPattern isFirstPatternSet clauseLocals patternLocals ty (syntaxPatArgs: OlySyntaxPattern imarray) (syntaxName: OlySyntaxName) =
     let expectedPatArgTys =

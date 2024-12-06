@@ -72,3 +72,67 @@ type SpirvTarget() =
             | _ -> false
         else
             false
+
+    override _.GetAnalyzerDiagnostics(boundModel: OlyBoundModel, ct): OlyDiagnostic imarray = 
+        let diagLogger = OlyDiagnosticLogger.Create()
+
+        let isSpirvAttributeName attrName =
+            match attrName with
+            | "uniformAttribute"
+            | "locationAttribute"
+            | "bindingAttribute"
+            | "descriptor_setAttribute"
+            | "positionAttribute"
+            | "global_invocation_idAttribute" -> true
+            | _ -> false
+
+        let isSpirvInputName name =
+            match name with
+            | "uniform"
+            | "location"
+            | "binding"
+            | "descriptor_set"
+            | "global_invocation_id" -> true
+            | _ -> false
+
+        let isSpirvOutputName name =
+            match name with
+            | "location"
+            | "position" -> true
+            | _ -> false
+
+        let checkSpirvInputAttributeUsage name (useSyntax: OlySyntaxNode) =
+            match useSyntax.TryFindParent<OlySyntaxPropertyBinding>(ct) with
+            | Some syntaxPropBinding ->
+                match syntaxPropBinding with
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
+                    match syntaxBinding with
+                    | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                        match syntaxBindingDecl with
+                        | OlySyntaxBindingDeclaration.Get _ when isSpirvInputName name ->
+                            ()
+                        | OlySyntaxBindingDeclaration.Set _ when isSpirvOutputName name ->
+                            ()
+                        | _ ->
+                            diagLogger.Error($"SpirV: Invalid use of '{name}' attribute.", 10, useSyntax)
+                    | _ ->
+                        diagLogger.Error($"SpirV: Invalid use of '{name}' attribute.", 10, useSyntax)
+                | _ ->
+                    unreached()
+            | _ ->
+                diagLogger.Error($"SpirV: Invalid use of '{name} attribute.", 10, useSyntax)
+
+        let analyzeSymbol (symbol: OlySymbol) =
+            if not symbol.UseSyntax.IsDefinition && symbol.IsFunction then
+                if (symbol.IsConstructor && isSpirvAttributeName symbol.Name) then
+                    checkSpirvInputAttributeUsage (symbol.Name.Replace("Attribute", "")) symbol.UseSyntax
+
+        match boundModel.TryGetAnonymousModuleSymbol(ct) with
+        | Some symbol ->
+            analyzeSymbol symbol
+        | _ ->
+            ()
+
+        boundModel.ForEachSymbol(boundModel.SyntaxTree.GetRoot(ct), analyzeSymbol, ct)
+
+        diagLogger.GetDiagnostics()

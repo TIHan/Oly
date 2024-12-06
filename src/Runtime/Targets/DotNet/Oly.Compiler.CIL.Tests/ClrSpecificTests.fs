@@ -1069,6 +1069,42 @@ class Example =
         )
 
 [<Fact>]
+let ``Complex test and csharp source 9``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () = Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
 let ``Property test and csharp source``() =
     let csSrc =
         """

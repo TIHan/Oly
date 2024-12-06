@@ -1,18 +1,17 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module internal rec Oly.Compiler.Internal.Binder.Pass1
 
 open System.Collections.Generic
-open System.Collections.Immutable
 
 open Oly.Core
 open Oly.Compiler
 open Oly.Compiler.Syntax
-open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
+open Oly.Compiler.Internal.Binder.OpenDeclarations
 
 let private stripNewtype (ty: TypeSymbol) =
     OlyAssert.True(ty.IsNewtype)
@@ -22,17 +21,36 @@ let private stripNewtype (ty: TypeSymbol) =
     else
         underlyingTy
 
+let bindAccessorAsMemberFlags isExplicitField (syntaxAccessor: OlySyntaxAccessor) =
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Private _ -> MemberFlags.Private
+    | OlySyntaxAccessor.Internal _ -> MemberFlags.Internal
+    | OlySyntaxAccessor.Protected _ -> MemberFlags.Protected
+    | OlySyntaxAccessor.Public _ -> MemberFlags.Public
+    | _ ->
+        if isExplicitField then
+            // Fields, by default, are private.
+            MemberFlags.Private
+        else
+            // Everything else, by default, is public.
+            MemberFlags.Public
+
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+
 /// Pass 1 - Get type definition inherits and implements.
-let bindTypeDeclarationPass1 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
-    bindTypeDeclarationBodyPass1 cenv env syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyPars.Values syntaxConstrClauses syntaxTyDefBody |> ignore
+    bindTypeDeclarationBody cenv env syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyPars.Values syntaxConstrClauses syntaxTyDefBody |> ignore
 
     scopeInEntityAndOverride env entBuilder.Entity
 
 /// Pass 1 - Get type inherits and implements.
-let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxTyPars: OlySyntaxType imarray) syntaxConstrClauses (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) canOpen (entBuilder: EntitySymbolBuilder) entities (syntaxTyPars: OlySyntaxType imarray) syntaxConstrClauses (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -276,7 +294,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             entBuilder.SetExtends(cenv.pass, extends)
             entBuilder.SetImplements(cenv.pass, implements)
 
-        let env, _ = bindTopLevelExpressionPass1 cenv env canOpen entBuilder entities syntaxExpr
+        let env, _ = bindTopLevelExpression cenv env canOpen entBuilder entities syntaxExpr
         env
 
     | _ ->
@@ -284,7 +302,7 @@ let bindTypeDeclarationBodyPass1 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
 
 /// Pass 1 - Get type definition inherits and implements.
 ///          Checking constraints on constructors for inherits and implements are ignored.
-let bindTopLevelExpressionPass1 (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : _ * bool =
+let bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : _ * bool =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
@@ -299,12 +317,12 @@ let bindTopLevelExpressionPass1 (cenv: cenv) (env: BinderEnvironment) (canOpen: 
             env, canOpen
 
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1, canOpen = bindTopLevelExpressionPass1 cenv env canOpen entBuilder entities syntaxExpr1
-        bindTopLevelExpressionPass1 cenv env1 canOpen entBuilder entities syntaxExpr2
+        let env1, canOpen = bindTopLevelExpression cenv env canOpen entBuilder entities syntaxExpr1
+        bindTopLevelExpression cenv env1 canOpen entBuilder entities syntaxExpr2
 
     | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclarationPass1 cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let env = bindTypeDeclaration cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 

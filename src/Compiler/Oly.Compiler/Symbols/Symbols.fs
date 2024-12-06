@@ -2592,6 +2592,7 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
             failwith "Properties cannot be marked 'mutable'"
 
     let mutable backingFieldOpt = backingFieldOpt
+    let mutable attrs = attrs
 
     member _.Id = id
     member _.Type = propTy
@@ -2602,6 +2603,11 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
     /// Mutability
     member _.RemoveBackingField_Pass3_NonConcurrent() =
         backingFieldOpt <- None
+
+    /// Mutability - is this the only good way to handle this?
+    member this.SetAttributes_Pass3_NonConcurrent(pass: CompilerPass, newAttrs: AttributeSymbol imarray) =
+        OlyAssert.Equal(Pass3, pass)
+        attrs <- newAttrs
 
     interface IPropertySymbol with
         member this.Attributes: imarray<AttributeSymbol> = attrs
@@ -2642,6 +2648,7 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
     
     let id = newId()
     let mutable guardOpt = None
+    let mutable attrs = attrs
 
     member _.Name = name
     member _.Type = func.Type
@@ -2652,6 +2659,11 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
     /// Mutability
     member _.SetPatternGuardFunction_Pass2_NonConcurrent(guardFunc: FunctionSymbol) =
         guardOpt <- Some (guardFunc :> IFunctionSymbol)
+
+    /// Mutability - is this the only good way to handle this?
+    member this.SetAttributes_Pass3_NonConcurrent(pass: CompilerPass, newAttrs: AttributeSymbol imarray) =
+        OlyAssert.Equal(Pass3, pass)
+        attrs <- newAttrs
 
     interface IPatternSymbol with
         member this.Attributes: imarray<AttributeSymbol> = attrs
@@ -4621,7 +4633,7 @@ module SymbolExtensions =
             member this.IsGenerated: bool =
                 this.ValueFlags &&& ValueFlags.Generated = ValueFlags.Generated
 
-            member this.IsReadOnly =
+            member this.IsImmutable =
                 not this.IsMutable
     
             member this.IsSingleUse =

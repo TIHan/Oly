@@ -260,16 +260,21 @@ type RuntimeTypeParameter =
     override this.GetHashCode() = this.Name.GetHashCode()
 
     override this.Equals(o) =
-        if obj.ReferenceEquals(this, o) then true
-        else
-
         match o with
         | :? RuntimeTypeParameter as o ->
+            (this : IEquatable<_>).Equals(o)
+        | _ ->
+            false
+
+    interface IEquatable<RuntimeTypeParameter> with
+
+        member this.Equals(o: RuntimeTypeParameter) =
+            if obj.ReferenceEquals(this, o) then true
+            else
+
             this.Name = o.Name &&
             this.Arity = o.Arity &&
             this.IsVariadic = o.IsVariadic
-        | _ ->
-            false
 
 [<NoComparison;CustomEquality;RequireQualifiedAccess>]
 type RuntimeParameter =
@@ -292,6 +297,11 @@ type RuntimeParameter =
         | _ ->
             false
 
+[<Flags>]
+type RuntimeEntityFlags =
+    | None      = 0b000000
+    | Intrinsic = 0b000001
+
 [<NoComparison;NoEquality;RequireQualifiedAccess>]
 type RuntimeEntityInfo =
     {
@@ -301,8 +311,8 @@ type RuntimeEntityInfo =
         ILEntityKind: OlyILEntityKind
         ILEntityFlags: OlyILEntityFlags
         ILPropertyDefinitionLookup: ImmutableDictionary<OlyILFunctionDefinitionHandle, OlyILPropertyDefinitionHandle>
-        IsCanonical: bool
 
+        mutable Flags: RuntimeEntityFlags
         mutable Formal: RuntimeEntity
         mutable Attributes: RuntimeAttribute imarray
         mutable StaticConstructor: RuntimeFunction option
@@ -462,29 +472,33 @@ type RuntimeEntity =
         |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
 
     member this.IsObjectType =
-        let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.exists (function 
-            | OlyILAttribute.Intrinsic(nameHandle) ->
-                this.ILAssembly.GetStringOrEmpty(nameHandle) = "base_object"
-            | _ -> 
-                false
-        )
+        if this.IsIntrinsic then
+            let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
+            entDef.Attributes
+            |> ImArray.exists (function 
+                | OlyILAttribute.Intrinsic(nameHandle) ->
+                    this.ILAssembly.GetStringOrEmpty(nameHandle) = "base_object"
+                | _ -> 
+                    false
+            )
+        else
+            false
 
     member this.IsIntrinsic =
-        let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+        this.Info.Flags.HasFlag(RuntimeEntityFlags.Intrinsic)
 
     member this.TryGetIntrinsicTypeInfo() =
-        let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.tryPick (function 
-            | OlyILAttribute.Intrinsic(nameHandle) -> 
-                Some(this.ILAssembly.GetStringOrEmpty(nameHandle))
-            | _ -> 
-                None
-        )
+        if this.IsIntrinsic then
+            let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
+            entDef.Attributes
+            |> ImArray.tryPick (function 
+                | OlyILAttribute.Intrinsic(nameHandle) -> 
+                    Some(this.ILAssembly.GetStringOrEmpty(nameHandle))
+                | _ -> 
+                    None
+            )
+        else
+            None
 
     member this.Substitute(genericContext: GenericContext) =
         if genericContext.IsEmpty then
@@ -625,6 +639,16 @@ type RuntimeEntity =
     override this.Equals(o) =
         match o with
         | :? RuntimeEntity as o ->
+            (this : IEquatable<_>).Equals(o)
+        | _ ->
+            false
+
+    interface IEquatable<RuntimeEntity> with
+
+        member this.Equals(o: RuntimeEntity) =
+            if obj.ReferenceEquals(this, o) then true
+            else
+
             obj.ReferenceEquals(this.Formal, o.Formal) && this.TypeArguments.Length = o.TypeArguments.Length &&
             (
                 (this.TypeArguments, o.TypeArguments)
@@ -634,8 +658,6 @@ type RuntimeEntity =
                 (this.Witnesses, o.Witnesses)
                 ||> ImArray.forall2 (=)
             )
-        | _ ->
-            false
 
 let emptyEnclosing = RuntimeEnclosing.Namespace(ImArray.empty)
 
@@ -1164,14 +1186,31 @@ type RuntimeType =
             | _ ->
                 false
 
+    member this.DebugText =
+        if this.TypeArguments.IsEmpty then
+            this.Name
+        elif this.IsTypeConstructor then
+            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> "_") |> String.concat ","
+            $"(type constructor) {this.Name}<{tyArgsText}>" 
+        else
+            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> x.DebugText) |> String.concat ","
+            $"{this.Name}<{tyArgsText}>" 
+
     override this.GetHashCode() = this.Name.GetHashCode()
 
     override this.Equals(o) =
-        if obj.ReferenceEquals(this, o) then true
-        else
-
         match o with
         | :? RuntimeType as o ->
+            (this : IEquatable<_>).Equals(o)
+        | _ ->
+            false
+
+    interface IEquatable<RuntimeType> with
+
+        member this.Equals(o: RuntimeType) =
+            if obj.ReferenceEquals(this, o) then true
+            else
+
             match this.Strip(), o.Strip() with
             | Void, Void
             | Unit, Unit
@@ -1231,19 +1270,6 @@ type RuntimeType =
             | _ -> 
                 false
 
-        | _ ->
-            false
-
-    member this.DebugText =
-        if this.TypeArguments.IsEmpty then
-            this.Name
-        elif this.IsTypeConstructor then
-            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> "_") |> String.concat ","
-            $"(type constructor) {this.Name}<{tyArgsText}>" 
-        else
-            let tyArgsText = this.TypeArguments |> Seq.map (fun x -> x.DebugText) |> String.concat ","
-            $"{this.Name}<{tyArgsText}>" 
-
 [<Sealed;DebuggerDisplay("(witness) {Type} {TypeExtension}")>]
 type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: RuntimeType, tyExt: RuntimeType, abstractFuncOpt: RuntimeFunction option) =
 
@@ -1262,6 +1288,16 @@ type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: Runti
     override this.Equals(o) =
         match o with
         | :? RuntimeWitness as witness ->
+            (this : IEquatable<_>).Equals(witness)
+        | _ ->
+            false
+
+    interface IEquatable<RuntimeWitness> with
+
+        member this.Equals(witness) =
+            if obj.ReferenceEquals(this, witness) then true
+            else
+
             this.TypeVariableIndex = witness.TypeVariableIndex &&
             (
                 match this.TypeVariableKind, witness.TypeVariableKind with
@@ -1271,8 +1307,6 @@ type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: Runti
             ) &&
             witness.Type = this.Type &&
             witness.TypeExtension = this.TypeExtension
-        | _ ->
-            false
 
 type RuntimeFunctionKind =
     | Formal
@@ -1537,26 +1571,6 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             IsConstructor = func.Flags.IsConstructor
         } : OlyIRFunctionSignatureKey
 
-    override this.GetHashCode() = this.Name.GetHashCode()
-
-    override this.Equals(o) =
-        if obj.ReferenceEquals(this, o) then
-            true
-        else
-            // REVIEW: This is fine since it is correct, though we could only rely on reference equality
-            //         if the runtime was maintaining single instances of generic instantiations, which it does not.
-            match o with
-            | :? RuntimeFunction as func ->
-                this.EnclosingType = func.EnclosingType &&
-                (this.ComputeSignatureKey() = func.ComputeSignatureKey()) &&
-                this.Witnesses.Length = func.Witnesses.Length &&
-                (
-                    (this.Witnesses, func.Witnesses)
-                    ||> ImArray.forall2 (=)
-                )
-            | _ ->
-                false
-
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
         if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
             // If the function is not generic, then we do not need to set its witnesses
@@ -1593,6 +1607,30 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
                     ReturnType = state.ReturnType.SetWitnesses(filteredWitnesses)
                 }
                 |> RuntimeFunction
+
+    override this.GetHashCode() = this.Name.GetHashCode()
+
+    override this.Equals(o) =
+        match o with
+        | :? RuntimeFunction as func ->
+            (this : IEquatable<_>).Equals(func)
+        | _ ->
+            false
+
+    interface IEquatable<RuntimeFunction> with
+        
+        member this.Equals(func: RuntimeFunction) =
+            if obj.ReferenceEquals(this, func) then true
+            else
+            // REVIEW: This is fine since it is correct, though we could only rely on reference equality
+            //         if the runtime was maintaining single instances of generic instantiations, which it does not.
+            this.EnclosingType = func.EnclosingType &&
+            (this.ComputeSignatureKey() = func.ComputeSignatureKey()) &&
+            this.Witnesses.Length = func.Witnesses.Length &&
+            (
+                (this.Witnesses, func.Witnesses)
+                ||> ImArray.forall2 (=)
+            )
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
 type RuntimeAttribute =
@@ -1660,24 +1698,29 @@ type RuntimeField =
     override this.GetHashCode() = this.Index
 
     override this.Equals(o) =
-        if obj.ReferenceEquals(this, o) then true
-        else
-            match o with
-            | :? RuntimeField as field ->
-                // We do not need to check the field type as they should be the same if the following below are true.
-                this.Index = field.Index &&
-                this.Name = field.Name &&
-                this.EnclosingType = field.EnclosingType
-#if DEBUG || CHECKED
-                &&
-                (
-                    OlyAssert.True(this.Type = field.Type)
-                    true
-                )
-#endif
-            | _ ->
-                false
+        match o with
+        | :? RuntimeField as field ->
+            (this : IEquatable<_>).Equals(field)
+        | _ ->
+            false
 
+    interface IEquatable<RuntimeField> with
+
+        member this.Equals(field: RuntimeField) =
+            if obj.ReferenceEquals(this, field) then true
+            else
+
+            // We do not need to check the field type as they should be the same if the following below are true.
+            this.Index = field.Index &&
+            this.Name = field.Name &&
+            this.EnclosingType = field.EnclosingType
+#if DEBUG || CHECKED
+            &&
+            (
+                OlyAssert.True(this.Type = field.Type)
+                true
+            )
+#endif
 type RuntimeType with
 
     member this.StripAll() =

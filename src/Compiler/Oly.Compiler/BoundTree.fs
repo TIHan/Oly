@@ -641,6 +641,17 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         f this
         fields.ToImmutable()
 
+    static member CreateSequential(syntaxNode, benv, expr1: BoundExpression, expr2: BoundExpression, semantic) =
+        BoundExpression.Sequential(
+            BoundSyntaxInfo.User(syntaxNode, benv),
+            expr1,
+            expr2,
+            semantic
+        )
+
+    static member CreateSequential(syntaxNode, benv, exprs: _ seq, semantic) =
+        BoundExpression.CreateSequential(BoundSyntaxInfo.User(syntaxNode, benv), exprs, semantic)
+
     static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
         let syntaxTree = expr1.Syntax.Tree
         if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
@@ -668,14 +679,19 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             let syntaxTree = expr.Syntax.Tree
             BoundExpression.CreateSequential(syntaxTree, exprs.Add(expr))
 
-    static member CreateSequential(syntaxTree, exprs: _ seq) =
+    static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq) =
+        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree), exprs)
+
+    static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq, semantic) =
+        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree), exprs, semantic)
+
+    static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq) =
         let exprs = exprs |> ImArray.ofSeq
         if exprs.IsEmpty then
-            BoundExpression.None(BoundSyntaxInfo.Generated(syntaxTree))
+            BoundExpression.None(syntaxInfo)
         elif exprs.Length = 1 then
             exprs.[0]
         else
-            let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
             let rec loop i =
                 let j = i + 1
                 let expr1 = exprs.[i]
@@ -704,8 +720,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                         )
             loop 0
 
-    static member CreateSequential(syntaxTree, exprs: _ seq, semantic) =
-        let expr = BoundExpression.CreateSequential(syntaxTree, exprs)
+    static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq, semantic) =
+        let expr = BoundExpression.CreateSequential(syntaxInfo, exprs)
         match expr with
         | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic2) ->
             if semantic2 = semantic then

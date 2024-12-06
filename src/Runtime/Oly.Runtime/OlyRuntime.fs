@@ -286,7 +286,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         ilFuncSpec.Parameters
         |> ImArray.map (fun ilPar ->
             { 
-                Attributes = ilPar.Attributes |> ImArray.choose (fun x -> runtime.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+                Attributes = ilPar.Attributes |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
                 Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
             } : RuntimeParameter
@@ -300,7 +300,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 
     let attrs =
         ilFuncDef.Attributes
-        |> ImArray.choose (fun x -> runtime.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+        |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
 
     let flags =
         if not enclosing.AsType.IsExported && not enclosing.AsType.IsExternal && checkFunctionInlineability ilAsm ilFuncDef then
@@ -2378,7 +2378,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let irAttrs =
                         ilPropDef.Attributes
                         |> ImArray.choose (fun ilAttr ->
-                            this.TryResolveAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
+                            this.TryResolveConstructorAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
                         )
                         |> emitAttributes ilAsm
 
@@ -2679,7 +2679,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     member internal this.Assemblies: Dictionary<OlyILAssemblyIdentity, RuntimeAssembly<'Type, 'Function, 'Field>> = assemblies
 
-    member this.TryResolveAttribute(ilAsm: OlyILReadOnlyAssembly, ilAttr: OlyILAttribute, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray): RuntimeAttribute option =
+    member this.TryResolveConstructorAttribute(ilAsm: OlyILReadOnlyAssembly, ilAttr: OlyILAttribute, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray): RuntimeAttribute option =
         match ilAttr with
         | OlyILAttribute.Constructor(ilFuncInst, ilArgs, ilNamedArgs) ->
             let func = this.ResolveFunction(ilAsm, ilFuncInst, genericContext, passedWitnesses)
@@ -2791,7 +2791,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let attrs =
                 ilFieldDef.Attributes
-                |> ImArray.choose (fun x -> this.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+                |> ImArray.choose (fun x -> this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 
             let ilConstOpt =
                 match ilFieldDef with
@@ -3285,6 +3285,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         else
                             ilPropDefLookup.Add(ilPropDef.Setter, ilPropDefHandle)
                     )
+                    
 
                 let ent =
                     {
@@ -3306,8 +3307,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 RuntimeEntityInfo.ILEntityKind = ilEntDef.Kind
                                 RuntimeEntityInfo.ILEntityFlags = ilEntDef.Flags
                                 RuntimeEntityInfo.ILPropertyDefinitionLookup = ilPropDefLookup
-                                RuntimeEntityInfo.IsCanonical = false
 
+                                RuntimeEntityInfo.Flags = RuntimeEntityFlags.None
                                 RuntimeEntityInfo.Formal = Unchecked.defaultof<_>
                                 RuntimeEntityInfo.Attributes = ImArray.empty
                                 RuntimeEntityInfo.StaticConstructor = None
@@ -3387,10 +3388,20 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 ent.FieldsLazy <- Lazy<_>.CreateFromValue(fields)
 
+                let mutable entFlags = RuntimeEntityFlags.None
+
                 let attrs =
                     ilEntDef.Attributes
-                    |> ImArray.choose (fun x -> this.TryResolveAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+                    |> ImArray.choose (fun x -> 
+                        match x with
+                        | OlyILAttribute.Intrinsic _ ->
+                            entFlags <- entFlags ||| RuntimeEntityFlags.Intrinsic
+                            None
+                        | _ ->
+                            this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
+                    )
 
+                ent.Info.Flags <- entFlags
                 ent.Info.Attributes <- attrs
 
                 let staticCtorOpt =
@@ -4399,6 +4410,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let irArgFlags =
                     if bodyFunc.IsArgumentReadOnlyByRefType(i) then
                         irArgFlags ||| OlyIRLocalFlags.ReadOnlyByRefType
+                    else
+                        irArgFlags
+                let irArgFlags =
+                    if bodyFunc.IsArgumentWriteOnlyByRefType(i) then
+                        irArgFlags ||| OlyIRLocalFlags.WriteOnlyByRefType
                     else
                         irArgFlags
                 let irArgFlags =

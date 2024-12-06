@@ -10,11 +10,3 @@ type internal InternalCompilerException() =
 [<Sealed>]
 type internal InternalCompilerUnreachedException() =
     inherit System.Exception("An internal compiler error has occurred due to unreached logic.")
-
-[<AutoOpen>]
-module internal CompilerHelpers =
-
-    [<DebuggerHidden>]
-    [<MethodImpl(MethodImplOptions.NoInlining)>]
-    let unreached() =
-        raise(InternalCompilerUnreachedException())
