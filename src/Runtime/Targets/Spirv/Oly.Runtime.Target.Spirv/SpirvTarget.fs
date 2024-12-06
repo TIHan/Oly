@@ -102,25 +102,28 @@ type SpirvTarget() =
             | _ -> false
 
         let checkSpirvInputAttributeUsage name (useSyntax: OlySyntaxNode) =
-            match useSyntax.TryFindParent<OlySyntaxPropertyBinding>(ct) with
-            | Some syntaxPropBinding ->
-                match syntaxPropBinding with
-                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
-                    match syntaxBinding with
-                    | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
-                        match syntaxBindingDecl with
-                        | OlySyntaxBindingDeclaration.Get _ when isSpirvInputName name ->
-                            ()
-                        | OlySyntaxBindingDeclaration.Set _ when isSpirvOutputName name ->
-                            ()
+            let isValid =
+                match useSyntax.TryFindParent<OlySyntaxPropertyBinding>(ct) with
+                | Some syntaxPropBinding ->
+                    match syntaxPropBinding with
+                    | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
+                        match syntaxBinding with
+                        | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                            match syntaxBindingDecl with
+                            | OlySyntaxBindingDeclaration.Get _ when isSpirvInputName name
+                            | OlySyntaxBindingDeclaration.Set _ when isSpirvOutputName name ->
+                                true
+                            | _ ->
+                                false
                         | _ ->
-                            diagLogger.Error($"SpirV: Invalid use of '{name}' attribute.", 10, useSyntax)
+                            false
                     | _ ->
-                        diagLogger.Error($"SpirV: Invalid use of '{name}' attribute.", 10, useSyntax)
+                        unreached()
                 | _ ->
-                    unreached()
-            | _ ->
-                diagLogger.Error($"SpirV: Invalid use of '{name} attribute.", 10, useSyntax)
+                    false
+
+            if not isValid then
+                diagLogger.Error($"SpirV: Invalid use of '{name}' attribute.", 10, useSyntax)
 
         let analyzeSymbol (symbol: OlySymbol) =
             if not symbol.UseSyntax.IsDefinition && symbol.IsFunction then
