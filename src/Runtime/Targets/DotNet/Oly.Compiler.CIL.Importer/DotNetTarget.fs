@@ -17,7 +17,6 @@ open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
-open Oly.Compiler.Analysis
 open Oly.Runtime
 open Oly.Runtime.Clr.Emitter
 
@@ -69,9 +68,9 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
 
 module private DotNetReferences =
 
-    let getDotNetInfo (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
+    let getDotNetInfo (cachePrefix: string) (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
         backgroundTask {
-            //let dotnetBuildJson = OlyPath.Combine(cacheDir, "dotnet_build.json")
+            //let dotnetBuildJson = OlyPath.Combine(cacheDir, $"{cachePrefix}_dotnet_build.json")
 
             //if File.Exists(dotnetBuildJson.ToString()) then
             //    let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
@@ -220,7 +219,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 ()
             | _ ->
                 let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
+                let! netInfo = DotNetReferences.getDotNetInfo "corelib" cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
                 netInfos[projPath] <- netInfo
                 frameworkRefs[targetInfo.Name] <- netInfo
                 return ()
@@ -267,7 +266,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     if ext.Equals(".cs") then
                         // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
                         let cacheDir = this.GetAbsoluteCacheDirectory(path)
-                        let! netInfo = DotNetReferences.getDotNetInfo cacheDir false targetInfo.Name [] [] [] ct
+                        let! netInfo = DotNetReferences.getDotNetInfo "cs" cacheDir false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -331,7 +330,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -549,12 +548,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
     override _.GetImplicitExtendsForEnum() = Some "System.Enum"
 
-    override _.GetAnalyzerDiagnostics(boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
+    override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
         let diagLogger = OlyDiagnosticLogger.Create()
 
-        let analyzeSymbol (symbol: OlySymbol) =
-            if (symbol.UseSyntax.IsDefinition || symbol.UseSyntax.IsCompilationUnit) && symbol.IsExported && symbol.IsType then
-                let ty = symbol.AsType
+        let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
+            if (symbolInfo.Syntax.IsDefinition || symbolInfo.Syntax.IsCompilationUnit) && symbolInfo.Symbol.IsExported && symbolInfo.Symbol.IsType then
+                let ty = symbolInfo.Symbol.AsType
                 let funcGroups =
                     ty.Functions
                     |> Seq.filter (fun x ->
@@ -600,24 +599,24 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                                     allParsAreSame <- false
 
                                 if allParsAreSame then
-                                    let location = func.TryGetDefinitionLocation(ct)
+                                    let location = func.TryGetDefinitionLocation(boundModel, ct)
                                     match location with
                                     | Some(loc) ->
                                         let textRange = loc.GetTextRange(ct)
                                         let syntaxNode =
                                             match loc.SyntaxTree.TryFindNode(textRange, ct) with
                                             | Some syntaxNode -> syntaxNode
-                                            | _ -> func.UseSyntax
+                                            | _ -> symbolInfo.Syntax
                                         diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, syntaxNode)
                                     | _ ->
-                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, func.UseSyntax)
+                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, symbolInfo.Syntax)
                         )
                     )
                 )
 
         match boundModel.TryGetAnonymousModuleSymbol(ct) with
         | Some symbol ->
-            analyzeSymbol symbol
+            analyzeSymbol symbol.UntypedInfo
         | _ ->
             ()
 

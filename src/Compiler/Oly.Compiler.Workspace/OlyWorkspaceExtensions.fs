@@ -239,14 +239,14 @@ type OlyDocument with
             let symbols = boundModel.GetSymbols(syntaxNode, ct)
 
             symbols
-            |> ImArray.choose (fun symbol ->
+            |> ImArray.choose (fun symbolInfo ->
                 ct.ThrowIfCancellationRequested()
-                match symbol.UseSyntax.TryFindFirstIdentifierOrLiteral() with
+                match symbolInfo.Syntax.TryFindFirstIdentifierOrLiteral() with
                 | Some(identToken) ->
                     let r = identToken.GetTextRange(ct)
                     let span = identToken.TextSpan
                     let flags = OlyClassificationModifierFlags.None
-                    match symbol with
+                    match symbolInfo.Symbol with
                     | :? OlyTypeSymbol as tySymbol ->
                         Some(classifyType r span tySymbol flags)
                     | :? OlyFunctionGroupSymbol as funcGroupSymbol ->
@@ -272,7 +272,7 @@ type OlyCompletionContext =
     | UnqualifiedType of OlyBoundSubModel
     | Patterns of OlyBoundSubModel
     | OpenDeclaration of OlyBoundSubModel
-    | Symbol of OlySymbol * inStaticContext: bool
+    | Symbol of OlySymbol * OlyBoundSubModel * inStaticContext: bool
 
 [<Struct;DebuggerDisplay("{Label}")>]
 type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind, detail: string, insertText: string) =
@@ -406,10 +406,11 @@ let private keywords =
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyDocumentFunctionCallInfo =
     {
-        Function: OlyValueSymbol
+        Function: OlySymbol
         ActiveParameterIndex: int32
         ActiveFunctionIndex: int32
         IsPattern: bool
+        SubModel: OlyBoundSubModel
     }
 
 type OlyDocument with
@@ -502,8 +503,9 @@ type OlyDocument with
             match loop node with
             | Some(token, activeParameterIndex, activeParameterCount, isPattern) ->
                 boundModel.TryFindSymbol(token, ct)
-                |> Option.filter (fun x -> x.IsFunction)
-                |> Option.map (fun x ->
+                |> Option.filter (fun x -> x.Symbol.IsFunction)
+                |> Option.map (fun symbolInfo ->
+                    let x = symbolInfo.Symbol
                     let activeFunctionIndex =
                         if x.IsFunctionGroup then
                             let funcIndices =
@@ -582,10 +584,11 @@ type OlyDocument with
                                 else
                                     -1                      
                     {
-                        Function = x.AsValue
+                        Function = symbolInfo.Symbol
                         ActiveParameterIndex = activeParameterIndex
                         ActiveFunctionIndex = activeFunctionIndex
                         IsPattern = isPattern
+                        SubModel = symbolInfo.SubModel
                     } : OlyDocumentFunctionCallInfo
                 )
             | _ ->
@@ -596,7 +599,7 @@ type OlyDocument with
     member this.FindSimilarSymbols(symbol: OlySymbol, ct) =
         let boundModel = this.BoundModel       
         let symbols = boundModel.GetSymbolsByPossibleName(this.SyntaxTree.GetRoot(ct), symbol.Name, ct)    
-        symbols |> ImArray.filter (fun x -> x.IsSimilarTo(symbol))
+        symbols |> ImArray.filter (fun x -> x.Symbol.IsSimilarTo(symbol))
 
     member this.GetAllSymbols(ct) : _ imarray =
         let boundModel = this.BoundModel
@@ -726,16 +729,16 @@ type OlyDocument with
                         OlyCompletionContext.None
                     elif hasDotOnLeft then
                         match boundModel.TryFindSymbol(token, ct) with
-                        | Some symbol ->
-                            match symbol with
+                        | Some symbolInfo ->
+                            match symbolInfo.Symbol with
                             | :? OlyValueSymbol as symbol ->
                                 match symbol.ReturnType with
                                 | Some(returnTySymbol) ->
-                                    OlyCompletionContext.Symbol(returnTySymbol, false)
+                                    OlyCompletionContext.Symbol(returnTySymbol, symbolInfo.SubModel, false)
                                 | _ ->
-                                    OlyCompletionContext.Symbol(symbol, false)
-                            | _ -> 
-                                OlyCompletionContext.Symbol(symbol, isPossiblyInStaticContext)
+                                    OlyCompletionContext.Symbol(symbol, symbolInfo.SubModel, false)
+                            | symbol -> 
+                                OlyCompletionContext.Symbol(symbol, symbolInfo.SubModel, isPossiblyInStaticContext)
                         | _ ->
                             OlyCompletionContext.None
                     else
@@ -784,11 +787,11 @@ type OlyDocument with
                         ct.ThrowIfCancellationRequested()
                         if not valueSymbol.Parameters.IsEmpty then
                             match matchTyOpt with
-                            | Some(matchTy) when matchTy.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()
+                            | Some(matchTy) when matchTy.Symbol.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()
                             | _ ->
                                 let kind = classifyValueKind valueSymbol
                                 let label =
-                                    if valueSymbol.IsUnqualified then
+                                    if subModel.IsUnqualified(valueSymbol) then
                                         valueSymbol.Name
                                     else
                                         match valueSymbol.Enclosing.TryType with
@@ -796,7 +799,7 @@ type OlyDocument with
                                             ty.Name + "." + valueSymbol.Name
                                         | _ ->
                                             valueSymbol.Name
-                                completions.Add(OlyCompletionItem(label, kind, valueSymbol.SignatureText))
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(valueSymbol)))
                     )
 
                 | OlyCompletionContext.OpenDeclaration subModel ->
@@ -804,13 +807,13 @@ type OlyDocument with
                     |> Seq.iter (fun namespaceSymbol ->
                         ct.ThrowIfCancellationRequested()
                         let kind = classifyNamespaceKind namespaceSymbol
-                        completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, namespaceSymbol.SignatureText))
+                        completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, subModel.GetSignatureText(namespaceSymbol)))
                     )
                     subModel.GetUnqualifiedTypeSymbols(containsText)
                     |> Seq.iter (fun ty ->
                         ct.ThrowIfCancellationRequested()
                         let kind = classifyTypeKind ty
-                        completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                        completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty)))
                     )
                 | OlyCompletionContext.UnqualifiedType subModel ->
                     let tyDeclNameOpt =
@@ -839,7 +842,7 @@ type OlyDocument with
                             | Some(tyDeclName) when tyDeclName = label -> ()
                             | _ ->
                                 let kind = classifyNamespaceKind namespaceSymbol
-                                completions.Add(OlyCompletionItem(label, kind, namespaceSymbol.SignatureText))
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(namespaceSymbol)))
                     )
                     subModel.GetUnqualifiedTypeSymbols(containsText)
                     |> Seq.iter (fun ty ->
@@ -850,7 +853,7 @@ type OlyDocument with
                             | Some(tyDeclName) when tyDeclName = label -> ()
                             | _ ->
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(label, kind, ty.SignatureText))
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(ty)))
                     )
                 | OlyCompletionContext.Unqualified subModel ->                   
                     subModel.GetUnqualifiedSymbols(containsText)
@@ -859,23 +862,23 @@ type OlyDocument with
                         match x with
                         | :? OlyFunctionGroupSymbol as funcGroup ->
                             let kind = classifyFunctionGroupKind funcGroup
-                            completions.Add(OlyCompletionItem(funcGroup.Name, kind, funcGroup.SignatureText))
+                            completions.Add(OlyCompletionItem(funcGroup.Name, kind, subModel.GetSignatureText(funcGroup)))
                         | :? OlyValueSymbol as value ->
                             // Do not include fields that are used to back properties
                             if (not value.IsBackingFieldForProperty) then
                                 let kind = classifyValueKind value
-                                completions.Add(OlyCompletionItem(value.Name, kind, value.SignatureText))
+                                completions.Add(OlyCompletionItem(value.Name, kind, subModel.GetSignatureText(value)))
                         | :? OlyTypeSymbol as ty ->
                             let kind = classifyTypeKind ty
-                            completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                            completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty)))
                         | :? OlyNamespaceSymbol as namespaceSymbol ->
                             let kind = classifyNamespaceKind namespaceSymbol
-                            completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, namespaceSymbol.SignatureText))
+                            completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, subModel.GetSignatureText(namespaceSymbol)))
                         | _ ->
                             ()
                     )
 
-                | OlyCompletionContext.Symbol(symbol, inStaticContext) ->
+                | OlyCompletionContext.Symbol(symbol, subModel, inStaticContext) ->
                     match symbol with
                     | :? OlyNamespaceSymbol as symbol ->
                         if inStaticContext then
@@ -883,13 +886,13 @@ type OlyDocument with
                             |> ImArray.iter (fun ty -> 
                                 ct.ThrowIfCancellationRequested()
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                                completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty)))
                             )
 
                             symbol.Namespaces
                             |> ImArray.iter (fun nmspace ->
                                 ct.ThrowIfCancellationRequested()
-                                completions.Add(OlyCompletionItem(nmspace.Name, OlyClassificationKind.Namespace, nmspace.SignatureText))
+                                completions.Add(OlyCompletionItem(nmspace.Name, OlyClassificationKind.Namespace, subModel.GetSignatureText(nmspace)))
                             )
                     | :? OlyTypeSymbol as symbol ->
                         if inStaticContext then
@@ -897,7 +900,7 @@ type OlyDocument with
                             |> ImArray.iter (fun ty -> 
                                 ct.ThrowIfCancellationRequested()
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                                completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty)))
                             )
 
                         symbol.Fields
@@ -906,18 +909,18 @@ type OlyDocument with
                             // Do not include fields that are used to back properties
                             if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
-                                completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
+                                completions.Add(OlyCompletionItem(field.Name, kind, subModel.GetSignatureText(field)))
                         )
 
-                        symbol.Properties
+                        subModel.GetProperties(symbol)
                         |> Seq.iter (fun prop ->
                             ct.ThrowIfCancellationRequested()
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
-                                completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
+                                completions.Add(OlyCompletionItem(prop.Name, kind, subModel.GetSignatureText(prop)))
                         )
 
-                        symbol.Functions
+                        subModel.GetFunctions(symbol)
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
                             if func.IsNormalFunction then
@@ -928,7 +931,7 @@ type OlyDocument with
                                             "(" + func.Name + ")"
                                         else
                                             func.Name
-                                    completions.Add(OlyCompletionItem(label, kind, func.SignatureText))
+                                    completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(func)))
                         )
 
                     | :? OlyValueSymbol as symbol ->
@@ -940,18 +943,18 @@ type OlyDocument with
                             // Do not include fields that are used to back properties
                             if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
-                                completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
+                                completions.Add(OlyCompletionItem(field.Name, kind, subModel.GetSignatureText(field)))
                         )
 
-                        ty.Properties
+                        subModel.GetProperties(ty)
                         |> Seq.iter (fun prop ->
                             ct.ThrowIfCancellationRequested()
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
-                                completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
+                                completions.Add(OlyCompletionItem(prop.Name, kind, subModel.GetSignatureText(prop)))
                         )
 
-                        ty.Functions
+                        subModel.GetFunctions(ty)
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
                             if func.IsNormalFunction then
@@ -962,7 +965,7 @@ type OlyDocument with
                                             "(" + func.Name + ")"
                                         else
                                             func.Name
-                                    completions.Add(OlyCompletionItem(label, kind, func.SignatureText))
+                                    completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(func)))
                         )
 
                     | _ ->

@@ -278,8 +278,8 @@ test(t: __oly_int32): () =
     | ~^~1 => ()
     | _ => ()
         """
-    let symbol = getSymbolByCursor src
-    Assert.Equal(1, symbol.AsConstant.Value.AsInt32)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal(1, symbolInfo.Symbol.AsConstant.Value.AsInt32)
 
 [<Fact>]
 let ``Enum pattern match should give the correct symbol``() =

@@ -389,8 +389,8 @@ let getSymbolByCursorIgnoreDiagnostics (src: string) =
     symbolOpt.Value
 
 let hasSymbolSignatureTextByCursorIgnoreDiagnostics expectedText (src: string) =
-    let symbol = getSymbolByCursorIgnoreDiagnostics src
-    Assert.Equal(expectedText, symbol.SignatureText)
+    let symbolInfo = getSymbolByCursorIgnoreDiagnostics src
+    Assert.Equal(expectedText, symbolInfo.SignatureText)
 
 let getSymbolByCursor (src: string) =
     let cursor = src.IndexOf("~^~")
@@ -413,8 +413,8 @@ let getSymbolByCursor (src: string) =
     symbolOpt.Value
 
 let hasSymbolSignatureTextByCursor expectedText (src: string) =
-    let symbol = getSymbolByCursor src
-    Assert.Equal(expectedText, symbol.SignatureText)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal(expectedText, symbolInfo.SignatureText)
 
 let getSymbolByCursor2 (src2: string) (src1: string) =
     let cursor = src1.IndexOf("~^~")

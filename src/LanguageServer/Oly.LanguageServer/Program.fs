@@ -470,49 +470,33 @@ type Async<'T> with
 
 type OlySymbol with
 
-    member this.ToLspSymbolInfo(ct: CancellationToken) =
-        SymbolInformation(
-            Name = this.Name,
-            Location = this.UseSyntax.GetLocation().ToLspLocation(ct),
-            Kind = this.ClassificationKind.ToLspSymbolKind(),
-            ContainerName = if this.UseSyntax.IsDefinition then "Definition" else String.Empty
-        )
-
-    member this.ToLspWorkspaceSymbol(ct: CancellationToken) =
-        WorkspaceSymbol(
-            Name = this.Name,
-            Location = this.UseSyntax.GetLocation().ToLspLocation(ct),
-            Kind = this.ClassificationKind.ToLspSymbolKind(),
-            ContainerName = if this.UseSyntax.IsDefinition then "Definition" else String.Empty
-        )
-
-    member this.ToLspParameterInfo() =
+    member this.ToLspParameterInfo(subModel: OlyBoundSubModel) =
         ParameterInformation(
-            Label = ParameterInformationLabel(this.SignatureText),
+            Label = ParameterInformationLabel(subModel.GetSignatureText(this)),
             Documentation = StringOrMarkupContent(this.Name)
         )
 
-    member this.ToLspSignatureInfo(activeParameter) =
+    member this.ToLspSignatureInfo(subModel: OlyBoundSubModel, activeParameter) =
         SignatureInformation(
-            Label = this.SignatureText,
+            Label = subModel.GetSignatureText(this),
             Documentation = StringOrMarkupContent(this.Name),
             Parameters =
                 (
                 match this with
                 | :? OlyValueSymbol as value ->
-                    value.LogicalParameters |> Seq.map (fun x -> x.ToLspParameterInfo()) |> Array.ofSeq |> Container
+                    value.LogicalParameters |> Seq.map (fun x -> x.ToLspParameterInfo(subModel)) |> Array.ofSeq |> Container
                 | _ ->
                     Container([||])
                 ),
             ActiveParameter = activeParameter
         )
 
-    member this.ToLspSignaturePatternInfo(activeParameter) =
+    member this.ToLspSignaturePatternInfo(subModel: OlyBoundSubModel, activeParameter) =
         match this.AsValue.ReturnType with
         | Some(returnTy) ->
             if returnTy.IsTuple then
                 SignatureInformation(
-                    Label = $"{this.Name}{returnTy.SignatureText}",
+                    Label = $"{this.Name}{subModel.GetSignatureText(returnTy)}",
                     Documentation = StringOrMarkupContent(this.Name),
                     Parameters =
                         (
@@ -537,24 +521,12 @@ type OlySymbol with
                     ActiveParameter = activeParameter
                 )
             else
-                this.ToLspSignatureInfo(activeParameter)
+                this.ToLspSignatureInfo(subModel, activeParameter)
         | _ ->
-            this.ToLspSignatureInfo(activeParameter)
-            
-type OlySymbol with
+            this.ToLspSignatureInfo(subModel, activeParameter)
 
-    member x.TryToLspDocumentSymbol(lspRange, ct) =
-        DocumentSymbol(
-            Name = x.Name,
-            Detail = x.SignatureText,
-            Range = lspRange,
-            SelectionRange = x.UseSyntax.GetTextRange(ct).ToLspRange(),
-            Kind = x.ClassificationKind.ToLspSymbolKind()
-        )
-        |> Some
-
-    member this.GetLspDefinitionLocation(ct) =
-        match this.TryGetDefinitionLocation(ct) with
+    member this.GetLspDefinitionLocation(boundModel, ct) =
+        match this.TryGetDefinitionLocation(boundModel, ct) with
         | Some location ->
             let r = location.ToLspLocation(ct)
             let link = LocationOrLocationLink(r)
@@ -562,10 +534,61 @@ type OlySymbol with
         | _ ->
             LocationOrLocationLinks.From([||])
 
+type OlySymbolUseInfo with
+
+    member this.ToLspSymbolInfo(ct: CancellationToken) =
+        SymbolInformation(
+            Name = this.Symbol.Name,
+            Location = this.Syntax.GetLocation().ToLspLocation(ct),
+            Kind = this.Symbol.ClassificationKind.ToLspSymbolKind(),
+            ContainerName = if this.Syntax.IsDefinition then "Definition" else String.Empty
+        )
+
+    member this.ToLspWorkspaceSymbol(ct: CancellationToken) =
+        WorkspaceSymbol(
+            Name = this.Symbol.Name,
+            Location = this.Syntax.GetLocation().ToLspLocation(ct),
+            Kind = this.Symbol.ClassificationKind.ToLspSymbolKind(),
+            ContainerName = if this.Syntax.IsDefinition then "Definition" else String.Empty
+        )
+
+    member this.ToLspParameterInfo() =
+        ParameterInformation(
+            Label = ParameterInformationLabel(this.SignatureText),
+            Documentation = StringOrMarkupContent(this.Symbol.Name)
+        )
+
+    member this.ToLspSignatureInfo(subModel: OlyBoundSubModel, activeParameter) =
+        SignatureInformation(
+            Label = this.SignatureText,
+            Documentation = StringOrMarkupContent(this.Symbol.Name),
+            Parameters =
+                (
+                match this.Symbol with
+                | :? OlyValueSymbol as value ->
+                    value.LogicalParameters |> Seq.map (fun x -> x.ToLspParameterInfo(subModel)) |> Array.ofSeq |> Container
+                | _ ->
+                    Container([||])
+                ),
+            ActiveParameter = activeParameter
+        )
+            
+type OlySymbolUseInfo with
+
+    member x.TryToLspDocumentSymbol(lspRange, ct) =
+        DocumentSymbol(
+            Name = x.Symbol.Name,
+            Detail = x.SignatureText,
+            Range = lspRange,
+            SelectionRange = x.Syntax.GetTextRange(ct).ToLspRange(),
+            Kind = x.Symbol.ClassificationKind.ToLspSymbolKind()
+        )
+        |> Some
+
 let getSymbolsBySymbol symbol (doc: OlyDocument) ct =
     doc.FindSimilarSymbols(symbol, ct)
     |> Seq.map (fun x -> 
-        let syntax = x.UseSyntax
+        let syntax = x.Syntax
         OlySourceLocation.Create(syntax.TextSpan, syntax.Tree)
     )
 
@@ -1134,13 +1157,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     | Some info ->
                         let activeParameter = if info.ActiveParameterIndex = -1 then Unchecked.defaultof<Nullable<_>> else Nullable(info.ActiveParameterIndex)
                         let activeSignature = if info.ActiveFunctionIndex = -1 then Unchecked.defaultof<Nullable<_>> else Nullable(info.ActiveFunctionIndex)
+                        let subModel = info.SubModel
                         match info.Function with
                         | :? OlyFunctionGroupSymbol as funcGroup ->
                             return SignatureHelp(
                                 Signatures =
                                     (
                                     funcGroup.Functions
-                                    |> Seq.map (fun x -> if info.IsPattern then x.ToLspSignaturePatternInfo(activeParameter) else x.ToLspSignatureInfo(activeParameter))
+                                    |> Seq.map (fun x -> if info.IsPattern then x.ToLspSignaturePatternInfo(subModel, activeParameter) else x.ToLspSignatureInfo(subModel, activeParameter))
                                     |> Array.ofSeq
                                     |> Container
                                     ),
@@ -1149,7 +1173,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             )
                         | func ->
                             return SignatureHelp(
-                                Signatures = Container([|if info.IsPattern then func.ToLspSignaturePatternInfo(activeParameter) else func.ToLspSignatureInfo(activeParameter)|]),
+                                Signatures = Container([|if info.IsPattern then func.ToLspSignaturePatternInfo(subModel, activeParameter) else func.ToLspSignatureInfo(subModel, activeParameter)|]),
                                 ActiveParameter = activeParameter,
                                 ActiveSignature = activeSignature
                             )
@@ -1201,10 +1225,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 let result =
                     let sortedSymbols =
                         symbols
-                        |> ImArray.choose(fun symbol ->
-                            match symbol.UseSyntax.TryGetParentExpression(true, ct) with
+                        |> ImArray.choose(fun symbolInfo ->
+                            match symbolInfo.Syntax.TryGetParentExpression(true, ct) with
                             | Some syntaxExprNode ->
-                                Some(symbol, syntaxExprNode)
+                                Some(symbolInfo, syntaxExprNode)
                             | _ ->
                                 None
                         )
@@ -1214,12 +1238,12 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         |> Seq.choose (fun (syntaxNode, symbols) ->
                             let principalSymbolOpt =
                                 symbols
-                                |> Seq.filter (fun (symbol, _) ->
-                                    match symbol with
+                                |> Seq.filter (fun (symbolInfo, _) ->
+                                    match symbolInfo.Symbol with
                                     | :? OlyValueSymbol as symbol when symbol.IsParameter -> false
                                     | :? OlyTypeSymbol as symbol when symbol.IsTypeParameter -> false
                                     | _ ->
-                                        symbol.UseSyntax.IsDefinition
+                                        symbolInfo.Syntax.IsDefinition
                                 )
                                 |> Seq.tryHead
                                 |> Option.bind (fun (x, syntaxNode) -> 
@@ -1290,13 +1314,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
-                | Some symbol ->
-                    let symbols = doc.FindSimilarSymbols(symbol, ct)
+                | Some symbolInfo ->
+                    let symbols = doc.FindSimilarSymbols(symbolInfo.Symbol, ct)
                     let hs =
                         symbols
                         |> Seq.map (fun x ->
                             DocumentHighlight(
-                                Range = x.UseSyntax.GetTextRange(ct).ToLspRange(),
+                                Range = x.Syntax.GetTextRange(ct).ToLspRange(),
                                 Kind = DocumentHighlightKind.Text
                             )
                         )
@@ -1309,13 +1333,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     member this.FindAllReferences(doc: OlyDocument, line: int, column: int, ct) =
         backgroundTask {
             let allSymbols = List()
-            let symbolOpt = doc.TryFindSymbol(line, column, ct)
-            match symbolOpt with
-            | Some symbol ->
-                if symbol.IsInLocalScope then
-                    allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+            let symbolInfoOpt = doc.TryFindSymbol(line, column, ct)
+            match symbolInfoOpt with
+            | Some symbolInfo ->
+                if symbolInfo.Symbol.IsInLocalScope then
+                    allSymbols.AddRange(getLocationsBySymbol symbolInfo.Symbol doc ct)
                 else
-                    match symbol.TryGetDefinitionLocation(ct) with
+                    match symbolInfo.Symbol.TryGetDefinitionLocation(doc.BoundModel, ct) with
                     | Some location ->
                         let definitionPath = location.SyntaxTree.Path
                         let solution = doc.Project.Solution
@@ -1327,7 +1351,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             |> ImArray.iter (fun proj ->
                                 proj.Documents
                                 |> ImArray.iter (fun doc ->
-                                    allSymbols.AddRange(getLocationsBySymbol symbol doc ct)
+                                    allSymbols.AddRange(getLocationsBySymbol symbolInfo.Symbol doc ct)
                                 )
                             )
                     | _ ->
@@ -1358,10 +1382,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: DefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
             request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
-                let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
-                match symbolOpt with
-                | Some symbol ->
-                    return symbol.GetLspDefinitionLocation(ct)
+                let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
+                match symbolInfoOpt with
+                | Some symbolInfo ->
+                    return symbolInfo.Symbol.GetLspDefinitionLocation(doc.BoundModel, ct)
                 | _ ->
                     return LocationOrLocationLinks.From([||])
             })
@@ -1375,16 +1399,16 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: TypeDefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
             request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
-                let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
-                match symbolOpt with
-                | Some symbol ->
-                    match symbol with 
-                    | :? OlyTypeSymbol ->
-                        return symbol.GetLspDefinitionLocation(ct)
+                let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
+                match symbolInfoOpt with
+                | Some symbolInfo ->
+                    match symbolInfo.Symbol with 
+                    | :? OlyTypeSymbol as symbol ->
+                        return symbol.GetLspDefinitionLocation(doc.BoundModel, ct)
                     | :? OlyValueSymbol as symbol ->
                         match symbol.Enclosing.TryType with
                         | Some tySymbol ->
-                            return tySymbol.GetLspDefinitionLocation(ct)
+                            return tySymbol.GetLspDefinitionLocation(doc.BoundModel, ct)
                         | _ ->
                             return LocationOrLocationLinks.From([||])
                     | _ ->
@@ -1431,7 +1455,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     |> Option.bind (fun x -> x.TryGetToken())
                     |> Option.bind (fun x -> doc.BoundModel.TryFindSymbol(x, ct))
                     |> Option.bind (fun x -> 
-                        match x with
+                        match x.Symbol with
                         | :? OlyValueSymbol as value when value.IsEntryPoint -> Some value
                         | _ -> None
                     )
@@ -1439,7 +1463,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 match entryPointOpt with
                 | None -> return CodeLensContainer.From([||])
                 | Some entryPoint ->      
-                    match entryPoint.TryGetDefinitionLocation(ct) with
+                    match entryPoint.TryGetDefinitionLocation(doc.BoundModel, ct) with
                     | None -> return CodeLensContainer.From([||])
                     | Some location ->
 
@@ -1462,18 +1486,19 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
             backgroundTask {
                 return! request.HandleOlyDocument(getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
-                    let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
+                    let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                     
-                    match symbolOpt with
-                    | Some symbol ->
-                        match symbol with
+                    match symbolInfoOpt with
+                    | Some symbolInfo ->
+                        let subModel = symbolInfo.SubModel
+                        match symbolInfo.Symbol with
                         | :? OlyFunctionGroupSymbol as symbol ->
                             let strBuilder = StringBuilder()
                             symbol.Functions
-                            |> ImArray.iter (fun func -> strBuilder.Append("    " + func.SignatureText + "\n") |> ignore)
+                            |> ImArray.iter (fun func -> strBuilder.Append("    " + subModel.GetSignatureText(func) + "\n") |> ignore)
                             return hoverText "Possible overloads:\n" (strBuilder.ToString())
                         | :? OlyValueSymbol as symbol ->
-                            let textResult = symbol.SignatureText
+                            let textResult = symbolInfo.SignatureText
 
                             let textResult =
                                 if symbol.IsAbstract then
@@ -1505,10 +1530,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                                 | OlyConstant.Null -> "null"
                                                 | OlyConstant.Default -> "default"
                                                 | OlyConstant.Array _ -> "OlyConstant.Array (implement this)"
-                                                | OlyConstant.External(value) -> value.SignatureText
-                                                | OlyConstant.Variable(ty) -> ty.SignatureText
+                                                | OlyConstant.External(value) -> subModel.GetSignatureText(value)
+                                                | OlyConstant.Variable(ty) -> subModel.GetSignatureText(ty)
                                                 | OlyConstant.Error -> "?"
-                                            sprintf "constant %s: %s = %s" symbol.Name symbol.Type.SignatureText valueText
+                                            sprintf "constant %s: %s = %s" symbol.Name (subModel.GetSignatureText(symbol.Type)) valueText
                                         | _ ->
                                             sprintf "%s" textResult
                                     else
@@ -1530,12 +1555,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             let textResult = 
                                 let documentation = symbol.Documentation
                                 if documentation.Length = 0 then
-                                    sprintf "%s %s" symbol.TextKind symbol.SignatureText
+                                    sprintf "%s %s" symbol.TextKind (subModel.GetSignatureText(symbol))
                                 else
                                     // TODO: Handle multiple lines.
-                                    sprintf "// %s\n%s %s" documentation symbol.TextKind symbol.SignatureText
+                                    sprintf "// %s\n%s %s" documentation symbol.TextKind (subModel.GetSignatureText(symbol))
                             let textResult =
-                                match symbol.TryGetAliasedType() with
+                                
+                                match symbolInfo.TryGetAliasedType() with
                                 | Some(aliasedSymbol) ->
                                     $"{textResult} = {aliasedSymbol.FullyQualifiedName}"
                                 | _ ->
@@ -1543,11 +1569,11 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             return hoverText "" textResult
 
                         | :? OlyNamespaceSymbol as symbol ->
-                            let textResult = sprintf "namespace %s" symbol.SignatureText
+                            let textResult = sprintf "namespace %s" (subModel.GetSignatureText(symbol))
                             return hoverText "" textResult
 
                         | _ ->
-                            return hoverText "" symbol.SignatureText
+                            return hoverText "" symbolInfo.SignatureText
                     | _ ->
                         return null
                 })
@@ -1668,8 +1694,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     match doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct) with
                     | None ->
                         return "Symbol not found."
-                    | Some symbol ->
-                        match symbol with
+                    | Some symbolInfo ->
+                        let subModel = symbolInfo.SubModel
+                        match symbolInfo.Symbol with
                         | :? OlyValueSymbol as valueSymbol when valueSymbol.IsFunction ->
                             try
                                 let c = doc.Project.Compilation
@@ -1702,7 +1729,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                         | Some ty ->
                                             match ty.Enclosing.TryNamespace with
                                             | Some(nmspc: OlyNamespaceSymbol) -> 
-                                                nmspc.SignatureText + "." + ty.Name
+                                                subModel.GetSignatureText(nmspc) + "." + ty.Name
                                             | _ ->
                                                 ty.Name
                                         | _ -> 

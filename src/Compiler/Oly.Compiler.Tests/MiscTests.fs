@@ -806,8 +806,8 @@ let ``Should get documentation summary for type``() =
 // This is a test
 class ~^~Test
         """
-    let symbol = getSymbolByCursor src
-    Assert.Equal("This is a test", symbol.AsType.Documentation)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal("This is a test", symbolInfo.Symbol.AsType.Documentation)
 
 [<Fact>]
 let ``Should not get documentation summary for type``() =
@@ -817,5 +817,5 @@ let ``Should not get documentation summary for type``() =
 
 class ~^~Test
         """
-    let symbol = getSymbolByCursor src
-    Assert.Equal("", symbol.AsType.Documentation)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal("", symbolInfo.Symbol.AsType.Documentation)

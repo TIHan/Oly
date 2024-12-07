@@ -675,7 +675,7 @@ buffer: mutable float32[]
     #[uniform]
     #[descriptor_set(0)]
     #[binding(0)]
-    get
+    get = unchecked default
 
 GetValue(x: float32): float32 =
     x

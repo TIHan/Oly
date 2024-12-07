@@ -2055,8 +2055,8 @@ module AutoOpenedExtension =
 main(): () =
     ~^~TestM(1)
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("AutoOpenedExtension", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("AutoOpenedExtension", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 8``() =
@@ -2086,8 +2086,8 @@ TestM(x: int32): () = ()
 main(): () =
     ~^~TestM(1)
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 9``() =
@@ -2118,8 +2118,8 @@ TestM(x: string): () = ()
 main(): () =
     ~^~TestM("")
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 10``() =
@@ -2162,8 +2162,8 @@ TestM(x: string): () = ()
 main(): () =
     ~^~TestM("")
         """
-    let symbol = getSymbolByCursor3 src3 src2 src1
-    Assert.Equal("C", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor3 src3 src2 src1
+    Assert.Equal("C", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Should properly infer lambda argument against overloads``() =

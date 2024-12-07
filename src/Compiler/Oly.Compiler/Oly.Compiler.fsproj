@@ -60,7 +60,6 @@
     <Compile Include="Lowering\LambdaLifting.fs" />
     <Compile Include="ILGen.fs" />
     <Compile Include="PublicAPI\PublicSymbols.fs" />
-    <Compile Include="PublicAPI\PublicAnalysis.fs" />
     <Compile Include="PublicAPI\PublicCompilation.fs" />
   </ItemGroup>
 

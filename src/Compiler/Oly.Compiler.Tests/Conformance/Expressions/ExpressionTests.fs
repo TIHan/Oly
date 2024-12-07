@@ -1550,11 +1550,11 @@ class Test =
 main() : () =
     Test.~^~test
         """
-    let symbol = getSymbolByCursorIgnoreDiagnostics src
-    match symbol with
+    let symbolInfo = getSymbolByCursorIgnoreDiagnostics src
+    match symbolInfo.Symbol with
     | :? OlyFunctionGroupSymbol as symbol ->
         Assert.Equal("test", symbol.Name)
-        Assert.Equal("test", symbol.SignatureText)
+        Assert.Equal("test", symbolInfo.SignatureText)
         Assert.Equal(2, symbol.Functions.Length)
     | _ ->
         failwith "Expected a function group symbol."
@@ -1573,11 +1573,11 @@ main() : () =
     let f(x) =
         Test.~^~test(x)
         """
-    let symbol = getSymbolByCursorIgnoreDiagnostics src
-    match symbol with
+    let symbolInfo = getSymbolByCursorIgnoreDiagnostics src
+    match symbolInfo.Symbol with
     | :? OlyFunctionGroupSymbol as symbol ->
         Assert.Equal("test", symbol.Name)
-        Assert.Equal("test", symbol.SignatureText)
+        Assert.Equal("test", symbolInfo.SignatureText)
         Assert.Equal(2, symbol.Functions.Length)
     | _ ->
         failwith "Expected a function group symbol."
@@ -5427,8 +5427,8 @@ let ``Hex literal should get correct signature``() =
 test(): () =
     let x = ~^~0x4889f8
         """
-    let symbol = getSymbolByCursor src
-    Assert.Equal(4753912, symbol.AsConstant.Value.AsInt32)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal(4753912, symbolInfo.Symbol.AsConstant.Value.AsInt32)
 
 [<Fact>]
 let ``Hex literal should get correct signature 2``() =
@@ -6781,8 +6781,8 @@ let ``Marking a function 'pure' should work as reflected in the symbol info``() 
 #[pure]
 ~^~test(): () = ()
         """
-    let symbol = (getSymbolByCursor src).AsValue
-    Assert.True(symbol.IsPure)
+    let symbolInfo = getSymbolByCursor src
+    Assert.True(symbolInfo.Symbol.AsValue.IsPure)
 
 // ************ VARIADIC TESTS ***************
 
@@ -8905,8 +8905,8 @@ alias int32
 main(): () =
     let _ = 1: ~^~int32
         """
-    let symbol = getSymbolByCursor src
-    Assert.True(symbol.AsType.IsAlias)
+    let symbolInfo = getSymbolByCursor src
+    Assert.True(symbolInfo.Symbol.AsType.IsAlias)
 
 [<Fact>]
 let ``Type should be the correct alias 2``() =
@@ -8920,8 +8920,8 @@ class C<T>
 main(): () =
     let _ = C<~^~int32>()
         """
-    let symbol = getSymbolByCursor src
-    Assert.True(symbol.AsType.IsAlias)
+    let symbolInfo = getSymbolByCursor src
+    Assert.True(symbolInfo.Symbol.AsType.IsAlias)
 
 [<Fact>]
 let ``Get get a function symbol``() =
@@ -10832,8 +10832,8 @@ newtype ~^~AVal<T> =
 main(): () =
     ()
         """
-    let symbol = getSymbolByCursorIgnoreDiagnostics src
-    match symbol with
+    let symbolInfo = getSymbolByCursorIgnoreDiagnostics src
+    match symbolInfo.Symbol with
     | :? OlyTypeSymbol as symbol ->
         Assert.Equal(1, symbol.ImmediateFunctions.Length)
         Assert.Equal(1, symbol.Functions.Length)

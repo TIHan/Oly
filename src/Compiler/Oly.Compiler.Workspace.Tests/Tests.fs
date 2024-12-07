@@ -2094,7 +2094,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
         Assert.True(callInfo.IsSome, $"call info not found - {updateKindText}")
         let func = callInfo.Value.Function
         Assert.Equal("test", func.Name)
-        let loc = func.TryGetDefinitionLocation(CancellationToken.None)
+        let loc = func.TryGetDefinitionLocation(doc.BoundModel, CancellationToken.None)
         Assert.True(loc.IsSome, $"location not found - {updateKindText}")
 
 

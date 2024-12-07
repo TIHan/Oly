@@ -726,7 +726,13 @@ module OlySyntaxTreeExtensions =
 
         member this.IsDefinition =
             match this with
-            | :? OlySyntaxToken as token when token.Internal.IsIdentifierOrOperator || token.Internal.RawToken = Token.New ->
+            | :? OlySyntaxToken as token 
+                    when 
+                    token.Internal.IsIdentifierOrOperator 
+                    || token.Internal.RawToken = Token.New 
+                    || token.Internal.RawToken = Token.Get 
+                    || token.Internal.RawToken = Token.Set 
+                    || token.Internal.RawToken = Token.Field ->
                 match this.Parent with
                 | :? OlySyntaxTypeDeclarationName
                 | :? OlySyntaxFunctionName

@@ -5,7 +5,6 @@ open Oly.Core.TaskExtensions
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
-open Oly.Compiler.Analysis
 open System
 open System.IO
 open System.IO.MemoryMappedFiles
@@ -138,8 +137,8 @@ type OlyBuild(platformName: string) =
     abstract GetImplicitExtendsForEnum: unit -> string option
     default _.GetImplicitExtendsForEnum() = None
 
-    abstract GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
-    default _.GetAnalyzerDiagnostics(_, _) = ImArray.empty
+    abstract GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default _.GetAnalyzerDiagnostics(_, _, _) = ImArray.empty
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyProjectReference =
@@ -190,7 +189,7 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
     member this.GetAnalyzerDiagnostics(ct) =
         let project = this.Project
         let boundModel = this.BoundModel
-        project.SharedBuild.GetAnalyzerDiagnostics(boundModel, ct)
+        project.SharedBuild.GetAnalyzerDiagnostics(this.Project.TargetInfo, boundModel, ct)
 
 type ActiveConfigurationState =
     {

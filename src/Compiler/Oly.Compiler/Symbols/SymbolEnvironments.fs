@@ -122,18 +122,9 @@ type AccessorContext =
         Entity: EntitySymbol option
     }
 
-[<NoEquality;NoComparison>]
-type BoundEnvironment =
-    {
-        senv: ScopeEnvironment
-        openedEnts: ImmutableHashSet<EntitySymbol>
-        openDecls: EntitySymbol imarray
-        ac: AccessorContext
-        implicitExtendsForStruct: TypeSymbol option
-        implicitExtendsForEnum: TypeSymbol option
-    }
+module private BoundEnvironment =
 
-    static member Empty =
+    let empty =
         let senv = 
             {
                 entitiesByIntrinsicTypes = TypeSymbolGeneralizedMap.Create()
@@ -165,6 +156,19 @@ type BoundEnvironment =
             implicitExtendsForStruct = None
             implicitExtendsForEnum = None
         }
+
+[<NoEquality;NoComparison>]
+type BoundEnvironment =
+    {
+        senv: ScopeEnvironment
+        openedEnts: ImmutableHashSet<EntitySymbol>
+        openDecls: EntitySymbol imarray
+        ac: AccessorContext
+        implicitExtendsForStruct: TypeSymbol option
+        implicitExtendsForEnum: TypeSymbol option
+    }
+
+    static member Empty = BoundEnvironment.empty
 
     member this.ClearLocals_unused() =
         let senv = this.senv
@@ -220,7 +224,7 @@ type BoundEnvironment =
     member this.EnclosingTypeParameters =
         this.senv.typeParameters
 
-    member this.TryFindEntityByIntrinsicType(ty: TypeSymbol) =
+    member this.TryFindEntityByIntrinsicType(ty: TypeSymbol): EntitySymbol voption =
         if ty.IsBuiltIn then
             this.senv.entitiesByIntrinsicTypes.TryFind(ty)
         else

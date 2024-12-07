@@ -133,8 +133,8 @@ type OlyBuild =
     abstract GetImplicitExtendsForEnum: unit -> string option
     default GetImplicitExtendsForEnum: unit -> string option
 
-    abstract GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
-    default GetAnalyzerDiagnostics : OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    abstract GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlyProjectReference =
