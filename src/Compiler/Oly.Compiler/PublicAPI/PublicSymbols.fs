@@ -282,6 +282,8 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
 
     member _.IsUnit = ty.IsUnit_t
 
+    member _.IsAnyArray = ty.IsAnyArray
+
     member _.IsTypeAnyByRef = ty.IsByRef_t
 
     member _.GetTupleItemSignatureTexts() =

@@ -219,6 +219,19 @@ type SpirvTarget() =
                             ()
             )
 
+            if valueSymbol.ReturnType.Value.IsAnyArray then
+                let report() =
+                    diagnostics.Error($"SPIR-V: Invalid use of runtime array.", 10, useSyntax)
+                match useSyntax.TryFindParent<OlySyntaxExpression>(ct) with
+                | Some syntaxExpr ->
+                    match syntaxExpr.Parent with
+                    | :? OlySyntaxExpression as syntaxExpr ->
+                        match syntaxExpr with
+                        | OlySyntaxExpression.Indexer _ -> ()
+                        | _ -> report()
+                    | _ -> report()
+                | _ -> report()
+
         let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
             let symbol = symbolInfo.Symbol
             // Definition
