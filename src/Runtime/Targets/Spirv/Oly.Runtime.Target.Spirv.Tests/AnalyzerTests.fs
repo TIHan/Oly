@@ -12,9 +12,7 @@ let ``Should error with incorrect use of runtime array``() =
 #target "spirv: vertex, 1.0"
 
 buffer: mutable float32[]
-    #[uniform]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =

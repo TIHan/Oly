@@ -622,7 +622,7 @@ type OlySyntaxHashAttribute internal (tree, start: int, parent, internalNode: Sy
 [<RequireQualifiedAccess>]
 module OlySyntaxHashAttribute =
 
-    let (|HashAttribute|_|) (node: OlySyntaxHashAttribute) : ( OlySyntaxToken * OlySyntaxAttribute OlySyntaxBrackets ) option =
+    let (|HashAttribute|_|) (node: OlySyntaxHashAttribute) : ( OlySyntaxToken * OlySyntaxAttribute OlySyntaxSeparatorList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxHashAttribute.HashAttribute _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
@@ -3924,4 +3924,5 @@ module private Convert =
         | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode) :> OlySyntaxNode
         | _ -> failwith "Invalid Internal Syntax Node"

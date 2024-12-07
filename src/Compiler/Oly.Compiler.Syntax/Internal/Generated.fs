@@ -408,7 +408,7 @@ type SyntaxHashAttribute =
     | HashAttribute
         of
         hashToken: SyntaxToken *
-        brackets: SyntaxAttribute SyntaxBrackets *
+        brackets: SyntaxAttribute SyntaxSeparatorList SyntaxBrackets *
         fullWidth: int
 
     interface ISyntaxNode with

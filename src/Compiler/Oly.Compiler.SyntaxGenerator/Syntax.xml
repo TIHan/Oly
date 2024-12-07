@@ -98,7 +98,7 @@
   <Node name="SyntaxHashAttribute">
     <Case name="HashAttribute">
 	  <Field name="hashToken">SyntaxToken</Field>
-      <Field name="brackets">SyntaxAttribute SyntaxBrackets</Field>
+      <Field name="brackets">SyntaxAttribute SyntaxSeparatorList SyntaxBrackets</Field>
 	</Case>
   </Node>
 

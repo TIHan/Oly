@@ -584,9 +584,7 @@ let ``Basic compute shader`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[uniform]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -613,9 +611,7 @@ let ``Basic compute shader 2 - verify use of local creation`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[uniform]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -630,10 +626,8 @@ let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[uniform]
-    #[descriptor_set(0)]
-    #[binding(0)]
-    get = unchecked default
+    #[uniform, descriptor_set(0), binding(0)]
+    get
 
 GetValue(x: float32): float32 =
     x
@@ -648,9 +642,7 @@ let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
 buffer: mutable int32[]
-    #[uniform]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -672,9 +664,7 @@ struct TestData =
     public field mutable Value: float32 = 0
 
 buffer: mutable TestData[]
-    #[storage_buffer]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -704,9 +694,7 @@ struct TestData2 =
     public field mutable Value: TestData = TestData()
 
 buffer: mutable TestData2[]
-    #[storage_buffer]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -739,9 +727,7 @@ struct TestData3 =
     public field mutable Value: TestData2 = TestData2()
 
 buffer: mutable TestData3[]
-    #[storage_buffer]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -763,9 +749,7 @@ let ``Basic compute shader 8 - verify empty struct`` () =
 struct EmptyStruct
 
 buffer: mutable EmptyStruct[]
-    #[storage_buffer]
-    #[descriptor_set(0)]
-    #[binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =

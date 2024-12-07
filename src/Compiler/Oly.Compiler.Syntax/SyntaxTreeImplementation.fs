@@ -394,18 +394,18 @@ module OlySyntaxTreeExtensions =
             match this with
             | OlySyntaxAttributes.Attributes(hashAttrList) ->
                 hashAttrList.ChildrenOfType
-                |> ImArray.choose (fun x ->
+                |> ImArray.collect (fun x ->
                     match x with
                     | OlySyntaxHashAttribute.HashAttribute(_, brackets) ->
                         // TODO: This is a little weird. We should add a OlySyntaxBrackets active pattern.
                         if brackets.Children.Length <> 3 then
-                            None
+                            ImArray.empty
                         else
                             match brackets.Children.[1] with
-                            | :? OlySyntaxAttribute as attr -> Some attr
-                            | _ -> None
+                            | :? OlySyntaxSeparatorList<OlySyntaxAttribute> as attrList -> attrList.ChildrenOfType
+                            | _ -> ImArray.empty
                     | _ ->
-                        None
+                        ImArray.empty
                 )
             | _ ->
                 ImArray.empty

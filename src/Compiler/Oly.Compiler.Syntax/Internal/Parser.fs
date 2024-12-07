@@ -10,7 +10,6 @@ open Oly.Compiler.Syntax.Internal.Lexer
 open Oly.Compiler.Syntax.Internal.SyntaxErrors
 
 let dummyToken() = SyntaxHelpers.dummyToken
-let SyntaxAttributeErrorF = SyntaxAttribute.Error
 
 type [<RequireQualifiedAccess>] SyntaxTreeContext =
     | TopLevel
@@ -1101,6 +1100,21 @@ let tryParseBracketsList tryParseNode state =
     | _ ->
         None
 
+let tryParseBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
+    let s = sp state
+
+    match bt LEFT_BRACKET state with
+    | Some(leftBracketToken) ->
+        let elementList = parseSeparatorList None tryParseSeparatorToken nodeName tryParseNode tryErrorNode state
+        match tryRightBracket state with
+        | Some(rightBracketToken) ->
+            SyntaxBrackets.Brackets(leftBracketToken, elementList, rightBracketToken, ep s state) |> Some
+        | _ ->
+            error(ExpectedToken RightBracket, SyntaxBrackets.Brackets(leftBracketToken, elementList, dummyToken(), ep s state)) state
+
+    | _ ->
+        None
+
 let tryParseBracketInnerPipesList tryParseNode state =
     let s = sp state
 
@@ -1126,21 +1140,6 @@ let tryParseParenthesisSeparatorList tryParseSeparatorToken nodeName tryParseNod
         | _ ->
             errorDo (ExpectedToken RightParenthesis, elementList) state
             Some(leftParenToken, elementList, dummyToken())
-
-    | _ ->
-        None
-
-let tryParseBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
-    let s = sp state
-
-    match bt LEFT_BRACKET state with
-    | Some(leftBracketToken) as previousTokenOpt ->
-        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
-        match bt tryRightBracket state with
-        | Some(rightBracketToken) ->
-            SyntaxBrackets.Brackets(leftBracketToken, elementList, rightBracketToken, ep s state) |> Some
-        | _ ->
-            error(ExpectedToken RightBracket, SyntaxBrackets.Brackets(leftBracketToken, elementList, dummyToken(), ep s state)) state
 
     | _ ->
         None
@@ -3728,11 +3727,11 @@ let tryParseAttribute state =
 let tryParseHashAttribute state =
     let s = sp state
 
-    match bt2 HASH (tryParseBrackets "attribute" SyntaxAttributeErrorF tryParseAttribute) state with
+    match bt2 HASH (tryParseBracketsSeparatorList COMMA "attribute" tryParseAttribute (fun token -> Some(SyntaxAttribute.Error token))) state with
     | Some(hashToken), Some(brackets) ->
         SyntaxHashAttribute.HashAttribute(hashToken, brackets, ep s state) |> Some
     | Some(hashToken), _ ->
-        error (SyntaxError.ExpectedSyntax "'[' or directive", SyntaxHashAttribute.HashAttribute(hashToken, SyntaxBrackets.Brackets(dummyToken(), SyntaxAttributeErrorF(dummyToken()), dummyToken(), 0), ep s state)) state
+        error (SyntaxError.ExpectedSyntax "'[' or directive", SyntaxHashAttribute.HashAttribute(hashToken, SyntaxBrackets.Brackets(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
     | _ ->
 
     None
