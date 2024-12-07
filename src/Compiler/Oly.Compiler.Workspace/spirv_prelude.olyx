@@ -135,12 +135,10 @@ uint32(int32): uint32
 
 // BuiltIn
 
-module BuiltIn =
+Position: vec4
+    #[position]
+    set
 
-    Position: vec4
-        #[position]
-        set
-
-    GlobalInvocationId: uvec3
-        #[global_invocation_id]
-        get
+GlobalInvocationId: uvec3
+    #[global_invocation_id]
+    get

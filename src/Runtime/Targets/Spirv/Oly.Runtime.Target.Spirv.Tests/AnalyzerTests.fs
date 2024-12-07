@@ -36,14 +36,14 @@ let ``Should error with incorrect use of GlobalInvocationId``() =
 #target "spirv: vertex, 1.0"
 
 main(): () =
-    let x = BuiltIn.GlobalInvocationId.X
+    let x = GlobalInvocationId.X
     """
     |> buildHasErrors
         [
             ("SPIR-V: Only available in execution model(s) 'compute'.",
                 """
-    let x = BuiltIn.GlobalInvocationId.X
-                    ^^^^^^^^^^^^^^^^^^
+    let x = GlobalInvocationId.X
+            ^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -54,14 +54,14 @@ let ``Should error with incorrect use of Position``() =
 #target "spirv: compute, 1.0"
 
 main(): () =
-    BuiltIn.Position <- vec4(0)
+    Position <- vec4(0)
     """
     |> buildHasErrors
         [
             ("SPIR-V: Only available in execution model(s) 'vertex'.",
                 """
-    BuiltIn.Position <- vec4(0)
-            ^^^^^^^^
+    Position <- vec4(0)
+    ^^^^^^^^
 """
             )
         ]

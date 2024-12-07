@@ -133,7 +133,7 @@ outColor: vec4
     set
 
 main(): () =
-    BuiltIn.Position <- vec4(1)
+    Position <- vec4(1)
         """
     OlyVertex src
 
@@ -166,7 +166,7 @@ outColor: vec4
     set
 
 main(): () =
-    BuiltIn.Position <- vec4(position, 0, 1)
+    Position <- vec4(position, 0, 1)
     outColor <- color
         """
     OlyVertex src
@@ -229,7 +229,7 @@ outColor: vec4
 
 main(): () =
     let position = position
-    BuiltIn.Position <- vec4(position, 0, 1)
+    Position <- vec4(position, 0, 1)
     outColor <- color
         """
     OlyVertex src
@@ -590,7 +590,7 @@ buffer: mutable float32[]
     get
 
 main(): () =
-    let index = BuiltIn.GlobalInvocationId.X
+    let index = GlobalInvocationId.X
     buffer[int32(index)] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
@@ -619,7 +619,7 @@ buffer: mutable float32[]
     get
 
 main(): () =
-    let abc = BuiltIn.GlobalInvocationId
+    let abc = GlobalInvocationId
     let index = abc.X
     buffer[int32(index)] <- 123
         """
