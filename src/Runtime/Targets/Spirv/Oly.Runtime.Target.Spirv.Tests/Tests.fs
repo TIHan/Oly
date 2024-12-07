@@ -4,6 +4,7 @@ module Oly.Runtime.Target.Spirv.Tests
 open System
 open Utilities
 open TestUtilities
+open WorkspaceUtilities
 open Xunit
 open Spirv.TestHelpers
 open Oly.Compiler.Syntax
@@ -12,51 +13,8 @@ open Oly.Runtime.Target.Spirv
 open Oly.Compiler.Workspace
 open Oly.Core
 
-let OlyShaderPrelude isDebug (src: string) =
-    let preludeDirName = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
-    let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
-    let preludeDir =
-        if preludeDir.IsDirectory then
-            preludeDir
-        else
-            OlyPath.Create(preludeDirName + "/")
-
-    let workspace = OlyWorkspace.Create([SpirvTarget()])
-
-    let documentPath = OlyPath.Combine(preludeDir, "test.olyx")
-    let srcText = OlySourceText.Create(src)
-
-    let projConfigPath = OlyPath.Combine(preludeDir, "test.json")
-    use projConfigMs = new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "configurations": [{ "name": "Debug", "defines": ["DEBUG"], "debuggable": true }, { "name": "Release", "defines": ["RELEASE"], "debuggable": false }] }"""))
-
-    let configPath = OlyPath.Create("state.json")
-    use configMs = 
-        if isDebug then
-            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Debug" }"""))
-        else
-            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Release" }"""))
-
-    let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText, 1)
-    let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
-
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(projConfigPath, projConfigMs)
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
-
-    // Set up prelude
-    let preludePath = OlyPath.Combine(preludeDir, "spirv_prelude.olyx")
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(preludePath)
-
-    let _doc = workspace.UpdateDocumentAsync(resourceSnapshot, documentPath, srcText, Threading.CancellationToken.None).Result[0]
-
-    match workspace.BuildProjectAsync(resourceSnapshot, documentPath, Threading.CancellationToken.None).Result with
-    | Error(diags) ->
-        let resourceSnapshot = resourceSnapshot.RemoveResource(documentPath)
-        workspace.RemoveProject(resourceSnapshot, documentPath, Threading.CancellationToken.None)
-        raise(Exception(OlyDiagnostic.PrepareForOutput(diags, Threading.CancellationToken.None)))
-    | Ok(program) ->
-        let resourceSnapshot = resourceSnapshot.RemoveResource(documentPath)
-        workspace.RemoveProject(resourceSnapshot, documentPath, Threading.CancellationToken.None)
-        program
+let build isDebug src =
+    buildWith (SpirvTarget()) isDebug src
 
 let shouldRunFragment (program: OlyProgram) =
     program.Run()
@@ -115,8 +73,8 @@ let OlyVertex (src: string) =
 
 {src}
 """
-    OlyShaderPrelude true src |> shouldRunVertex
-    OlyShaderPrelude false src |> shouldRunVertex
+    build true src |> shouldRunVertex
+    build false src |> shouldRunVertex
 
 let OlyFragment (src: string) =
     let src = $"""
@@ -124,8 +82,8 @@ let OlyFragment (src: string) =
 
 {src}
 """
-    OlyShaderPrelude true src |> shouldRunFragment
-    OlyShaderPrelude false src |> shouldRunFragment
+    build true src |> shouldRunFragment
+    build false src |> shouldRunFragment
 
 let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
@@ -133,9 +91,9 @@ let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T
 
 {src}
 """
-    let output = OlyShaderPrelude true src |> shouldRunCompute input
+    let output = build true src |> shouldRunCompute input
     Assert.Equal<'T>(expectedOutput, output)
-    let output = OlyShaderPrelude false src |> shouldRunCompute input
+    let output = build false src |> shouldRunCompute input
     Assert.Equal<'T>(expectedOutput, output)
 
 [<Fact>]

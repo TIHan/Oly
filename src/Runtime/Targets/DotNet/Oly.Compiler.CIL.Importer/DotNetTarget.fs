@@ -549,11 +549,13 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
     override _.GetImplicitExtendsForEnum() = Some "System.Enum"
 
     override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
-        let diagLogger = OlyDiagnosticLogger.Create()
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("DotNet")
 
         let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
             if (symbolInfo.Syntax.IsDefinition || symbolInfo.Syntax.IsCompilationUnit) && symbolInfo.Symbol.IsExported && symbolInfo.Symbol.IsType then
                 let ty = symbolInfo.Symbol.AsType
+                let subModel = symbolInfo.SubModel
+
                 let funcGroups =
                     ty.Functions
                     |> Seq.filter (fun x ->
@@ -607,9 +609,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                                             match loc.SyntaxTree.TryFindNode(textRange, ct) with
                                             | Some syntaxNode -> syntaxNode
                                             | _ -> symbolInfo.Syntax
-                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, syntaxNode)
+                                        diagnostics.Error($"Unable to disambiguate types on function '{subModel.GetSignatureText(func)}'.", 10, syntaxNode)
                                     | _ ->
-                                        diagLogger.Error($"Unable to disambiguate types on function '{func.Name}'.", 10, symbolInfo.Syntax)
+                                        diagnostics.Error($"Unable to disambiguate types on function '{subModel.GetSignatureText(func)}'.", 10, symbolInfo.Syntax)
                         )
                     )
                 )
@@ -622,7 +624,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
         boundModel.ForEachSymbol(boundModel.SyntaxTree.GetRoot(ct), analyzeSymbol, ct)
 
-        diagLogger.GetDiagnostics()
+        diagnostics.GetDiagnostics()
 
     new (?copyReferences: bool) =
         let copyReferences =

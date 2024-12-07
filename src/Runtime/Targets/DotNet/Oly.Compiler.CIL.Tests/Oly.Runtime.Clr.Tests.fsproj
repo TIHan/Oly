@@ -18,8 +18,9 @@
   <ItemGroup>
     <Compile Include="TestPlatform.fs" />
     <Compile Include="Utilities.fs" />
+    <Compile Include="WorkspaceUtilities.fs" />
+    <Compile Include="AnalyzerTests.fs" />
     <Compile Include="Tests.fs" />
-    <Compile Include="StressTests.fs" />
     <Compile Include="SampleProgramTests.fs" />
     <Compile Include="LogicalOpTests.fs" />
     <Compile Include="ReferenceTests.fs" />

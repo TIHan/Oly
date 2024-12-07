@@ -135,7 +135,7 @@ type SpirvTarget() =
             | Constants.lib -> AttributeFlags.None
             | _ -> unreached()
 
-        let diagnostics = OlyDiagnosticLogger.Create()
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("SPIR-V")
 
         let isSpirvAttributeName attrName =
             match attrName with
@@ -187,7 +187,7 @@ type SpirvTarget() =
                     false
 
             if not isValid then
-                diagnostics.Error($"SPIR-V: Invalid use of '{name}' attribute.", 10, useSyntax)
+                diagnostics.Error($"Invalid use of '{name}' attribute.", 10, useSyntax)
 
         let checkPropertyFunctionDefinition (valueSymbol: OlyValueSymbol) (useSyntax: OlySyntaxNode) =
             OlyAssert.True(valueSymbol.IsGetterFunction || valueSymbol.IsSetterFunction)
@@ -202,7 +202,7 @@ type SpirvTarget() =
             | Some(Some setter, None) when setter.IsImported ->
                 checkPropertyFunctionDefinition setter useSyntax
             | Some(Some getter, Some setter) when getter.IsImported || setter.IsImported ->
-                diagnostics.Error($"SPIR-V: This kind of property definition cannot have a getter and setter.", 10, useSyntax)
+                diagnostics.Error($"This kind of property definition cannot have a getter and setter.", 10, useSyntax)
             | _ ->
                 ()
 
@@ -214,14 +214,14 @@ type SpirvTarget() =
                         match AttributeValidationLookup.TryGetValue(attr.Name) with
                         | true, flags ->
                             if (flags &&& targetFlag <> targetFlag) || (targetFlag = AttributeFlags.None) then
-                                diagnostics.Error($"SPIR-V: Only available in execution model(s) '{flags &&& AttributeFlags.ExecutionModelMask}'.", 10, useSyntax)
+                                diagnostics.Error($"Only available in execution model(s) '{flags &&& AttributeFlags.ExecutionModelMask}'.", 10, useSyntax)
                         | _ ->
                             ()
             )
 
             if valueSymbol.ReturnType.Value.IsAnyArray then
                 let report() =
-                    diagnostics.Error($"SPIR-V: Invalid use of runtime array.", 10, useSyntax)
+                    diagnostics.Error($"Invalid use of runtime array.", 10, useSyntax)
                 match useSyntax.TryFindParent<OlySyntaxExpression>(ct) with
                 | Some syntaxExpr ->
                     match syntaxExpr.Parent with

@@ -250,23 +250,30 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
         )
 
 [<Sealed>]
-type OlyDiagnosticLogger private () =
+type OlyDiagnosticLogger private (prefixOpt: string option) =
 
     let mutable hasErrors = false
     let queue = System.Collections.Concurrent.ConcurrentQueue()
 
+    let handlePrefix text =
+        match prefixOpt with
+        | Some prefix ->
+            $"{prefix}: {text}"
+        | _ ->
+            text
+
     member _.Error(text: string) =
-        queue.Enqueue(OlyDiagnostic.CreateError(text))
+        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text))
 
     member _.Error(text: string, code: int, node: OlySyntaxNode) =
         hasErrors <- true
-        queue.Enqueue(OlyDiagnostic.CreateError(text, code, node))
+        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text, code, node))
 
     member _.Error(text: string, code: int, startOffset: int, width: int, node: OlySyntaxNode) =
         hasErrors <- true
         let textSpan = node.TextSpan
         let textSpan = OlyTextSpan.Create(textSpan.Start + startOffset, width)
-        queue.Enqueue(OlyDiagnostic.CreateError(text, code, OlySourceLocation.Create(textSpan, node.Tree)))
+        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text, code, OlySourceLocation.Create(textSpan, node.Tree)))
 
     member _.HasAnyErrors = hasErrors
 
@@ -279,7 +286,9 @@ type OlyDiagnosticLogger private () =
         else
             queue.ToArray() |> ImArray.ofSeq
 
-    static member Create() = OlyDiagnosticLogger()
+    static member Create() = OlyDiagnosticLogger(None)
+
+    static member CreateWithPrefix(prefix: string) = OlyDiagnosticLogger(Some prefix)
 
 [<AllowNullLiteral;AbstractClass;NoComparison>]
 type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, internalNode: ISyntaxNode) =

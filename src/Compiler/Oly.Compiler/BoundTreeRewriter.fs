@@ -34,6 +34,9 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
         core.PreorderRewrite(expr)
 
     override this.Rewrite(expr) =
+#if DEBUG || CHECKED
+        StackGuard.Do <| fun () ->
+#endif
         if this.CanRewrite expr then
             let expr = this.PreorderRewrite(expr)
             match expr with

@@ -11,6 +11,8 @@
   <ItemGroup>
     <Compile Include="TestPlatform.fs" />
     <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\Utilities.fs" Link="Utilities.fs" />
+    <Compile Include="..\..\DotNet\Oly.Compiler.CIL.Tests\WorkspaceUtilities.fs" Link="WorkspaceUtilities.fs" />
+    <Compile Include="AnalyzerTests.fs" />
     <Compile Include="Tests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
