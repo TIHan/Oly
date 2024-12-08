@@ -86,7 +86,7 @@ let OlyFragment (src: string) =
 
 let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
-#target "spirv: compute, 1.0"
+#target "spirv: compute, 1.3"
 
 {src}
 """
@@ -676,7 +676,7 @@ buffer: mutable float32[]
 
 main(): () =
     let index = GlobalInvocationId.X
-    buffer[int32(index)] <- 123
+    buffer[index] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
@@ -704,7 +704,7 @@ buffer: mutable float32[]
 main(): () =
     let abc = GlobalInvocationId
     let index = abc.X
-    buffer[int32(index)] <- 123
+    buffer[index] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
@@ -751,7 +751,7 @@ struct TestData =
     public field mutable Value: float32 = 0
 
 buffer: mutable TestData[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =

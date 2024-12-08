@@ -722,6 +722,21 @@ type RuntimeType =
         | ByRef _ -> true
         | _ -> false
 
+    member this.IsInteger =
+        match this.StripAlias() with
+        | UInt8
+        | Int8
+        | UInt16
+        | Int16
+        | UInt32
+        | Int32
+        | UInt32
+        | Int64
+        | UInt64
+        | NativeInt
+        | NativeUInt -> true
+        | _ -> false
+
     member this.IsAnyPtr =
         match this.StripAlias() with
         | NativePtr _

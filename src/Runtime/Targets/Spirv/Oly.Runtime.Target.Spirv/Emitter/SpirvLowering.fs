@@ -180,6 +180,18 @@ module rec SpirvLowering =
                     else
                         AutoDereferenceIfPossible newArgExpr
 
+                | O.LoadArrayElement _ ->
+                    if i = 0 then
+                        AssertPointerType newArgExpr
+                        newArgExpr
+                    else
+                        let newArgExpr = AutoDereferenceIfPossible newArgExpr 
+                        match newArgExpr.ResultType with
+                        | SpirvType.UInt32 _ ->
+                            newArgExpr
+                        | _ ->
+                            E.Operation(EmptyTextRange, O.Cast(newArgExpr, cenv.Module.GetTypeUInt32()))
+
                 | O.LoadField _
                 | O.LoadFieldAddress _
                 | O.LoadFromAddress _ ->
@@ -217,7 +229,7 @@ module rec SpirvLowering =
 
         let newOp =
             match newOp with
-            | O.Call(irFunc, argExprs, _) ->
+            | O.Call(irFunc, argExprs, resultTy) ->
                 match irFunc.EmittedFunction with
                 | SpirvFunction.Variable var ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
@@ -225,6 +237,8 @@ module rec SpirvLowering =
                 | SpirvFunction.LazyVariable lazyVar ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
                     handleCallVariable lazyVar.Value irFunc argExprs
+                | SpirvFunction.ExtendedInstruction _ ->
+                    O.Call(irFunc, argExprs |> ImArray.map AutoDereferenceIfPossible, resultTy)
                 | _ ->
                     newOp
             | _ ->
@@ -375,7 +389,7 @@ module rec SpirvLowering =
                     raise(InvalidOperationException())
 
             | O.StoreArrayElement(receiverExpr, indexExprs, rhsExpr, resultTy) ->
-                OlyAssert.Equal(1, indexExprs.Length)
+                OlyAssert.Equal(1, indexExprs.Length) // 1-dim for now
                 match receiverExpr.ResultType with
                 | SpirvType.Pointer(_, storageClass, SpirvType.Struct(structBuilder)) when structBuilder.IsRuntimeArray ->
                     let indexExprs = List(indexExprs)
@@ -388,6 +402,22 @@ module rec SpirvLowering =
 
                 | _ ->
                     raise(InvalidOperationException())
+
+            | O.LoadArrayElement(receiverExpr, indexExprs, resultTy) ->
+                OlyAssert.Equal(1, indexExprs.Length) // 1-dim for now
+                match receiverExpr.ResultType with
+                | SpirvType.Pointer(_, storageClass, SpirvType.Struct(structBuilder)) when structBuilder.IsRuntimeArray ->
+                    let indexExprs = List(indexExprs)
+                    indexExprs.Insert(0, BuiltInExpressions.IndexConstantFromField cenv.Module (structBuilder.GetRuntimeArrayField()))
+                    let accessChainExpr =
+                        BuiltInExpressions.AccessChain(receiverExpr, ImArray.ofSeq indexExprs, cenv.Module.GetTypePointer(storageClass, resultTy))
+                    E.Operation(textRange, 
+                        O.LoadFromAddress(accessChainExpr, resultTy)
+                    )
+
+                | _ ->
+                    raise(InvalidOperationException())
+
             | _ ->
                 expr
         | _ ->

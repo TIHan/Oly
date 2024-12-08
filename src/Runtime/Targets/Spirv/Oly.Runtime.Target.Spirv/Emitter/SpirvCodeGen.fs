@@ -35,6 +35,11 @@ type cenv =
     member this.GetLocalIdRef(localIndex: int32) : IdRef =
         this.Locals[localIndex]
 
+    member this.GetExtendedInstructionSet(set: string) =
+        match set with
+        | "GLSL.std.450" -> 1u // TODO: this is hard-coded!
+        | _ -> invalidOp "Invalid extended instruction set."
+
 [<NoEquality;NoComparison>]
 type env =
     {
@@ -244,9 +249,11 @@ module rec SpirvCodeGen =
                 let idResult = cenv.Module.NewIdResult()
                 match castFromTy, castToTy with
                 | SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
-                    OpSConvert(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                    idRef1
+                  //  OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
                 | SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
-                    OpUConvert(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                    idRef1
+                  //  OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
                 | _ ->
                     raise(NotImplementedException())
                 idResult
@@ -261,7 +268,7 @@ module rec SpirvCodeGen =
             | O.LoadArrayElementAddress _ ->
                 raise(NotSupportedException($"Should have been lowered:\n{op}"))
 
-            | O.Call(func=irFunc) ->
+            | O.Call(func=irFunc;resultTy=resultTy) ->
                 let func = irFunc.EmittedFunction
 
                 let handleVariable (var: SpirvVariable) =
@@ -318,6 +325,12 @@ module rec SpirvCodeGen =
                 | SpirvFunction.Function(funcBuilder) ->
                     let idResult = cenv.Module.NewIdResult()
                     OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
+                    |> emitInstruction cenv
+                    idResult
+
+                | SpirvFunction.ExtendedInstruction(set, n) ->
+                    let idResult = cenv.Module.NewIdResult()
+                    OpExtInst(resultTy.IdResult, idResult, cenv.GetExtendedInstructionSet(set), n, idRefs |> List.ofArray)
                     |> emitInstruction cenv
                     idResult
 

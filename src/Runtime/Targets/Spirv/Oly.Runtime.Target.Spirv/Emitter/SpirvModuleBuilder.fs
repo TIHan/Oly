@@ -339,6 +339,7 @@ type SpirvFunctionBuilder(
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
     | BuiltIn of SpirvBuiltInFunction
+    | ExtendedInstruction of set: string * opCode: uint32
     | Variable of SpirvVariable
     | LazyVariable of Lazy<SpirvVariable>
     | AccessChain
@@ -560,7 +561,8 @@ module BuiltInFunctions =
     let TryGetBuiltInFunction(path: string imarray, name: string, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
         // Extended Instruction Sets
         if path.Length = 1 && path[0] = "GLSL.std.450" then
-            raise(NotImplementedException())
+            SpirvFunction.ExtendedInstruction(path[0], UInt32.Parse(name))
+            |> Some
         else
 
         if path.Length < 2 || path.Length > 2 then None
@@ -737,6 +739,8 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let constantsFloat32 = Dictionary<float32, IdResult>()
     let constantsVectorFloat32 = Dictionary<IdRef list, IdResult>()
 
+    let GLSL_std_450 = 1u // TODO: There a way to not make this builtin?
+
     let headerInstrs =
         [
             OpCapability(Capability.Shader)
@@ -745,7 +749,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                 OpCapability(Capability.VariablePointers)
                 OpCapability(Capability.VariablePointersStorageBuffer)
                 OpCapability(Capability.PhysicalStorageBufferAddresses)
-            OpExtInstImport(1u, "GLSL.std.450")
+            OpExtInstImport(GLSL_std_450, "GLSL.std.450")
             OpMemoryModel(AddressingModel.Logical, MemoryModel.GLSL450)
         ]
 

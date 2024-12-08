@@ -933,7 +933,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irReceiver, resultTy = importExpression cenv env None ilReceiver
             let irIndexArgs = 
                 ilIndexArgs
-                |> ImArray.map (fun x -> importArgumentExpression cenv env RuntimeType.Int32 x)
+                |> ImArray.map (fun x -> 
+                    let irExpr, resultTy = importExpression cenv env None x
+                    if not resultTy.IsInteger then
+                        invalidOp "Index must be an integer type."
+                    irExpr
+                )
             let resultTy =
                 match resultTy with
                 | RuntimeType.Array(elementTy, _, _) -> elementTy
@@ -949,7 +954,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irReceiver, resultTy = importExpression cenv env None ilReceiver
             let irIndexArgs = 
                 ilIndexArgs
-                |> ImArray.map (fun x -> importArgumentExpression cenv env RuntimeType.Int32 x)
+                |> ImArray.map (fun x -> 
+                    let irExpr, resultTy = importExpression cenv env None x
+                    if not resultTy.IsInteger then
+                        invalidOp "Index must be an integer type."
+                    irExpr
+                )
             let resultTy =
                 match resultTy with
                 | RuntimeType.Array(elementTy, _, _) -> 
@@ -962,7 +972,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irReceiver, receiverTy = importExpression cenv env None ilReceiver
             let irIndexArgs = 
                 ilIndexArgs
-                |> ImArray.map (fun x -> importArgumentExpression cenv env RuntimeType.Int32 x)
+                |> ImArray.map (fun x -> 
+                    let irExpr, resultTy = importExpression cenv env None x
+                    if not resultTy.IsInteger then
+                        invalidOp "Index must be an integer type."
+                    irExpr
+                )
             let irArg, _ = importExpression cenv env (Some receiverTy.StripAlias().TypeArguments[0]) ilArg
             let resultTy = RuntimeType.Void
             O.StoreArrayElement(irReceiver, irIndexArgs, irArg, cenv.EmitType(resultTy)) |> asExpr, resultTy

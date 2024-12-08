@@ -205,7 +205,8 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
         new GraphicsDeviceOptions
             (
                 PreferStandardClipSpaceYDirection = true,
-                PreferDepthRangeZeroToOne = true
+                PreferDepthRangeZeroToOne = true,
+                Debug = true
             )
     let graphicsDevice = VeldridStartup.CreateVulkanGraphicsDevice(options, window)
     let factory = graphicsDevice.ResourceFactory

@@ -103,11 +103,13 @@ struct storage_bufferAttribute = new()
 
 // Operations
 
+/*
 #[intrinsic("unsafe_cast")]
 int32(uint32): int32
 
 #[intrinsic("unsafe_cast")]
 uint32(int32): uint32
+*/
 
 #[intrinsic("address_of")]
 (&)<T>(T): inref<T>
@@ -128,13 +130,13 @@ uint32(int32): uint32
 (==)(float32, float32): bool
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[], index: int32): T
+(`[]`)<T>(T[], index: uint32): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(mutable T[], index: int32): T
+(`[]`)<T>(mutable T[], index: uint32): T
 
 #[intrinsic("set_element")]
-(`[]`)<T>(mutable T[], index: int32, T): ()
+(`[]`)<T>(mutable T[], index: uint32, T): ()
 
 // BuiltIn
 
