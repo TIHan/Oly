@@ -13,10 +13,11 @@ open Veldrid.StartupUtilities
 open Veldrid.SPIRV
 
 [<Struct>]
-type VertexPositionColor(position: Vector2, color: RgbaFloat) =
+type VertexPositionColor(position: Vector2, texCoords: Vector2, color: RgbaFloat) =
     member _.Position = position
+    member _.TextureCoordinates = texCoords
     member _.Color = color
-    static member SizeInBytes = 24
+    static member SizeInBytes = 32
 
 /// This tests serialization and deserialization.
 let glsl_to_vertex (code: string) =
@@ -89,10 +90,10 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
 
     let quadVertices =
         [|
-            VertexPositionColor(Vector2(-0.75f, 0.75f), RgbaFloat.Red)
-            VertexPositionColor(Vector2(0.75f, 0.75f), RgbaFloat.Green)
-            VertexPositionColor(Vector2(-0.75f, -0.75f), RgbaFloat.Blue)
-            VertexPositionColor(Vector2(0.75f, -0.75f), RgbaFloat.Yellow)
+            VertexPositionColor(Vector2(-1.f, 1.f), Vector2(0.f, 1.f), RgbaFloat.Red)
+            VertexPositionColor(Vector2(1.f, 1.f), Vector2(1.f, 1.f), RgbaFloat.Green)
+            VertexPositionColor(Vector2(-1f, -1f), Vector2(0.f, 0.f), RgbaFloat.Blue)
+            VertexPositionColor(Vector2(1f, -1f), Vector2(1.f, 0.f), RgbaFloat.Yellow)
         |]
 
     let quadIndices = [| 0us; 1us; 2us; 3us |]
@@ -105,6 +106,7 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
 
     let vertexLayout = VertexLayoutDescription(
         VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2),
+        VertexElementDescription("TexCoords", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2),
         VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4))
 
     let vertexShaderDesc = ShaderDescription(

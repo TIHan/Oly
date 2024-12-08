@@ -26,13 +26,16 @@ let shouldRunFragment (program: OlyProgram) =
 #version 450
 
 layout(location = 0) in vec2 Position;
-layout(location = 1) in vec4 Color;
+layout(location = 1) in vec2 TexCoords;
+layout(location = 2) in vec4 Color;
 
-layout(location = 0) out vec4 fsin_Color;
+layout(location = 0) out vec2 fsin_TexCoords;
+layout(location = 1) out vec4 fsin_Color;
 
 void main()
 {
     gl_Position = vec4(Position, 0, 1);
+    fsin_TexCoords = TexCoords;
     fsin_Color = Color;
 }"
 
@@ -48,7 +51,8 @@ let shouldRunVertex (program: OlyProgram) =
     let defaultFragmentCode = @"
 #version 450
 
-layout(location = 0) in vec4 fsin_Color;
+layout(location = 0) in vec2 fsin_TexCoords;
+layout(location = 1) in vec4 fsin_Color;
 layout(location = 0) out vec4 fsout_Color;
 
 void main()
@@ -100,15 +104,20 @@ let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T
 let ``Blank vertex shader`` () =
 //#version 450
 
-//layout(location = 0) out vec4 fsin_Color;
+//layout(location = 0) out vec2 fsin_TexCoords;
+//layout(location = 1) out vec4 fsin_Color;
 
 //void main()
 //{
 //}
     let src =
         """
-outColor: vec4
+outColor: vec2
     #[location(0)]
+    set
+
+outColor: vec4
+    #[location(1)]
     set
 
 main(): () =
@@ -120,7 +129,8 @@ main(): () =
 let ``Blank vertex shader but has output`` () =
 //#version 450
 
-//layout(location = 0) out vec4 fsin_Color;
+//layout(location = 0) out vec2 fsin_TexCoords;
+//layout(location = 1) out vec4 fsin_Color;
 
 //void main()
 //{
@@ -128,8 +138,12 @@ let ``Blank vertex shader but has output`` () =
 //}
     let src =
         """
-outColor: vec4
+outColor: vec2
     #[location(0)]
+    set
+
+outColor: vec4
+    #[location(1)]
     set
 
 main(): () =
@@ -142,13 +156,16 @@ let ``Basic vertex shader`` () =
 //#version 450
 
 //layout(location = 0) in vec2 Position;
-//layout(location = 1) in vec4 Color;
+//layout(location = 1) in vec2 TexCoords;
+//layout(location = 2) in vec4 Color;
 
-//layout(location = 0) out vec4 fsin_Color;
+//layout(location = 0) out vec2 fsin_TexCoords;
+//layout(location = 1) out vec4 fsin_Color;
 
 //void main()
 //{
 //    gl_Position = vec4(Position, 0, 1);
+//    fsin_TexCoords = TexCoords;
 //    fsin_Color = Color;
 //}
     let src =
@@ -157,16 +174,25 @@ position: vec2
     #[location(0)]
     get
 
-color: vec4
+texCoords: vec2
     #[location(1)]
     get
 
-outColor: vec4
+color: vec4
+    #[location(2)]
+    get
+
+outTexCoords: vec2
     #[location(0)]
+    set
+
+outColor: vec4
+    #[location(1)]
     set
 
 main(): () =
     Position <- vec4(position, 0, 1)
+    outTexCoords <- texCoords
     outColor <- color
         """
     OlyVertex src
@@ -189,7 +215,8 @@ main(): () =
 let ``Basic fragment shader`` () =
 //#version 450
 
-//layout(location = 0) in vec4 fsin_Color;
+//layout(location = 0) in vec2 fsin_TexCoords;
+//layout(location = 1) in vec4 fsin_Color;
 //layout(location = 0) out vec4 fsout_Color;
 
 //void main()
@@ -198,8 +225,12 @@ let ``Basic fragment shader`` () =
 //}
     let src =
         """
+texCoords: vec2
+    #[location(0)]
+    get
+
 color: vec4    
-    #[location(0)] 
+    #[location(1)] 
     get
 
 outColor: vec4 
@@ -219,17 +250,26 @@ position: vec2
     #[location(0)]
     get
 
-color: vec4
+texCoords: vec2
     #[location(1)]
     get
 
-outColor: vec4
+color: vec4
+    #[location(2)]
+    get
+
+outTexCoords: vec2
     #[location(0)]
+    set
+
+outColor: vec4
+    #[location(1)]
     set
 
 main(): () =
     let position = position
     Position <- vec4(position, 0, 1)
+    outTexCoords <- texCoords
     outColor <- color
         """
     OlyVertex src
@@ -238,12 +278,16 @@ main(): () =
 let ``Should mutate a new value and use it`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -257,12 +301,16 @@ main(): () =
 let ``Should use if/else`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -278,12 +326,16 @@ main(): () =
 let ``Should use if/else 2`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -301,12 +353,16 @@ main(): () =
 let ``Should use if/else 3`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -324,12 +380,16 @@ main(): () =
 let ``Should use if/else 4`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -348,12 +408,16 @@ main(): () =
 let ``Should use if/else 5`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -379,12 +443,16 @@ main(): () =
 let ``Should use if/else 6`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -403,12 +471,16 @@ main(): () =
 let ``Should use if/else 7`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -429,12 +501,16 @@ main(): () =
 let ``Should use if/else 8`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -455,12 +531,16 @@ main(): () =
 let ``Should use if/else 9`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -481,12 +561,16 @@ main(): () =
 let ``Should use if/else 10`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -510,12 +594,16 @@ main(): () =
 let ``Should use if/else 11`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
@@ -536,12 +624,16 @@ main(): () =
 let ``Should use if/else 12`` () =
     let src =
         """
-color: vec4
+texCoords: vec2
     #[location(0)]
     get
 
-outColor: vec4
-    #[location(0)]
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
     set
 
 main(): () =
