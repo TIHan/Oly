@@ -175,7 +175,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                         raise(InvalidOperationException())
                 | _ ->
                     if info.Platform <> "spirv" then raise(InvalidOperationException())
-                    match BuiltInFunctions.TryGetBuiltInFunction(info.Path, pars |> ImArray.map (fun x -> x.Type), returnTy, flags) with
+                    match BuiltInFunctions.TryGetBuiltInFunction(info.Path, info.Name, flags) with
                     | Some func -> func
                     | _ -> raise(InvalidOperationException())
             | _ ->

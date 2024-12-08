@@ -2,14 +2,9 @@
 module Oly.Runtime.Target.Spirv.Tests
 
 open System
-open Utilities
-open TestUtilities
 open WorkspaceUtilities
 open Xunit
 open Spirv.TestHelpers
-open Oly.Compiler.Syntax
-open Oly.Compiler.Text
-open Oly.Runtime.Target.Spirv
 open Oly.Compiler.Workspace
 open Oly.Core
 

@@ -190,8 +190,8 @@ type SpirvType =
                 for field in structBuilder.Fields do
                     for attr in field.Attributes do
                         match attr.Data with
-                        | BuiltInFunctionData.DecorateField(_, create)
-                        | BuiltInFunctionData.DecorateFieldAndVariable(_, create, _, _) ->
+                        | SpirvBuiltInFunctionData.DecorateField(_, create)
+                        | SpirvBuiltInFunctionData.DecorateFieldAndVariable(_, create, _, _) ->
                             yield! create structBuilder.IdResult (uint32(field.Index))
                         | _ ->
                             raise(InvalidOperationException())
@@ -205,7 +205,7 @@ type SpirvType =
 
                 for attr in structBuilder.Attributes do
                     match attr.Data with
-                    | BuiltInFunctionData.DecorateType(_, create) ->
+                    | SpirvBuiltInFunctionData.DecorateType(_, create) ->
                         yield! create structBuilder.IdResult
                     | _ ->
                         raise(InvalidOperationException())
@@ -338,7 +338,7 @@ type SpirvFunctionBuilder(
 [<RequireQualifiedAccess>]
 type SpirvFunction =
     | Function of SpirvFunctionBuilder
-    | BuiltIn of BuiltInFunction
+    | BuiltIn of SpirvBuiltInFunction
     | Variable of SpirvVariable
     | LazyVariable of Lazy<SpirvVariable>
     | AccessChain
@@ -360,41 +360,17 @@ type SpirvField =
         Type: SpirvType
         Index: int32
         Flags: SpirvFieldFlags
-        Attributes: BuiltInFunction imarray
+        Attributes: SpirvBuiltInFunction imarray
     }
 
 // --
 
-type BuiltInFunctionParameterType =
-    | Void
-    | Int32
-    | UInt32
-    | Float32
-    | Vec2
-    | Vec3
-    | Vec4
-    | Any
-
-    member this.IsValid(ty: SpirvType) =
-        match this, ty with
-        | Any, SpirvType.Void _ -> false
-        | Any, _
-        | Void, SpirvType.Void _
-        | Int32, SpirvType.Int32 _
-        | UInt32, SpirvType.UInt32 _
-        | Float32, SpirvType.Float32 _
-        | Vec2, SpirvType.Vec2(elementTy=SpirvType.Float32 _)
-        | Vec3, SpirvType.Vec3(elementTy=SpirvType.Float32 _)
-        | Vec4, SpirvType.Vec4(elementTy=SpirvType.Float32 _) -> true
-        | _ -> false
-
-type BuiltInFunctionFlags =
+type SpirvBuiltInFunctionFlags =
     | None                   = 0b0000000000
-    | Constructor            = 0b0000000001
-    | DynamicParameters      = 0b0000000010 
+    | Constructor            = 0b000000000
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
-type BuiltInFunctionData =
+type SpirvBuiltInFunctionData =
     | DecorateField of SpirvFieldFlags * (IdRef -> uint32 -> Instruction list)
     | DecorateType of SpirvTypeFlags * (IdRef -> Instruction list)
     | DecorateVariable of SpirvVariableFlags * (IdRef -> C imarray -> Instruction list)
@@ -402,31 +378,18 @@ type BuiltInFunctionData =
     | Intrinsic of (SpirvModuleBuilder -> (SpirvType * IdRef) imarray -> SpirvType -> IdRef * Instruction list)
 
 [<NoEquality;NoComparison>]
-type BuiltInFunction = 
+type SpirvBuiltInFunction = 
     { 
         Name: string;
-        ParameterTypes: BuiltInFunctionParameterType imarray
-        ReturnType: BuiltInFunctionParameterType 
-        Flags: BuiltInFunctionFlags
-        Data: BuiltInFunctionData
+        Flags: SpirvBuiltInFunctionFlags
+        Data: SpirvBuiltInFunctionData
     }
 
-    member this.IsValidParameterTypes(parTys: SpirvType imarray) =
-        if this.Flags.HasFlag(BuiltInFunctionFlags.DynamicParameters) then true
-        else
-            this.ParameterTypes.Length = parTys.Length &&
-            (this.ParameterTypes, parTys) 
-            ||> ImArray.forall2 (fun x parTy -> x.IsValid(parTy))
-
-    member this.IsValid(name: string, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) =
+    member this.IsValid(name: string, irFlags: OlyIRFunctionFlags) =
         if this.Name <> name then 
             false
-        elif not(this.ReturnType.IsValid(returnTy)) then
-            false
-        elif not(this.IsValidParameterTypes(parTys)) then
-            false
         else
-            if this.Flags.HasFlag(BuiltInFunctionFlags.Constructor) then
+            if this.Flags.HasFlag(SpirvBuiltInFunctionFlags.Constructor) then
                 if irFlags.IsConstructor && irFlags.IsInstance then
                     true
                 else
@@ -440,28 +403,21 @@ module BuiltInFunctions =
 
     let private Add(
             name: string,
-            data: BuiltInFunctionData,
-            parTys: BuiltInFunctionParameterType list, 
-            returnTy: BuiltInFunctionParameterType, 
-            flags: BuiltInFunctionFlags) =
-
-        if flags.HasFlag(BuiltInFunctionFlags.DynamicParameters) && not(List.isEmpty parTys) then
-            failwith "Dynamic parameters require that the parameter types are empty since they can be dynamic."
+            data: SpirvBuiltInFunctionData,
+            flags: SpirvBuiltInFunctionFlags) =
 
         Lookup.Add(
             name,
             {
                 Name = name
                 Data = data
-                ParameterTypes = parTys |> ImArray.ofSeq
-                ReturnType = returnTy
                 Flags = flags
             } |> SpirvFunction.BuiltIn
         )
 
     do
         Add("position",                
-            BuiltInFunctionData.DecorateFieldAndVariable(
+            SpirvBuiltInFunctionData.DecorateFieldAndVariable(
                 SpirvFieldFlags.None, 
                 (fun tyIdRef index ->
                     [OpMemberDecorate(tyIdRef, index, Decoration.BuiltIn BuiltIn.Position)]
@@ -470,11 +426,9 @@ module BuiltInFunctions =
                 fun varIdRef args ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)]
             ),
-            [],                                             
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("point_size",            
-            BuiltInFunctionData.DecorateFieldAndVariable(
+            SpirvBuiltInFunctionData.DecorateFieldAndVariable(
                 SpirvFieldFlags.None, 
                 (fun tyIdRef index ->
                     [OpMemberDecorate(tyIdRef, index, Decoration.BuiltIn BuiltIn.PointSize)]
@@ -483,29 +437,23 @@ module BuiltInFunctions =
                 fun varIdRef _ ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)]
             ),        
-            [],                                             
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("block",                     
-            BuiltInFunctionData.DecorateType(
+            SpirvBuiltInFunctionData.DecorateType(
                 SpirvTypeFlags.None, 
                 fun tyIdRef ->
                     [OpDecorate(tyIdRef, Decoration.Block)]
             ),      
-            [],                                             
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("buffer_block",                     
-            BuiltInFunctionData.DecorateType(
+            SpirvBuiltInFunctionData.DecorateType(
                 SpirvTypeFlags.None, 
                 fun tyIdRef ->
                     [OpDecorate(tyIdRef, Decoration.BufferBlock)]
             ),      
-            [],                                             
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("location",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
                     match args |> ImArray.head with
@@ -514,29 +462,23 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            [BuiltInFunctionParameterType.UInt32],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("uniform",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.Uniform, 
                 fun _varIdRef _args ->
                     []
             ),     
-            [],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("storage_buffer",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.StorageBuffer, 
                 fun _varIdRef _args ->
                     []
             ),     
-            [],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.Constructor) 
         Add("descriptor_set",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
                     match args |> ImArray.head with
@@ -545,11 +487,9 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            [BuiltInFunctionParameterType.UInt32],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.Constructor)
         Add("binding",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef args ->
                     match args |> ImArray.head with
@@ -558,20 +498,16 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            [BuiltInFunctionParameterType.UInt32],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.Constructor) 
         Add("global_invocation_id",             
-            BuiltInFunctionData.DecorateVariable(
+            SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef _ ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.GlobalInvocationId)]
             ),     
-            [],          
-            BuiltInFunctionParameterType.Void, 
-            BuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.Constructor) 
         Add("vec4",
-            BuiltInFunctionData.Intrinsic(
+            SpirvBuiltInFunctionData.Intrinsic(
                 fun spvModule args _ ->
                     match args.Length with
                     | 1 ->
@@ -602,12 +538,10 @@ module BuiltInFunctions =
                     | _ ->
                         raise(NotImplementedException())
             ),
-            [],
-            BuiltInFunctionParameterType.Void,
-            BuiltInFunctionFlags.Constructor ||| BuiltInFunctionFlags.DynamicParameters
+            SpirvBuiltInFunctionFlags.Constructor
         )
         Add("bitcast",
-            BuiltInFunctionData.Intrinsic(
+            SpirvBuiltInFunctionData.Intrinsic(
                 fun spvModule args returnTy ->
                     match args.Length with
                     | 1 ->
@@ -620,12 +554,15 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException())
             ),
-            [BuiltInFunctionParameterType.Any],
-            BuiltInFunctionParameterType.Any,
-            BuiltInFunctionFlags.None
+            SpirvBuiltInFunctionFlags.None
         )
 
-    let TryGetBuiltInFunction(path: string imarray, parTys: SpirvType imarray, returnTy: SpirvType, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
+    let TryGetBuiltInFunction(path: string imarray, name: string, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
+        // Extended Instruction Sets
+        if path.Length = 1 && path[0] = "GLSL.std.450" then
+            raise(NotImplementedException())
+        else
+
         if path.Length < 2 || path.Length > 2 then None
         elif (ImArray.head path) <> "__oly_spirv_" then None
         else          
@@ -633,7 +570,7 @@ module BuiltInFunctions =
             match Lookup.TryGetValue(name) with
             | true, func ->
                 match func.TryGetBuiltIn() with
-                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, parTys, returnTy, irFlags) ->
+                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, irFlags) ->
                     Some func
                 | _ ->
                     None
@@ -762,7 +699,7 @@ module BuiltInExpressions =
         )
 
     let Bitcast(argExpr: E, castToType: SpirvType) =
-        match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "bitcast", ImArray.createOne argExpr.ResultType, castToType, Unchecked.defaultof<_>) with
+        match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "bitcast", "", Unchecked.defaultof<_>) with
         | Some func -> 
             E.Operation(OlyIRDebugSourceTextRange.Empty, O.Call(OlyIRFunction(func), ImArray.createOne argExpr, castToType))
         | _ ->
@@ -1016,8 +953,8 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                     match ctor.TryGetBuiltIn() with
                     | ValueSome(builtInFunc) ->
                         match builtInFunc.Data with
-                        | BuiltInFunctionData.DecorateVariable(varFlags, _)
-                        | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                        | SpirvBuiltInFunctionData.DecorateVariable(varFlags, _)
+                        | SpirvBuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
                             varFlags.HasFlag(SpirvVariableFlags.Uniform)
                         | _ ->
                             false
@@ -1033,8 +970,8 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                     match ctor.TryGetBuiltIn() with
                     | ValueSome(builtInFunc) ->
                         match builtInFunc.Data with
-                        | BuiltInFunctionData.DecorateVariable(varFlags, _)
-                        | BuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
+                        | SpirvBuiltInFunctionData.DecorateVariable(varFlags, _)
+                        | SpirvBuiltInFunctionData.DecorateFieldAndVariable(_, _, varFlags, _) ->
                             varFlags.HasFlag(SpirvVariableFlags.StorageBuffer)
                         | _ ->
                             false
@@ -1072,11 +1009,9 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                 structBuilder.Attributes <-
                     {
                         Name = "buffer_block"
-                        ParameterTypes = ImArray.empty
-                        ReturnType = BuiltInFunctionParameterType.Void
-                        Flags = BuiltInFunctionFlags.None
+                        Flags = SpirvBuiltInFunctionFlags.None
                         Data =
-                            BuiltInFunctionData.DecorateType(
+                            SpirvBuiltInFunctionData.DecorateType(
                                 SpirvTypeFlags.None,
                                 fun idRef ->
                                     [OpDecorate(idRef, Decoration.BufferBlock)]
@@ -1087,11 +1022,9 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                 structBuilder.Attributes <-
                     {
                         Name = "block"
-                        ParameterTypes = ImArray.empty
-                        ReturnType = BuiltInFunctionParameterType.Void
-                        Flags = BuiltInFunctionFlags.None
+                        Flags = SpirvBuiltInFunctionFlags.None
                         Data =
-                            BuiltInFunctionData.DecorateType(
+                            SpirvBuiltInFunctionData.DecorateType(
                                 SpirvTypeFlags.None,
                                 fun idRef ->
                                     [OpDecorate(idRef, Decoration.Block)]
@@ -1129,8 +1062,8 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                             match ctor.TryGetBuiltIn() with
                             | ValueSome builtInFunc ->
                                 match builtInFunc.Data with
-                                | BuiltInFunctionData.DecorateVariable(_, create)
-                                | BuiltInFunctionData.DecorateFieldAndVariable(_, _, _, create) ->
+                                | SpirvBuiltInFunctionData.DecorateVariable(_, create)
+                                | SpirvBuiltInFunctionData.DecorateFieldAndVariable(_, _, _, create) ->
                                     yield! create idResult args
                                 | _ ->
                                     raise(InvalidOperationException())

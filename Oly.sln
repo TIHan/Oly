@@ -73,7 +73,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Runtime\
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Tests", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

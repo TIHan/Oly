@@ -302,7 +302,7 @@ module rec SpirvCodeGen =
 
                 | SpirvFunction.BuiltIn builtInFunc ->
                     match builtInFunc.Data with
-                    | BuiltInFunctionData.Intrinsic(create) ->
+                    | SpirvBuiltInFunctionData.Intrinsic(create) ->
                         let args =
                             idRefs
                             |> Array.mapi (fun i idRef ->

@@ -128,6 +128,9 @@ uint32(int32): uint32
 (==)(float32, float32): bool
 
 #[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[intrinsic("get_element")]
 (`[]`)<T>(mutable T[], index: int32): T
 
 #[intrinsic("set_element")]
@@ -142,3 +145,9 @@ Position: vec4
 GlobalInvocationId: uvec3
     #[global_invocation_id]
     get
+
+// GLSL.std.450
+// https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
+
+#[import("spirv", "GLSL.std.450", "0")]
+round(float32): float32
