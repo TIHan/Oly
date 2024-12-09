@@ -1105,6 +1105,49 @@ main(): () =
         )
 
 [<Fact>]
+let ``Complex test and csharp source 10 - using a non-exported class inside a function that cannot be erased``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+class NonExportedClass<T> =
+
+    Value: T get, set
+    new(value: T) = { Value = value }
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        let x = NonExportedClass(x)
+        Console.Write(x.Value)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
 let ``Property test and csharp source``() =
     let csSrc =
         """
