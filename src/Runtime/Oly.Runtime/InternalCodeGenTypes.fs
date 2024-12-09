@@ -351,7 +351,7 @@ type RuntimeEntity =
     member this.RuntimeType = this.RuntimeTypeLazy.Value
 
     member this.WithNoErasure() =
-        if this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) || this.IsExported || this.TypeParameters.IsEmpty then
+        if this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) || this.IsExported || this.TypeParameters.IsEmpty || this.IsImported then
             this
         else
             if this.IsFormal then
@@ -1492,8 +1492,8 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         if not this.IsFormal then
             failwith "Expected formal function."
 
-        if enclosingTy.Formal <> this.EnclosingType.Formal then
-            failwith "Invalid enclosing type."
+        //if enclosingTy.Formal <> this.EnclosingType.Formal then
+        //    failwith "Invalid enclosing type."
 
         if state.TypeParameters.Length <> funcTyArgs.Length then
             failwith "Type argument count does not match type parameter count when applying."
@@ -1526,8 +1526,8 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         if not this.IsFormal then
             failwith "Expected formal function."
 
-        if enclosingTy.Formal <> this.EnclosingType.Formal then
-            failwith "Invalid enclosing type."
+        //if enclosingTy.Formal <> this.EnclosingType.Formal then
+        //    failwith "Invalid enclosing type."
 
         if enclosingTy.TypeParameters.IsEmpty then
             this

@@ -163,7 +163,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
 
     let cache = Dictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, RuntimeType>>()
 
-    member this.GetOrCreate(handle: OlyILEntityDefinitionHandle, fullTyArgs: RuntimeType imarray) =   
+    member this.GetOrCreate(handle: OlyILEntityDefinitionHandle, fullTyArgs: RuntimeType imarray, canErase: bool) =   
         let instances =
             match cache.TryGetValue(handle) with
             | true, instances -> instances
@@ -175,7 +175,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
         match instances.TryGetValue(fullTyArgs) with
         | ValueSome res -> res
         | _ ->
-            let formalTy = runtime.ResolveTypeDefinition(ilAsm, handle)
+            let formalTy = runtime.ResolveTypeDefinition(ilAsm, handle, canErase)
             let res = formalTy.Apply(fullTyArgs)
             instances.[fullTyArgs] <- res
             res            
@@ -1636,7 +1636,7 @@ let importFunctionBody
         (genericContext: GenericContext) : OlyIRFunctionBody<'Type, 'Function, 'Field> =
 
     let asm = vm.Assemblies[asmIdentity]
-    let enclosingTy = vm.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
+    let enclosingTy = vm.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle, genericContext.IsErasingFunction)
     let func = vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
 
     OlyAssert.True(func.IsFormal)
@@ -2666,7 +2666,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         false
                 )
                 |> ImArray.map (fun ilEntDefHandle ->
-                    this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
+                    this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle, true)
                 )
             )
             |> Seq.concat
@@ -2753,7 +2753,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeHigherVariable _ ->
                 failwith "Invalid primitive IL type."
             | _ ->
-                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle)
+                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle, true)
                 addPrimitiveType (this.ResolveType(ilAsm, ilTy, GenericContext.Default)) ty
         )
 
@@ -2788,7 +2788,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             ilAsm.EntityDefinitions
             |> Seq.iter (fun (ilEntDefHandle, ilEntDef) ->
                 if not ilEntDef.IsExternal && ilEntDef.IsExported then
-                    let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle)
+                    let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle, true)
                     this.EmitType(ty) |> ignore
             )
         )
@@ -3237,7 +3237,19 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
-    member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
+    member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, canErase: bool) : RuntimeType =
+        let ty = this.ResolveTypeDefinitionAux(ilAsm, ilEntDefOrRefHandle)
+        ty
+        //if canErase then
+        //    ty
+        //else
+        //    match ty with
+        //    | RuntimeType.Entity(ent) ->
+        //        ent.WithNoErasure().AsType
+        //    | _ ->
+        //        ty     
+
+    member this.ResolveTypeDefinitionAux(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
         let asm = assemblies.[ilAsm.Identity]
 
         let isAnonymousShape (ilEntDef: OlyILEntityDefinition) =
@@ -3500,14 +3512,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             if ty.IsTypeConstructor then
                 let ty = ty.Apply(tyArgs)
                 let asm = assemblies.[ty.AssemblyIdentity]
-                asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
+                asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments, genericContext.IsErasingFunction)
             else
                 failwith "Invalid type constructor."
 
         | OlyILTypeEntity(ilEntInst) ->
             match ilEntInst with
             | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs) ->
-                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
+                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle, genericContext.IsErasingFunction)
 #if DEBUG || CHECKED
                 OlyAssert.Equal(ty.TypeParameters.Length, ilTyArgs.Length)
 #endif
@@ -3516,9 +3528,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 else
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
-                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(genericContext.PassedWitnesses)
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs, genericContext.IsErasingFunction).SetWitnesses(genericContext.PassedWitnesses)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
-                this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
+                this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle, genericContext.IsErasingFunction)
 
         | OlyILTypeForAll(ilTyPars, ilInnerTy) ->
             let tyPars =
@@ -3663,7 +3675,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if tyParCount <> arity then 
                     ()
                 elif this.AreILEnclosingsEqual(ilAsmOrig, ilEnclosing, ilAsm, ilEntDef.Enclosing) then
-                    builder.Add(this.ResolveTypeDefinition(ilAsm, handle))
+                    builder.Add(this.ResolveTypeDefinition(ilAsm, handle, true))
         )
 
         // If we did not find any type definitions,
@@ -3682,7 +3694,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     if tyParCount <> arity then 
                         ()
                     elif this.AreILEnclosingsEqual(ilAsmOrig, ilEnclosing, ilAsm, ilEntRef.Enclosing) then
-                        builder.Add(this.ResolveTypeDefinition(ilAsm, handle))
+                        builder.Add(this.ResolveTypeDefinition(ilAsm, handle, true))
             )
 
 
