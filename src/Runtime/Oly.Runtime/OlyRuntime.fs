@@ -31,13 +31,13 @@ let createGenericContextFromFunction canErase (func: RuntimeFunction) =
 
     let genericContext =
         if isTyErased then
-            GenericContext.CreateErasing(func.Enclosing.TypeArguments)
+            GenericContext.CreateErasing(func.Enclosing.TypeArguments).SetErasingEnvironmentFunction(canErase)
         else
-            GenericContext.Create(func.Enclosing.TypeArguments)
+            GenericContext.Create(func.Enclosing.TypeArguments).SetErasingEnvironmentFunction(canErase)
     if isFuncErased then
-        genericContext.AddErasingFunctionTypeArguments(func.TypeArguments)
+        genericContext.AddErasingFunctionTypeArguments(func.TypeArguments).SetErasingEnvironmentFunction(canErase)
     else
-        genericContext.AddFunctionTypeArguments(func.TypeArguments)
+        genericContext.AddFunctionTypeArguments(func.TypeArguments).SetErasingEnvironmentFunction(canErase)
 
 let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
     match ilEntInst with
@@ -408,6 +408,9 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
 
     member inline _.EmitFunction(func): 'Function =
         vm.EmitFunction(func)
+
+    member inline _.EmitFunctionNoErasure(func): 'Function =
+        vm.EmitFunction(false, func)
 
     member inline _.EmitFunctionFromEnvironment(envFunc, func): 'Function =
         vm.EmitFunctionFromEnvironment(envFunc, func)
@@ -1430,7 +1433,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 irArgs[0], enclosingTy.RuntimeType.Value
             else
 
-            let emittedFunc = cenv.EmitFunction(func)
+            let emittedFunc = 
+                if env.GenericContext.IsErasingEnvironmentFunction then
+                    cenv.EmitFunction(func)
+                else
+                    cenv.EmitFunctionNoErasure(func)
 
             let emittedEnclosingTy = cenv.EmitType(enclosingTy)
 
@@ -1690,7 +1697,7 @@ let importFunctionBody
         ilFuncBody, 
         argTys, 
         func.ReturnType, 
-        genericContext.SetPassedWitnesses(func.Witnesses)
+        genericContext.SetPassedWitnesses(func.Witnesses).SetErasingEnvironmentFunction(func.CanGenericsBeErased || func.TypeParameters.IsEmpty)
     )
     //with
     //| ex ->
@@ -4142,7 +4149,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | _ ->
             failwithf "Function definition not cached: %A" func.Name
 
-    member private vm.EmitFunction(canErase, func: RuntimeFunction) =
+    member vm.EmitFunction(canErase, func: RuntimeFunction) =
         let genericContext = createGenericContextFromFunction canErase func
 
         if func.IsFormal then

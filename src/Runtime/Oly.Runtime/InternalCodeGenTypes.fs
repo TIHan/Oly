@@ -106,6 +106,10 @@ type GenericContext =
         else
             { this with passedWitnesses = witnesses }
 
+    member this.SetErasingEnvironmentFunction(value: bool) =
+        if this.envFunctionIsErasing = value then this
+        else { this with envFunctionIsErasing = value }
+
     member this.FunctionTypeArguments =
         this.funcTyArgs
 
