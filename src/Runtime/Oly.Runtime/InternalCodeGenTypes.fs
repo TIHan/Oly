@@ -673,6 +673,9 @@ type RuntimeEntity =
             (
                 (this.Witnesses, o.Witnesses)
                 ||> ImArray.forall2 (=)
+            ) &&
+            (
+                this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) = o.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure)
             )
 
 let emptyEnclosing = RuntimeEnclosing.Namespace(ImArray.empty)
