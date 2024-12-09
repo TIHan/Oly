@@ -8178,6 +8178,7 @@ module OlyPrelude =
     #[intrinsic("get_element")]
     (`[]`)<T>(mutable T[], index: int32): T
 
+#[export]
 class NonExportedClass<T> =
 
     Value: mutable T[] get
