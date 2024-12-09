@@ -38,7 +38,7 @@ Test(input: {tyName}): {tyName} =
 
 main(): () =
     let index = GlobalInvocationId.X
-    Buffer[int32(index)] <- Test(Buffer[int32(index)])
+    Buffer[index] <- Test(Buffer[index])
 """
     let output = build true src |> runAux input
     Assert.Equal<'T>(expectedOutput, output)
@@ -48,5 +48,20 @@ main(): () =
 [<Fact>]
 let ``Round``() =
     "round(input)"
-    |> run [|1.1f|] [|1.0f|]
+    |> run [|0.1f|] [|0.0f|]
+
+[<Fact>]
+let ``Round 2``() =
+    "round(input)"
+    |> run [|0.9f|] [|1.0f|]
+
+[<Fact>]
+let ``Round 3``() =
+    "round(input)"
+    |> run [|0.5f|] [|0.0f|]
+
+[<Fact>]
+let ``Round 4``() =
+    "round(input)"
+    |> run [|1.5f|] [|2.0f|]
 

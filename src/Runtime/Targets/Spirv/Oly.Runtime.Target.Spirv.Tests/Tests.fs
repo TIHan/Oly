@@ -86,7 +86,7 @@ let OlyFragment (src: string) =
 
 let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
-#target "spirv: compute, 1.3"
+#target "spirv: compute, 1.0"
 
 {src}
 """

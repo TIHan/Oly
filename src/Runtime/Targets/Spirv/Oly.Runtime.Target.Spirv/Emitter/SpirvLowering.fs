@@ -218,14 +218,26 @@ module rec SpirvLowering =
                         AutoDereferenceIfPossible newArgExpr
 
                 | O.Call _ ->
-                    newArgExpr
+                    match newArgExpr.ResultType with
+                    | SpirvType.Pointer _ -> newArgExpr
+                    | resultTy ->
+                        let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                        let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+                        E.Sequential(
+                            E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, newArgExpr, cenv.Module.GetTypeVoid())),
+                            valueExpr
+                        )                    
 
                 | _ ->
                     raise(NotImplementedException(op.ToString()))
             )
 
-        let handleCallVariable (var: SpirvVariable) irFunc argExprs =
-            O.Call(irFunc, argExprs, var.Type)
+        let handleCallVariable (var: SpirvVariable) (irFunc: OlyIRFunction<_, _, _>) argExprs resultTy =
+            match resultTy with
+            | SpirvType.Void _ ->
+                O.Call(irFunc, argExprs, resultTy)
+            | _ ->
+                O.Call(irFunc, argExprs, var.Type)
 
         let newOp =
             match newOp with
@@ -233,10 +245,10 @@ module rec SpirvLowering =
                 match irFunc.EmittedFunction with
                 | SpirvFunction.Variable var ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
-                    handleCallVariable var irFunc argExprs
+                    handleCallVariable var irFunc argExprs resultTy
                 | SpirvFunction.LazyVariable lazyVar ->
                     let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
-                    handleCallVariable lazyVar.Value irFunc argExprs
+                    handleCallVariable lazyVar.Value irFunc argExprs resultTy
                 | SpirvFunction.ExtendedInstruction _ ->
                     O.Call(irFunc, argExprs |> ImArray.map AutoDereferenceIfPossible, resultTy)
                 | _ ->
@@ -446,8 +458,8 @@ module rec SpirvLowering =
             | E.Sequential _
             | E.IfElse _ -> expr
             | _ ->
-                // TODO: Do we need to do anything here?
-                expr
+                // We do this because we cannot return a pointer in Logical addressing model
+                AutoDereferenceIfPossible expr
         else
             expr
 

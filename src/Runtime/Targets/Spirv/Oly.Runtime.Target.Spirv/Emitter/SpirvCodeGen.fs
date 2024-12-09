@@ -208,6 +208,8 @@ module rec SpirvCodeGen =
                     raise(InvalidOperationException("Expected a pointer"))
 #endif
 
+                OlyAssert.NotEqual(IdRef0, bodyIdRef)
+
                 let idResult = cenv.Module.NewIdResult()
                 OpLoad(resultTy.IdResult, idResult, bodyIdRef, None) |> emitInstruction cenv
                 idResult
@@ -249,11 +251,9 @@ module rec SpirvCodeGen =
                 let idResult = cenv.Module.NewIdResult()
                 match castFromTy, castToTy with
                 | SpirvType.UInt32 _, SpirvType.Int32 castToTyId ->
-                    idRef1
-                  //  OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                    OpSatConvertUToS(castToTyId, idResult, idRef1) |> emitInstruction cenv
                 | SpirvType.Int32 _, SpirvType.UInt32 castToTyId ->
-                    idRef1
-                  //  OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
+                    OpSatConvertSToU(castToTyId, idResult, idRef1) |> emitInstruction cenv
                 | _ ->
                     raise(NotImplementedException())
                 idResult
@@ -268,7 +268,7 @@ module rec SpirvCodeGen =
             | O.LoadArrayElementAddress _ ->
                 raise(NotSupportedException($"Should have been lowered:\n{op}"))
 
-            | O.Call(func=irFunc;resultTy=resultTy) ->
+            | O.Call(func=irFunc;args=argExprs;resultTy=resultTy) ->
                 let func = irFunc.EmittedFunction
 
                 let handleVariable (var: SpirvVariable) =
@@ -324,6 +324,12 @@ module rec SpirvCodeGen =
 
                 | SpirvFunction.Function(funcBuilder) ->
                     let idResult = cenv.Module.NewIdResult()
+                    argExprs
+                    |> ImArray.iter (fun x ->
+                        match x.ResultType with
+                        | SpirvType.Pointer _ -> ()
+                        | _ -> invalidOp "Expected pointer type."
+                    )
                     OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
                     |> emitInstruction cenv
                     idResult
@@ -462,5 +468,8 @@ module rec SpirvCodeGen =
                 if idRef = IdRef0 then
                     OpReturn |> emitInstruction cenv
                 else
+                    match expr.ResultType with
+                    | SpirvType.Pointer _ -> invalidOp "Return type cannot be a pointer in Logical addressing model."
+                    | _ -> ()
                     OpReturnValue idRef |> emitInstruction cenv
         idRef

@@ -294,6 +294,11 @@ type SpirvFunctionBuilder(
     irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, 
     returnTy: SpirvType) as this =
 
+    do
+        match returnTy with
+        | SpirvType.Pointer _ -> invalidOp "Return type cannot be a pointer in Logical addressing model."
+        | _ -> ()
+
     let func = SpirvFunction.Function(this)
 
     let pars = 

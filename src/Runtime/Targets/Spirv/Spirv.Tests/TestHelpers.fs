@@ -186,86 +186,112 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
 
 let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (spvCompute: SpirvModule, input: 'T array) =
 
-    use spvComputeBytes = new MemoryStream()
-
+    let spvComputeBytes = new FileStream("compute.spv", FileMode.Create)
     SpirvModule.Serialize(spvComputeBytes, spvCompute)
+    spvComputeBytes.Dispose()
 
-    let mutable windowCI = 
-        new WindowCreateInfo
-            (
-                X = 0,
-                Y = 0,
-                WindowWidth = 256,
-                WindowHeight = 256,
-                WindowTitle = "SpirV Test"
-            )
-    windowCI.WindowInitialState <- WindowState.Hidden
-    let window = VeldridStartup.CreateWindow(&windowCI);
-    let options = 
-        new GraphicsDeviceOptions
-            (
-                PreferStandardClipSpaceYDirection = true,
-                PreferDepthRangeZeroToOne = true,
-                Debug = true
-            )
-    let graphicsDevice = VeldridStartup.CreateVulkanGraphicsDevice(options, window)
-    let factory = graphicsDevice.ResourceFactory
+    let shaderPath = spvComputeBytes.Name
 
-    // ----
+    let dataKind =
+        let ty = typeof<'T>
+        if ty = typeof<float32> then
+            "float32"
+        elif ty = typeof<int32> then
+            "int32"
+        else
+            failwith $"Invalid data kind: {ty.FullName}"
+    let data = Json.JsonSerializer.Serialize<_>(input)
 
-    let buffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.StructuredBufferReadWrite, uint32(sizeof<'T>), true))
-    graphicsDevice.UpdateBuffer(buffer, 0u, input)
+    use p = 
+        let gpuTest = """C:\work\Evergreen\src\managed\Engine\bin\dotnet\gpu_test.olyx\gpu_test.dll"""
+        let inputJson = $"""{{ \"ShaderKind\": \"compute\", \"DataKind\": \"{dataKind}\", \"Data\": """ + data + " }"
+        new Oly.Core.ExternalProcess(
+            "dotnet",
+            $"""{gpuTest} "" "{inputJson}" "{shaderPath}" """
+        )
 
-    let computeShaderDesc = ShaderDescription(
-        ShaderStages.Compute,
-        spvComputeBytes.ToArray(),
-        "main")
+    let output = p.RunAsync(Threading.CancellationToken.None).Result
+    if String.IsNullOrWhiteSpace(output.Errors) then
+        Json.JsonSerializer.Deserialize<'T[]>(output.Output)
+    else
+        failwith output.Errors
 
-    let shader = factory.CreateFromSpirv(computeShaderDesc)
+    //let mutable windowCI = 
+    //    new WindowCreateInfo
+    //        (
+    //            X = 0,
+    //            Y = 0,
+    //            WindowWidth = 256,
+    //            WindowHeight = 256,
+    //            WindowTitle = "SpirV Test"
+    //        )
+    //windowCI.WindowInitialState <- WindowState.Hidden
+    //let window = VeldridStartup.CreateWindow(&windowCI);
+    //let options = 
+    //    new GraphicsDeviceOptions
+    //        (
+    //            PreferStandardClipSpaceYDirection = true,
+    //            PreferDepthRangeZeroToOne = true,
+    //            Debug = true
+    //        )
+    //let graphicsDevice = VeldridStartup.CreateVulkanGraphicsDevice(options, window)
+    //let factory = graphicsDevice.ResourceFactory
 
-    let resDesc = ResourceLayoutDescription(ResourceLayoutElementDescription("buffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute))
-    let layout = factory.CreateResourceLayout(resDesc)
+    //// ----
 
-    let mutable pipelineDescription = ComputePipelineDescription(shader, [|layout|], 1u, 1u, 1u)
-    let pipeline = factory.CreateComputePipeline(pipelineDescription)
+    //let buffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.StructuredBufferReadWrite, uint32(sizeof<'T>), true))
+    //graphicsDevice.UpdateBuffer(buffer, 0u, input)
 
-    // ----
+    //let computeShaderDesc = ShaderDescription(
+    //    ShaderStages.Compute,
+    //    spvComputeBytes.ToArray(),
+    //    "main")
 
-    let resSetDesc = ResourceSetDescription(layout, buffer)
-    let resSet = factory.CreateResourceSet(resSetDesc)
+    //let shader = factory.CreateFromSpirv(computeShaderDesc)
 
-    let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.Staging, 0u, false))
-    graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<'T> input.Length)
+    //let resDesc = ResourceLayoutDescription(ResourceLayoutElementDescription("buffer", ResourceKind.StructuredBufferReadWrite, ShaderStages.Compute))
+    //let layout = factory.CreateResourceLayout(resDesc)
 
-    let commandList = factory.CreateCommandList()
+    //let mutable pipelineDescription = ComputePipelineDescription(shader, [|layout|], 1u, 1u, 1u)
+    //let pipeline = factory.CreateComputePipeline(pipelineDescription)
 
-    commandList.Begin()
+    //// ----
 
-    commandList.SetPipeline(pipeline);
-    commandList.SetComputeResourceSet(0u, resSet)
-    commandList.Dispatch(uint32(input.Length), 1u, 1u)
+    //let resSetDesc = ResourceSetDescription(layout, buffer)
+    //let resSet = factory.CreateResourceSet(resSetDesc)
 
-    commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<'T> * input.Length))
+    //let readBuffer = factory.CreateBuffer(BufferDescription(uint32(sizeof<'T> * input.Length), BufferUsage.Staging, 0u, false))
+    //graphicsDevice.UpdateBuffer(buffer, 0u, Array.zeroCreate<'T> input.Length)
 
-    commandList.End()
+    //let commandList = factory.CreateCommandList()
 
-    graphicsDevice.SubmitCommands(commandList)
-    graphicsDevice.WaitForIdle()
-    commandList.Dispose()
+    //commandList.Begin()
 
-    let output = Array.zeroCreate input.Length
-    let mapped = graphicsDevice.Map(readBuffer, MapMode.Read)
-    let mappedSpan = Span<'T>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<'T>)
-    mappedSpan.CopyTo(Span(output))
-    graphicsDevice.Unmap(readBuffer)
+    //commandList.SetPipeline(pipeline);
+    //commandList.SetComputeResourceSet(0u, resSet)
+    //commandList.Dispatch(uint32(input.Length), 1u, 1u)
 
-    // ----
-    window.Close()
-    pipeline.Dispose()
-    resSet.Dispose()
-    shader.Dispose()
-    commandList.Dispose()
-    buffer.Dispose()
-    graphicsDevice.Dispose()
+    //commandList.CopyBuffer(buffer, 0u, readBuffer, 0u, uint32(sizeof<'T> * input.Length))
 
-    output
+    //commandList.End()
+
+    //graphicsDevice.SubmitCommands(commandList)
+    //graphicsDevice.WaitForIdle()
+    //commandList.Dispose()
+
+    //let output = Array.zeroCreate input.Length
+    //let mapped = graphicsDevice.Map(readBuffer, MapMode.Read)
+    //let mappedSpan = Span<'T>(mapped.Data |> NativeInterop.NativePtr.ofNativeInt<byte> |> NativeInterop.NativePtr.toVoidPtr, int32(mapped.SizeInBytes) / sizeof<'T>)
+    //mappedSpan.CopyTo(Span(output))
+    //graphicsDevice.Unmap(readBuffer)
+
+    //// ----
+    //window.Close()
+    //pipeline.Dispose()
+    //resSet.Dispose()
+    //shader.Dispose()
+    //commandList.Dispose()
+    //buffer.Dispose()
+    //graphicsDevice.Dispose()
+
+    //output
