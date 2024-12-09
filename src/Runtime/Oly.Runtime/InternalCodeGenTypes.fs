@@ -299,8 +299,9 @@ type RuntimeParameter =
 
 [<Flags>]
 type RuntimeEntityFlags =
-    | None      = 0b000000
-    | Intrinsic = 0b000001
+    | None           = 0b000000
+    | Intrinsic      = 0b000001
+    | DisableErasure = 0b000010
 
 [<NoComparison;NoEquality;RequireQualifiedAccess>]
 type RuntimeEntityInfo =
@@ -348,6 +349,21 @@ type RuntimeEntity =
     member this.Implements = this.ImplementsLazy.Value
     member this.Fields = this.FieldsLazy.Value
     member this.RuntimeType = this.RuntimeTypeLazy.Value
+
+    member this.WithNoErasure() =
+        if this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) || this.IsExported || this.TypeParameters.IsEmpty then
+            this
+        else
+            if this.IsFormal then
+                let newEnt = { this with Info = { this.Info with Flags = this.Info.Flags ||| RuntimeEntityFlags.DisableErasure } }
+                newEnt.Info.Formal <- newEnt
+                newEnt.AsType <- RuntimeType.Entity(newEnt)
+                newEnt
+            else
+                let newFormalEnt = { this.Formal with Info = { this.Formal.Info with Flags = this.Formal.Info.Flags ||| RuntimeEntityFlags.DisableErasure } }
+                newFormalEnt.Info.Formal <- newFormalEnt
+                newFormalEnt.AsType <- RuntimeType.Entity(newFormalEnt)
+                newFormalEnt.Apply(this.TypeArguments).SetWitnesses(this.Witnesses)
 
     member private this.FilterWitnesses(witnesses: RuntimeWitness imarray) =
         (this.TypeArguments, this.TypeParameters)
@@ -580,7 +596,7 @@ type RuntimeEntity =
 
             entNew
 
-    member this.Apply(tyArgs: RuntimeType imarray) =
+    member this.Apply(tyArgs: RuntimeType imarray) : RuntimeEntity =
         if this.TypeParameters.Length <> tyArgs.Length then
             failwith "Type argument count does not match type parameter count when applying."
 
@@ -1056,7 +1072,13 @@ type RuntimeType =
         | Entity(ent) -> ent.IsImported
         | _ -> false
 
-    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported
+    member this.CanGenericsBeErased = 
+        not this.IsExternal && not this.IsExported &&
+        (
+            match this with
+            | Entity(ent) -> ent.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) |> not
+            | _ -> true
+        )
 
     member this.Substitute(genericContext: GenericContext): RuntimeType =
         if genericContext.IsEmpty then
