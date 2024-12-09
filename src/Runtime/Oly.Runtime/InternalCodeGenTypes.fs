@@ -13,6 +13,7 @@ open Oly.Core.TaskExtensions
 module private GenericContextDefault =
     let Instance =
         {
+            envFunctionIsErasing = true
             enclosingTyArgs = ImArray.empty
             funcTyArgs = ImArray.empty
             isTyErasing = false
@@ -22,6 +23,7 @@ module private GenericContextDefault =
 
     let InstanceTypeErasing =
         {
+            envFunctionIsErasing = true
             enclosingTyArgs = ImArray.empty
             funcTyArgs = ImArray.empty
             isTyErasing = true
@@ -32,6 +34,7 @@ module private GenericContextDefault =
 [<NoEquality;NoComparison>]
 type GenericContext =
     private {
+        envFunctionIsErasing: bool
         enclosingTyArgs: RuntimeType imarray
         funcTyArgs: RuntimeType imarray
         isTyErasing: bool
@@ -48,6 +51,7 @@ type GenericContext =
             GenericContext.Default
         else
             {
+                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = funcTyArgs
                 isTyErasing = false
@@ -60,6 +64,7 @@ type GenericContext =
             GenericContext.Default
         else
             {
+                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = ImArray.empty
                 isTyErasing = false
@@ -72,6 +77,7 @@ type GenericContext =
             GenericContext.Default
         else
             {
+                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = funcTyArgs
                 isTyErasing = false
@@ -84,6 +90,7 @@ type GenericContext =
             GenericContextDefault.InstanceTypeErasing
         else
             {
+                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = ImArray.empty
                 isTyErasing = true
@@ -181,6 +188,8 @@ type GenericContext =
     member this.IsErasingType = this.isTyErasing
 
     member this.IsErasingFunction = this.isFuncErasing
+
+    member this.IsErasingEnvironmentFunction = this.envFunctionIsErasing
 
     member this.IsEmpty = this.enclosingTyArgs.IsEmpty && this.funcTyArgs.IsEmpty
 
@@ -1079,8 +1088,10 @@ type RuntimeType =
         not this.IsExternal && not this.IsExported &&
         (
             match this with
-            | Entity(ent) -> ent.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) |> not
-            | _ -> true
+            | Entity(ent) -> 
+                ent.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) |> not
+            | _ -> 
+                true
         )
 
     member this.Substitute(genericContext: GenericContext): RuntimeType =
