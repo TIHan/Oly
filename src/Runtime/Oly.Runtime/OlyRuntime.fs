@@ -2877,6 +2877,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 ilFuncTyArgs
                 |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
 
+            let funcInst: RuntimeFunction = vm.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext)
+
             let witnesses =
                 let fixedGenericContext =
                     // TODO: This could add support for witness resolving for type parameters on types.
@@ -2886,7 +2888,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     //    else 
                     //        funcTyArgs
                     if genericContext.IsErasingFunction then
-                        GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
+                        GenericContext.CreateFunctionTypeArgumentsFromTypeParameters(funcTyArgs, funcInst.TypeParameters)
+                       // GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
                     else                     
                         GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)
                 ilWitnesses
@@ -2898,8 +2901,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 enclosing.AsType.Witnesses.AddRange(witnesses.AddRange(passedWitnesses))
                 |> Seq.distinct
                 |> ImArray.ofSeq
-
-            let funcInst = vm.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext)
 
             let witnessFuncOpt =
                 match ilEnclosing with

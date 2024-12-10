@@ -47,6 +47,21 @@ type GenericContext =
 
     static member Default = GenericContextDefault.Instance
 
+    static member CreateFunctionTypeArgumentsFromTypeParameters(tyArgs: RuntimeType imarray, tyPars: RuntimeTypeParameter imarray) =
+        let funcTyArgsEraseBits = ImArray.builderWithSize tyPars.Length
+
+        tyPars
+        |> ImArray.iter (fun tyPar ->
+            funcTyArgsEraseBits.Add(true)
+        )
+
+        { GenericContext.Default with
+            funcTyArgs = tyArgs
+            funcTyArgsEraseBits = funcTyArgsEraseBits.MoveToImmutable()
+            isTyErasing = false
+            isFuncErasing = true
+        }
+
     static member CreateFromEnclosingType(enclosingTy: RuntimeType, funcTyArgs: _ imarray) =
         let enclosingTyArgs = enclosingTy.TypeArguments
         if enclosingTyArgs.IsEmpty && funcTyArgs.IsEmpty then
@@ -140,6 +155,7 @@ type GenericContext =
 
         { this with
             funcTyArgs = this.funcTyArgs.AddRange(funcTyArgs)
+            funcTyArgsEraseBits = this.funcTyArgsEraseBits.AddRange(ImArray.init funcTyArgs.Length (fun _ -> false))
             isFuncErasing = false
         }
 
@@ -149,6 +165,7 @@ type GenericContext =
 
         { this with
             funcTyArgs = this.funcTyArgs.AddRange(funcTyArgs)
+            funcTyArgsEraseBits = this.funcTyArgsEraseBits.AddRange(ImArray.init funcTyArgs.Length (fun _ -> true))
             isFuncErasing = true
         }
 
@@ -1371,7 +1388,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
     member _.Enclosing = state.Enclosing
     member _.Name = state.Name
     member _.TypeArguments = state.TypeArguments
-    member _.TypeParameters = state.TypeParameters
+    member _.TypeParameters: RuntimeTypeParameter imarray = state.TypeParameters
 
     /// Does not include the receiver.
     member _.Parameters = state.Parameters
