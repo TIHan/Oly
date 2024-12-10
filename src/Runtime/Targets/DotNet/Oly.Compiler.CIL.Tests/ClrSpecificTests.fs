@@ -8205,3 +8205,137 @@ module Main =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "14"
+
+[<Fact>]
+let ``Able to use non-exported type inside an exported function 2``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): mutable T[] =
+        class NonExportedClass =
+
+            Value: mutable T[] get
+
+            new(xs: mutable T[]) =
+                {
+                    Value = xs
+                }
+        let xs = NonExportedClass(input)
+        xs.Value
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4])
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "14"
+
+[<Fact>]
+let ``Able to use non-exported type inside an exported function 3``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+class NonExportedClass<T> =
+
+    Value: mutable T[] get
+
+    new(xs: mutable T[]) =
+        {
+            Value = xs
+        }
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): mutable T[] =
+        let f() =
+            let xs = NonExportedClass(input)
+            xs.Value
+        f()
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4])
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "14"
+
+[<Fact>]
+let ``Able to use non-exported type inside an exported function 4``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): mutable T[] =
+        class NonExportedClass =
+
+            Value: mutable T[] get
+
+            new(xs: mutable T[]) =
+                {
+                    Value = xs
+                }
+        let f() =
+            let xs = NonExportedClass(input)
+            xs.Value
+        f()
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4])
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "14"

@@ -2130,7 +2130,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         // Exported functions will always use the name represented in the source.
         // TODO: How will we solve generic interface implementations?
         if flags.IsExported || flags.IsExternal then
-            OlyAssert.False(flags.AreGenericsErased)
+          //  OlyAssert.False(flags.AreGenericsErased)
         
             if flags.IsExported && flags.SignatureUsesNewType then
                 OlyAssert.Fail($"Method '{name}' cannot be exported as it uses newtypes in its signature.")

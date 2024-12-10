@@ -13,7 +13,6 @@ open Oly.Core.TaskExtensions
 module private GenericContextDefault =
     let Instance =
         {
-            envFunctionIsErasing = true
             enclosingTyArgs = ImArray.empty
             funcTyArgs = ImArray.empty
             isTyErasing = false
@@ -23,7 +22,6 @@ module private GenericContextDefault =
 
     let InstanceTypeErasing =
         {
-            envFunctionIsErasing = true
             enclosingTyArgs = ImArray.empty
             funcTyArgs = ImArray.empty
             isTyErasing = true
@@ -34,7 +32,6 @@ module private GenericContextDefault =
 [<NoEquality;NoComparison>]
 type GenericContext =
     private {
-        envFunctionIsErasing: bool
         enclosingTyArgs: RuntimeType imarray
         funcTyArgs: RuntimeType imarray
         isTyErasing: bool
@@ -51,7 +48,6 @@ type GenericContext =
             GenericContext.Default
         else
             {
-                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = funcTyArgs
                 isTyErasing = false
@@ -64,7 +60,6 @@ type GenericContext =
             GenericContext.Default
         else
             {
-                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = ImArray.empty
                 isTyErasing = false
@@ -77,7 +72,6 @@ type GenericContext =
             GenericContext.Default
         else
             {
-                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = funcTyArgs
                 isTyErasing = false
@@ -90,7 +84,6 @@ type GenericContext =
             GenericContextDefault.InstanceTypeErasing
         else
             {
-                envFunctionIsErasing = true
                 enclosingTyArgs = enclosingTyArgs
                 funcTyArgs = ImArray.empty
                 isTyErasing = true
@@ -105,10 +98,6 @@ type GenericContext =
             this
         else
             { this with passedWitnesses = witnesses }
-
-    member this.SetErasingEnvironmentFunction(value: bool) =
-        if this.envFunctionIsErasing = value then this
-        else { this with envFunctionIsErasing = value }
 
     member this.FunctionTypeArguments =
         this.funcTyArgs
@@ -192,8 +181,6 @@ type GenericContext =
     member this.IsErasingType = this.isTyErasing
 
     member this.IsErasingFunction = this.isFuncErasing
-
-    member this.IsErasingEnvironmentFunction = this.envFunctionIsErasing
 
     member this.IsEmpty = this.enclosingTyArgs.IsEmpty && this.funcTyArgs.IsEmpty
 
@@ -312,9 +299,8 @@ type RuntimeParameter =
 
 [<Flags>]
 type RuntimeEntityFlags =
-    | None           = 0b000000
-    | Intrinsic      = 0b000001
-    | DisableErasure = 0b000010
+    | None            = 0b000000
+    | Intrinsic       = 0b000001
 
 [<NoComparison;NoEquality;RequireQualifiedAccess>]
 type RuntimeEntityInfo =
@@ -362,21 +348,6 @@ type RuntimeEntity =
     member this.Implements = this.ImplementsLazy.Value
     member this.Fields = this.FieldsLazy.Value
     member this.RuntimeType = this.RuntimeTypeLazy.Value
-
-    member this.WithNoErasure() =
-        if this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) || this.IsExported || this.TypeParameters.IsEmpty || this.IsImported then
-            this
-        else
-            if this.IsFormal then
-                let newEnt = { this with Info = { this.Info with Flags = this.Info.Flags ||| RuntimeEntityFlags.DisableErasure } }
-                newEnt.Info.Formal <- newEnt
-                newEnt.AsType <- RuntimeType.Entity(newEnt)
-                newEnt
-            else
-                let newFormalEnt = { this.Formal with Info = { this.Formal.Info with Flags = this.Formal.Info.Flags ||| RuntimeEntityFlags.DisableErasure } }
-                newFormalEnt.Info.Formal <- newFormalEnt
-                newFormalEnt.AsType <- RuntimeType.Entity(newFormalEnt)
-                newFormalEnt.Apply(this.TypeArguments).SetWitnesses(this.Witnesses)
 
     member private this.FilterWitnesses(witnesses: RuntimeWitness imarray) =
         (this.TypeArguments, this.TypeParameters)
@@ -686,9 +657,6 @@ type RuntimeEntity =
             (
                 (this.Witnesses, o.Witnesses)
                 ||> ImArray.forall2 (=)
-            ) &&
-            (
-                this.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) = o.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure)
             )
 
 let emptyEnclosing = RuntimeEnclosing.Namespace(ImArray.empty)
@@ -1088,15 +1056,7 @@ type RuntimeType =
         | Entity(ent) -> ent.IsImported
         | _ -> false
 
-    member this.CanGenericsBeErased = 
-        not this.IsExternal && not this.IsExported &&
-        (
-            match this with
-            | Entity(ent) -> 
-                ent.Info.Flags.HasFlag(RuntimeEntityFlags.DisableErasure) |> not
-            | _ -> 
-                true
-        )
+    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported
 
     member this.Substitute(genericContext: GenericContext): RuntimeType =
         if genericContext.IsEmpty then
@@ -1439,7 +1399,13 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
 
     member this.IsExternal = state.Flags.IsExternal
 
-    member this.IsExported = state.Enclosing.IsExported
+    member this.IsExported =
+        if this.Flags.IsConstructor then
+            this.EnclosingType.IsExported
+        else
+            let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
+            ilFuncDef.Attributes
+            |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
 
     member this.IsMutable =
         let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
@@ -1610,8 +1576,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         )
 
     member this.CanGenericsBeErased =
-        not this.IsExternal && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty)) &&
-        this.EnclosingType.CanGenericsBeErased
+        not this.IsExternal && not this.IsExported && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty))
 
     /// REVIEW: Consider caching this?
     member this.ComputeSignatureKey() =

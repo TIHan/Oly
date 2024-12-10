@@ -31,13 +31,13 @@ let createGenericContextFromFunction canErase (func: RuntimeFunction) =
 
     let genericContext =
         if isTyErased then
-            GenericContext.CreateErasing(func.Enclosing.TypeArguments).SetErasingEnvironmentFunction(canErase)
+            GenericContext.CreateErasing(func.Enclosing.TypeArguments)
         else
-            GenericContext.Create(func.Enclosing.TypeArguments).SetErasingEnvironmentFunction(canErase)
+            GenericContext.Create(func.Enclosing.TypeArguments)
     if isFuncErased then
-        genericContext.AddErasingFunctionTypeArguments(func.TypeArguments).SetErasingEnvironmentFunction(canErase)
+        genericContext.AddErasingFunctionTypeArguments(func.TypeArguments)
     else
-        genericContext.AddFunctionTypeArguments(func.TypeArguments).SetErasingEnvironmentFunction(canErase)
+        genericContext.AddFunctionTypeArguments(func.TypeArguments)
 
 let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
     match ilEntInst with
@@ -163,7 +163,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
 
     let cache = Dictionary<OlyILEntityDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, RuntimeType>>()
 
-    member this.GetOrCreate(handle: OlyILEntityDefinitionHandle, fullTyArgs: RuntimeType imarray, canErase: bool) =   
+    member this.GetOrCreate(handle: OlyILEntityDefinitionHandle, fullTyArgs: RuntimeType imarray) =   
         let instances =
             match cache.TryGetValue(handle) with
             | true, instances -> instances
@@ -175,7 +175,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
         match instances.TryGetValue(fullTyArgs) with
         | ValueSome res -> res
         | _ ->
-            let formalTy = runtime.ResolveTypeDefinition(ilAsm, handle, canErase)
+            let formalTy = runtime.ResolveTypeDefinition(ilAsm, handle)
             let res = formalTy.Apply(fullTyArgs)
             instances.[fullTyArgs] <- res
             res            
@@ -197,7 +197,12 @@ type internal RuntimeAssembly<'Type, 'Function, 'Field> =
         RuntimeFieldReferenceCache: RuntimeFieldReferenceCache<'Type, 'Function, 'Field>
 
         TypesThatInheritOrImplementType: Dictionary<OlyILEntityDefinitionHandle, ResizeArray<RuntimeType>>
-    }  
+    }
+
+    member this.GetEmittedFunctionDefinition(func: RuntimeFunction) =
+        match this.FunctionDefinitionCache.TryGetValue func.ILFunctionDefinitionHandle with
+        | true, (_, emitted) -> emitted
+        | _ -> failwithf "Function definition not cached: %A" func.Name
 
 let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Type, 'Function, 'Field>) (enclosingTy: RuntimeType) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
     let asm = runtime.Assemblies[enclosingTy.AssemblyIdentity]
@@ -210,9 +215,11 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
     if enclosingTy.IsBuiltIn then
         failwith "Expected non-built-in type."
 
+    let genericContext = GenericContext.Default
+
     let enclosing = RuntimeEnclosing.Type(enclosingTy)
 
-    let returnTy = runtime.ResolveType(ilAsm, ilFuncSpec.ReturnType, GenericContext.Default)
+    let returnTy = runtime.ResolveType(ilAsm, ilFuncSpec.ReturnType, genericContext)
 
     let isExternal =
         ilFuncDef.Attributes
@@ -250,7 +257,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 |> ImArray.choose (fun ilConstr ->
                     match ilConstr with
                     | OlyILConstraint.SubtypeOf(ilTy) ->
-                        runtime.ResolveType(ilAsm, ilTy, GenericContext.Default)
+                        runtime.ResolveType(ilAsm, ilTy, genericContext)
                         |> Some
                     | _ ->
                         None
@@ -261,7 +268,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 |> ImArray.choose (fun ilConstr ->
                     match ilConstr with
                     | OlyILConstraint.TraitType(ilTy) ->
-                        runtime.ResolveType(ilAsm, ilTy, GenericContext.Default)
+                        runtime.ResolveType(ilAsm, ilTy, genericContext)
                         |> Some
                     | _ ->
                         None
@@ -288,14 +295,14 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             { 
                 Attributes = ilPar.Attributes |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
-                Type = runtime.ResolveType(ilAsm, ilPar.Type, GenericContext.Default)
+                Type = runtime.ResolveType(ilAsm, ilPar.Type, genericContext)
             } : RuntimeParameter
         )
 
     let overrides =
         ilFuncDef.Overrides
         |> Option.map (fun x ->
-            runtime.ResolveFunction(ilAsm, x, GenericContext.Default)
+            runtime.ResolveFunction(ilAsm, x, genericContext)
         )
 
     let attrs =
@@ -1433,12 +1440,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 irArgs[0], enclosingTy.RuntimeType.Value
             else
 
-            let emittedFunc = 
-                if env.GenericContext.IsErasingEnvironmentFunction then
-                    cenv.EmitFunction(func)
-                else
-                    cenv.EmitFunctionNoErasure(func)
-
+            let emittedFunc = cenv.EmitFunction(func)
             let emittedEnclosingTy = cenv.EmitType(enclosingTy)
 
             let irFunc = OlyIRFunction(emittedFunc, func)
@@ -1643,7 +1645,7 @@ let importFunctionBody
         (genericContext: GenericContext) : OlyIRFunctionBody<'Type, 'Function, 'Field> =
 
     let asm = vm.Assemblies[asmIdentity]
-    let enclosingTy = vm.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle, genericContext.IsErasingEnvironmentFunction)
+    let enclosingTy = vm.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
     let func = vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
 
     OlyAssert.True(func.IsFormal)
@@ -1697,7 +1699,7 @@ let importFunctionBody
         ilFuncBody, 
         argTys, 
         func.ReturnType, 
-        genericContext.SetPassedWitnesses(func.Witnesses).SetErasingEnvironmentFunction(func.CanGenericsBeErased || func.TypeParameters.IsEmpty)
+        genericContext.SetPassedWitnesses(func.Witnesses)
     )
     //with
     //| ex ->
@@ -1740,7 +1742,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     let resolveFunctionDefinition (enclosingTy: RuntimeType) ilFuncDefHandle =
         OlyAssert.True(enclosingTy.IsFormal)
         let asm = assemblies[enclosingTy.AssemblyIdentity]
-        
+
         match asm.FunctionDefinitionCache.TryGetValue ilFuncDefHandle with
         | true, (res, _) -> res
         | _ ->
@@ -2673,7 +2675,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         false
                 )
                 |> ImArray.map (fun ilEntDefHandle ->
-                    this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle, true)
+                    this.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
                 )
             )
             |> Seq.concat
@@ -2760,7 +2762,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeHigherVariable _ ->
                 failwith "Invalid primitive IL type."
             | _ ->
-                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle, true)
+                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle)
                 addPrimitiveType (this.ResolveType(ilAsm, ilTy, GenericContext.Default)) ty
         )
 
@@ -2795,7 +2797,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             ilAsm.EntityDefinitions
             |> Seq.iter (fun (ilEntDefHandle, ilEntDef) ->
                 if not ilEntDef.IsExternal && ilEntDef.IsExported then
-                    let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle, true)
+                    let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefHandle)
                     this.EmitType(ty) |> ignore
             )
         )
@@ -3244,16 +3246,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let witnessOpt = this.TryFindPossibleWitness(ty, abstractTy, possibleWitnesses)
             RuntimeEnclosing.Witness(ty, abstractTy, witnessOpt)
 
-    member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, canErase: bool) : RuntimeType =
-        let ty = this.ResolveTypeDefinitionAux(ilAsm, ilEntDefOrRefHandle)
-        if canErase then
-            ty
-        else
-            match ty with
-            | RuntimeType.Entity(ent) ->
-                ent.WithNoErasure().AsType
-            | _ ->
-                ty     
+    member this.ResolveTypeDefinition(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
+        this.ResolveTypeDefinitionAux(ilAsm, ilEntDefOrRefHandle)  
 
     member this.ResolveTypeDefinitionAux(ilAsm: OlyILReadOnlyAssembly, ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) : RuntimeType =
         let asm = assemblies.[ilAsm.Identity]
@@ -3518,14 +3512,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             if ty.IsTypeConstructor then
                 let ty = ty.Apply(tyArgs)
                 let asm = assemblies.[ty.AssemblyIdentity]
-                asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments, genericContext.IsErasingEnvironmentFunction)
+                asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
             else
                 failwith "Invalid type constructor."
 
         | OlyILTypeEntity(ilEntInst) ->
             match ilEntInst with
             | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs) ->
-                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle, genericContext.IsErasingEnvironmentFunction)
+                let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
 #if DEBUG || CHECKED
                 OlyAssert.Equal(ty.TypeParameters.Length, ilTyArgs.Length)
 #endif
@@ -3534,9 +3528,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 else
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
                     let asm = assemblies.[ty.AssemblyIdentity]
-                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs, genericContext.IsErasingEnvironmentFunction).SetWitnesses(genericContext.PassedWitnesses)
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(genericContext.PassedWitnesses)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
-                this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle, genericContext.IsErasingEnvironmentFunction)
+                this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
 
         | OlyILTypeForAll(ilTyPars, ilInnerTy) ->
             let tyPars =
@@ -3681,7 +3675,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 if tyParCount <> arity then 
                     ()
                 elif this.AreILEnclosingsEqual(ilAsmOrig, ilEnclosing, ilAsm, ilEntDef.Enclosing) then
-                    builder.Add(this.ResolveTypeDefinition(ilAsm, handle, true))
+                    builder.Add(this.ResolveTypeDefinition(ilAsm, handle))
         )
 
         // If we did not find any type definitions,
@@ -3700,7 +3694,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     if tyParCount <> arity then 
                         ()
                     elif this.AreILEnclosingsEqual(ilAsmOrig, ilEnclosing, ilAsm, ilEntRef.Enclosing) then
-                        builder.Add(this.ResolveTypeDefinition(ilAsm, handle, true))
+                        builder.Add(this.ResolveTypeDefinition(ilAsm, handle))
             )
 
 
@@ -3925,229 +3919,226 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         //    if func.Flags.IsFinal then
         //        failwith $"Static function '{func.Name}' cannot be final."
 
-        match asm.FunctionDefinitionCache.TryGetValue(func.ILFunctionDefinitionHandle) with
-        | true, (_, emitted) ->
-            let key = struct(isErasingFunc, enclosingTy, funcTyArgs, witnesses, true)
+        let emitted = asm.GetEmittedFunctionDefinition(func)
+        let key = struct(isErasingFunc, enclosingTy, funcTyArgs, witnesses, true)
+        match emitted.TryGetValue(key) with
+        | ValueSome(emittedFunc) -> 
+            emittedFunc
+        | _ ->
+            if func.EnclosingType.IsEnum && func.Flags.IsInstance then
+                failwith "Instance member functions on an 'enum' are not allowed."
+
+            let enclosingTyParCount = enclosingTy.TypeArguments.Length
+
+            let ilAsm = asm.ilAsm
+
+            let tyPars = 
+                if isErasingFunc then
+                    ImArray.empty
+                else
+                    func.TypeParameters 
+                    |> ImArray.map (fun tyPar -> 
+                        OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints genericContext)
+                    )
+
+            let pars = 
+                func.Parameters 
+                |> ImArray.map (fun par -> 
+                    let attrs =
+                        if par.Attributes.IsEmpty then
+                            Lazy<_>.CreateFromValue(ImArray.empty)
+                        else
+                            lazy
+                                emitAttributes ilAsm par.Attributes
+                    OlyIRParameter(attrs, par.Name, this.EmitType(par.Type), true)
+                )
+
+            let overrides =
+                func.Overrides 
+                |> Option.map (fun x -> 
+                    // We must pass witnesses to the overriden function.
+                    if x.EnclosingType.CanGenericsBeErased && isErasingFunc then
+                        let enclosingTy = 
+                            x.EnclosingType.Substitute(genericContext)
+                        let genericContext = GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
+                        let funcTyArgs =
+                            x.TypeArguments
+                            |> ImArray.map (fun x -> 
+                                x.Substitute(genericContext)
+                            )
+                        this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
+                    else
+                        // We should not have witnesses to pass here.
+                        if not witnesses.IsEmpty then
+                            OlyAssert.Fail("Did not expected witnesses for overrides function.")
+                        if x.EnclosingType.TypeParameters.IsEmpty then
+                            if isErasingFunc then
+                                this.EmitFunction(x.Formal)
+                            else
+                                this.EmitFunctionNoErasure(x.Formal)                                   
+                        else
+                            let enclosingTy = 
+                                x.EnclosingType.Substitute(genericContext)
+                            this.EmitFunction(x.Formal.MakeReference(enclosingTy))
+                )
+
+            let flags = func.Flags
+            let flags =
+                if isErasingFunc then
+                    if func.TypeParameters.IsEmpty then
+                        flags
+                    else
+                        flags.SetGenericsErased()
+                else
+                    flags
+
+            let returnTy = this.EmitType(func.ReturnType)
+            let emittedEnclosingTy = 
+                if enclosingTy.IsNewtype then
+                    // We need to actually emit the newtype as a type definition here
+                    // so the function can be emitted correctly.
+                    emitTypeDefinition enclosingTy
+                else
+                    this.EmitType(enclosingTy)
+
             match emitted.TryGetValue(key) with
             | ValueSome(emittedFunc) -> 
                 emittedFunc
             | _ ->
-                if func.EnclosingType.IsEnum && func.Flags.IsInstance then
-                    failwith "Instance member functions on an 'enum' are not allowed."
 
-                let enclosingTyParCount = enclosingTy.TypeArguments.Length
+            let sigKey = func.ComputeSignatureKey()
 
-                let ilAsm = asm.ilAsm
+            let irAttrs = emitAttributes ilAsm func.Attributes
 
-                let tyPars = 
-                    if isErasingFunc then
-                        ImArray.empty
-                    else
-                        func.TypeParameters 
-                        |> ImArray.map (fun tyPar -> 
-                            OlyIRTypeParameter(tyPar.Name, emitConstraints ilAsm tyPar.ILConstraints genericContext)
-                        )
+            pars
+            |> ImArray.iter (fun par ->
+                match par with
+                | OlyIRParameter(attrs=attrs) -> attrs.Force() |> ignore
+            )
 
-                let pars = 
-                    func.Parameters 
-                    |> ImArray.map (fun par -> 
-                        let attrs =
-                            if par.Attributes.IsEmpty then
-                                Lazy<_>.CreateFromValue(ImArray.empty)
-                            else
-                                lazy
-                                    emitAttributes ilAsm par.Attributes
-                        OlyIRParameter(attrs, par.Name, this.EmitType(par.Type), true)
-                    )
+            let externalInfoOpt =
+                if func.IsExternal then
+                    func.TryGetExternalInfo()
+                else
+                    None
 
-                let overrides =
-                    func.Overrides 
-                    |> Option.map (fun x -> 
-                        // We must pass witnesses to the overriden function.
-                        if x.EnclosingType.CanGenericsBeErased && isErasingFunc then
-                            let enclosingTy = 
-                                x.EnclosingType.Substitute(genericContext)
-                            let genericContext = GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
-                            let funcTyArgs =
-                                x.TypeArguments
-                                |> ImArray.map (fun x -> 
-                                    x.Substitute(genericContext)
-                                )
-                            this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
-                        else
-                            // We should not have witnesses to pass here.
-                            if not witnesses.IsEmpty then
-                                OlyAssert.Fail("Did not expected witnesses for overrides function.")
-                            if x.EnclosingType.TypeParameters.IsEmpty then
-                                if isErasingFunc then
-                                    this.EmitFunction(x.Formal)
+            let flags, pars =
+                if func.EnclosingType.IsNewtype then
+                    OlyAssert.True(overrides.IsNone)
+                    OlyAssert.False(func.Flags.IsConstructor && func.Flags.IsInstance)
+                    OlyAssert.True(externalInfoOpt.IsNone)
+
+                    let pars =
+                        if func.Flags.IsInstance then
+                            let fakeReceiverTy =
+                                let extendsTy = func.EnclosingType.RuntimeType.Value
+                                if extendsTy.IsAnyStruct then
+                                    createByReferenceRuntimeType OlyIRByRefKind.ReadOnly extendsTy
                                 else
-                                    this.EmitFunctionNoErasure(x.Formal)                                   
-                            else
-                                let enclosingTy = 
-                                    x.EnclosingType.Substitute(genericContext)
-                                this.EmitFunction(x.Formal.MakeReference(enclosingTy))
-                    )
-
-                let flags = func.Flags
-                let flags =
-                    if isErasingFunc then
-                        if func.TypeParameters.IsEmpty then
-                            flags
+                                    extendsTy
+                            pars
+                            |> ImArray.prependOne (OlyIRParameter(Lazy<_>.CreateFromValue(ImArray.empty), "", this.EmitType(fakeReceiverTy), false))
                         else
-                            flags.SetGenericsErased()
-                    else
-                        flags
+                            pars
 
-                let returnTy = this.EmitType(func.ReturnType)
-                let emittedEnclosingTy = 
-                    if enclosingTy.IsNewtype then
-                        // We need to actually emit the newtype as a type definition here
-                        // so the function can be emitted correctly.
-                        emitTypeDefinition enclosingTy
-                    else
-                        this.EmitType(enclosingTy)
+                    flags.SetStatic(), pars
+                else
+                    flags, pars
 
-                match emitted.TryGetValue(key) with
-                | ValueSome(emittedFunc) -> 
-                    emittedFunc
-                | _ ->
-
-                let sigKey = func.ComputeSignatureKey()
-
-                let irAttrs = emitAttributes ilAsm func.Attributes
-
-                pars
-                |> ImArray.iter (fun par ->
-                    match par with
-                    | OlyIRParameter(attrs=attrs) -> attrs.Force() |> ignore
-                )
-
-                let externalInfoOpt =
-                    if func.IsExternal then
-                        func.TryGetExternalInfo()
-                    else
-                        None
-
-                let flags, pars =
-                    if func.EnclosingType.IsNewtype then
-                        OlyAssert.True(overrides.IsNone)
-                        OlyAssert.False(func.Flags.IsConstructor && func.Flags.IsInstance)
-                        OlyAssert.True(externalInfoOpt.IsNone)
-
-                        let pars =
-                            if func.Flags.IsInstance then
-                                let fakeReceiverTy =
-                                    let extendsTy = func.EnclosingType.RuntimeType.Value
-                                    if extendsTy.IsAnyStruct then
-                                        createByReferenceRuntimeType OlyIRByRefKind.ReadOnly extendsTy
-                                    else
-                                        extendsTy
-                                pars
-                                |> ImArray.prependOne (OlyIRParameter(Lazy<_>.CreateFromValue(ImArray.empty), "", this.EmitType(fakeReceiverTy), false))
-                            else
-                                pars
-
-                        flags.SetStatic(), pars
-                    else
-                        flags, pars
-
-                let emittedFunc = this.Emitter.EmitFunctionDefinition(externalInfoOpt, emittedEnclosingTy, flags, func.Name, tyPars, pars, returnTy, overrides, sigKey, irAttrs)
-                emitted.[key] <- emittedFunc
+            let emittedFunc = this.Emitter.EmitFunctionDefinition(externalInfoOpt, emittedEnclosingTy, flags, func.Name, tyPars, pars, returnTy, overrides, sigKey, irAttrs)
+            emitted.[key] <- emittedFunc
 
 #if DEBUG || CHECKED
-                Log(
-                    let witnessText = 
-                        if witnesses.IsEmpty then
-                            ""
-                        else
-                            let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
-                            $" - Witnesses: {text}"
-                    $"Emitting Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
-                )
+            Log(
+                let witnessText = 
+                    if witnesses.IsEmpty then
+                        ""
+                    else
+                        let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                        $" - Witnesses: {text}"
+                $"Emitting Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+            )
 #endif
 
-                if func.HasILFunctionBody then
-                    emitFunctionBody func emittedFunc genericContext
+            if func.HasILFunctionBody then
+                emitFunctionBody func emittedFunc genericContext
+            else
+                if not func.Flags.IsAbstract && not func.Flags.IsExternal then
+                    invalidOp $"Expected function body for: {func.EnclosingType.Name}::{func.Name}"
+
+            let funcTyArgs = 
+                if genericContext.IsErasing then
+                    genericContext.TypeArguments
+                    |> ImArray.skip enclosingTy.TypeArguments.Length
+                    |> ImArray.ofSeq
                 else
-                    if not func.Flags.IsAbstract && not func.Flags.IsExternal then
-                        invalidOp $"Expected function body for: {func.EnclosingType.Name}::{func.Name}"
+                    ImArray.empty
 
-                let funcTyArgs = 
-                    if genericContext.IsErasing then
-                        genericContext.TypeArguments
-                        |> ImArray.skip enclosingTy.TypeArguments.Length
-                        |> ImArray.ofSeq
-                    else
-                        ImArray.empty
+            let ilFuncSpecHandle = ilAsm.GetFunctionDefinition(func.ILFunctionDefinitionHandle).SpecificationHandle
 
-                let ilFuncSpecHandle = ilAsm.GetFunctionDefinition(func.ILFunctionDefinitionHandle).SpecificationHandle
+            let tysThatInheritOrImplementTy =
+                let asm = assemblies.[enclosingTy.AssemblyIdentity]
+                match asm.TypesThatInheritOrImplementType.TryGetValue(enclosingTy.ILEntityDefinitionHandle) with
+                | true, tys -> tys |> ImArray.ofSeq
+                | _ -> ImArray.empty
 
-                let tysThatInheritOrImplementTy =
-                    let asm = assemblies.[enclosingTy.AssemblyIdentity]
-                    match asm.TypesThatInheritOrImplementType.TryGetValue(enclosingTy.ILEntityDefinitionHandle) with
-                    | true, tys -> tys |> ImArray.ofSeq
-                    | _ -> ImArray.empty
+            let isPrincipalFuncExternalOrExported = func.IsExternal || func.IsExported
 
-                let isPrincipalFuncExternalOrExported = func.IsExternal || func.IsExported
-
-                tysThatInheritOrImplementTy
-                |> ImArray.iter (fun ty ->
-                    if subsumesType func.EnclosingType ty then
-                        let funcs = this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, ty, funcTyArgs, genericContext)
-                        if funcs.IsEmpty then
-                            if func.Flags.IsAbstract then
-                                if not ty.IsAbstract then
-                                    let funcs =
-                                        if funcs.IsEmpty then
-                                            this.FindMostSpecificFunctionsInHierarchy(enclosingTyParCount, ilAsm, ilFuncSpecHandle, ty, funcTyArgs, genericContext)
-                                        else
-                                            funcs
-
-                                    let funcs =
-                                        if funcs.Length > 1 then
-                                            funcs
-                                            |> ImArray.filter (fun x ->
-                                                x.EnclosingType = ty
-                                            )
-                                        else
-                                            funcs
-
+            tysThatInheritOrImplementTy
+            |> ImArray.iter (fun ty ->
+                if subsumesType func.EnclosingType ty then
+                    let funcs = this.FindImmediateOverridenFunctionDefinitions(enclosingTyParCount, ilAsm, ilFuncSpecHandle, ty, funcTyArgs, genericContext)
+                    if funcs.IsEmpty then
+                        if func.Flags.IsAbstract then
+                            if not ty.IsAbstract then
+                                let funcs =
                                     if funcs.IsEmpty then
-                                        failwithf "When emitting function definition, function not found: %A" func.Name
-                                    elif funcs.Length > 1 then
-                                        failwithf "When emitting function definition, duplicate functions found: %A" func.Name
+                                        this.FindMostSpecificFunctionsInHierarchy(enclosingTyParCount, ilAsm, ilFuncSpecHandle, ty, funcTyArgs, genericContext)
                                     else
-                                        let foundFunc = funcs |> ImArray.head
-                                        if isPrincipalFuncExternalOrExported then
-                                            this.EmitFunctionNoErasure(foundFunc)
-                                            |> ignore
-                                        else
-                                            this.EmitFunction(foundFunc)
-                                            |> ignore
+                                        funcs
 
-                        elif funcs.Length > 1 then
-                            failwithf "Duplicate functions found: %A" func.Name
-                        else
-                            let overridenFunc = funcs |> ImArray.head
-                            if (overridenFunc.Enclosing.AsType.IsExternal) || (ty.TypeArguments.IsEmpty && funcTyArgs.IsEmpty) then
-                                this.EmitFunctionNoErasure(overridenFunc) |> ignore
-                            else
-                                let funcInst =
-                                    if isErasingFunc then
-                                        overridenFunc.MakeInstance(ty, funcTyArgs)
+                                let funcs =
+                                    if funcs.Length > 1 then
+                                        funcs
+                                        |> ImArray.filter (fun x ->
+                                            x.EnclosingType = ty
+                                        )
                                     else
-                                        overridenFunc.MakeReference(ty)
-                                let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
-                                if isErasingFunc then
-                                    this.EmitFunction(funcInst) |> ignore
+                                        funcs
+
+                                if funcs.IsEmpty then
+                                    failwithf "When emitting function definition, function not found: %A" func.Name
+                                elif funcs.Length > 1 then
+                                    failwithf "When emitting function definition, duplicate functions found: %A" func.Name
                                 else
-                                    this.EmitFunctionNoErasure(funcInst) |> ignore
-                    )
+                                    let foundFunc = funcs |> ImArray.head
+                                    if isPrincipalFuncExternalOrExported then
+                                        this.EmitFunctionNoErasure(foundFunc)
+                                        |> ignore
+                                    else
+                                        this.EmitFunction(foundFunc)
+                                        |> ignore
 
-                emittedFunc
-        | _ ->
-            failwithf "Function definition not cached: %A" func.Name
+                    elif funcs.Length > 1 then
+                        failwithf "Duplicate functions found: %A" func.Name
+                    else
+                        let overridenFunc = funcs |> ImArray.head
+                        if (overridenFunc.Enclosing.AsType.IsExternal) || (ty.TypeArguments.IsEmpty && funcTyArgs.IsEmpty) then
+                            this.EmitFunctionNoErasure(overridenFunc) |> ignore
+                        else
+                            let funcInst =
+                                if isErasingFunc then
+                                    overridenFunc.MakeInstance(ty, funcTyArgs)
+                                else
+                                    overridenFunc.MakeReference(ty)
+                            let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
+                            if isErasingFunc then
+                                this.EmitFunction(funcInst) |> ignore
+                            else
+                                this.EmitFunctionNoErasure(funcInst) |> ignore
+                )
+
+            emittedFunc
 
     member vm.EmitFunction(canErase, func: RuntimeFunction) =
         let genericContext = createGenericContextFromFunction canErase func
@@ -4168,47 +4159,44 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let asm = assemblies.[func.AssemblyIdentity]
 
-                match asm.FunctionDefinitionCache.TryGetValue func.ILFunctionDefinitionHandle with
-                | true, (_, emitted) ->
-                    let enclosingTy = func.EnclosingType
-                    let key = struct(false, enclosingTy, func.TypeArguments, func.Witnesses, false)
-                    match emitted.TryGetValue(key) with
-                    | ValueSome(emittedFunc) -> emittedFunc
-                    | _ ->
-                        let emittedFuncDef = 
-                            let enclosingTy = func.EnclosingType
-                            if enclosingTy.IsExternal then
-                                vm.EmitFunctionDefinition(func.EnclosingType.Formal, func.Formal, genericContext)
-                            else
-                                let enclosingTy =
-                                    let enclosingTy = func.Enclosing.AsType
-                                    if genericContext.IsErasingType then enclosingTy
-                                    else enclosingTy.Formal
-                                let formalFunc =
-                                    if genericContext.IsErasingType && not enclosingTy.TypeParameters.IsEmpty then
-                                        func.Formal.MakeReference(enclosingTy).MakeFormal()
-                                    else
-                                        func.Formal
-                                vm.EmitFunctionDefinition(enclosingTy, formalFunc, genericContext)
-
-                        let emittedFunc = 
-                            if genericContext.IsErasingType && func.TypeParameters.IsEmpty then
-                                // This is an interesting case where the enclosing type is being erased and
-                                // the function is a reference, in which case we do not need to emit a function reference.
-                                emittedFuncDef
-                            else
-                                match func.Kind with
-                                | RuntimeFunctionKind.Formal -> failwith "Unexpected formal function."
-                                | RuntimeFunctionKind.Instance ->
-                                    let funcTyArgs = func.TypeArguments |> ImArray.map (fun x -> this.EmitTypeArgument(x))
-                                    this.Emitter.EmitFunctionInstance(this.EmitType(func.EnclosingType), emittedFuncDef, funcTyArgs)
-                                | RuntimeFunctionKind.Reference ->
-                                    this.Emitter.EmitFunctionReference(this.EmitType(func.EnclosingType), emittedFuncDef)
-
-                        emitted.[key] <- emittedFunc
-                        emittedFunc
+                let emitted = asm.GetEmittedFunctionDefinition(func)
+                let enclosingTy = func.EnclosingType
+                let key = struct(false, enclosingTy, func.TypeArguments, func.Witnesses, false)
+                match emitted.TryGetValue(key) with
+                | ValueSome(emittedFunc) -> emittedFunc
                 | _ ->
-                    failwithf "Function definition not cached: %A" func.Name
+                    let emittedFuncDef = 
+                        let enclosingTy = func.EnclosingType
+                        if enclosingTy.IsExternal then
+                            vm.EmitFunctionDefinition(func.EnclosingType.Formal, func.Formal, genericContext)
+                        else
+                            let enclosingTy =
+                                let enclosingTy = func.Enclosing.AsType
+                                if genericContext.IsErasingType then enclosingTy
+                                else enclosingTy.Formal
+                            let formalFunc =
+                                if genericContext.IsErasingType && not enclosingTy.TypeParameters.IsEmpty then
+                                    func.Formal.MakeReference(enclosingTy).MakeFormal()
+                                else
+                                    func.Formal
+                            vm.EmitFunctionDefinition(enclosingTy, formalFunc, genericContext)
+
+                    let emittedFunc = 
+                        if genericContext.IsErasingType && func.TypeParameters.IsEmpty then
+                            // This is an interesting case where the enclosing type is being erased and
+                            // the function is a reference, in which case we do not need to emit a function reference.
+                            emittedFuncDef
+                        else
+                            match func.Kind with
+                            | RuntimeFunctionKind.Formal -> failwith "Unexpected formal function."
+                            | RuntimeFunctionKind.Instance ->
+                                let funcTyArgs = func.TypeArguments |> ImArray.map (fun x -> this.EmitTypeArgument(x))
+                                this.Emitter.EmitFunctionInstance(this.EmitType(func.EnclosingType), emittedFuncDef, funcTyArgs)
+                            | RuntimeFunctionKind.Reference ->
+                                this.Emitter.EmitFunctionReference(this.EmitType(func.EnclosingType), emittedFuncDef)
+
+                    emitted.[key] <- emittedFunc
+                    emittedFunc
             else
                 vm.EmitFunctionDefinition(func.Enclosing.AsType, func, genericContext)
 
