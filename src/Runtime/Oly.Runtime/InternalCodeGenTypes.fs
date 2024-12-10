@@ -14,29 +14,35 @@ module private GenericContextDefault =
     let Instance =
         {
             enclosingTyArgs = ImArray.empty
+            enclosingTyArgsEraseBits = ImArray.empty
             funcTyArgs = ImArray.empty
+            funcTyArgsEraseBits = ImArray.empty
+            passedWitnesses = ImArray.empty
             isTyErasing = false
             isFuncErasing = false
-            passedWitnesses = ImArray.empty
         }
 
     let InstanceTypeErasing =
         {
             enclosingTyArgs = ImArray.empty
+            enclosingTyArgsEraseBits = ImArray.empty
             funcTyArgs = ImArray.empty
+            funcTyArgsEraseBits = ImArray.empty
+            passedWitnesses = ImArray.empty
             isTyErasing = true
             isFuncErasing = false
-            passedWitnesses = ImArray.empty
         }
 
 [<NoEquality;NoComparison>]
 type GenericContext =
     private {
         enclosingTyArgs: RuntimeType imarray
+        enclosingTyArgsEraseBits: bool imarray
         funcTyArgs: RuntimeType imarray
+        funcTyArgsEraseBits: bool imarray
+        passedWitnesses: RuntimeWitness imarray
         isTyErasing: bool
         isFuncErasing: bool
-        passedWitnesses: RuntimeWitness imarray
     }
 
     static member Default = GenericContextDefault.Instance
@@ -49,10 +55,12 @@ type GenericContext =
         else
             {
                 enclosingTyArgs = enclosingTyArgs
+                enclosingTyArgsEraseBits = ImArray.init enclosingTyArgs.Length (fun _ -> false)
                 funcTyArgs = funcTyArgs
+                funcTyArgsEraseBits = ImArray.init funcTyArgs.Length (fun _ -> false)
+                passedWitnesses = enclosingTy.Witnesses
                 isTyErasing = false
                 isFuncErasing = false
-                passedWitnesses = enclosingTy.Witnesses
             }
 
     static member Create(enclosingTyArgs: _ imarray) =
@@ -61,10 +69,12 @@ type GenericContext =
         else
             {
                 enclosingTyArgs = enclosingTyArgs
+                enclosingTyArgsEraseBits = ImArray.init enclosingTyArgs.Length (fun _ -> false)
                 funcTyArgs = ImArray.empty
+                funcTyArgsEraseBits = ImArray.empty
+                passedWitnesses = ImArray.empty
                 isTyErasing = false
                 isFuncErasing = false
-                passedWitnesses = ImArray.empty
             }
 
     static member Create(enclosingTyArgs: _ imarray, funcTyArgs: _ imarray) =
@@ -73,10 +83,12 @@ type GenericContext =
         else
             {
                 enclosingTyArgs = enclosingTyArgs
+                enclosingTyArgsEraseBits = ImArray.init enclosingTyArgs.Length (fun _ -> false)
                 funcTyArgs = funcTyArgs
+                funcTyArgsEraseBits = ImArray.init funcTyArgs.Length (fun _ -> false)
+                passedWitnesses = ImArray.empty
                 isTyErasing = false
                 isFuncErasing = false
-                passedWitnesses = ImArray.empty
             }
 
     static member CreateErasing(enclosingTyArgs: _ imarray) =
@@ -85,10 +97,12 @@ type GenericContext =
         else
             {
                 enclosingTyArgs = enclosingTyArgs
+                enclosingTyArgsEraseBits = ImArray.init enclosingTyArgs.Length (fun _ -> true)
                 funcTyArgs = ImArray.empty
+                funcTyArgsEraseBits = ImArray.empty
+                passedWitnesses = ImArray.empty
                 isTyErasing = true
                 isFuncErasing = false
-                passedWitnesses = ImArray.empty
             }
 
     member this.PassedWitnesses = this.passedWitnesses
