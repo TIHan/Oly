@@ -2496,15 +2496,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | _ -> enclosingTyHandle
 
             let tyHandle = asmBuilder.AddTypeReference(enclosingTyHandle, namespac, externalName, isStruct)
-
-            let tyHandle =
-                if tyParCount > 0 then
-                    let tyArgs =
-                        ImArray.init tyParCount (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
-                    addGenericInstanceTypeReference(tyHandle, tyArgs)
-                else
-                    tyHandle
-
             ClrTypeInfo.TypeReference(tyHandle, isReadOnly, isStruct)
 
         member this.EmitTypeGenericInstance(ty, tyArgs) =
@@ -2782,7 +2773,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.OnTypeDefinitionEmitted(_) =
             ()
 
-        member this.EmitField(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, _index: int32, irAttrs, irConstValueOpt): ClrFieldInfo =
+        member this.EmitFieldDefinition(enclosingTy, flags: OlyIRFieldFlags, name: string, fieldTy: ClrTypeInfo, _index: int32, irAttrs, irConstValueOpt): ClrFieldInfo =
             if not flags.IsStatic && enclosingTy.IsStruct && enclosingTy.Handle = fieldTy.Handle then
                 OlyAssert.Fail($"Invalid struct {enclosingTy.FullyQualifiedName}")
 
@@ -2895,7 +2886,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | _ ->
                 failwith "Invalid type info."
 
-        member this.EmitFieldInstance(enclosingTy, field) =
+        member this.EmitFieldReference(enclosingTy, field) =
             let fieldHandle = asmBuilder.AddFieldReference(enclosingTy.Handle, field.Handle)
             {
                 handle = fieldHandle

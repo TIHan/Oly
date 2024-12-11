@@ -1770,7 +1770,7 @@ type InterpreterRuntimeEmitter(stdout) =
 
         member _.EmitProperty(_, _, _, _, _, _) = ()
 
-        member this.EmitField(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, _, irConstValueOpt): InterpreterField = 
+        member this.EmitFieldDefinition(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, _, irConstValueOpt): InterpreterField = 
             match enclosingTy with
             | InterpreterType.Custom(info = { fields=fields }) ->
                 let constValueOpt =
@@ -1800,7 +1800,7 @@ type InterpreterRuntimeEmitter(stdout) =
             | _ ->
                 raise(NotSupportedException())
 
-        member this.EmitFieldInstance(_, _) =
+        member this.EmitFieldReference(_, _) =
             raise(NotSupportedException())
 
         member this.EmitFunctionDefinition(_, enclosingTy, flags, name: string, tyPars, pars, returnTy, overridesOpt, sigKey, _): InterpreterFunction = 

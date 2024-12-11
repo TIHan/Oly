@@ -146,7 +146,7 @@ type GenericContext =
             else
                 if i < 0 || i >= this.enclosingTyArgs.Length then
                     raise(IndexOutOfRangeException())
-                this.isTyErasing
+                this.IsErasingType
 
         | OlyILTypeVariableKind.Function ->
             // Context has no type arguments so any call to this will return false.
@@ -154,7 +154,7 @@ type GenericContext =
             else
                 if i < 0 || i >= this.funcTyArgs.Length then
                     raise(IndexOutOfRangeException())
-                this.isFuncErasing
+                this.IsErasingFunction
 
         | _ ->
             OlyAssert.Fail("Invalid type variable kind.")

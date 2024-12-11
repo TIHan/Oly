@@ -44,7 +44,10 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 else
                     raise(InvalidOperationException())
 
-        member this.EmitField(enclosingTy: SpirvType, flags: OlyIRFieldFlags, name: string, ty: SpirvType, index: int32, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, constValueOpt: OlyIRConstant<SpirvType,SpirvFunction> option): SpirvField = 
+        member this.EmitFieldDefinition(enclosingTy: SpirvType, flags: OlyIRFieldFlags, name: string, ty: SpirvType, index: int32, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray, constValueOpt: OlyIRConstant<SpirvType,SpirvFunction> option): SpirvField = 
+            if constValueOpt.IsSome then
+                raise(NotImplementedException("field constants"))
+
             if enclosingTy.IsStructBuilder then
                 let namedTyBuilder = enclosingTy.AsStructBuilder
 
@@ -84,7 +87,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 | _ ->
                     raise(NotImplementedException())
 
-        member this.EmitFieldInstance(enclosingTy: SpirvType, formalField: SpirvField): SpirvField = 
+        member this.EmitFieldReference(enclosingTy: SpirvType, formalField: SpirvField): SpirvField = 
             raise(NotSupportedException())
 
         member this.EmitFunctionBody(body: Lazy<OlyIRFunctionBody<SpirvType,SpirvFunction,SpirvField>>, tier: OlyIRFunctionTier, func: SpirvFunction): unit = 

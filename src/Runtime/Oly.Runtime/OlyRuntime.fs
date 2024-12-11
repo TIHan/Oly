@@ -2075,7 +2075,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         // It's very important we emit the enclosing and field type before
         // we cache the emitted field. Without this, we could emit duplicate fields.
         let enclosingTy = field.EnclosingType
-        let enclosingTy = 
+        let emittedEnclosingTy = 
             if enclosingTy.IsNewtype then
                 if field.IsStatic then
                     // We need to actually emit the newtype as a type definition here
@@ -2086,7 +2086,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             else
                 this.EmitType(enclosingTy)
         let fieldTy = this.EmitType(field.Type)
-        match emitted.TryGetValue field.EnclosingType.TypeArguments with
+        match emitted.TryGetValue enclosingTy.TypeArguments with
         | ValueSome res -> res
         | _ ->
             let irAttrs = emitAttributes asm.ilAsm field.Attributes
@@ -2098,13 +2098,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
 
             let res = 
-                if not field.IsStatic && field.EnclosingType.IsAnyStruct && field.Formal.EnclosingType.Formal = field.Formal.Type.Formal then
+                if not field.IsStatic && enclosingTy.IsAnyStruct && field.Formal.EnclosingType.Formal = field.Formal.Type.Formal then
                     // TODO: This only checks one layer. We need to check deeper.
-                    OlyAssert.Fail($"Struct type '{field.EnclosingType.Name}' recursively contains itself.")
+                    OlyAssert.Fail($"Struct type '{enclosingTy.Name}' recursively contains itself.")
 
-                if field.IsFormal || field.EnclosingType.TypeParameters.IsEmpty || (not field.EnclosingType.IsExternal && not field.EnclosingType.IsExported) then
-                    this.Emitter.EmitField(
-                        enclosingTy,
+                if field.IsFormal || enclosingTy.CanGenericsBeErased then
+                    this.Emitter.EmitFieldDefinition(
+                        emittedEnclosingTy,
                         field.Flags, 
                         field.Name,
                         fieldTy,
@@ -2114,8 +2114,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     )
                 else
                     let emittedField = emitField field.Formal
-                    this.Emitter.EmitFieldInstance(enclosingTy, emittedField)
-            emitted.[field.EnclosingType.TypeArguments] <- res
+                    this.Emitter.EmitFieldReference(emittedEnclosingTy, emittedField)
+            emitted.[enclosingTy.TypeArguments] <- res
             res
 
     and emitAttributes (ilAsm: OlyILReadOnlyAssembly) (attrs: RuntimeAttribute imarray) =

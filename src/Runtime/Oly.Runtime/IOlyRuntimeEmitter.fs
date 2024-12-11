@@ -132,8 +132,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         func: 'Function 
             -> unit
     
-    /// Can be a definition or instance.
-    abstract EmitField : 
+    abstract EmitFieldDefinition : 
         enclosingTy: 'Type * 
         flags: OlyIRFieldFlags * 
         name: string * 
@@ -143,7 +142,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         constValueOpt: OlyIRConstant<'Type, 'Function> option 
             -> 'Field
 
-    abstract EmitFieldInstance : 
+    abstract EmitFieldReference : 
         enclosingTy: 'Type * 
         formalField: 'Field
             -> 'Field
