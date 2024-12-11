@@ -2622,20 +2622,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         OptimizeFunctionBody
             (fun targetFunc -> 
-                let enclosingTyArgs =
-                    targetFunc.EnclosingType.TypeArguments
-                    |> ImArray.map (fun x ->
-                        x.Substitute(genericContext)
-                    )
-                let funcTyArgs =
-                    targetFunc.TypeArguments
-                    |> ImArray.map (fun x -> 
-                        x.Substitute(genericContext)
-                    )
-
                 let canErase = canPossiblyEraseGenericFunction func targetFunc 
                 let genericContext = createGenericContextFromFunction canErase targetFunc
-                let genericContext = genericContext.Set(enclosingTyArgs, funcTyArgs)
                 this.TryResolveFunctionBody(targetFunc, genericContext) |> Option.map (fun x -> x.Value)
             )
             (fun (envFunc, func) ->
@@ -3374,7 +3362,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandles[0])
                             if ilFieldDef.MemberFlags.HasFlag(OlyILMemberFlags.Static) then
                                 failwith "Enum is missing its principal field."
-                            Some(this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.CreateErasing(fullTyArgs)))
+                            Some(this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.Default))
                     else
                         None
 
@@ -3383,7 +3371,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let extends =
                     ilEntDef.Extends
-                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.Default))
 
                 let extends =
                     if extends.IsEmpty then
@@ -3403,7 +3391,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let implements =
                     ilEntDef.Implements
-                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.CreateErasing(fullTyArgs)))
+                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, GenericContext.Default))
 
                 ent.ExtendsLazy <- Lazy<_>.CreateFromValue(extends)
                 ent.ImplementsLazy <- Lazy<_>.CreateFromValue(implements)
@@ -3476,7 +3464,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         |> ImArray.choose (fun ilConstr ->
                             match ilConstr with
                             | OlyILConstraint.SubtypeOf(ilTy) ->
-                                this.ResolveType(ilAsm, ilTy, GenericContext.CreateErasing(fullTyArgs))
+                                this.ResolveType(ilAsm, ilTy, GenericContext.Default)
                                 |> Some
                             | _ ->
                                 None
@@ -3486,7 +3474,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         |> ImArray.choose (fun ilConstr ->
                             match ilConstr with
                             | OlyILConstraint.TraitType(ilTy) ->
-                                this.ResolveType(ilAsm, ilTy, GenericContext.CreateErasing(fullTyArgs))
+                                this.ResolveType(ilAsm, ilTy, GenericContext.Default)
                                 |> Some
                             | _ ->
                                 None
