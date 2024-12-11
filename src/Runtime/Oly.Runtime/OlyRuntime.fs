@@ -191,6 +191,8 @@ type internal RuntimeAssembly<'Type, 'Function, 'Field> =
         FunctionDefinitionCache: Dictionary<OlyILFunctionDefinitionHandle, RuntimeFunction * RuntimeTypeArgumentWitnessListTable<'Type, 'Function, 'Field, 'Function>>
         FieldDefinitionCache: Dictionary<OlyILFieldDefinitionHandle, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>
 
+        FieldReferenceCache: Dictionary<OlyILFieldDefinitionHandle, RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>
+
         FieldVariadicDefinitionCache: Dictionary<OlyILFieldDefinitionHandle, Dictionary<string, RuntimeField * RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Field>>>
 
         RuntimeTypeInstanceCache: RuntimeTypeInstanceCache<'Type, 'Function, 'Field>
@@ -2060,16 +2062,32 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match emitted.TryGetValue field.EnclosingType.TypeArguments with
             | ValueSome res -> res
             | _ -> emitFieldNoCache asm emitted field
-        | _ ->              
-
-        match asm.FieldDefinitionCache.TryGetValue field.ILFieldDefinitionHandle with
-        | true, (_, emitted) ->
-            // fast path
-            match emitted.TryGetValue field.EnclosingType.TypeArguments with
-            | ValueSome res -> res
-            | _ -> emitFieldNoCache asm emitted field
         | _ ->
-            failwithf "Field definition not cached: %A" field.Name
+        
+        if field.IsFormal || field.EnclosingType.CanGenericsBeErased then
+            match asm.FieldDefinitionCache.TryGetValue field.ILFieldDefinitionHandle with
+            | true, (_, emitted) ->
+                // fast path
+                match emitted.TryGetValue field.EnclosingType.TypeArguments with
+                | ValueSome res -> res
+                | _ -> emitFieldNoCache asm emitted field
+            | _ ->
+                failwithf "Field definition not cached: %A" field.Name
+        else
+            match asm.FieldReferenceCache.TryGetValue field.ILFieldDefinitionHandle with
+            | true, emitted ->
+                // fast path
+                match emitted.TryGetValue field.EnclosingType.TypeArguments with
+                | ValueSome res -> res
+                | _ -> emitFieldNoCache asm emitted field
+            | _ ->
+                let emitted = RuntimeTypeArgumentListTable()
+                asm.FieldReferenceCache[field.ILFieldDefinitionHandle] <- emitted
+                // fast path
+                match emitted.TryGetValue field.EnclosingType.TypeArguments with
+                | ValueSome res -> res
+                | _ -> emitFieldNoCache asm emitted field
+
 
     and emitFieldNoCache (asm: RuntimeAssembly<_, _, _>) (emitted: RuntimeTypeArgumentListTable<_, _, _, _>) (field: RuntimeField) =
         // It's very important we emit the enclosing and field type before
@@ -2749,6 +2767,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             entRefCache = Dictionary()
             FunctionDefinitionCache = Dictionary()
             FieldDefinitionCache = Dictionary()
+            FieldReferenceCache = Dictionary()
             FieldVariadicDefinitionCache = Dictionary()
             RuntimeTypeInstanceCache = RuntimeTypeInstanceCache(this, ilAsm)
             RuntimeFieldReferenceCache = RuntimeFieldReferenceCache()
