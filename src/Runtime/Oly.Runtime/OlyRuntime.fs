@@ -2853,9 +2853,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith $"Multiple fields of '{name}' are found."
             else
                 let asm = assemblies[ilAsm.Identity]
-                let fieldTy = fields[0].Type
-                { fields.[0] with EnclosingType = enclosingTy; Type = fieldTy.Substitute(genericContext) }
-                |> asm.RuntimeFieldReferenceCache.Intern
+                let field = fields[0]
+
+                if enclosingTy.IsFormal then
+                    OlyAssert.True(field.IsFormal)
+                    if enclosingTy <> field.EnclosingType then
+                        failwith $"Invalid enclosing type for field: {field.Name}."
+                    field
+                    |> asm.RuntimeFieldReferenceCache.Intern
+                else
+                    OlyAssert.False(field.IsFormal)
+                    { field.Formal with EnclosingType = enclosingTy; Type = field.Type.Substitute(genericContext) }
+                    |> asm.RuntimeFieldReferenceCache.Intern
 
     member this.ResolveFunctionDefinition(enclosingTy: RuntimeType, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
         resolveFunctionDefinition enclosingTy ilFuncDefHandle

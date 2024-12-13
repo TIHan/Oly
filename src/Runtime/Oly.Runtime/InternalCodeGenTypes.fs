@@ -1708,12 +1708,15 @@ type RuntimeField =
         if not this.IsFormal then
             failwith "Expected formal field."
 
-        let genericContext = GenericContext.Create(enclosingTy.TypeArguments).SetPassedWitnesses(enclosingTy.Witnesses)
+        if enclosingTy.IsFormal then
+            this
+        else
+            let genericContext = GenericContext.Create(enclosingTy.TypeArguments).SetPassedWitnesses(enclosingTy.Witnesses)
 
-        { this with
-            EnclosingType = enclosingTy
-            Type = this.Type.Substitute(genericContext)
-        }
+            { this with
+                EnclosingType = enclosingTy
+                Type = this.Type.Substitute(genericContext)
+            }
 
     override this.GetHashCode() = this.Index
 
