@@ -144,9 +144,8 @@ handleExpression irExpr
 
 let OptimizeFunctionBody<'Type, 'Function, 'Field> 
         (tryGetFunctionBody: RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option) 
-        (emitFunction: RuntimeFunction * RuntimeFunction -> 'Function)
+        (emitFunction: RuntimeFunction -> 'Function)
         (emitType: RuntimeType -> 'Type)
-        (func: RuntimeFunction) 
         (irArgFlags: OlyIRLocalFlags [])
         (irLocalFlags: OlyIRLocalFlags [])
         (irExpr: E<'Type, 'Function, 'Field>)
@@ -172,7 +171,6 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
             tryGetFunctionBody = tryGetFunctionBody
             emitFunction = emitFunction
             emitType = emitType
-            func = func
             argLocalManager = argLocalManager
             inlineSet = Dictionary()
             irTier = irTier

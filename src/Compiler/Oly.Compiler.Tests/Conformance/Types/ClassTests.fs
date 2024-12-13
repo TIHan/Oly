@@ -1131,7 +1131,6 @@ namespace Test
 #[export]
 abstract class BaseExample =
 
-    #[export]
     GenericExample<T>(T): ()
         """
     Oly src
@@ -1188,6 +1187,62 @@ interface IExample =
 abstract class BaseExample =
 
     GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement the interface member even though it is provided in the base class 2``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    abstract GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement the interface member even though it is provided in the base class 3``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () = ()
 
 class Example =
     inherits BaseExample

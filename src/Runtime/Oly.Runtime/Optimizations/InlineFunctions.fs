@@ -105,7 +105,7 @@ let transformClosureConstructorCallToUseMoreSpecificTypeArgument (forwardSubLoca
         if didChangeTyArg then
             let ctor = ctor.Formal.MakeInstance(enclosingTy.Formal.Apply(enclosingTyArgs.MoveToImmutable()).SetWitnesses(enclosingTy.Witnesses), ctor.TypeArguments).SetWitnesses(ctor.Witnesses)
 
-            let emittedCtor = optenv.emitFunction(optenv.func, ctor)
+            let emittedCtor = optenv.emitFunction(ctor)
             let resultTy = optenv.emitType(ctor.EnclosingType)
 
             let irCtor = OlyIRFunction(emittedCtor, ctor)
@@ -157,7 +157,7 @@ let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dicti
             | E.Operation(_, O.New(cloCtor, _, _)) when cloCtor.HasEnclosingClosureType ->
                 if irFunc.RuntimeFunction.EnclosingType <> cloCtor.RuntimeFunction.EnclosingType then
                     let rfunc = irFunc.RuntimeFunction.Formal.MakeInstance(cloCtor.RuntimeFunction.EnclosingType, irFunc.RuntimeFunction.TypeArguments).SetWitnesses(irFunc.RuntimeFunction.Witnesses)
-                    let emittedFunc = optenv.emitFunction(optenv.func, rfunc)
+                    let emittedFunc = optenv.emitFunction(rfunc)
                     OlyIRFunction(emittedFunc, rfunc), true
                 else
                     irFunc, false
@@ -257,7 +257,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
         let func = irFunc.RuntimeFunction
 
         if not <| pushInline optenv func then
-            let emittedFunc = optenv.emitFunction(optenv.func, func)
+            let emittedFunc = optenv.emitFunction(func)
             E.Operation(irTextRange, O.Call(OlyIRFunction(emittedFunc, func), irArgExprs, resultTy))
             |> Some
         else

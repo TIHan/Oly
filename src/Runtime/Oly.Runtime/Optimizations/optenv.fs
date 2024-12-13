@@ -97,9 +97,8 @@ type internal ssaenv<'Type>(argLocalManager: ArgumentLocalManager) =
 [<NoEquality;NoComparison>]
 type internal optenv<'Type, 'Function, 'Field> =
     {
-        func: RuntimeFunction
         tryGetFunctionBody: RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option
-        emitFunction: RuntimeFunction * RuntimeFunction -> 'Function
+        emitFunction: RuntimeFunction -> 'Function
         emitType: RuntimeType -> 'Type
         inlineSet: Dictionary<RuntimeFunction, int>
         irTier: OlyIRFunctionTier

@@ -98,7 +98,7 @@ let reportAddressValueCannotBeCaptured acenv (syntaxNode: OlySyntaxNode) (value:
     acenv.cenv.diagnostics.Error($"'{value.Name}' is an address and cannot be captured.", 10, syntaxNode)
 
 let reportRestrictedTypeParameter acenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
-    acenv.cenv.diagnostics.Error($"Type parameter '{tyPar.Name}' cannot be used in this non-exported context.", 10, syntaxNode)
+    acenv.cenv.diagnostics.Error($"Type parameter '{tyPar.Name}' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:", 10, syntaxNode)
 
 [<Flags>]
 type TypeAnalysisFlags =

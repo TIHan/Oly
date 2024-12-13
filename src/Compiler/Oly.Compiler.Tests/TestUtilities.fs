@@ -266,7 +266,37 @@ let hasErrorDiagnostics (c: TestCompilation) =
 
 let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
-    Assert.Equal(expected, errorMsgs)
+
+    let builder = Text.StringBuilder()
+    (expected |> ImArray.ofSeq, errorMsgs |> ImArray.ofSeq)
+    ||> ImArray.tryIter2 (fun expected actual ->
+        try
+            Assert.Equal(expected, actual)
+        with
+        | _ ->
+            builder.Append($"=========================================\nExpected:\n{expected}\n\nActual:\n{actual}\n\n")
+            |> ignore
+    )
+
+    if expected.Length > errorMsgs.Length then
+        expected
+        |> ImArray.ofSeq
+        |> ImArray.skip errorMsgs.Length
+        |> ImArray.iter (fun expected ->
+            builder.Append($"=========================================\nExpected:\n{expected}\n\nActual:\n\n\n")
+            |> ignore
+        )
+    elif expected.Length < errorMsgs.Length then
+        errorMsgs
+        |> ImArray.ofSeq
+        |> ImArray.skip expected.Length
+        |> ImArray.iter (fun actual ->
+            builder.Append($"=========================================\nExpected:\n\n\nActual:\n{actual}\n\n")
+            |> ignore
+        )
+
+    if builder.Length > 0 then
+        Assert.Fail(builder.ToString())
     c
 
 [<DebuggerHidden>]

@@ -25,9 +25,9 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
 let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (this: RuntimeFunction) =
     this.SetWitnesses(witnesses)
 
-let createGenericContextFromFunction canErase (func: RuntimeFunction) =
+let createGenericContextFromFunction (func: RuntimeFunction) =
     let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal
-    let isFuncErased = canErase && func.CanGenericsBeErased
+    let isFuncErased = func.CanGenericsBeErased
 
     let genericContext =
         if isTyErased then
@@ -418,12 +418,6 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
     member inline _.EmitFunction(func): 'Function =
         vm.EmitFunction(func)
 
-    member inline _.EmitFunctionNoErasure(func): 'Function =
-        vm.EmitFunction(false, func)
-
-    member inline _.EmitFunctionFromEnvironment(envFunc, func): 'Function =
-        vm.EmitFunctionFromEnvironment(envFunc, func)
-
     member inline _.TryFindPossibleWitness(ty, abstractTy, witnesses): RuntimeWitness option =
         vm.TryFindPossibleWitness(ty, abstractTy, witnesses)
 
@@ -497,21 +491,6 @@ let readTextRange (ilAsm: OlyILReadOnlyAssembly) (ilTextRange: OlyILDebugSourceT
             let ilDbgSrc = ilAsm.GetDebugSource(ilTextRange.DebugSourceHandle)
             ilDbgSrc.Path
     OlyIRDebugSourceTextRange(path, ilTextRange.StartLine, ilTextRange.StartColumn, ilTextRange.EndLine, ilTextRange.EndColumn)
-
-let canPossiblyEraseGenericFunction (envFunc: RuntimeFunction) (func: RuntimeFunction) =
-    // TODO: This needs a re-work at some point.
-    // If the current function body possibly overrides an external function, then we cannot erase the type parameters/arguments of the called function.
-    func.CanGenericsBeErased &&
-    (
-        (
-            envFunc.IsOverridesExternal && 
-            envFunc.Witnesses.IsEmpty && 
-            ((not envFunc.TypeParameters.IsEmpty) 
-                || (not envFunc.EnclosingType.CanGenericsBeErased)) &&
-            func.Formal.EnclosingType <> envFunc.Formal.EnclosingType
-        )
-        |> not
-    )
 
 let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type) =
     let asExpr irValue =
@@ -854,7 +833,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 let irExpr = O.Call(irFunc, irArgs, cenv.EmitType(func.ReturnType)) |> asExpr
                 irExpr, func.ReturnType
             else
-                let emittedFunc = cenv.EmitFunctionFromEnvironment(env.Function, func)
+                let emittedFunc = cenv.EmitFunction(func)
                 let irFunc = OlyIRFunction(emittedFunc, func)
 
                 let handle() =
@@ -2622,15 +2601,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         OptimizeFunctionBody
             (fun targetFunc -> 
-                let canErase = canPossiblyEraseGenericFunction func targetFunc 
-                let genericContext = createGenericContextFromFunction canErase targetFunc
+                let genericContext = createGenericContextFromFunction targetFunc
                 this.TryResolveFunctionBody(targetFunc, genericContext) |> Option.map (fun x -> x.Value)
             )
-            (fun (envFunc, func) ->
-                this.EmitFunctionFromEnvironment(envFunc, func)
-            )
+            this.EmitFunction
             this.EmitType
-            func
             funcBody.ArgumentFlags
             funcBody.LocalFlags
             funcBody.Expression
@@ -3979,10 +3954,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if not witnesses.IsEmpty then
                             OlyAssert.Fail("Did not expected witnesses for overrides function.")
                         if x.EnclosingType.TypeParameters.IsEmpty then
-                            if isErasingFunc then
-                                this.EmitFunction(x.Formal)
-                            else
-                                this.EmitFunctionNoErasure(x.Formal)                                   
+                            this.EmitFunction(x.Formal)                                
                         else
                             let enclosingTy = 
                                 x.EnclosingType.Substitute(genericContext)
@@ -4119,19 +4091,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     failwithf "When emitting function definition, duplicate functions found: %A" func.Name
                                 else
                                     let foundFunc = funcs |> ImArray.head
-                                    if isPrincipalFuncExternalOrExported then
-                                        this.EmitFunctionNoErasure(foundFunc)
-                                        |> ignore
-                                    else
-                                        this.EmitFunction(foundFunc)
-                                        |> ignore
+                                    this.EmitFunction(foundFunc)
+                                    |> ignore
 
                     elif funcs.Length > 1 then
                         failwithf "Duplicate functions found: %A" func.Name
                     else
                         let overridenFunc = funcs |> ImArray.head
                         if (overridenFunc.Enclosing.AsType.IsExternal) || (ty.TypeArguments.IsEmpty && funcTyArgs.IsEmpty) then
-                            this.EmitFunctionNoErasure(overridenFunc) |> ignore
+                            this.EmitFunction(overridenFunc) |> ignore
                         else
                             let funcInst =
                                 if isErasingFunc then
@@ -4139,16 +4107,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 else
                                     overridenFunc.MakeReference(ty)
                             let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
-                            if isErasingFunc then
-                                this.EmitFunction(funcInst) |> ignore
-                            else
-                                this.EmitFunctionNoErasure(funcInst) |> ignore
+                            this.EmitFunction(funcInst) |> ignore
                 )
 
             emittedFunc
 
-    member vm.EmitFunction(canErase, func: RuntimeFunction) =
-        let genericContext = createGenericContextFromFunction canErase func
+    member vm.EmitFunction(func: RuntimeFunction) =
+        let genericContext = createGenericContextFromFunction func
 
         if func.IsFormal then
             let enclosingTy =
@@ -4158,7 +4123,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             vm.EmitFunctionDefinition(enclosingTy, func, genericContext)
         else
             if func.Enclosing.TypeArguments.IsEmpty && func.TypeArguments.IsEmpty then
-                vm.EmitFunctionNoErasure(func.Formal)
+                vm.EmitFunction(func.Formal) // TODO: Uh, why does this get hit above?
             elif not genericContext.IsErasingFunction then
                 
                 if func.IsFormal then
@@ -4207,26 +4172,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             else
                 vm.EmitFunctionDefinition(func.Enclosing.AsType, func, genericContext)
 
-    member runtime.EmitFunction(func: RuntimeFunction) : 'Function =
-        runtime.EmitFunction(true, func)
-
-    member runtime.EmitFunctionNoErasure(func: RuntimeFunction) : 'Function =
-        // If the function has no type parameters, then emit it as erasing.
-        // We do this because the function cache always stores 'isErasingFunc' as 'true' for these kinds of functions with no type parameters.
-        if func.TypeParameters.IsEmpty then
-            runtime.EmitFunction(func)
-        else
-            runtime.EmitFunction(false, func)
-
     member runtime.EmitILConstant(ilAsm, ilConstant: OlyILConstant, genericContext) =
         emitConstant ilAsm ilConstant genericContext
-
-    member this.EmitFunctionFromEnvironment(envFunc: RuntimeFunction, func: RuntimeFunction) =
-        if canPossiblyEraseGenericFunction envFunc func then
-            this.EmitFunction(func)
-        else
-            // Forces no generic erasure.
-            this.EmitFunctionNoErasure(func)
 
     member this.TryGetCallStaticConstructorExpression(enclosingTy: RuntimeType) =
         match enclosingTy.Formal.TryGetStaticConstructor() with
