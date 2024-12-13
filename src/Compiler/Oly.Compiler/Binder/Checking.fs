@@ -141,9 +141,6 @@ let checkEntityExport cenv syntaxNode (ent: EntitySymbol) =
         cenv.diagnostics.Error($"'{ent.Name}' cannot be imported and exported at the same time.", 10, syntaxNode)
     else
         if ent.IsExported then
-            if not ent.Enclosing.IsNamespace && not ent.Enclosing.IsExported then
-                cenv.diagnostics.Error($"'{ent.Name}' cannot be exported as its enclosing is not exported.", 10, syntaxNode)
-
             ent.TypeParameters
             |> ImArray.iter (fun tyPar ->
                 checkTypeParameterExport cenv syntaxNode ent.Name tyPar
@@ -174,9 +171,6 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
         cenv.diagnostics.Error($"'{value.Name}' cannot be imported and exported at the same time.", 10, syntaxNode)
     else
         if value.IsExported then
-            if not value.Enclosing.IsExported then
-                cenv.diagnostics.Error($"'{value.Name}' cannot be exported as its enclosing is not exported.", 10, syntaxNode)
-
             value.TypeParameters
             |> ImArray.iter (fun tyPar ->
                 checkTypeParameterExport cenv syntaxNode value.Name tyPar

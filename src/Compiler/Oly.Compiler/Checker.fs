@@ -360,9 +360,9 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
             //         into one concrete class.
             // Note: There are good number of tests that cover this.
             // TODO: We should come up with a better error message describing what is going on.
-            if (func.Enclosing.IsImported || func.Enclosing.IsExported) && (not x.IsImported && not x.IsExported) then
+            if (func.IsImported || func.IsExported) && (not x.IsImported && not x.IsExported) then
                 subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
-            elif (not func.Enclosing.IsImported && not func.Enclosing.IsExported) && (x.IsImported || x.IsExported) then
+            elif (not func.IsImported && not func.IsExported) && (x.IsImported || x.IsExported) then
                 subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
             else
                 areLogicalFunctionSignaturesEqual x func
