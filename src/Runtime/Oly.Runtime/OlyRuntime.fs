@@ -4082,8 +4082,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 | true, tys -> tys |> ImArray.ofSeq
                 | _ -> ImArray.empty
 
-            let isPrincipalFuncExternalOrExported = func.IsExternal || func.IsExported
-
             tysThatInheritOrImplementTy
             |> ImArray.iter (fun ty ->
                 if subsumesType func.EnclosingType ty then
