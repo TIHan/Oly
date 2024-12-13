@@ -96,7 +96,18 @@ let reportAddressValueCannotBeCaptured acenv (syntaxNode: OlySyntaxNode) (value:
     OlyAssert.True(value.Type.IsScoped)
     acenv.cenv.diagnostics.Error($"'{value.Name}' is an address and cannot be captured.", 10, syntaxNode)
 
-let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+[<Flags>]
+type TypeAnalysisFlags =
+    | None          = 0b000000
+    | PermitByRef   = 0b000001
+
+let canPermitByRef (flags: TypeAnalysisFlags) =
+    flags.HasFlag(TypeAnalysisFlags.PermitByRef)
+
+let setPermitByRef (flags: TypeAnalysisFlags) =
+    flags ||| TypeAnalysisFlags.PermitByRef
+
+let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
 
@@ -165,7 +176,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
     
     | strippedTy ->
         match strippedTy with
-        | TypeSymbol.ByRef _ when not permitByRef ->
+        | TypeSymbol.ByRef _ when not(canPermitByRef flags) ->
             match ty with
             | TypeSymbol.InferenceVariable(Some tyPar, _)
             | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) when tyPar.Constraints |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false) ->
@@ -177,10 +188,10 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
         analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
 
 and analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
-    analyzeTypeAux acenv aenv false syntaxNode ty
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.None syntaxNode ty
 
 and analyzeTypePermitByRef (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
-    analyzeTypeAux acenv aenv true syntaxNode ty
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.PermitByRef syntaxNode ty
 
 and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxConstraintClause) (tyPar: TypeParameterSymbol) (constrs: ConstraintSymbol imarray) =
     if not constrs.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then

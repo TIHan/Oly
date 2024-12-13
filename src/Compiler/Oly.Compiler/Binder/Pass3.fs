@@ -287,7 +287,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
 
         match binding.Value with
         | :? FunctionSymbol as func -> 
-            func.SetAttributes_Pass3_NonConcurrent(attrs)
+            func.SetAttributes_Pass3_NonConcurrent(cenv.pass, attrs)
             match syntax with
             | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, _, _) ->
                 let syntaxPars = syntaxPars.Values
@@ -392,7 +392,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
                     false
                 else
                     if areLogicalFunctionSignaturesEqual func overridenFunc then
-                        func.SetOverrides_Pass3_NonConcurrent(overridenFunc)
+                        func.SetOverrides_Pass3_NonConcurrent(cenv.pass, overridenFunc)
                         let func = func :> IFunctionSymbol
 
                         (func.TypeParameters, overridenFunc.TypeParameters)

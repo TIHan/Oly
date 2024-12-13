@@ -2230,7 +2230,11 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         wellKnownFunc <- wkf
 
     /// Mutability
-    member this.SetOverrides_Pass3_NonConcurrent(overridesToSet: IFunctionSymbol) =
+    member this.SetOverrides_Pass3_NonConcurrent(pass: CompilerPass, overridesToSet: IFunctionSymbol) =
+        match pass with
+        | Pass3 -> ()
+        | _ -> failwith "Expected Pass3."
+
         if overridesToSet.IsFinal then
             failwith "Cannot set overrides with a sealed function."
         if not overridesToSet.IsVirtual then
@@ -2239,12 +2243,20 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         overrides <- Some overridesToSet
 
     /// Mutability - is this the only good way to handle this?
-    member this.SetAttributes_Pass3_NonConcurrent(newAttrs: AttributeSymbol imarray) =
+    member this.SetAttributes_Pass3_NonConcurrent(pass: CompilerPass, newAttrs: AttributeSymbol imarray) =
+        match pass with
+        | Pass3 -> ()
+        | _ -> failwith "Expected Pass3."
+
         newAttrs
         |> ImArray.iter (fun attr ->
             match attr with
             | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
                 valueFlags <- valueFlags ||| ValueFlags.Imported
+            | AttributeSymbol.Import _ ->
+                valueFlags <- valueFlags ||| ValueFlags.Imported
+            | AttributeSymbol.Export ->
+                valueFlags <- valueFlags ||| ValueFlags.Exported
             | _ ->
                 ()
         )
