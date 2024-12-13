@@ -353,15 +353,30 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 QueryMemberFlags.InstanceFunctionOverrides
             else
                 QueryMemberFlags.Static // TODO: StaticFunctionOverrides?
+
+        let checkOverrides (x: IFunctionSymbol) (func: IFunctionSymbol) =
+            // REVIEW: This is currently a limitation. A non-exported function overriding an exported/imported function
+            //         when they are only pulled together from an interface and base class, and vice versa, 
+            //         into one concrete class.
+            // Note: There are good number of tests that cover this.
+            // TODO: We should come up with a better error message describing what is going on.
+            if (func.Enclosing.IsImported || func.Enclosing.IsExported) && (not x.IsImported && not x.IsExported) then
+                subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
+            elif (not func.Enclosing.IsImported && not func.Enclosing.IsExported) && (x.IsImported || x.IsExported) then
+                subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
+            else
+                areLogicalFunctionSignaturesEqual x func
         
         let possibleFuncs = 
             ty.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None, func.Name)
             |> Seq.filter (fun x ->
                 if x.Id <> func.Id then
                     if x.IsVirtual then
-                        match x.FunctionOverrides with
-                        | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
-                        | _ -> areLogicalFunctionSignaturesEqual x func
+                        let x =
+                            match x.FunctionOverrides with
+                            | Some overridenFunc -> overridenFunc
+                            | _ -> x
+                        checkOverrides x func
                     else
                         false
                 else
@@ -375,8 +390,10 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 |> Seq.filter (fun x ->
                     if x.IsVirtual then
                         match x.FunctionOverrides with
-                        | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
-                        | _ -> false
+                        | Some x ->
+                            checkOverrides x func
+                        | _ -> 
+                            false
                     else
                         false
                 )

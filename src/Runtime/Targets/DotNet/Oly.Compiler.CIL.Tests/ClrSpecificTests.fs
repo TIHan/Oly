@@ -983,6 +983,54 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 5 - but explicit``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
         withCompile
         >> shouldRunWithExpectedOutput "123test"
         )
@@ -1061,8 +1109,18 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
-        withCompile
-        >> shouldRunWithExpectedOutput "123test"
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
         )
 
 [<Fact>]
@@ -1213,6 +1271,231 @@ main(): () =
             )
                     ]
                     |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but explicit``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but explicit without new``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The member 'GenericExample' will hide over its base.",
+                """
+    GenericExample<T>(x: T): () =
+    ^^^^^^^^^^^^^^
+"""
+            )
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but with export``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write(x);
+    }
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+module Main =
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but with export on function only``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write(x);
+    }
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+interface IExample =
+
+    #[export]
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+module Main =
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
         )
 
 [<Fact>]

@@ -1223,7 +1223,7 @@ class Example =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'BaseExample' on 'Example'.",
                 """
 class Example =
       ^^^^^^^
@@ -1233,7 +1233,7 @@ class Example =
     |> ignore
 
 [<Fact>]
-let ``Must implement the interface member even though it is provided in the base class 3``() =
+let ``Do not need to implement the interface member as it is provided in the base class - this only works because no imported/exported functions are involved``() =
     let src =
         """
 interface IExample =
@@ -1249,13 +1249,4 @@ class Example =
     implements IExample
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
-                """
-class Example =
-      ^^^^^^^
-"""
-            )
-        ]
-    |> ignore
+    |> shouldCompile
