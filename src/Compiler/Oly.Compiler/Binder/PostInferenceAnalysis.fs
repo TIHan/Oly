@@ -59,6 +59,7 @@ type aenv =
         isMemberSig: bool
         memberFlags: MemberFlags
         limits: Limits
+        currentNonLocalFunctionOpt: IFunctionSymbol option
         currentFunctionOpt: IFunctionSymbol option
     }
 
@@ -96,16 +97,37 @@ let reportAddressValueCannotBeCaptured acenv (syntaxNode: OlySyntaxNode) (value:
     OlyAssert.True(value.Type.IsScoped)
     acenv.cenv.diagnostics.Error($"'{value.Name}' is an address and cannot be captured.", 10, syntaxNode)
 
+let reportRestrictedTypeParameter acenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    acenv.cenv.diagnostics.Error($"Type parameter '{tyPar.Name}' cannot be used in this non-exported context.", 10, syntaxNode)
+
 [<Flags>]
 type TypeAnalysisFlags =
-    | None          = 0b000000
-    | PermitByRef   = 0b000001
+    | None                        = 0b0000000
+    | PermitByRef                 = 0b0000001
+    | RestrictTypeParameterUse    = 0b0000010
 
 let canPermitByRef (flags: TypeAnalysisFlags) =
     flags.HasFlag(TypeAnalysisFlags.PermitByRef)
 
-let setPermitByRef (flags: TypeAnalysisFlags) =
-    flags ||| TypeAnalysisFlags.PermitByRef
+let hasRestrictedTypeParameterUse (flags: TypeAnalysisFlags) =
+    flags.HasFlag(TypeAnalysisFlags.RestrictTypeParameterUse)
+
+let analyzeTypeParameterUse (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    if hasRestrictedTypeParameterUse flags then
+        match aenv.currentNonLocalFunctionOpt with
+        | Some(func) when 
+                func.IsExported || 
+                func.Enclosing.IsExported || 
+                func.HasFunctionOverridesImportedOrExported ->
+            match tyPar.Kind with
+            | TypeParameterKind.Type when func.Enclosing.IsExported ->
+                reportRestrictedTypeParameter acenv syntaxNode tyPar
+            | TypeParameterKind.Function _ when (func.IsExported || func.HasFunctionOverridesImportedOrExported) ->
+                reportRestrictedTypeParameter acenv syntaxNode tyPar
+            | _ ->
+                ()
+        | _ ->
+            ()
 
 let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
@@ -158,11 +180,15 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
     | TypeSymbol.Tuple(tyArgs, _) ->
         analyzeTypeTuple acenv aenv syntaxNode tyArgs
 
-    | TypeSymbol.Variable(_) ->
-        ()
+    | TypeSymbol.Variable(tyPar) ->
+        analyzeTypeParameterUse acenv aenv flags syntaxNode tyPar
 
-    | TypeSymbol.HigherVariable(_, tyArgs) ->
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+    | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+        analyzeTypeParameterUse acenv aenv flags syntaxNode tyPar
+        tyArgs
+        |> ImArray.iter (fun tyArg ->
+            analyzeType acenv aenv syntaxNode tyArg
+        )
 
     | TypeSymbol.NativePtr(elementTy) ->
         if not elementTy.IsVoid_t then
@@ -185,13 +211,19 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
                 diagnostics.Error($"'{printType benv ty}' not permitted in this context.", 10, syntaxNode)
         | _ ->
             ()
-        analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
+        ty.TypeArguments |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
 and analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     analyzeTypeAux acenv aenv TypeAnalysisFlags.None syntaxNode ty
 
 and analyzeTypePermitByRef (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     analyzeTypeAux acenv aenv TypeAnalysisFlags.PermitByRef syntaxNode ty
+
+and analyzeTypeRestrictTypeParameterUse (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.RestrictTypeParameterUse syntaxNode ty
+
+and analyzeTypePermitByRefAndRestrictTypeParameterUse (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv (TypeAnalysisFlags.PermitByRef ||| TypeAnalysisFlags.RestrictTypeParameterUse) syntaxNode ty
 
 and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxConstraintClause) (tyPar: TypeParameterSymbol) (constrs: ConstraintSymbol imarray) =
     if not constrs.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
@@ -222,13 +254,9 @@ and analyzeTypeForParameter acenv aenv (syntaxNode: OlySyntaxNode) (ty: TypeSymb
     | _ ->
         analyzeTypePermitByRef acenv aenv syntaxNode ty
 
-and analyzeTypeArguments acenv aenv syntaxNode (tyArgs: TypeSymbol imarray) =
-    tyArgs
-    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
-
 and analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode (syntaxTyArgs: OlySyntaxType imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTyArgs.Length <> tyArgs.Length then
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+        tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
     else
         (syntaxTyArgs, tyArgs)
         ||> ImArray.iter2 (fun syntaxTy tyArg ->
@@ -237,7 +265,7 @@ and analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode (syntaxTyArgs: OlySynta
 
 and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElements: OlySyntaxTupleElement imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTupleElements.Length <> tyArgs.Length then
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+         tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
     else
         (syntaxTupleElements, tyArgs)
         ||> ImArray.iter2 (fun syntaxTupleElement tyArg ->
@@ -291,7 +319,11 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol)
     analyzeTypeEntityAccessibility acenv aenv syntaxNode ent
 
     let cont() =
-        analyzeTypeArguments acenv aenv syntaxNode ent.TypeArguments
+        if not ent.IsFormal then
+            if not ent.IsExported && not ent.IsImported then
+                ent.TypeArguments |> ImArray.iter (analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode)
+            else
+                ent.TypeArguments |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
     let rec check (syntaxName: OlySyntaxName) =
         match syntaxName with
@@ -318,7 +350,7 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol)
 
 and analyzeTypeTuple acenv aenv (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol imarray) =
     let cont() =
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+         tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
     match syntaxNode with
     | :? OlySyntaxType as syntaxTy ->
@@ -378,6 +410,8 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
     else
         checkEnclosing acenv aenv syntaxNode value.Enclosing
 
+        let isVanilla = value.IsVanilla
+
         // TODO: We need to use the syntaxNode to get access to the type arguments if they exists, parameters, and return type.
         if value.IsFunction then
             let func = value.AsFunction
@@ -410,7 +444,10 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
             | _ ->
                 func.TypeArguments
                 |> ImArray.iter (fun tyArg -> 
-                    analyzeType acenv aenv syntaxNode tyArg
+                    if isVanilla then
+                        analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                    else
+                        analyzeType acenv aenv syntaxNode tyArg
                 )
                 func.Parameters
                 |> ImArray.iter (fun par ->
@@ -425,9 +462,12 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
         else
             value.TypeArguments
             |> ImArray.iter (fun tyArg -> 
-                analyzeTypePermitByRef  acenv aenv syntaxNode tyArg
+                if isVanilla then
+                    analyzeTypePermitByRefAndRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                else
+                    analyzeTypePermitByRef acenv aenv syntaxNode tyArg
             )
-            analyzeTypePermitByRef  acenv aenv syntaxNode value.Type
+            analyzeTypePermitByRef acenv aenv syntaxNode value.Type            
 
 let handleLambda acenv aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSymbol imarray) =
     let aenv = 
@@ -463,7 +503,10 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
                 else
                     aenv.limits
 
-            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
+            if value.IsLocal then
+                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
+            else
+                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentNonLocalFunctionOpt = Some value.AsFunction; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
             { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
         | ValueSome(rhsExpr) ->
@@ -1273,6 +1316,7 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
             isMemberSig = false 
             memberFlags = MemberFlags.None
             limits = Limits.None
+            currentNonLocalFunctionOpt = None
             currentFunctionOpt = None
             isReturnable = false
         }

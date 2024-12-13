@@ -1340,7 +1340,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         match lazyValueFlags with
         | ValueSome(valueFlags) -> valueFlags
         | _ ->
-            let valueFlags =
+            let mutable valueFlags =
                 // Clean up value flags.
                 if 
                         not ilFuncDef.IsStatic && 
@@ -1350,6 +1350,17 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                     ValueFlags.Mutable
                 else
                     ValueFlags.None
+
+            (this :> IFunctionSymbol).Attributes
+            |> ImArray.iter (function
+                | AttributeSymbol.Import _ ->
+                    valueFlags <- valueFlags ||| ValueFlags.Imported
+                | AttributeSymbol.Export ->
+                    valueFlags <- valueFlags ||| ValueFlags.Exported
+                | _ ->
+                    ()
+            )
+
             lazyValueFlags <- ValueSome(valueFlags)
             valueFlags
 
@@ -1546,14 +1557,26 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) =
+type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) as this =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
     let id = newId()
     let ilFieldDef = cenv.ilAsm.GetFieldDefinition(ilFieldDefHandle)
-    let valueFlags = importFieldFlags ilFieldDef.Flags
     let memberFlags = importMemberFlags ilFieldDef.MemberFlags
+    let valueFlags =
+        let mutable valueFlags = importFieldFlags ilFieldDef.Flags
+        ilFieldDef.Attributes
+        |> ImArray.iter (fun ilAttr ->
+            match ilAttr with
+            | OlyILAttribute.Import _ ->
+                valueFlags <- valueFlags ||| ValueFlags.Imported
+            | OlyILAttribute.Export ->
+                valueFlags <- valueFlags ||| ValueFlags.Imported
+            | _ ->
+                ()
+        )
+        valueFlags
 
     let lazyName =
         lazy
@@ -1589,6 +1612,34 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
                 | _ -> ValueNone
             | _ ->
                 ValueNone
+
+    let mutable lazyValueFlags = ValueNone: ValueFlags voption
+    let evalValueFlags() =
+        match lazyValueFlags with
+        | ValueSome(valueFlags) -> valueFlags
+        | _ ->
+            let mutable valueFlags = importFieldFlags ilFieldDef.Flags
+
+            (this :> IFieldSymbol).Attributes
+            |> ImArray.iter (function
+                | AttributeSymbol.Import _ ->
+                    valueFlags <- valueFlags ||| ValueFlags.Imported
+                | AttributeSymbol.Export ->
+                    valueFlags <- valueFlags ||| ValueFlags.Exported
+                | _ ->
+                    ()
+            )
+
+            lazyValueFlags <- ValueSome(valueFlags)
+            valueFlags
+
+    let mutable lazyAttrs = Unchecked.defaultof<AttributeSymbol imarray>
+    let evalAttrs() =
+        if lazyAttrs.IsDefault then
+            lazyAttrs <-
+                ilFieldDef.Attributes
+                |> ImArray.map (importAttribute cenv)
+        lazyAttrs
 
     member _.DebugName = lazyName.Value
 
@@ -1628,7 +1679,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 
         member this.ValueFlags: ValueFlags = valueFlags
 
-        member _.Attributes = ImArray.empty // TODO:
+        member _.Attributes = evalAttrs()
 
         member _.Constant = lazyConstant.Value
 
@@ -1650,10 +1701,20 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     let name = cenv.ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
     let entFlags = importEntityFlags ilEntDef.Flags
     let entFlags =
-        if ilEntDef.Attributes |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false) then
-            entFlags ||| EntityFlags.Intrinsic
-        else
-            entFlags
+        let mutable entFlags = entFlags
+        ilEntDef.Attributes
+        |> ImArray.iter (fun ilAttr ->
+            match ilAttr with
+            | OlyILAttribute.Intrinsic _ ->
+                entFlags <- entFlags ||| EntityFlags.Intrinsic
+            | OlyILAttribute.Import _ ->
+                entFlags <- entFlags ||| EntityFlags.Imported
+            | OlyILAttribute.Export ->
+                entFlags <- entFlags ||| EntityFlags.Exported
+            | _ ->
+                ()
+        )
+        entFlags
 
     let mutable lazyEnclosing = Unchecked.defaultof<EnclosingSymbol>
     let evalEnclosing() =

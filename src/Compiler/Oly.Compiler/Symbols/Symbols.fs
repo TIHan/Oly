@@ -4830,6 +4830,16 @@ module SymbolExtensions =
             member this.IsExplicitOverrides =
                 this.MemberFlags &&& MemberFlags.ExplicitOverrides = MemberFlags.ExplicitOverrides
 
+            member this.HasFunctionOverridesImportedOrExported =
+                this.FunctionOverrides.IsSome && 
+                (this.FunctionOverrides.Value.IsExported || this.FunctionOverrides.Value.IsImported)
+
+            member this.IsVanilla =
+                not this.IsExported &&
+                not this.IsImported && 
+                not this.HasFunctionOverridesImportedOrExported && 
+                this.TryWellKnownFunction.IsNone
+
             member this.IsConcrete =
                 if this.Enclosing.IsInterface then false
                 elif not this.IsVirtual then true
