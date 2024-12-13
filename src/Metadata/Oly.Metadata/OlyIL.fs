@@ -619,11 +619,7 @@ type OlyILPatternDefinition =
 
 [<NoEquality;NoComparison>]
 type OlyILFieldReference =
-    | OlyILFieldReference of enclosing: OlyILEnclosing * name: OlyILStringHandle * ty: OlyILType
-
-    member this.Type =
-        match this with
-        | OlyILFieldReference(ty=ty) -> ty
+    | OlyILFieldReference of enclosing: OlyILEnclosing * name: OlyILStringHandle
 
     member this.GetEnclosingType() =
         match this with

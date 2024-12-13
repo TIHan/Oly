@@ -251,7 +251,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
         match ilEnclosingTy with
         | OlyILTypeEntity(ilEntInst) ->
             let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandle)
-            OlyILFieldReference(OlyILEnclosing.Entity(ilEntInst), ilFieldDef.NameHandle, ilFieldDef.Type)
+            OlyILFieldReference(OlyILEnclosing.Entity(ilEntInst), ilFieldDef.NameHandle)
         | _ ->
             failwith "Expected entity type."
 

@@ -609,7 +609,7 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
     )
 
 and GenFieldAsILFieldReference cenv env (field: IFieldSymbol) =
-    OlyILFieldReference(emitILEnclosingForMember cenv env field, GenString cenv field.Name, emitILType cenv env field.Type)
+    OlyILFieldReference(emitILEnclosingForMember cenv env field, GenString cenv field.Name)
 
 and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
     OlyAssert.True(field.IsFormal)

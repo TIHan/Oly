@@ -2837,7 +2837,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     member internal this.ResolveField(ilAsm: OlyILReadOnlyAssembly, ilFieldRef: OlyILFieldReference, genericContext: GenericContext) : RuntimeField =
         match ilFieldRef with
-        | OlyILFieldReference(ilEnclosing, ilName, ilFieldTy) ->
+        | OlyILFieldReference(ilEnclosing, ilName) ->
             let enclosingTy = (this.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, ImArray.empty)).AsType
             let name = ilAsm.GetStringOrEmpty(ilName)
 
