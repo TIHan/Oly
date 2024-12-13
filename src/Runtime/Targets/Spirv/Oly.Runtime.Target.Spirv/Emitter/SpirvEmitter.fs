@@ -34,7 +34,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitExternalType(externalPlatform: string, externalPath: string imarray, externalName: string, _enclosing: Choice<string imarray,SpirvType>, _kind: OlyILEntityKind, _flags: OlyIRTypeFlags, _name: string, _tyParCount: int): SpirvType = 
             if externalPlatform <> "spirv" then raise(InvalidOperationException())
             if externalPath.Length <> 1 then raise(InvalidOperationException())
-            if (ImArray.head externalPath) <> "__oly_spirv_" then raise(InvalidOperationException())
+            if (ImArray.head externalPath) <> "std" then raise(InvalidOperationException())
 
             match BuiltInTypes.TryGetByName(builder, externalName) with
             | ValueSome ty -> ty

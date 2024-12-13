@@ -65,3 +65,43 @@ let ``Round 4``() =
     "round(input)"
     |> run [|1.5f|] [|2.0f|]
 
+[<Fact>]
+let ``Round 5``() =
+    "round(input)"
+    |> run [|3.5f|] [|4.0f|]
+
+[<Fact>]
+let ``Round 6``() =
+    "round(input)"
+    |> run [|4.5f|] [|4.0f|]
+
+[<Fact>]
+let ``RoundEven``() =
+    "roundEven(input)"
+    |> run [|0.1f|] [|0.0f|]
+
+[<Fact>]
+let ``RoundEven 2``() =
+    "roundEven(input)"
+    |> run [|0.9f|] [|1.0f|]
+
+[<Fact>]
+let ``RoundEven 3``() =
+    "roundEven(input)"
+    |> run [|0.5f|] [|0.0f|]
+
+[<Fact>]
+let ``RoundEven 4``() =
+    "roundEven(input)"
+    |> run [|1.5f|] [|2.0f|]
+
+[<Fact>]
+let ``RoundEven 5``() =
+    "roundEven(input)"
+    |> run [|3.5f|] [|4.0f|]
+
+[<Fact>]
+let ``RoundEven 6``() =
+    "roundEven(input)"
+    |> run [|4.5f|] [|4.0f|]
+

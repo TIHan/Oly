@@ -571,7 +571,7 @@ module BuiltInFunctions =
         else
 
         if path.Length < 2 || path.Length > 2 then None
-        elif (ImArray.head path) <> "__oly_spirv_" then None
+        elif (ImArray.head path) <> "std" then None
         else          
             let name = path[1]
             match Lookup.TryGetValue(name) with

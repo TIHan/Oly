@@ -27,27 +27,20 @@ alias inref<T>
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
 
-#[import("spirv", "__oly_spirv_", "vec2")]
+#[import("spirv", "std", "vec2")]
 struct vec2 =
 
     public field mutable X: float32
     public field mutable Y: float32
 
-#[import("spirv", "__oly_spirv_", "vec3")]
+#[import("spirv", "std", "vec3")]
 struct vec3 =
 
     public field mutable X: float32
     public field mutable Y: float32
     public field mutable Z: float32
 
-#[import("spirv", "__oly_spirv_", "uvec3")]
-struct uvec3 =
-
-    public field mutable X: uint32
-    public field mutable Y: uint32
-    public field mutable Z: uint32
-
-#[import("spirv", "__oly_spirv_", "vec4")]
+#[import("spirv", "std", "vec4")]
 struct vec4 =
 
     public field mutable X: float32
@@ -59,45 +52,52 @@ struct vec4 =
 
     new(v: vec2, z: float32, w: float32)
 
+#[import("spirv", "std", "uvec3")]
+struct uvec3 =
+
+    public field mutable X: uint32
+    public field mutable Y: uint32
+    public field mutable Z: uint32
+
 // Attributes
 
-#[import("spirv", "__oly_spirv_", "position")]
+#[import("spirv", "std", "position")]
 #[intrinsic("importer")]
 struct positionAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "point_size")]
+#[import("spirv", "std", "point_size")]
 #[intrinsic("importer")]
 struct point_sizeAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "block")]
+#[import("spirv", "std", "block")]
 #[intrinsic("importer")]
 struct blockAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "location")]
+#[import("spirv", "std", "location")]
 #[intrinsic("importer")]
 struct locationAttribute = new(number: uint32)
 
-#[import("spirv", "__oly_spirv_", "global_invocation_id")]
+#[import("spirv", "std", "global_invocation_id")]
 #[intrinsic("importer")]
 struct global_invocation_idAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "uniform")]
+#[import("spirv", "std", "uniform")]
 #[intrinsic("importer")]
 struct uniformAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "descriptor_set")]
+#[import("spirv", "std", "descriptor_set")]
 #[intrinsic("importer")]
 struct descriptor_setAttribute = new(uint32)
 
-#[import("spirv", "__oly_spirv_", "binding")]
+#[import("spirv", "std", "binding")]
 #[intrinsic("importer")]
 struct bindingAttribute = new(uint32)
 
-#[import("spirv", "__oly_spirv_", "buffer_block")]
+#[import("spirv", "std", "buffer_block")]
 #[intrinsic("importer")]
 struct buffer_blockAttribute = new()
 
-#[import("spirv", "__oly_spirv_", "storage_buffer")]
+#[import("spirv", "std", "storage_buffer")]
 #[intrinsic("importer")]
 struct storage_bufferAttribute = new()
 
@@ -153,3 +153,24 @@ GlobalInvocationId: uvec3
 
 #[import("spirv", "GLSL.std.450", "1")]
 round(float32): float32
+
+#[import("spirv", "GLSL.std.450", "1")]
+round(vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "1")]
+round(vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "1")]
+round(vec4): vec4
+
+#[import("spirv", "GLSL.std.450", "2")]
+roundEven(float32): float32
+
+#[import("spirv", "GLSL.std.450", "2")]
+roundEven(vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "2")]
+roundEven(vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "2")]
+roundEven(vec4): vec4
