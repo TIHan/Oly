@@ -151,18 +151,6 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
         (irTier: OlyIRFunctionTier) =
-#if DEBUG || CHECKED
-    Log(
-        let witnesses = func.Witnesses
-        let witnessText = 
-            if witnesses.IsEmpty then
-                ""
-            else
-                let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
-                $" - Witnesses: {text}"
-        $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
-    )
-#endif
     let argLocalManager =
         ArgumentLocalManager(irArgFlags, ResizeArray irLocalFlags)
 

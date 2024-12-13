@@ -2597,6 +2597,18 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     emitTypeGenericInstance ty
 
     let optimizeFunctionBody (func: RuntimeFunction) (funcBody: OlyIRFunctionBody<_, _, _>) (genericContext: GenericContext) =
+#if DEBUG || CHECKED
+        Log(
+            let witnesses = func.Witnesses
+            let witnessText = 
+                if witnesses.IsEmpty then
+                    ""
+                else
+                    let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
+                    $" - Witnesses: {text}"
+            $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+        )
+#endif
         let irTier = this.GetFunctionTier(func)
 
         OptimizeFunctionBody

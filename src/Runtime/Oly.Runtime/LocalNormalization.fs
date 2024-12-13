@@ -26,20 +26,6 @@ let private getLocal (localScope: ImmutableHashSet<int>) (localToNormalizedLocal
 let private handleOperation (optenv: optenv<_, _, _>) (localScope: ImmutableHashSet<int>) (normalizedLocals: ArgumentLocalManager) (localToNormalizedLocalMap: Dictionary<int, int>) origExpr : E<_, _, _> =
     match origExpr with
     | E.Operation(irTextRange, irOp) ->
-#if DEBUG || CHECKED
-        match irOp with
-        | O.Call(irFunc, argExprs, _) ->
-            let func = irFunc.RuntimeFunction
-            // Verify use of 'base' calls.
-            if func.Flags.IsInstance && func.Flags.IsVirtual && not func.Flags.IsFinal && argExprs.Length > 0 && not(func.EnclosingType.IsAnyStruct) then
-                match argExprs[0] with
-                | E.Operation(op=O.Upcast(arg=E.Value(value=V.Argument(index=0)))) when func.EnclosingType <> optenv.func.EnclosingType && subsumesType func.EnclosingType optenv.func.EnclosingType ->
-                    ()
-                | _ ->
-                    failwith "Invalid base call after inlining. This is a bug in the runtime."
-        | _ ->
-            ()
-#endif
         let newOp = irOp.MapAndReplaceArguments(fun _ argExpr -> handleExpression optenv localScope normalizedLocals localToNormalizedLocalMap argExpr)
         if newOp = irOp then
             let newOp = handleOperationSecondPass localScope localToNormalizedLocalMap irOp
