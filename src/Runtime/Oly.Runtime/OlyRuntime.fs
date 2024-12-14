@@ -23,7 +23,7 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
     enclosingTyPars.AddRange(ilEntDef.TypeParameters)
 
 let createGenericContextFromFunction (func: RuntimeFunction) =
-    let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal
+    let isTyErased = func.EnclosingType.CanGenericsBeErased
     let isFuncErased = func.CanGenericsBeErased
 
     let genericContext =
@@ -3880,10 +3880,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if not genericContext.IsErasingType && not enclosingTy.IsFormal then
             failwith "Expected formal enclosing type."
 
-        if func.IsExternal && genericContext.IsErasing then
-            failwith "Expected zero erasing type arguments for external function."
-
         let isErasingFunc = genericContext.IsErasingFunction
+        
+        if func.IsExternal && isErasingFunc then
+            failwith "Cannot erase type arguments of an external function."
+
+        if func.IsExported && isErasingFunc then
+            failwith "Cannot erase type arguments of an exported function."
 
         if isErasingFunc && (enclosingTy.TypeArguments.Length + func.TypeParameters.Length <> genericContext.Length) then
             failwith "Invalid number of type arguments for function."

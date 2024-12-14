@@ -1673,6 +1673,121 @@ main(): () =
         )
 
 [<Fact>]
+let ``Complex test and csharp source 15 - using export attributes and local class``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      class LocalClass =
+        M(): () = Console.Write("LocalClass")
+      let c = LocalClass()
+      c.M()
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "LocalClasstestExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 16 - using export attributes and local class using static``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      class LocalClass =
+        static M(): () = Console.Write("LocalClass")
+      LocalClass.M()
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "LocalClasstestExample"
+        )
+
+[<Fact>]
 let ``Complex test and NO-csharp source - using no export attributes``() =
     let src =
         """
