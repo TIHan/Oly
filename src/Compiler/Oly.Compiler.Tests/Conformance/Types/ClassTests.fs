@@ -1250,3 +1250,142 @@ class Example =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Must use the export attribute when overriding an exported function that has its own type parameters``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must use the export attribute when overriding an exported function that has its own type parameters 2``() =
+    let src =
+        """
+interface IExample =
+
+    #[export]
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Can optionally the export attribute when overriding an exported function that has no type parameters``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    M(): () = ()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Can optionally the export attribute when overriding an exported function that has no type parameters 2``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    M(): () = ()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Cannot use the export attribute when overriding an non-exported and non-imported function``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' cannot be exported because the function its overriding is neither imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot use the export attribute when overriding a non-exported and non-imported function 2``() =
+    let src =
+        """
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    M(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'M' cannot be exported because the function its overriding is neither imported or exported.",
+                """
+    M(): () = ()
+    ^
+"""
+            )
+        ]
+    |> ignore

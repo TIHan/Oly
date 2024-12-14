@@ -715,6 +715,7 @@ class Example =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
@@ -723,6 +724,7 @@ class Example2 =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -781,6 +783,7 @@ struct Example =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
@@ -789,6 +792,7 @@ struct Example2 =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -847,6 +851,7 @@ struct Example<Z> =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
@@ -855,6 +860,7 @@ struct Example2<Z> =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -924,6 +930,7 @@ struct Example<Z> =
 
   new() = { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
@@ -1020,6 +1027,7 @@ class Example =
     inherits BaseExample
     implements IExample
 
+    #[export]
     new GenericExample<T>(x: T): () =
         Console.Write(x)
 
@@ -1188,6 +1196,7 @@ class Example =
     inherits BaseExample
     implements IExample
 
+    #[export]
     new GenericExample<T>(x: T): () = Console.Write(x)
 
 main(): () =
@@ -1229,6 +1238,7 @@ class Example =
     inherits BaseExample
     implements IExample
 
+    #[export]
     new GenericExample<T>(x: T): () =
         let x = NonExportedClass(x)
         Console.Write(x.Value)
@@ -1497,6 +1507,363 @@ module Main =
         withCompile
         >> shouldRunWithExpectedOutput "123test"
         )
+
+[<Fact>]
+let ``Complex test and csharp source 12 - using export attributes``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 13 - using export attributes and wrapped in a lambda``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 14 - partially using export attributes``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = { }
+
+  #[export]
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = { }
+  
+  #[export]
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
+
+[<Fact>]
+let ``Complex test and NO-csharp source - using no export attributes``() =
+    let src =
+        """
+open System
+
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Complex test and NO-csharp source 2 - using export attributes``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+    
+[<Fact>]
+let ``Complex test and NO-csharp source 3 - using export attributes and wrapped in a lambda``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Complex test and NO-csharp source 4 - partially using export attributes``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = { }
+
+  #[export]
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = { }
+  
+  #[export]
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
 
 [<Fact>]
 let ``Property test and csharp source``() =

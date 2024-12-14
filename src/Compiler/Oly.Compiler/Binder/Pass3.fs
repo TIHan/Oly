@@ -407,6 +407,18 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
                                 cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.", 10, syntax.Identifier)
                         )
 
+                        let isExported = func.IsExported
+                        let isOverridenExportedOrImported = overridenFunc.IsExported || overridenFunc.IsImported
+
+                        match isExported, isOverridenExportedOrImported with
+                        | true, true
+                        | false, false -> ()
+                        | true, false ->
+                            cenv.diagnostics.Error($"'{func.Name}' cannot be exported because the function its overriding is neither imported or exported.", 10, syntax.Identifier)
+                        | false, true ->
+                            if func.TypeParameters.IsEmpty |> not then
+                                cenv.diagnostics.Error($"'{func.Name}' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.", 10, syntax.Identifier)
+
                         true
                     else
                         false
