@@ -22,9 +22,6 @@ let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntity
             ImArray.empty
     enclosingTyPars.AddRange(ilEntDef.TypeParameters)
 
-let setWitnessesToFunction (witnesses: RuntimeWitness imarray) genericContext (this: RuntimeFunction) =
-    this.SetWitnesses(witnesses)
-
 let createGenericContextFromFunction (func: RuntimeFunction) =
     let isTyErased = func.EnclosingType.CanGenericsBeErased && not func.IsExternal
     let isFuncErased = func.CanGenericsBeErased
@@ -1650,7 +1647,7 @@ let importFunctionBody
             x.Substitute(genericContext)
         )
 
-    let func = func.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction genericContext.PassedWitnesses genericContext
+    let func = func.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(genericContext.PassedWitnesses)
     let enclosingTy = enclosingTy.StripExtension()
 
     let instanceTy =
@@ -2993,7 +2990,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ ->
                         funcInst
 
-            func |> setWitnessesToFunction passedAndFilteredWitnesses genericContext
+            func.SetWitnesses(passedAndFilteredWitnesses)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext
@@ -3969,7 +3966,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             |> ImArray.map (fun x -> 
                                 x.Substitute(genericContext)
                             )
-                        this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs) |> setWitnessesToFunction witnesses genericContext)
+                        this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses))
                     else
                         // We should not have witnesses to pass here.
                         if not witnesses.IsEmpty then
@@ -4125,7 +4122,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     overridenFunc.MakeInstance(ty, funcTyArgs)
                                 else
                                     overridenFunc.MakeReference(ty)
-                            let funcInst = funcInst |> setWitnessesToFunction witnesses genericContext
+                            let funcInst = funcInst.SetWitnesses(witnesses)
                             this.EmitFunction(funcInst) |> ignore
                 )
 

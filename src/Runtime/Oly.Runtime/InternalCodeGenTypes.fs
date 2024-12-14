@@ -1575,8 +1575,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             | _ -> false
         )
 
-    member this.CanGenericsBeErased =
-        not this.IsExternal && not this.IsExported && (not (this.IsOverridesExternal && this.Witnesses.IsEmpty))
+    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported
 
     /// REVIEW: Consider caching this?
     member this.ComputeSignatureKey() =
