@@ -117,12 +117,11 @@ let analyzeTypeParameterUse (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlag
         match aenv.currentNonLocalFunctionOpt with
         | Some(func) when 
                 func.IsExported || 
-                func.Enclosing.IsExported || 
-                func.HasFunctionOverridesImportedOrExported ->
+                func.Enclosing.IsExported ->
             match tyPar.Kind with
             | TypeParameterKind.Type when func.Enclosing.IsExported ->
                 reportRestrictedTypeParameter acenv syntaxNode tyPar
-            | TypeParameterKind.Function _ when (func.IsExported || func.HasFunctionOverridesImportedOrExported) ->
+            | TypeParameterKind.Function _ when func.IsExported ->
                 reportRestrictedTypeParameter acenv syntaxNode tyPar
             | _ ->
                 ()
