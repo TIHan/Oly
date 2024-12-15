@@ -220,7 +220,7 @@ let ``Basic fragment shader`` () =
 //}
     let src =
         """
-texCoords: vec2
+texCoords: vec2<float32>
     #[location(0)]
     get
 
@@ -241,11 +241,11 @@ main(): () =
 let ``Should create a new value and use it`` () =
     let src =
         """
-position: vec2
+position: vec<2, float32>
     #[location(0)]
     get
 
-texCoords: vec2
+texCoords: vec<2, float32>
     #[location(1)]
     get
 
@@ -253,7 +253,7 @@ color: vec4
     #[location(2)]
     get
 
-outTexCoords: vec2
+outTexCoords: vec<2, float32>
     #[location(0)]
     set
 

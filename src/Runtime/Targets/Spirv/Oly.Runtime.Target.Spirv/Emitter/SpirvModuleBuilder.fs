@@ -99,6 +99,8 @@ type SpirvType =
     //        have the entry-point parameter semantics properly determined without introducing duplicate types to the spirv byte-code.
     | OlyByRef of kind: OlyIRByRefKind * elementTy: SpirvType
 
+    | OlyConstantInt32 of value: int32
+
     member this.GetSizeInBytes(): uint32 =
         match this with
         | Int8 _
@@ -120,6 +122,8 @@ type SpirvType =
             raise(NotImplementedException())
         | OlyByRef _ ->
             raise(InvalidOperationException("ByRef must be lowered."))
+        | OlyConstantInt32 _ ->
+            raise(InvalidOperationException("ConstantInt32 must be lowered."))
         | Pointer _ ->
             raise(NotImplementedException())
         | Vec2 _ ->
@@ -166,8 +170,9 @@ type SpirvType =
                 OpTypeStruct(idResult, itemTys |> Seq.map (fun x -> x.IdResult) |> List.ofSeq)
             ]
 
-        | OlyByRef _ ->
-            raise(InvalidOperationException("ByRef must be lowered."))
+        | OlyByRef _ 
+        | OlyConstantInt32 _ ->
+            raise(InvalidOperationException("Type must be lowered."))
 
         | Pointer(idResult, storageClass, elementTy) ->
             [
@@ -242,7 +247,9 @@ type SpirvType =
         | RuntimeArray(idResult, _, _) -> idResult
         | Struct(namedTy) -> namedTy.IdResult
         | Module _ -> failwith "Invalid type for 'IdResult'."
-        | OlyByRef _ -> raise(InvalidOperationException("ByRef must be lowered."))
+        | OlyByRef _ 
+        | OlyConstantInt32 _ -> 
+            raise(InvalidOperationException("Type must be lowered."))
 
     member this.IsModule_t =
         match this with
@@ -716,7 +723,7 @@ module BuiltInTypes =
 
     let TryGetByName(spvModule: SpirvModuleBuilder, name: string) =
         match name with
-        | "vec2" -> spvModule.GetTypeVec2() |> ValueSome
+        | "vec2" -> SpirvType.Vec2(0u, SpirvType.Invalid) |> ValueSome
         | "vec3" -> spvModule.GetTypeVec3() |> ValueSome
         | "vec4" -> spvModule.GetTypeVec4() |> ValueSome
         | "uvec3" -> spvModule.GetTypeUVec3() |> ValueSome
@@ -935,7 +942,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             failwith "Unable to add type while the module is building."
         types.Add(structBuilder.AsType)
 
-    member private _.AddType(ty) =
+    member _.AddType(ty) =
         if isBuilding then
             failwith "Unable to add type while the module is building."
         types.Add(ty)

@@ -28,10 +28,14 @@ alias inref<T>
 alias outref<T>
 
 #[import("spirv", "std", "vec2")]
-struct vec2 =
+struct vec<N, T> where N: constant int32
 
-    public field mutable X: float32
-    public field mutable Y: float32
+#[open, export]
+extension vec2Extensions<T> =
+    inherits vec<2, T>
+
+    x: T get() = unchecked default
+    y: T get() = unchecked default
 
 #[import("spirv", "std", "vec3")]
 struct vec3 =
@@ -50,7 +54,7 @@ struct vec4 =
 
     new(float32)
 
-    new(v: vec2, z: float32, w: float32)
+    new(v: vec<2, float32>, z: float32, w: float32)
 
 #[import("spirv", "std", "uvec3")]
 struct uvec3 =
@@ -152,25 +156,13 @@ GlobalInvocationId: uvec3
 // https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
 
 #[import("spirv", "GLSL.std.450", "1")]
-round(float32): float32
+round<T>(T): T
 
 #[import("spirv", "GLSL.std.450", "1")]
-round(vec2): vec2
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(vec3): vec3
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(vec4): vec4
+round<N, T>(vec<N, T>): vec<N, T> where N: constant int32
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven(float32): float32
+roundEven<T>(T): T
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec2): vec2
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec3): vec3
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec4): vec4
+roundEven<N, T>(vec<N, T>): vec<N, T> where N: constant int32

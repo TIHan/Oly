@@ -133,8 +133,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                     OpFunctionEnd
                 ]
 
-        member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction = 
-            if tyPars.Length > 0 then raise(NotSupportedException())
+        member this.EmitFunctionDefinition(externalInfoOpt: OlyIRFunctionExternalInfo option, enclosingTy: SpirvType, flags: OlyIRFunctionFlags, name: string, tyPars: OlyIRTypeParameter<SpirvType> imarray, pars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType, overrides: SpirvFunction option, sigKey: OlyIRFunctionSignatureKey, attrs: OlyIRAttribute<SpirvType,SpirvFunction> imarray): SpirvFunction =
             if overrides.IsSome then raise(NotSupportedException())
 
             match externalInfoOpt with
@@ -186,7 +185,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 funcBuilder.AsFunction
 
         member this.EmitFunctionInstance(enclosingTy: SpirvType, formalFunc: SpirvFunction, tyArgs: SpirvType imarray): SpirvFunction = 
-            raise(NotSupportedException())
+            formalFunc
 
         member this.EmitFunctionReference(enclosingTy: SpirvType, formalFunc: SpirvFunction): SpirvFunction = 
             raise(NotSupportedException())
@@ -227,10 +226,9 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             raise(NotImplementedException())
 
         member this.EmitTypeConstantInt32(value: int32): SpirvType = 
-            raise(NotSupportedException())
+            SpirvType.OlyConstantInt32 value
 
-        member this.EmitTypeDefinition(enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyParCount: int): SpirvType = 
-            if tyParCount > 0 then raise(NotSupportedException())
+        member this.EmitTypeDefinition(enclosing: Choice<string imarray,SpirvType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyParCount: int): SpirvType =
             match kind with
             | OlyILEntityKind.Module ->
                 SpirvType.Module(enclosing, name)
@@ -267,7 +265,15 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             raise(NotSupportedException())
 
         member this.EmitTypeGenericInstance(ty: SpirvType, tyArgs: SpirvType imarray): SpirvType = 
-            raise(NotSupportedException())
+            match tyArgs[0], ty with
+            | SpirvType.OlyConstantInt32 2, SpirvType.Vec2(0u, SpirvType.Invalid) ->
+                if tyArgs.Length <> 2 then
+                    invalidOp "Bad type arguments."
+                let ty = SpirvType.Vec2(builder.NewIdResult(), tyArgs[1])
+                builder.AddType ty
+                ty
+            | _ ->
+                raise(NotSupportedException())
 
         member this.EmitTypeHigherVariable(index: int32, tyInst: SpirvType imarray, kind: OlyIRTypeVariableKind): SpirvType = 
             raise(NotSupportedException())
@@ -321,7 +327,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             raise(NotSupportedException())
 
         member this.EmitTypeVariable(index: int32, kind: OlyIRTypeVariableKind): SpirvType = 
-            raise(NotSupportedException())
+            SpirvType.Invalid
 
         member this.EmitTypeVoid(): SpirvType = 
             builder.GetTypeVoid()
