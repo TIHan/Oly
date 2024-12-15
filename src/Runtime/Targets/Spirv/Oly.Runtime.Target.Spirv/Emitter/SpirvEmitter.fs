@@ -203,8 +203,8 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             | OlyIRArrayKind.Mutable ->
                 builder.GetTypeArray(SpirvArrayKind.Mutable, elementTy)
 
-        member this.EmitTypeFixedArray(length: int, elementTy: SpirvType, rank: int, kind: OlyIRArrayKind): SpirvType = 
-            if rank > 1 || rank <= 0 then
+        member this.EmitTypeFixedArray(length: int, elementTy: SpirvType, kind: OlyIRArrayKind): SpirvType = 
+            if length <= 0 then
                 raise(InvalidOperationException())
             raise(NotImplementedException())
 

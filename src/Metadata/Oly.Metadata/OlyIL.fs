@@ -682,7 +682,7 @@ type OlyILType =
     | OlyILTypeNativePtr of elementTy: OlyILType
     | OlyILTypeNativeFunctionPtr of cc: OlyILCallingConvention * argTys: OlyILType imarray * returnTy: OlyILType
     | OlyILTypeArray of elementTy: OlyILType * rank: int * kind: OlyILArrayKind
-    | OlyILTypeFixedArray of length: int * elementTy: OlyILType * rank: int * kind: OlyILArrayKind
+    | OlyILTypeFixedArray of length: int * elementTy: OlyILType * kind: OlyILArrayKind
     | OlyILTypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | OlyILTypeHigherVariable of index: int32 * tyInst: OlyILType imarray * kind: OlyILTypeVariableKind
     | OlyILTypeConstantInt32 of value: int32
@@ -724,7 +724,7 @@ type OlyILType =
         | OlyILTypeNativeFunctionPtr(_, argTys, returnTy) -> argTys.Add(returnTy)
         | OlyILTypeNativePtr(ty) -> ImArray.createOne ty
         | OlyILTypeArray(ty, _, _) -> ImArray.createOne ty
-        | OlyILTypeFixedArray(_, ty, _, _) -> ImArray.createOne ty
+        | OlyILTypeFixedArray(_, ty, _) -> ImArray.createOne ty
         | OlyILTypeRefCell(ty) -> ImArray.createOne ty
         | OlyILTypeEntity(entRef) -> entRef.TypeArguments
         | OlyILTypeForAll _ -> ImArray.empty
@@ -884,7 +884,6 @@ type OlyILOperation =
     | NewArray of elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
     | NewFixedArray of length: int * elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
-    | NewFixedMutableArray of length: int * elementTy: OlyILType
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
     | Cast of arg: OlyILExpression * castToTy: OlyILType

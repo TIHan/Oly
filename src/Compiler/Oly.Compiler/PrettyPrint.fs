@@ -104,9 +104,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | ArrayKind.Mutable ->
                 "mutable " + elementText + $"[{commas}]"
 
-    | TypeSymbol.FixedArray(length, elementTy, rank, kind) -> 
-        if rank <= 0 then
-            failwith "Expected rank to be greater than zero."
+    | TypeSymbol.FixedArray(length, elementTy, kind) -> 
         if length <= 0 then
             failwith "Expected length to be greater than zero."
 
@@ -117,20 +115,11 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             else
                 elementText
 
-        match rank with
-        | 1 ->
-            match kind with
-            | ArrayKind.Immutable ->
-                elementText + $"[{length}]"
-            | ArrayKind.Mutable ->
-                "mutable " + elementText + $"[{length}]"
-        | _ ->
-            let commas = Array.init (rank - 1) (fun _ -> ",") |> String.concat ""
-            match kind with
-            | ArrayKind.Immutable ->
-                elementText + $"[{length};{commas}]"
-            | ArrayKind.Mutable ->
-                "mutable " + elementText + $"[{length};{commas}]"
+        match kind with
+        | ArrayKind.Immutable ->
+            elementText + $"[{length}]"
+        | ArrayKind.Mutable ->
+            "mutable " + elementText + $"[{length}]"
 
     | TypeSymbol.Variable(tyPar) ->
         let name =

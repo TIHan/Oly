@@ -488,8 +488,8 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
 
-    | TypeSymbol.FixedArray(length, _, rank, kind) ->
-        TypeSymbol.FixedArray(length, tyArgs[0], rank, kind)
+    | TypeSymbol.FixedArray(length, _, kind) ->
+        TypeSymbol.FixedArray(length, tyArgs[0], kind)
         
     | _ ->
         failwith "Unexpected type application"
@@ -552,8 +552,8 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(length, elementTy, rank, kind) ->
-            TypeSymbol.FixedArray(length, instTy elementTy, rank, kind)
+        | TypeSymbol.FixedArray(length, elementTy, kind) ->
+            TypeSymbol.FixedArray(length, instTy elementTy, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -1204,8 +1204,8 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(length, elementTy, rank, kind) ->
-            TypeSymbol.FixedArray(length, instTy elementTy, rank, kind)
+        | TypeSymbol.FixedArray(length, elementTy, kind) ->
+            TypeSymbol.FixedArray(length, instTy elementTy, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -3356,20 +3356,20 @@ module private FormalFixedArray =
         |> ImArray.createOne
 
     let private comparer =
-        { new IEqualityComparer<struct(int32 * int32 * ArrayKind)> with
+        { new IEqualityComparer<struct(int32 * ArrayKind)> with
 
-            member this.GetHashCode((length, _, _)) = 
+            member this.GetHashCode((length, _)) = 
                 length
 
-            member this.Equals((length1, rank1, kind1), (length2, rank2, kind2)) =
-                length1 = length2 && rank1 = rank2 && kind1 = kind2
+            member this.Equals((length1, kind1), (length2, kind2)) =
+                length1 = length2 && kind1 = kind2
         }
 
     let private lockObj = obj()
     let private cache = System.Collections.Concurrent.ConcurrentDictionary(comparer)
 
-    let Get(length: int32, rank: int32, kind: ArrayKind) : TypeSymbol =
-        let key = struct(length, rank, kind)
+    let Get(length: int32, kind: ArrayKind) : TypeSymbol =
+        let key = struct(length, kind)
         match cache.TryGetValue key with
         | true, formalTy -> formalTy
         | _ ->
@@ -3377,7 +3377,7 @@ module private FormalFixedArray =
                 match cache.TryGetValue key with
                 | true, formalTy -> formalTy
                 | _ ->
-                    let formalTy = TypeSymbol.FixedArray(length, TypeParameters[0].AsType, rank, kind)
+                    let formalTy = TypeSymbol.FixedArray(length, TypeParameters[0].AsType, kind)
                     cache[key] <- formalTy
                     formalTy
             )
@@ -3473,7 +3473,7 @@ type TypeSymbol =
     | NativePtr of elementTy: TypeSymbol
     | NativeFunctionPtr of OlyILCallingConvention * inputTy: TypeSymbol * returnTy: TypeSymbol
     | Array of elementTy: TypeSymbol * rank: int * kind: ArrayKind
-    | FixedArray of length: int * elementTy: TypeSymbol * rank: int * kind: ArrayKind
+    | FixedArray of length: int * elementTy: TypeSymbol * kind: ArrayKind
     | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
@@ -3597,7 +3597,7 @@ type TypeSymbol =
         | TypeSymbol.RefCell _ -> FormalRefCellType
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
         | TypeSymbol.Array(_, rank, kind) -> FormalArray.Get(rank, kind)
-        | TypeSymbol.FixedArray(length, _, rank, kind) -> FormalFixedArray.Get(length, rank, kind)
+        | TypeSymbol.FixedArray(length, _, kind) -> FormalFixedArray.Get(length, kind)
         | TypeSymbol.Tuple _ -> FormalTupleType
         | TypeSymbol.DependentIndexer _ -> FormalDependentIndexerType
         | TypeSymbol.HigherVariable(tyPar, _) ->
@@ -3855,7 +3855,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeArguments
         | Tuple(tyArgs, _) -> tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
-        | FixedArray(_, elementTy, _, _) -> ImArray.createOne elementTy
+        | FixedArray(_, elementTy, _) -> ImArray.createOne elementTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
         | DependentIndexer(inputValueTy, innerTy) -> ImArray.createTwo inputValueTy innerTy
 
@@ -4286,7 +4286,7 @@ type TypeSymbol =
 
     member this.TryGetFixedArrayElementType() =
         match stripTypeEquations this with
-        | TypeSymbol.FixedArray(_, elementTy, _, _) -> elementTy |> ValueSome
+        | TypeSymbol.FixedArray(_, elementTy, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
     member this.TryGetTupleItemTypes() =
@@ -4401,7 +4401,7 @@ type TypeSymbol =
         | ConstantInt32 _ -> true
         | ByRef(_, ByRefKind.ReadOnly) 
         | Array(_, _, ArrayKind.Immutable) 
-        | FixedArray(_, _, _, ArrayKind.Immutable) -> true
+        | FixedArray(_, _, ArrayKind.Immutable) -> true
         | _ -> false
         
     member this.IsSolved =
@@ -4452,8 +4452,8 @@ type TypeSymbol =
             obj.ReferenceEquals(FormalRefCellType, ty)
         | Array(_, rank, kind) as ty ->
             obj.ReferenceEquals(FormalArray.Get(rank, kind), ty)
-        | FixedArray(length, _, rank, kind) as ty ->
-            obj.ReferenceEquals(FormalFixedArray.Get(length, rank, kind), ty)
+        | FixedArray(length, _, kind) as ty ->
+            obj.ReferenceEquals(FormalFixedArray.Get(length, kind), ty)
         | DependentIndexer _ as ty ->
             obj.ReferenceEquals(FormalDependentIndexerType, ty)
 

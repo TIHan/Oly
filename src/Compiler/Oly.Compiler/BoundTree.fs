@@ -1026,8 +1026,8 @@ let freshenTypeAux (benv: BoundEnvironment) isStrict (tyPars: ImmutableArray<Typ
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(freshen tys explicitTyArgs elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(length, elementTy, rank, kind) ->
-            TypeSymbol.FixedArray(length, freshen tys explicitTyArgs elementTy, rank, kind)
+        | TypeSymbol.FixedArray(length, elementTy, kind) ->
+            TypeSymbol.FixedArray(length, freshen tys explicitTyArgs elementTy, kind)
 
         | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
             let enclosingTyInst =

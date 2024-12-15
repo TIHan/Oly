@@ -893,12 +893,12 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
             | OlyILArrayKind.Immutable -> ArrayKind.Immutable
             | OlyILArrayKind.Mutable -> ArrayKind.Mutable
         TypeSymbol.Array(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, rank, kind)
-    | OlyILType.OlyILTypeFixedArray(length, ilElementTy, rank, ilKind) ->
+    | OlyILType.OlyILTypeFixedArray(length, ilElementTy, ilKind) ->
         let kind =
             match ilKind with
             | OlyILArrayKind.Immutable -> ArrayKind.Immutable
             | OlyILArrayKind.Mutable -> ArrayKind.Mutable
-        TypeSymbol.FixedArray(length, importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, rank, kind)
+        TypeSymbol.FixedArray(length, importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, kind)
     | OlyILType.OlyILTypeInt8 -> TypeSymbol.Int8
     | OlyILType.OlyILTypeUInt8 -> TypeSymbol.UInt8
     | OlyILType.OlyILTypeInt16 -> TypeSymbol.Int16

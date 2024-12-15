@@ -481,10 +481,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             rank1 = rank2 &&
             kind1 = kind2
 
-        | TypeSymbol.FixedArray(length1, elementTy1, rank1, kind1), TypeSymbol.FixedArray(length2, elementTy2, rank2, kind2) ->
+        | TypeSymbol.FixedArray(length1, elementTy1, kind1), TypeSymbol.FixedArray(length2, elementTy2, kind2) ->
             length1 = length2 &&
             UnifyTypes rigidity elementTy1 elementTy2 &&
-            rank1 = rank2 &&
             kind1 = kind2
 
         | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->

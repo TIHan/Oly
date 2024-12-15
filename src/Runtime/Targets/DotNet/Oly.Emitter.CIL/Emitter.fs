@@ -2306,8 +2306,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             // Immutable and Mutable arrays are the exact same type.
             ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)
 
-        member this.EmitTypeFixedArray(length: int, elementTy: ClrTypeInfo, rank: int, kind: OlyIRArrayKind): ClrTypeInfo = 
-            if rank > 1 || rank <= 0 then
+        member this.EmitTypeFixedArray(length: int, elementTy: ClrTypeInfo, kind: OlyIRArrayKind): ClrTypeInfo = 
+            if length <= 0 then
                 raise(InvalidOperationException())
             raise(NotImplementedException())
 
