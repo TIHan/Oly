@@ -11030,3 +11030,29 @@ class C =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Basic fixed array type``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+M(xs: int32[5]): () = ()
+
+main(): () = ()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Basic fixed mutable array type``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+M(xs: mutable int32[5]): () = ()
+
+main(): () = ()
+    """
+    |> Oly
+    |> shouldCompile
