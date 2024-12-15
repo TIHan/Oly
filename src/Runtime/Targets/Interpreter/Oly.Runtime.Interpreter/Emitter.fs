@@ -1973,3 +1973,8 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitTypeArray(elementTy, _, _) =
             InterpreterType.Object // TODO:
 
+        member this.EmitTypeFixedArray(length: int, elementTy: InterpreterType, rank: int, kind: OlyIRArrayKind): InterpreterType = 
+            if rank > 1 || rank <= 0 then
+                raise(InvalidOperationException())
+            raise(NotImplementedException())
+

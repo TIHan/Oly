@@ -668,20 +668,21 @@ type OlyILType =
     | OlyILTypeChar16
     | OlyILTypeUtf16
 
-    | OlyILTypeByRef of OlyILType * kind: OlyILByRefKind
+    | OlyILTypeByRef of elementTy: OlyILType * kind: OlyILByRefKind
 
     | OlyILTypeEntity of entInst: OlyILEntityInstance
     | OlyILTypeForAll of tyPars: OlyILTypeParameter imarray * ty: OlyILType
 
     | OlyILTypeTuple of elementTys: OlyILType imarray * elementNames: OlyILStringHandle imarray
     | OlyILTypeRefCell of ty: OlyILType
-    /// TODO: Add parameter type names.
+
     | OlyILTypeFunction of parTys: OlyILType imarray * returnTy: OlyILType * kind: OlyILFunctionKind
     | OlyILTypeNativeInt
     | OlyILTypeNativeUInt
     | OlyILTypeNativePtr of elementTy: OlyILType
     | OlyILTypeNativeFunctionPtr of cc: OlyILCallingConvention * argTys: OlyILType imarray * returnTy: OlyILType
     | OlyILTypeArray of elementTy: OlyILType * rank: int * kind: OlyILArrayKind
+    | OlyILTypeFixedArray of length: int * elementTy: OlyILType * rank: int * kind: OlyILArrayKind
     | OlyILTypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | OlyILTypeHigherVariable of index: int32 * tyInst: OlyILType imarray * kind: OlyILTypeVariableKind
     | OlyILTypeConstantInt32 of value: int32
@@ -723,6 +724,7 @@ type OlyILType =
         | OlyILTypeNativeFunctionPtr(_, argTys, returnTy) -> argTys.Add(returnTy)
         | OlyILTypeNativePtr(ty) -> ImArray.createOne ty
         | OlyILTypeArray(ty, _, _) -> ImArray.createOne ty
+        | OlyILTypeFixedArray(_, ty, _, _) -> ImArray.createOne ty
         | OlyILTypeRefCell(ty) -> ImArray.createOne ty
         | OlyILTypeEntity(entRef) -> entRef.TypeArguments
         | OlyILTypeForAll _ -> ImArray.empty
@@ -734,50 +736,6 @@ type OlyILType =
         match this with
         | OlyILTypeFunction _ -> true
         | _ -> false
-
-    // 0 - 63 reserved for built-in types
-    member this.FormalId =
-        match this with
-        | OlyILTypeVoid -> 0
-        | OlyILTypeUnit -> 1
-        | OlyILTypeInt8 -> 2
-        | OlyILTypeUInt8 -> 3
-        | OlyILTypeInt16 -> 4
-        | OlyILTypeUInt16 -> 5
-        | OlyILTypeInt32 -> 6
-        | OlyILTypeUInt32 -> 7
-        | OlyILTypeInt64 -> 8
-        | OlyILTypeUInt64 -> 9
-        | OlyILTypeFloat32 -> 10
-        | OlyILTypeFloat64 -> 11
-        | OlyILTypeBool -> 12
-        | OlyILTypeChar16 -> 13
-        | OlyILTypeUtf16 -> 14
-        | OlyILTypeTuple _ -> 15
-        | OlyILTypeRefCell _ -> 16
-        | OlyILTypeFunction _ -> 17
-        | OlyILTypeArray _ -> 18
-        | OlyILTypeBaseObject -> 19
-        | OlyILTypeConstantInt32 _ -> 20
-        | OlyILTypeVariable _ -> 21
-        | OlyILTypeHigherVariable _ -> 22
-        | OlyILTypeByRef(_, kind) ->
-            match kind with
-            | OlyILByRefKind.ReadWrite ->
-                23
-            | OlyILByRefKind.ReadOnly ->
-                24
-            | OlyILByRefKind.WriteOnly ->
-                25
-        | OlyILTypeNativeInt -> 26
-        | OlyILTypeNativeUInt -> 27
-        | OlyILTypeNativePtr _ -> 28
-        | OlyILTypeNativeFunctionPtr _ -> 29
-        | OlyILTypeDependentIndexer _ -> 30
-        | OlyILTypeForAll _ -> 31
-        | OlyILTypeInvalid _ -> 32
-        | OlyILTypeModified _ -> 33
-        | OlyILTypeEntity(ilEntInst) -> 64 + ilEntInst.DefinitionOrReferenceHandle.Index
 
     member this.IsBuiltIn =
         match this with
@@ -811,6 +769,7 @@ type OlyILType =
         | OlyILTypeNativePtr _
         | OlyILTypeNativeFunctionPtr _
         | OlyILTypeArray _
+        | OlyILTypeFixedArray _
         | OlyILTypeDependentIndexer _ 
         | OlyILTypeForAll _ -> true
         | OlyILTypeEntity _ -> false          
@@ -924,6 +883,8 @@ type OlyILOperation =
     | NewTuple of tyInst: OlyILType imarray * args: OlyILExpression imarray * names: OlyILStringHandle imarray
     | NewArray of elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
+    | NewFixedArray of length: int * elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
+    | NewFixedMutableArray of length: int * elementTy: OlyILType
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
     | Cast of arg: OlyILExpression * castToTy: OlyILType

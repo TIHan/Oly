@@ -55,6 +55,7 @@ type DummyEmitter(onEmitBody) =
             formalFunc
 
         member this.EmitTypeArray(elementTy, rank, kind) = DummyType("array")
+        member this.EmitTypeFixedArray(length, elementTy, rank, kind) = DummyType("fixed_array")
         member this.EmitTypeBaseObject() = DummyType("base_object")
         member this.EmitTypeBool() = DummyType("bool")
         member this.EmitTypeByRef(arg1, arg2) = DummyType("by_ref")

@@ -203,6 +203,11 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             | OlyIRArrayKind.Mutable ->
                 builder.GetTypeArray(SpirvArrayKind.Mutable, elementTy)
 
+        member this.EmitTypeFixedArray(length: int, elementTy: SpirvType, rank: int, kind: OlyIRArrayKind): SpirvType = 
+            if rank > 1 || rank <= 0 then
+                raise(InvalidOperationException())
+            raise(NotImplementedException())
+
         member this.EmitTypeBaseObject(): SpirvType = 
             SpirvType.Invalid // TODO: What should we do here? Ideally, we should not ever emit an 'object' type in the first place. Structs always inherits from 'object', but maybe we should not do that.
 

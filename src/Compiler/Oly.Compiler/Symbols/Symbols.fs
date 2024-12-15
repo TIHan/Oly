@@ -487,6 +487,9 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
+
+    | TypeSymbol.FixedArray(length, _, rank, kind) ->
+        TypeSymbol.FixedArray(length, tyArgs[0], rank, kind)
         
     | _ ->
         failwith "Unexpected type application"
@@ -548,6 +551,9 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
 
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
+
+        | TypeSymbol.FixedArray(length, elementTy, rank, kind) ->
+            TypeSymbol.FixedArray(length, instTy elementTy, rank, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -1197,6 +1203,9 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
 
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
+
+        | TypeSymbol.FixedArray(length, elementTy, rank, kind) ->
+            TypeSymbol.FixedArray(length, instTy elementTy, rank, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -3340,6 +3349,40 @@ module private FormalArray =
             )
 
 [<RequireQualifiedAccess>]
+module private FormalFixedArray =
+
+    let TypeParameters =
+        TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
+        |> ImArray.createOne
+
+    let private comparer =
+        { new IEqualityComparer<struct(int32 * int32 * ArrayKind)> with
+
+            member this.GetHashCode((length, _, _)) = 
+                length
+
+            member this.Equals((length1, rank1, kind1), (length2, rank2, kind2)) =
+                length1 = length2 && rank1 = rank2 && kind1 = kind2
+        }
+
+    let private lockObj = obj()
+    let private cache = System.Collections.Concurrent.ConcurrentDictionary(comparer)
+
+    let Get(length: int32, rank: int32, kind: ArrayKind) : TypeSymbol =
+        let key = struct(length, rank, kind)
+        match cache.TryGetValue key with
+        | true, formalTy -> formalTy
+        | _ ->
+            lock lockObj (fun () ->
+                match cache.TryGetValue key with
+                | true, formalTy -> formalTy
+                | _ ->
+                    let formalTy = TypeSymbol.FixedArray(length, TypeParameters[0].AsType, rank, kind)
+                    cache[key] <- formalTy
+                    formalTy
+            )
+
+[<RequireQualifiedAccess>]
 module private FormalNativeFunctionPtr =
 
     let TypeParameters =
@@ -3430,6 +3473,7 @@ type TypeSymbol =
     | NativePtr of elementTy: TypeSymbol
     | NativeFunctionPtr of OlyILCallingConvention * inputTy: TypeSymbol * returnTy: TypeSymbol
     | Array of elementTy: TypeSymbol * rank: int * kind: ArrayKind
+    | FixedArray of length: int * elementTy: TypeSymbol * rank: int * kind: ArrayKind
     | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
@@ -3516,6 +3560,7 @@ type TypeSymbol =
         | NativePtr _
         | NativeFunctionPtr _
         | Array _
+        | FixedArray _
         | Tuple _
         | RefCell _
         | Function _
@@ -3552,6 +3597,7 @@ type TypeSymbol =
         | TypeSymbol.RefCell _ -> FormalRefCellType
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
         | TypeSymbol.Array(_, rank, kind) -> FormalArray.Get(rank, kind)
+        | TypeSymbol.FixedArray(length, _, rank, kind) -> FormalFixedArray.Get(length, rank, kind)
         | TypeSymbol.Tuple _ -> FormalTupleType
         | TypeSymbol.DependentIndexer _ -> FormalDependentIndexerType
         | TypeSymbol.HigherVariable(tyPar, _) ->
@@ -3617,6 +3663,7 @@ type TypeSymbol =
         | NativePtr _ -> "__oly_native_ptr"
         | NativeFunctionPtr _ -> "__oly_native_function_ptr"
         | Array _ -> "__oly_array"
+        | FixedArray _ -> "__oly_fixed_array"
         | EagerInferenceVariable(solution, eagerTy) ->
             if solution.HasSolution then
                 solution.Solution.Name
@@ -3692,6 +3739,7 @@ type TypeSymbol =
         | ByRef _ 
         | NativePtr _ -> 1
         | Array _ -> 1
+        | FixedArray _ -> 1
         | _ -> 0
 
     member this.LogicalArity =
@@ -3712,6 +3760,7 @@ type TypeSymbol =
         | ByRef _ 
         | NativePtr _ -> 1
         | Array _ -> 1
+        | FixedArray _ -> 1
         | _ -> 0
 
     member this.TypeParameters: TypeParameterSymbol imarray =
@@ -3743,6 +3792,7 @@ type TypeSymbol =
         | ByRef _ -> ByReferenceTypeParameters
         | Entity(ent) -> ent.TypeParameters
         | Array _ -> FormalArray.TypeParameters
+        | FixedArray _ -> FormalFixedArray.TypeParameters
         | Tuple _ -> FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
@@ -3805,6 +3855,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeArguments
         | Tuple(tyArgs, _) -> tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
+        | FixedArray(_, elementTy, _, _) -> ImArray.createOne elementTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
         | DependentIndexer(inputValueTy, innerTy) -> ImArray.createTwo inputValueTy innerTy
 
@@ -3855,6 +3906,7 @@ type TypeSymbol =
         | NativeUInt -> 27
         | NativePtr _ -> 28
         | Array _ -> 29
+        | FixedArray _ -> 30
         | EagerInferenceVariable(_, eagerTy) -> eagerTy.FormalId
         | NativeFunctionPtr _ -> 39
         | DependentIndexer _ -> 40
@@ -3893,6 +3945,7 @@ type TypeSymbol =
         | NativePtr _
         | NativeFunctionPtr _
         | Array _
+        | FixedArray _
         | EagerInferenceVariable _
         | DependentIndexer _
         | Error _ -> EnclosingSymbol.RootNamespace
@@ -4161,7 +4214,8 @@ type TypeSymbol =
 
     member this.IsAnyArray =
         match stripTypeEquations this with
-        | TypeSymbol.Array _ -> true
+        | TypeSymbol.Array _ 
+        | TypeSymbol.FixedArray _ -> true
         | _ -> false
 
     member this.IsMutableArray_t =
@@ -4230,6 +4284,11 @@ type TypeSymbol =
         | TypeSymbol.Array(elementTy, _, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
+    member this.TryGetFixedArrayElementType() =
+        match stripTypeEquations this with
+        | TypeSymbol.FixedArray(_, elementTy, _, _) -> elementTy |> ValueSome
+        | _ -> ValueNone
+
     member this.TryGetTupleItemTypes() =
         match stripTypeEquations this with
         | TypeSymbol.Tuple(itemTys, _) -> itemTys |> ValueSome
@@ -4291,7 +4350,8 @@ type TypeSymbol =
         | NativePtr _ 
         | NativeFunctionPtr _
         | Unit
-        | Tuple _ -> true
+        | Tuple _ 
+        | FixedArray _ -> true
         // Scoped function types are structs.
         | Function(kind=FunctionKind.Scoped) -> true
         | Variable(tyPar)
@@ -4340,7 +4400,8 @@ type TypeSymbol =
         | Function _ 
         | ConstantInt32 _ -> true
         | ByRef(_, ByRefKind.ReadOnly) 
-        | Array(_, _, ArrayKind.Immutable) -> true
+        | Array(_, _, ArrayKind.Immutable) 
+        | FixedArray(_, _, _, ArrayKind.Immutable) -> true
         | _ -> false
         
     member this.IsSolved =
@@ -4391,6 +4452,8 @@ type TypeSymbol =
             obj.ReferenceEquals(FormalRefCellType, ty)
         | Array(_, rank, kind) as ty ->
             obj.ReferenceEquals(FormalArray.Get(rank, kind), ty)
+        | FixedArray(length, _, rank, kind) as ty ->
+            obj.ReferenceEquals(FormalFixedArray.Get(length, rank, kind), ty)
         | DependentIndexer _ as ty ->
             obj.ReferenceEquals(FormalDependentIndexerType, ty)
 

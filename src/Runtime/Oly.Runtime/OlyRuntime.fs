@@ -61,6 +61,7 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
         isSimpleILExpression (depth + 1) ilFalseTargetExpr
     | OlyILExpression.Operation(_, ilOp) when depth <= 1 ->
         match ilOp with
+        | OlyILOperation.NewFixedMutableArray _ -> true
         | OlyILOperation.Add(ilArgExpr1, ilArgExpr2)
         | OlyILOperation.Subtract(ilArgExpr1, ilArgExpr2)
         | OlyILOperation.Multiply(ilArgExpr1, ilArgExpr2)
@@ -109,6 +110,7 @@ let isSimpleILExpression depth (ilExpr: OlyILExpression) =
         | OlyILOperation.CallVirtual(_, ilArgExprs) 
         | OlyILOperation.New(_, ilArgExprs) 
         | OlyILOperation.NewArray(_, _, ilArgExprs) 
+        | OlyILOperation.NewFixedArray(_, _, _, ilArgExprs)
         | OlyILOperation.NewTuple(_, ilArgExprs, _) ->
             areSimpleILExpressions (depth + 1) ilArgExprs
         | OlyILOperation.CallIndirect(ilArgExpr, ilArgExprs) 
@@ -929,7 +931,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 )
             let resultTy =
                 match resultTy with
-                | RuntimeType.Array(elementTy, _, _) -> elementTy
+                | RuntimeType.Array(elementTy, _, _) 
+                | RuntimeType.FixedArray(_, elementTy, _, _) -> elementTy
                 | _ -> failwith "Invalid type for LoadArrayElement."
             O.LoadArrayElement(irReceiver, irIndexArgs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -950,7 +953,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 )
             let resultTy =
                 match resultTy with
-                | RuntimeType.Array(elementTy, _, _) -> 
+                | RuntimeType.Array(elementTy, _, _) 
+                | RuntimeType.FixedArray(_, elementTy, _, _) -> 
                     createByReferenceRuntimeType irByRefKind elementTy
                 | _ -> failwith "Invalid type for LoadArrayElementAddress."
             O.LoadArrayElementAddress(irReceiver, irIndexArgs, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
@@ -1300,7 +1304,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let resultTy = RuntimeType.Tuple(elementTys, names)
             O.NewTuple(emittedElementTys, irArgs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
-        // TODO: Get rid of 'NewMutableArray' in favor of 'NewArray'?
         | OlyILOperation.NewMutableArray(ilElementTy, ilSizeArgExpr) ->
             let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
             let irSizeArgExpr = importArgumentExpression cenv env RuntimeType.Int32 ilSizeArgExpr
@@ -1334,6 +1337,42 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let emittedElementTy = cenv.EmitType(elementTy)
             let resultTy = RuntimeType.Array(elementTy, 1, isMutable)
             O.NewArray(emittedElementTy, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
+
+        | OlyILOperation.NewFixedMutableArray(length, ilElementTy) ->
+            if length <= 0 then
+                invalidOp "Fixed array has an invalid length."
+
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
+                
+            let emittedElementTy = cenv.EmitType(elementTy)
+            let resultTy = RuntimeType.FixedArray(length, elementTy, 1, true)
+
+            O.NewFixedMutableArray(length, emittedElementTy, cenv.EmitType(resultTy)) |> asExpr, resultTy
+
+        | OlyILOperation.NewFixedArray(length, ilElementTy, ilKind, ilArgExprs) ->
+            let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
+            let irArgExprs =
+                ilArgExprs
+                |> ImArray.map (fun ilArgExpr -> importArgumentExpression cenv env elementTy ilArgExpr)
+
+            let kind =
+                match ilKind with
+                | OlyILArrayKind.Immutable ->
+                    OlyIRArrayKind.Immutable
+                | OlyILArrayKind.Mutable ->
+                    OlyIRArrayKind.Mutable
+
+            let isMutable =
+                // TODO: Get rid of 'isMutable' on RuntimeType.FixedArray.
+                match ilKind with
+                | OlyILArrayKind.Mutable ->
+                    true
+                | _ ->
+                    false
+                
+            let emittedElementTy = cenv.EmitType(elementTy)
+            let resultTy = RuntimeType.FixedArray(length, elementTy, 1, isMutable)
+            O.NewFixedArray(length, emittedElementTy, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.NewRefCell(ilElementTy, ilArg) ->
             let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
@@ -2532,6 +2571,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
+            | RuntimeType.FixedArray(length, elementTy, rank, isMutable) ->
+                // TODO: Cache this.
+                let kind =
+                    if isMutable then
+                        OlyIRArrayKind.Mutable
+                    else
+                        OlyIRArrayKind.Immutable
+                this.Emitter.EmitTypeFixedArray(length, emitType false elementTy, rank, kind)
             | RuntimeType.Function(argTys, returnTy, kind) ->
                 let cache =
                     match kind with
@@ -3622,6 +3669,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeArray(ilElementTy, rank, ilKind) ->
                 let isMutable = ilKind = OlyILArrayKind.Mutable
                 RuntimeType.Array(this.ResolveType(ilAsm, ilElementTy, genericContext), rank, isMutable)
+            | OlyILTypeFixedArray(length, ilElementTy, rank, ilKind) ->
+                let isMutable = ilKind = OlyILArrayKind.Mutable
+                RuntimeType.FixedArray(length, this.ResolveType(ilAsm, ilElementTy, genericContext), rank, isMutable)
             | OlyILTypeFunction(ilArgTys, ilReturnTy, ilKind) ->
                 let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
                 let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)

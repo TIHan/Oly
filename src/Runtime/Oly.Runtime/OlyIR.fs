@@ -309,6 +309,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | NewRefCell of                 elementTy: 'Type * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewMutableArray of            elementTy: 'Type * sizeArg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewArray of                   elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
+    | NewFixedMutableArray of       length: int * elementTy: 'Type * resultTy: 'Type
+    | NewFixedArray of              length: int * elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
 
     | Witness of                    body: OlyIRExpression<'Type, 'Function, 'Field> * witnessTy: 'Type * resultTy: 'Type
     | Ignore of                     arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
@@ -331,6 +333,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
     member inline this.GetArgument(index: int) =
         match this with
+        | NewFixedMutableArray _ -> raise(IndexOutOfRangeException())
         | Add(arg1, arg2, _)
         | Subtract(arg1, arg2, _)
         | Multiply(arg1, arg2, _)
@@ -388,7 +391,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
-        | NewArray(args=args) ->
+        | NewArray(args=args)
+        | NewFixedArray(args=args) ->
             args[index]
 
         | CallIndirect(receiver=receiver;args=args) ->
@@ -416,6 +420,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
     member inline this.ForEachArgument ([<InlineIfLambda>] f) =
         match this with
+        | NewFixedMutableArray _ -> ()
         | Add(arg1, arg2, _)
         | Subtract(arg1, arg2, _)
         | Multiply(arg1, arg2, _)
@@ -469,7 +474,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
-        | NewArray(args=args) ->
+        | NewArray(args=args) 
+        | NewFixedArray(args=args) ->
             for i = 0 to args.Length - 1 do
                 f i args[i]
 
@@ -518,6 +524,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
     member this.ArgumentCount =
         match this with
+        | NewFixedMutableArray _ -> 0
         | Add(_, _, _)
         | Subtract(_, _, _)
         | Multiply(_, _, _)
@@ -570,7 +577,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
-        | NewArray(args=args) ->
+        | NewArray(args=args)
+        | NewFixedArray(args=args) ->
             args.Length
 
         | CallIndirect(receiver=_;args=args) ->
@@ -595,6 +603,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             failwith "Invalid number of arguments."
 
         match this with
+        | NewFixedMutableArray _ -> this
         | Add _ ->
             Add(newArgs[0], newArgs[1], this.ResultType)
         | Subtract _ ->
@@ -697,6 +706,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             NewTuple(elementTys, newArgs, this.ResultType)
         | NewArray(elementTy, kind, _, _) ->
             NewArray(elementTy, kind, newArgs, this.ResultType)
+        | NewFixedArray(length, elementTy, kind, _, _) ->
+            NewFixedArray(length, elementTy, kind, newArgs, this.ResultType)
 
         | CallIndirect(argTys,  _, _, _) ->
             CallIndirect(argTys, newArgs[0], newArgs.RemoveAt(0), this.ResultType)
@@ -777,6 +788,12 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
         | CallStaticConstructor(func, _) -> CallStaticConstructor(func, resultTy)
 
+        | NewFixedArray(length, elementTy, kind, args, resultTy) ->
+            NewFixedArray(length, elementTy, kind, args, resultTy)
+
+        | NewFixedMutableArray(length, elementTy, resultTy) ->
+            NewFixedMutableArray(length, elementTy, resultTy)
+
     member this.ResultType =
         match this with
         | CallStaticConstructor(resultTy=resultTy)
@@ -827,12 +844,14 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | NewTuple(resultTy=resultTy)
         | NewRefCell(resultTy=resultTy)
         | NewMutableArray(resultTy=resultTy)
+        | NewFixedMutableArray(resultTy=resultTy)
         | Witness(resultTy=resultTy)
         | Box(resultTy=resultTy)
         | Unbox(resultTy=resultTy)
         | Upcast(resultTy=resultTy)
         | Cast(resultTy=resultTy)
         | NewArray(resultTy=resultTy) 
+        | NewFixedArray(resultTy=resultTy)
         | Ignore(resultTy=resultTy) -> resultTy
 
     override this.ToString() =
