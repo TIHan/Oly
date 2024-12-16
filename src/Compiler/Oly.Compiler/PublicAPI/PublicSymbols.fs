@@ -817,6 +817,11 @@ type OlyEnclosingSymbol internal (enclosing: EnclosingSymbol) =
         | EnclosingSymbol.Entity(ent) -> ent.IsAnyStruct
         | _ -> false
 
+    member this.IsTypeExtension =
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) -> ent.IsTypeExtension
+        | _ -> false
+
 [<Sealed>] 
 type OlyDirectiveSymbol internal (name: string, value: string) =
     inherit OlySymbol()

@@ -83,9 +83,7 @@ type SpirvType =
     | Tuple of idResult: IdResult * itemTys: SpirvType imarray * itemNames: string imarray
     | Pointer of idResult: IdResult * storageClass: StorageClass * elementTy: SpirvType
 
-    | Vec2 of idResult: IdResult * elementTy: SpirvType
-    | Vec3 of idResult: IdResult * elementTy: SpirvType
-    | Vec4 of idResult: IdResult * elementTy: SpirvType
+    | Vec of idresult: IdResult * n: uint * elementTy: SpirvType
 
     | Function of idResult: IdResult * parTys: SpirvType imarray * returnTy: SpirvType
 
@@ -126,11 +124,7 @@ type SpirvType =
             raise(InvalidOperationException("ConstantInt32 must be lowered."))
         | Pointer _ ->
             raise(NotImplementedException())
-        | Vec2 _ ->
-            raise(NotImplementedException())
-        | Vec3 _ ->
-            raise(NotImplementedException())
-        | Vec4 _ ->
+        | Vec _ ->
             raise(NotImplementedException())
         | Function _ ->
             raise(NotSupportedException())
@@ -161,9 +155,7 @@ type SpirvType =
         | Float64 idResult ->               [OpTypeFloat(idResult, 64u, None)]
         | Bool idResult ->                  [OpTypeBool(idResult)]
         | Char16 idResult ->                [OpTypeInt(idResult, 16u, 0u)]
-        | Vec2(idResult, elementTy) ->   [OpTypeVector(idResult, elementTy.IdResult, 2u)]
-        | Vec3(idResult, elementTy) ->   [OpTypeVector(idResult, elementTy.IdResult, 3u)]
-        | Vec4(idResult, elementTy) ->   [OpTypeVector(idResult, elementTy.IdResult, 4u)]
+        | Vec(idResult, n, elementTy) ->    [OpTypeVector(idResult, elementTy.IdResult, n)]
 
         | Tuple(idResult, itemTys, _) ->
             [
@@ -240,9 +232,7 @@ type SpirvType =
         | Char16 idResult
         | Tuple(idResult, _, _)
         | Pointer(idResult, _, _)
-        | Vec2(idResult, _)
-        | Vec3(idResult, _)
-        | Vec4(idResult, _) 
+        | Vec(idResult, _, _)
         | Function(idResult, _, _)
         | RuntimeArray(idResult, _, _) -> idResult
         | Struct(namedTy) -> namedTy.IdResult
@@ -380,7 +370,7 @@ type SpirvField =
 
 type SpirvBuiltInFunctionFlags =
     | None                   = 0b0000000000
-    | Constructor            = 0b000000000
+    | Constructor            = 0b0000000001
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type SpirvBuiltInFunctionData =
@@ -408,7 +398,7 @@ type SpirvBuiltInFunction =
                 else
                     false
             else
-                false
+                not irFlags.IsConstructor && not irFlags.IsInstance
 
 module BuiltInFunctions =
 
@@ -521,37 +511,37 @@ module BuiltInFunctions =
             SpirvBuiltInFunctionFlags.Constructor) 
         Add("vec4",
             SpirvBuiltInFunctionData.Intrinsic(
-                fun spvModule args _ ->
+                fun spvModule args returnTy ->
                     match args.Length with
                     | 1 ->
                         match args |> ImArray.head with
-                        | (argTy, argIdRef) ->
-                            match argTy with
-                            | SpirvType.Float32 _ ->
-                                let idResult = spvModule.NewIdResult()
-                                idResult, [OpCompositeConstruct(spvModule.GetTypeVec4().IdResult, idResult, [argIdRef; argIdRef; argIdRef; argIdRef])]
-                            | _ ->
-                                raise(InvalidOperationException())
+                        | (_, argIdRef) ->
+                            let idResult = spvModule.NewIdResult()
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [argIdRef; argIdRef; argIdRef; argIdRef])]
 
                     | 3 ->
-                            let idRefs =
-                                args
-                                |> ImArray.map snd
-                            let arg0IdResult = spvModule.NewIdResult()
-                            let arg1IdResult = spvModule.NewIdResult()
-                            let arg2IdRef = idRefs[1]
-                            let arg3IdRef = idRefs[2]
-                            let idResult = spvModule.NewIdResult()
-                            idResult,
-                            [
-                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
-                                OpCompositeExtract(spvModule.GetTypeFloat32().IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
-                                OpCompositeConstruct(spvModule.GetTypeVec4().IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
-                            ]
+                        let idRefs =
+                            args
+                            |> ImArray.map snd
+                        let arg0IdResult = spvModule.NewIdResult()
+                        let arg1IdResult = spvModule.NewIdResult()
+                        let arg2IdRef = idRefs[1]
+                        let arg3IdRef = idRefs[2]
+                        let idResult = spvModule.NewIdResult()
+                        let elementTy =
+                            match returnTy with
+                            | SpirvType.Vec(_, 4u, elementTy) -> elementTy
+                            | _ -> failwith "Invalid return type."
+                        idResult,
+                        [
+                            OpCompositeExtract(elementTy.IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
+                            OpCompositeExtract(elementTy.IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
+                            OpCompositeConstruct(returnTy.IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
+                        ]
                     | _ ->
                         raise(NotImplementedException())
             ),
-            SpirvBuiltInFunctionFlags.Constructor
+            SpirvBuiltInFunctionFlags.None
         )
         Add("bitcast",
             SpirvBuiltInFunctionData.Intrinsic(
@@ -577,10 +567,15 @@ module BuiltInFunctions =
             |> Some
         else
 
-        if path.Length < 2 || path.Length > 2 then None
-        elif (ImArray.head path) <> "std" then None
+        if (ImArray.head path) <> "std" then None
         else          
-            let name = path[1]
+            let name =
+                if path.Length = 2 then
+                    path[1]
+                elif path.Length = 1 then
+                    name
+                else
+                    failwith "Invalid path."
             match Lookup.TryGetValue(name) with
             | true, func ->
                 match func.TryGetBuiltIn() with
@@ -723,10 +718,7 @@ module BuiltInTypes =
 
     let TryGetByName(spvModule: SpirvModuleBuilder, name: string) =
         match name with
-        | "vec2" -> SpirvType.Vec2(0u, SpirvType.Invalid) |> ValueSome
-        | "vec3" -> spvModule.GetTypeVec3() |> ValueSome
-        | "vec4" -> spvModule.GetTypeVec4() |> ValueSome
-        | "uvec3" -> spvModule.GetTypeUVec3() |> ValueSome
+        | "vec" -> SpirvType.Vec(0u, 0u, SpirvType.Invalid) |> ValueSome
         | _ -> ValueNone
 
 // --
@@ -741,6 +733,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let globalVars = List<SpirvVariable>()
 
     let pointerTys = Dictionary<(StorageClass * IdRef), SpirvType>()
+    let vecTys = Dictionary<(uint * IdRef), SpirvType>()
     let arrayTys = Dictionary<(SpirvArrayKind * IdRef), SpirvType>()
     let funcTys = Dictionary<(SpirvType * SpirvType imarray), SpirvType>()
 
@@ -773,10 +766,6 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let mutable cachedTypeInt32          = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeUInt32         = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeFloat32        = Unchecked.defaultof<SpirvType>
-    let mutable cachedTypeVec2 = Unchecked.defaultof<SpirvType>
-    let mutable cachedTypeVec3 = Unchecked.defaultof<SpirvType>
-    let mutable cachedTypeVec4 = Unchecked.defaultof<SpirvType>
-    let mutable cachedTypeUVec3 = Unchecked.defaultof<SpirvType>
     (**)
 
     let mutable newIdResultValue = 2u // This is '2u' because 'OpExtInstImport' uses '1u'.
@@ -812,7 +801,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             constantsFloat32[value] <- idResult
             idResult
 
-    member this.GetConstantVector3Float32(x: float32, y: float32, z: float32) : IdRef =
+    member this.GetConstantVec3Float32(x: float32, y: float32, z: float32) : IdRef =
         let xIdRef : IdRef = this.GetConstantFloat32(x)
         let yIdRef : IdRef = this.GetConstantFloat32(y)
         let zIdRef : IdRef = this.GetConstantFloat32(z)
@@ -821,12 +810,12 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
         match constantsVectorFloat32.TryGetValue key with
         | true, idResult -> idResult
         | _ ->
-            let _ = this.GetTypeVec3() // eval type
+            let _ = this.GetTypeVec(3u, this.GetTypeFloat32()) // eval type
             let idResult = this.NewIdResult()
             constantsVectorFloat32[key] <- idResult
             idResult
 
-    member this.GetConstantVector4Float32(x: float32, y: float32, z: float32, w: float32) : IdRef =
+    member this.GetConstantVec4Float32(x: float32, y: float32, z: float32, w: float32) : IdRef =
         let xIdRef : IdRef = this.GetConstantFloat32(x)
         let yIdRef : IdRef = this.GetConstantFloat32(y)
         let zIdRef : IdRef = this.GetConstantFloat32(z)
@@ -836,7 +825,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
         match constantsVectorFloat32.TryGetValue key with
         | true, idResult -> idResult
         | _ ->
-            let _ = this.GetTypeVec4() // eval type
+            let _ = this.GetTypeVec(4u, this.GetTypeFloat32()) // eval type
             let idResult = this.NewIdResult()
             constantsVectorFloat32[key] <- idResult
             idResult
@@ -865,6 +854,17 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             let ty = SpirvType.RuntimeArray(idResult, kind, elementTy)
             this.AddType(ty)
             arrayTys[key] <- ty
+            ty
+
+    member this.GetTypeVec(n: uint, elementTy: SpirvType) =
+        let key = (n, elementTy.IdResult)
+        match vecTys.TryGetValue key with
+        | true, ty -> ty
+        | _ ->
+            let idResult = this.NewIdResult()
+            let ty = SpirvType.Vec(idResult, n, elementTy)
+            this.AddType(ty)
+            vecTys[key] <- ty
             ty
 
     member this.GetTypeVoid() : SpirvType =
@@ -896,30 +896,6 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             cachedTypeFloat32 <- SpirvType.Float32(this.NewIdResult())
             this.AddType(cachedTypeFloat32)
         cachedTypeFloat32
-
-    member this.GetTypeVec2() : SpirvType =
-        if isNull(box cachedTypeVec2) then
-            cachedTypeVec2 <- SpirvType.Vec2(this.NewIdResult(), this.GetTypeFloat32())
-            this.AddType(cachedTypeVec2)
-        cachedTypeVec2
-
-    member this.GetTypeVec3() : SpirvType =
-        if isNull(box cachedTypeVec3) then
-            cachedTypeVec3 <- SpirvType.Vec3(this.NewIdResult(), this.GetTypeFloat32())
-            this.AddType(cachedTypeVec3)
-        cachedTypeVec3
-
-    member this.GetTypeVec4() : SpirvType =
-        if isNull(box cachedTypeVec4) then
-            cachedTypeVec4 <- SpirvType.Vec4(this.NewIdResult(), this.GetTypeFloat32())
-            this.AddType(cachedTypeVec4)
-        cachedTypeVec4
-
-    member this.GetTypeUVec3() : SpirvType =
-        if isNull(box cachedTypeUVec3) then
-            cachedTypeUVec3 <- SpirvType.Vec3(this.NewIdResult(), this.GetTypeUInt32())
-            this.AddType(cachedTypeUVec3)
-        cachedTypeUVec3
 
     member this.GetTypeFunction(parTys: SpirvType imarray, returnTy: SpirvType) =
         let key = (returnTy, parTys)
@@ -1173,9 +1149,9 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
                     let n = pair.Key.Length
                     match n with
                     | 3 ->
-                        OpConstantComposite(this.GetTypeVec3().IdResult, pair.Value, pair.Key)
+                        OpConstantComposite(this.GetTypeVec(3u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
                     | 4 ->
-                        OpConstantComposite(this.GetTypeVec4().IdResult, pair.Value, pair.Key)
+                        OpConstantComposite(this.GetTypeVec(4u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
                     | _ ->
                         raise(NotImplementedException($"Vector{n} of float32 constant"))
                 )

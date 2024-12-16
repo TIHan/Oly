@@ -74,9 +74,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 field
             else
                 match enclosingTy with
-                | SpirvType.Vec4 _
-                | SpirvType.Vec3 _
-                | SpirvType.Vec2 _ ->
+                | SpirvType.Vec _ ->
                     {
                         Index = index
                         Name = name
@@ -266,12 +264,10 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
 
         member this.EmitTypeGenericInstance(ty: SpirvType, tyArgs: SpirvType imarray): SpirvType = 
             match tyArgs[0], ty with
-            | SpirvType.OlyConstantInt32 2, SpirvType.Vec2(0u, SpirvType.Invalid) ->
-                if tyArgs.Length <> 2 then
+            | SpirvType.OlyConstantInt32 n, SpirvType.Vec(0u, 0u, SpirvType.Invalid) ->
+                if not(n >= 2 && n <= 4) || not(tyArgs.Length = 2) then
                     invalidOp "Bad type arguments."
-                let ty = SpirvType.Vec2(builder.NewIdResult(), tyArgs[1])
-                builder.AddType ty
-                ty
+                builder.GetTypeVec(uint32(n), tyArgs[1])
             | _ ->
                 raise(NotSupportedException())
 

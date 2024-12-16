@@ -27,41 +27,94 @@ alias inref<T>
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
 
-#[import("spirv", "std", "vec2")]
+#[import("spirv", "std", "vec")]
 struct vec<N, T> where N: constant int32
 
 #[open, export]
 extension vec2Extensions<T> =
     inherits vec<2, T>
 
-    x: T get() = unchecked default
-    y: T get() = unchecked default
+    x: T 
+        #[import("spirv", "std.vec2", "x")]
+        get()
+        #[import("spirv", "std.vec2", "x")]
+        set(x)
 
-#[import("spirv", "std", "vec3")]
-struct vec3 =
+    y: T
+        #[import("spirv", "std.vec2", "y")]
+        get()
+        #[import("spirv", "std.vec2", "y")]
+        set(y)
 
-    public field mutable X: float32
-    public field mutable Y: float32
-    public field mutable Z: float32
+#[open, export]
+extension vec3Extensions<T> =
+    inherits vec<3, T>
+
+    x: T 
+        #[import("spirv", "std.vec3", "x")]
+        get()
+        #[import("spirv", "std.vec3", "x")]
+        set(x)
+
+    y: T
+        #[import("spirv", "std.vec3", "y")]
+        get()
+        #[import("spirv", "std.vec3", "y")]
+        set(y)
+
+    z: T
+        #[import("spirv", "std.vec3", "z")]
+        get()
+        #[import("spirv", "std.vec3", "z")]
+        set(z)
+
+
+#[open, export]
+extension vec4Extensions<T> =
+    inherits vec<4, T>
+
+    x: T 
+        #[import("spirv", "std.vec4", "x")]
+        get()
+        #[import("spirv", "std.vec4", "x")]
+        set(x)
+
+    y: T
+        #[import("spirv", "std.vec4", "y")]
+        get()
+        #[import("spirv", "std.vec4", "y")]
+        set(y)
+
+    z: T
+        #[import("spirv", "std.vec4", "z")]
+        get()
+        #[import("spirv", "std.vec4", "z")]
+        set(z)
+
+    w: T
+        #[import("spirv", "std.vec4", "w")]
+        get()
+        #[import("spirv", "std.vec4", "w")]
+        set(z)
+
+alias int = int32
+alias uint = uint32
+alias float = float32
+alias vec2 = vec<2, float32>
+alias vec3 = vec<3, float32>
+alias vec4 = vec<4, float32>
+alias ivec2 = vec<2, int32>
+alias ivec3 = vec<3, int32>
+alias ivec4 = vec<4, int32>
+alias uvec2 = vec<2, uint32>
+alias uvec3 = vec<3, uint32>
+alias uvec4 = vec<4, uint32>
+alias bvec2 = vec<2, bool>
+alias bvec3 = vec<3, bool>
+alias bvec4 = vec<4, bool>
 
 #[import("spirv", "std", "vec4")]
-struct vec4 =
-
-    public field mutable X: float32
-    public field mutable Y: float32
-    public field mutable Z: float32
-    public field mutable W: float32
-
-    new(float32)
-
-    new(v: vec<2, float32>, z: float32, w: float32)
-
-#[import("spirv", "std", "uvec3")]
-struct uvec3 =
-
-    public field mutable X: uint32
-    public field mutable Y: uint32
-    public field mutable Z: uint32
+vec4(xy: vec2, z: float32, w: float32): vec4
 
 // Attributes
 

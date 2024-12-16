@@ -234,9 +234,7 @@ module rec SpirvCodeGen =
                     idResult
                 | SpirvType.Float32 _
                 | SpirvType.Float64 _
-                | SpirvType.Vec2 _
-                | SpirvType.Vec3 _
-                | SpirvType.Vec4 _ ->
+                | SpirvType.Vec _ ->
                     let idResult = cenv.Module.NewIdResult()
                     OpFOrdEqual(resultTy.IdResult, idResult, arg1IdRef, arg2IdRef) |> emitInstruction cenv
                     idResult

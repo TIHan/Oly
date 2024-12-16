@@ -241,11 +241,11 @@ main(): () =
 let ``Should create a new value and use it`` () =
     let src =
         """
-position: vec<2, float32>
+position: vec2
     #[location(0)]
     get
 
-texCoords: vec<2, float32>
+texCoords: vec2
     #[location(1)]
     get
 
@@ -253,7 +253,7 @@ color: vec4
     #[location(2)]
     get
 
-outTexCoords: vec<2, float32>
+outTexCoords: vec2
     #[location(0)]
     set
 

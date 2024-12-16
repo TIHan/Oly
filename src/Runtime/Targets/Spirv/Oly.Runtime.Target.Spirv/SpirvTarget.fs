@@ -201,7 +201,7 @@ type SpirvTarget() =
                 checkPropertyFunctionDefinition getter useSyntax
             | Some(Some setter, None) when setter.IsImported ->
                 checkPropertyFunctionDefinition setter useSyntax
-            | Some(Some getter, Some setter) when getter.IsImported || setter.IsImported ->
+            | Some(Some getter, Some setter) when (not valueSymbol.Enclosing.IsTypeExtension) && (getter.IsImported || setter.IsImported) ->
                 diagnostics.Error($"This kind of property definition cannot have a getter and setter.", 10, useSyntax)
             | _ ->
                 ()
