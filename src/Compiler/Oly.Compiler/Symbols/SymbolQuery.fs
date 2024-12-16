@@ -586,9 +586,9 @@ let private queryPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: Qu
                         | ExtensionMemberSymbol.Property prop -> 
                             // REVIEW: We do a similar thing when looking for extension member functions in 'findExtensionMembersOfType',
                             //         is there a way to combine these together so we do not have to repeat this logic?
-                            //let tyArgs = (stripTypeEquations ty).TypeArguments
-                            //let enclosing = applyEnclosing tyArgs prop.Enclosing
-                            //let prop = actualProperty enclosing tyArgs prop
+                            let tyArgs = (stripTypeEquations ty).TypeArguments
+                            let enclosing = applyEnclosing tyArgs prop.Enclosing
+                            let prop = actualProperty enclosing tyArgs prop
                             Some prop
                         | _ -> 
                             None

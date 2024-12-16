@@ -560,25 +560,48 @@ module BuiltInFunctions =
                         match returnTy with
                         | SpirvType.Vec(_, 2u, _) ->
                             idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]])]
+                        | SpirvType.Vec(_, n, elementTy) ->
+                            let argIdResults = List.init ((int n) - 1) (fun _ -> spvModule.NewIdResult())
+                            let arg1IdRef = idRefs[1]
+                            idResult,
+                            [
+                                let mutable i = 0u
+                                for argIdResult in argIdResults do
+                                    OpCompositeExtract(elementTy.IdResult, argIdResult, idRefs |> ImArray.head, [i])
+                                    i <- i + 1u
+                                OpCompositeConstruct(returnTy.IdResult, idResult, argIdResults @ [arg1IdRef])
+                            ]
                         | _ ->
                             invalidOp "Bad return type."
 
                     | 3 ->
                         let idRefs = args |> ImArray.map snd
                         match returnTy with
-                        | SpirvType.Vec(_, 4u, elementTy) ->
-                            let arg0IdResult = spvModule.NewIdResult()
-                            let arg1IdResult = spvModule.NewIdResult()
-                            let arg2IdRef = idRefs[1]
-                            let arg3IdRef = idRefs[2]
+                        | SpirvType.Vec(_, 3u, _) ->
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[3]])]
+                        | SpirvType.Vec(_, (4u as n), elementTy) ->
+                            let argIdResults = List.init ((int n) - 2) (fun _ -> spvModule.NewIdResult())
+                            let arg1IdRef = idRefs[1]
+                            let arg2IdRef = idRefs[2]
                             idResult,
                             [
-                                OpCompositeExtract(elementTy.IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
-                                OpCompositeExtract(elementTy.IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
-                                OpCompositeConstruct(returnTy.IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
+                                let mutable i = 0u
+                                for argIdResult in argIdResults do
+                                    OpCompositeExtract(elementTy.IdResult, argIdResult, idRefs |> ImArray.head, [i])
+                                    i <- i + 1u
+                                OpCompositeConstruct(returnTy.IdResult, idResult, argIdResults @ [arg1IdRef; arg2IdRef])
                             ]
                         | _ ->
                             invalidOp "Bad return type."
+
+                    | 4 ->
+                        let idRefs = args |> ImArray.map snd
+                        match returnTy with
+                        | SpirvType.Vec(_, 4u, _) ->
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[3]; idRefs[4]])]
+                        | _ ->
+                            invalidOp "Bad return type."
+
                     | _ ->
                         invalidOp "Bad arguments."
                         

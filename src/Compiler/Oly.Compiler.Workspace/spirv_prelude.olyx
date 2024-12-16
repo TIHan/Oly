@@ -120,7 +120,25 @@ vec2(float): vec2
 vec2(x: float, y: float): vec2
 
 #[import("spirv", "std", "vec")]
+vec3(float): vec3
+
+#[import("spirv", "std", "vec")]
+vec3(xy: vec2, z: float): vec3
+
+#[import("spirv", "std", "vec")]
+vec3(x: float, y: float, z: float): vec3
+
+#[import("spirv", "std", "vec")]
+vec4(float): vec4
+
+#[import("spirv", "std", "vec")]
+vec4(xyz: vec3, w: float): vec4
+
+#[import("spirv", "std", "vec")]
 vec4(xy: vec2, z: float, w: float): vec4
+
+#[import("spirv", "std", "vec")]
+vec4(x: float, y: float, z: float, w: float): vec4
 
 // Attributes
 

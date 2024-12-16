@@ -178,10 +178,6 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
 
             checkUsageTypeExport cenv syntaxNode value.Name value.LogicalType
 
-        //if value.IsImported then
-        //    if value.IsInstance && not value.Enclosing.IsImported then
-        //        cenv.diagnostics.Error($"'{value.Name}' cannot be imported as its enclosing is not imported.", 10, syntaxNode)
-
 let autoDereferenceExpression expr =
     match expr with
     | E.Call(value=value) ->
