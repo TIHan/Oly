@@ -113,6 +113,9 @@ alias bvec2 = vec<2, bool>
 alias bvec3 = vec<3, bool>
 alias bvec4 = vec<4, bool>
 
+
+// vec of float
+
 #[import("spirv", "std", "vec")]
 vec2(float): vec2
 
@@ -139,6 +142,93 @@ vec4(xy: vec2, z: float, w: float): vec4
 
 #[import("spirv", "std", "vec")]
 vec4(x: float, y: float, z: float, w: float): vec4
+
+// vec of int
+
+#[import("spirv", "std", "vec")]
+ivec2(int): ivec2
+
+#[import("spirv", "std", "vec")]
+ivec2(x: int, y: int): ivec2
+
+#[import("spirv", "std", "vec")]
+ivec3(int): ivec3
+
+#[import("spirv", "std", "vec")]
+ivec3(xy: vec2, z: int): ivec3
+
+#[import("spirv", "std", "vec")]
+ivec3(x: int, y: int, z: int): ivec3
+
+#[import("spirv", "std", "vec")]
+ivec4(int): ivec4
+
+#[import("spirv", "std", "vec")]
+ivec4(xyz: ivec3, w: int): ivec4
+
+#[import("spirv", "std", "vec")]
+ivec4(xy: ivec2, z: int, w: int): ivec4
+
+#[import("spirv", "std", "vec")]
+ivec4(x: int, y: int, z: int, w: int): ivec4
+
+// vec of uint
+
+#[import("spirv", "std", "vec")]
+uvec2(uint): uvec2
+
+#[import("spirv", "std", "vec")]
+uvec2(x: uint, y: uint): uvec2
+
+#[import("spirv", "std", "vec")]
+uvec3(uint): uvec3
+
+#[import("spirv", "std", "vec")]
+uvec3(xy: vec2, z: uint): uvec3
+
+#[import("spirv", "std", "vec")]
+uvec3(x: uint, y: uint, z: uint): uvec3
+
+#[import("spirv", "std", "vec")]
+uvec4(uint): uvec4
+
+#[import("spirv", "std", "vec")]
+uvec4(xyz: uvec3, w: uint): uvec4
+
+#[import("spirv", "std", "vec")]
+uvec4(xy: uvec2, z: uint, w: uint): uvec4
+
+#[import("spirv", "std", "vec")]
+uvec4(x: uint, y: uint, z: uint, w: uint): uvec4
+
+// vec of bool
+
+#[import("spirv", "std", "vec")]
+bvec2(bool): bvec2
+
+#[import("spirv", "std", "vec")]
+bvec2(x: bool, y: bool): bvec2
+
+#[import("spirv", "std", "vec")]
+bvec3(bool): bvec3
+
+#[import("spirv", "std", "vec")]
+bvec3(xy: vec2, z: bool): bvec3
+
+#[import("spirv", "std", "vec")]
+bvec3(x: bool, y: bool, z: bool): bvec3
+
+#[import("spirv", "std", "vec")]
+bvec4(bool): bvec4
+
+#[import("spirv", "std", "vec")]
+bvec4(xyz: bvec3, w: bool): bvec4
+
+#[import("spirv", "std", "vec")]
+bvec4(xy: bvec2, z: bool, w: bool): bvec4
+
+#[import("spirv", "std", "vec")]
+bvec4(x: bool, y: bool, z: bool, w: bool): bvec4
 
 // Attributes
 

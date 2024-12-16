@@ -376,7 +376,25 @@ let private queryMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) q
     | _ ->
         ImArray.empty
 
-let private queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
+let private tryFreshenAndSolveExtensionMember<'T when 'T :> IValueSymbol> (extMember: 'T) ty : 'T option =
+    if extMember.Enclosing.TypeParameterCount > 0 then
+        let typeParameterExists =
+            (fun ty -> 
+                // Do not freshen variables from a function
+                match ty with 
+                | TypeSymbol.Variable(tyPar) 
+                | TypeSymbol.HigherVariable(tyPar, _) -> 
+                    tyPar.IsOfFunction 
+                | _ -> false)
+        let extMember = freshenValueAux typeParameterExists IdMap.Empty extMember :?> 'T
+        if UnifyTypes Flexible extMember.Enclosing.AsEntity.Extends[0] ty then
+            Some extMember
+        else
+            None
+    else
+        Some extMember
+
+let private queryExtensionFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
     let find ty =
         match benv.senv.typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn ty) with
         | ValueSome(exts) ->
@@ -385,11 +403,8 @@ let private queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
                 match extMember with
                 | ExtensionMemberSymbol.Function(func) -> 
                     OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)
-                    // REVIEW: What is this doing again? Once we figure it out, comment about it.
-                    func.NewSubstituteExtension((stripTypeEquations ty).TypeArguments)
-                    |> Some
-                | ExtensionMemberSymbol.Property _ ->
-                    // TODO: Handle properties.
+                    tryFreshenAndSolveExtensionMember func ty
+                | _ ->
                     None
             )
             |> filterFunctions queryMemberFlags funcFlags nameOpt
@@ -409,7 +424,7 @@ let private queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
     |> ImArray.ofSeq
     |> filterMostSpecificFunctions
 
-let private queryMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
+let private queryMostSpecificInterfaceExtensionFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
     match tryFindTypeExtensions benv ty with
     | ValueSome(tyExts) ->
         tyExts
@@ -429,10 +444,10 @@ let private queryMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnviron
     | _ ->
         ImArray.empty
 
-let private queryAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty =
-    let extMembers = queryExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+let private queryAllExtensionFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty =
+    let extMembers = queryExtensionFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty
     let extInterfaceMembers = 
-        queryMostSpecificInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+        queryMostSpecificInterfaceExtensionFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty
     ImArray.append extMembers extInterfaceMembers
     |> filterMostSpecificFunctions
 
@@ -442,7 +457,7 @@ let private queryMostSpecificFunctionsOfType (benv: BoundEnvironment) queryMembe
     let extrinsicFuncs =
         match queryFunc with
         | QueryFunction.IntrinsicAndExtrinsic ->
-            queryAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
+            queryAllExtensionFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty
         | _ ->
             ImArray.empty
 
@@ -584,12 +599,7 @@ let private queryPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: Qu
                     extMembers.Values
                     |> Seq.choose (function
                         | ExtensionMemberSymbol.Property prop -> 
-                            // REVIEW: We do a similar thing when looking for extension member functions in 'findExtensionMembersOfType',
-                            //         is there a way to combine these together so we do not have to repeat this logic?
-                            let tyArgs = (stripTypeEquations ty).TypeArguments
-                            let enclosing = applyEnclosing tyArgs prop.Enclosing
-                            let prop = actualProperty enclosing tyArgs prop
-                            Some prop
+                            tryFreshenAndSolveExtensionMember prop ty
                         | _ -> 
                             None
                     )

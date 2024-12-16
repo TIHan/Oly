@@ -3152,6 +3152,8 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
     member _.HiddenLink = hiddenLinkOpt
 
     member _.HigherTypeParameters = higherTyPars
+    
+    member _.IsOfFunction = match kind with TypeParameterKind.Function _ -> true | _ -> false
 
     /// Mutability
     member this.SetConstraints(newConstrs) =
