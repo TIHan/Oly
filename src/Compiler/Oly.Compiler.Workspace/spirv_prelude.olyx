@@ -38,13 +38,13 @@ extension vec2Extensions<T> =
         #[import("spirv", "std.vec2", "x")]
         get()
         #[import("spirv", "std.vec2", "x")]
-        set(x)
+        set(value)
 
     y: T
         #[import("spirv", "std.vec2", "y")]
         get()
         #[import("spirv", "std.vec2", "y")]
-        set(y)
+        set(value)
 
 #[open]
 extension vec3Extensions<T> =
@@ -54,19 +54,19 @@ extension vec3Extensions<T> =
         #[import("spirv", "std.vec3", "x")]
         get()
         #[import("spirv", "std.vec3", "x")]
-        set(x)
+        set(value)
 
     y: T
         #[import("spirv", "std.vec3", "y")]
         get()
         #[import("spirv", "std.vec3", "y")]
-        set(y)
+        set(value)
 
     z: T
         #[import("spirv", "std.vec3", "z")]
         get()
         #[import("spirv", "std.vec3", "z")]
-        set(z)
+        set(value)
 
 
 #[open]
@@ -77,25 +77,25 @@ extension vec4Extensions<T> =
         #[import("spirv", "std.vec4", "x")]
         get()
         #[import("spirv", "std.vec4", "x")]
-        set(x)
+        set(value)
 
     y: T
         #[import("spirv", "std.vec4", "y")]
         get()
         #[import("spirv", "std.vec4", "y")]
-        set(y)
+        set(value)
 
     z: T
         #[import("spirv", "std.vec4", "z")]
         get()
         #[import("spirv", "std.vec4", "z")]
-        set(z)
+        set(value)
 
     w: T
         #[import("spirv", "std.vec4", "w")]
         get()
         #[import("spirv", "std.vec4", "w")]
-        set(z)
+        set(value)
 
 alias int = int32
 alias uint = uint32
@@ -113,7 +113,13 @@ alias bvec2 = vec<2, bool>
 alias bvec3 = vec<3, bool>
 alias bvec4 = vec<4, bool>
 
-#[import("spirv", "std", "vec4")]
+#[import("spirv", "std", "vec")]
+vec2(float): vec2
+
+#[import("spirv", "std", "vec")]
+vec2(x: float, y: float): vec2
+
+#[import("spirv", "std", "vec")]
 vec4(xy: vec2, z: float, w: float): vec4
 
 // Attributes

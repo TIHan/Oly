@@ -541,37 +541,47 @@ module BuiltInFunctions =
         AddExtractInsertComposite("y", 1u)
         AddExtractInsertComposite("z", 2u)
         AddExtractInsertComposite("w", 3u)
-        Add("vec4",
+        Add("vec",
             SpirvBuiltInFunctionData.Intrinsic(
                 fun spvModule args returnTy ->
+                    let idResult = spvModule.NewIdResult()
                     match args.Length with
                     | 1 ->
-                        match args |> ImArray.head with
-                        | (_, argIdRef) ->
-                            let idResult = spvModule.NewIdResult()
-                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [argIdRef; argIdRef; argIdRef; argIdRef])]
+                        let argIdRef = args |> ImArray.head |> snd 
+                        match returnTy with
+                        | SpirvType.Vec(_, n, _) ->
+                            let n = int n
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, List.init n (fun _ -> argIdRef))]
+                        | _ ->
+                            invalidOp "Bad return type."
+
+                    | 2 ->
+                        let idRefs = args |> ImArray.map snd
+                        match returnTy with
+                        | SpirvType.Vec(_, 2u, _) ->
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]])]
+                        | _ ->
+                            invalidOp "Bad return type."
 
                     | 3 ->
-                        let idRefs =
-                            args
-                            |> ImArray.map snd
-                        let arg0IdResult = spvModule.NewIdResult()
-                        let arg1IdResult = spvModule.NewIdResult()
-                        let arg2IdRef = idRefs[1]
-                        let arg3IdRef = idRefs[2]
-                        let idResult = spvModule.NewIdResult()
-                        let elementTy =
-                            match returnTy with
-                            | SpirvType.Vec(_, 4u, elementTy) -> elementTy
-                            | _ -> failwith "Invalid return type."
-                        idResult,
-                        [
-                            OpCompositeExtract(elementTy.IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
-                            OpCompositeExtract(elementTy.IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
-                            OpCompositeConstruct(returnTy.IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
-                        ]
+                        let idRefs = args |> ImArray.map snd
+                        match returnTy with
+                        | SpirvType.Vec(_, 4u, elementTy) ->
+                            let arg0IdResult = spvModule.NewIdResult()
+                            let arg1IdResult = spvModule.NewIdResult()
+                            let arg2IdRef = idRefs[1]
+                            let arg3IdRef = idRefs[2]
+                            idResult,
+                            [
+                                OpCompositeExtract(elementTy.IdResult, arg0IdResult, idRefs |> ImArray.head, [0u])
+                                OpCompositeExtract(elementTy.IdResult, arg1IdResult, idRefs |> ImArray.head, [1u])
+                                OpCompositeConstruct(returnTy.IdResult, idResult, [arg0IdResult; arg1IdResult; arg2IdRef; arg3IdRef])
+                            ]
+                        | _ ->
+                            invalidOp "Bad return type."
                     | _ ->
-                        raise(NotImplementedException())
+                        invalidOp "Bad arguments."
+                        
             ),
             SpirvBuiltInFunctionFlags.AutoDereferenceArguments
         )
