@@ -2651,3 +2651,150 @@ let invalidParameter () =
 
 let invalidTypeArguments () : TypeSymbol list =
     []
+
+// Freshen
+
+let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<TypeSymbol imarray>) isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty (cache: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) : TypeSymbol =
+    let tyArgOffset = tyPars.Length - explicitTyArgs.Length
+    if tyArgOffset < 0 then
+        failwith "Internal error: Invalid tyArgOffset, must be greater than or equal to zero."
+
+    let rec freshen (tys: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty =
+
+        match tyParExists ty with
+        | true -> ty
+        | _ ->
+
+        match stripTypeEquations ty with
+        | TypeSymbol.Function(inputTy, returnTy, kind) ->
+            TypeSymbol.Function(
+                freshen tys explicitTyArgs inputTy,
+                freshen tys explicitTyArgs returnTy,
+                kind
+            )
+
+        | TypeSymbol.ForAll(tyPars, innerTy) ->
+            tyPars
+            |> ImArray.iter (fun tyPar ->
+                tys[tyPar] <- tyPar.AsType
+            )
+            TypeSymbol.ForAll(
+                tyPars,
+                freshen tys explicitTyArgs innerTy
+            )
+
+        | TypeSymbol.Variable(tyPar) ->   
+            match tys.TryGetValue tyPar with
+            | true, inferenceTy -> inferenceTy
+            | _ ->
+                let ty = 
+                    match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
+                    | Some ty -> ty
+                    | _ -> 
+                        if isStrict then
+                            mkStrictInferenceVariableType (Some tyPar)
+                        else
+                            mkInferenceVariableType (Some tyPar)
+                tys.Add(tyPar, ty)
+                ty
+
+        | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+            let inferenceTy =
+                match tys.TryGetValue tyPar with
+                | true, inferenceTy -> inferenceTy
+                | _ ->
+                    let ty = 
+                        match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
+                        | Some ty -> ty
+                        | _ -> 
+                            if isStrict then
+                                mkStrictInferenceVariableType (Some tyPar)
+                            else
+                                mkInferenceVariableType (Some tyPar)
+                    tys.Add(tyPar, ty)
+                    ty
+            applyType inferenceTy (tyArgs |> ImArray.map (freshen tys explicitTyArgs))
+
+        | TypeSymbol.Tuple(tyArgs, names) ->
+            TypeSymbol.Tuple(tyArgs |> ImArray.map (fun x -> freshen tys explicitTyArgs x), names)
+
+        | TypeSymbol.Array(elementTy, rank, kind) ->
+            TypeSymbol.Array(freshen tys explicitTyArgs elementTy, rank, kind)
+
+        | TypeSymbol.FixedArray(length, elementTy, kind) ->
+            TypeSymbol.FixedArray(length, freshen tys explicitTyArgs elementTy, kind)
+
+        | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
+            let enclosingTyInst =
+                match enclosingTyInst.TryGetValue ent.FormalId with
+                | true, enclosingTyInst -> enclosingTyInst
+                | _ -> ImArray.empty
+            let tyArgs =
+                ent.TypeArguments
+                |> Seq.skip enclosingTyInst.Length
+                |> Seq.map (freshen tys explicitTyArgs)
+            TypeSymbol.Entity(applyEntity (enclosingTyInst.AddRange(tyArgs)) ent.Formal)
+
+        | TypeSymbol.ByRef(innerTy, kind) ->
+            TypeSymbol.CreateByRef(freshen tys explicitTyArgs innerTy, kind)
+
+        | _ ->
+            ty
+        
+    // We do this specifically for inference variables as we want to maintain the type parameter.
+    match ty with
+    | TypeSymbol.InferenceVariable(Some tyPar, varSolution) when varSolution.HasSolution ->
+        let ty = (freshen cache explicitTyArgs varSolution.Solution)
+        if ty.HasImmediateStrictInferenceVariableTypeParameter then
+            mkSolvedStrictInferenceVariableType tyPar ty
+        else
+            mkSolvedInferenceVariableType tyPar ty
+    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, varSolution) when varSolution.HasSolution ->
+        let newTyArgs = tyArgs |> ImArray.map (fun tyArg -> freshen cache explicitTyArgs tyArg)
+        mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
+    | _ ->
+        freshen cache explicitTyArgs ty
+
+let freshenValueAux tyParExists enclosingTyInst (value: IValueSymbol) =
+    if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then value
+    else
+
+    match value with
+    | :? LocalSymbol
+    | :? IFieldSymbol -> value
+    | :? IPropertySymbol
+    | :? IFunctionSymbol ->
+        let isStrict = value.HasStrictInference
+        let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
+        let tyArgs =
+            let tyPars =
+                if value.IsLocal then
+                    value.TypeParameters
+                else
+                    value.AllTypeParameters
+            let tyArgs = 
+                if value.IsLocal then
+                    value.TypeArguments
+                else
+                    value.AllTypeArguments
+
+            tyArgs
+            |> ImArray.map (fun ty ->
+                freshenTypeAux tyParExists enclosingTyInst isStrict tyPars ImArray.empty ty cache
+            )
+
+        let enclosing = 
+            let tyArgsForEnclosing =
+                tyArgs 
+                |> Seq.take value.Enclosing.TypeParameters.Length 
+                |> ImmutableArray.CreateRange
+            applyEnclosing tyArgsForEnclosing value.Enclosing.Formal
+
+        if value.IsLocal then
+            value.Formal.Substitute(tyArgs)
+        else
+            value.Formal.GetActual(enclosing, tyArgs)
+    | _ ->
+        if not value.IsInvalid then
+            failwith "Invalid value symbol"
+        value
