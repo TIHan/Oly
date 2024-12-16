@@ -37,7 +37,7 @@ Test(input: {tyName}): {tyName} =
     {src}
 
 main(): () =
-    let index = GlobalInvocationId.X
+    let index = GlobalInvocationId.x
     Buffer[index] <- Test(Buffer[index])
 """
     let output = build true src |> runAux input

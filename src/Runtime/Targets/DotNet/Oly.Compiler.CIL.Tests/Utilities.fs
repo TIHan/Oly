@@ -125,12 +125,14 @@ let runWithExpectedExceptionMessage expectedExceptionMsg (c: OlyCompilation) =
     | ex ->
         OlyAssert.Equal(expectedExceptionMsg, ex.Message)
 
+/// TODO: Get rid of this.
 let private printApi =
     "
 #[intrinsic(\"print\")]
 print(object): ()
     "
 
+/// TODO: Get rid of this.
 let OlySharp src =
     let prelude =
         """

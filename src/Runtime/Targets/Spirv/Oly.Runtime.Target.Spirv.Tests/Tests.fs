@@ -220,7 +220,7 @@ let ``Basic fragment shader`` () =
 //}
     let src =
         """
-texCoords: vec2<float32>
+texCoords: vec2
     #[location(0)]
     get
 
@@ -675,7 +675,7 @@ buffer: mutable float32[]
     get
 
 main(): () =
-    let index = GlobalInvocationId.X
+    let index = GlobalInvocationId.x
     buffer[index] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src

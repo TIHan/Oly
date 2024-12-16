@@ -199,8 +199,7 @@ module rec SpirvLowering =
                     newArgExpr
                 
                 | O.Equal _
-                | O.Cast _
-                | BuiltInOperations.NewVec4 _ ->
+                | O.Cast _ ->
                     AutoDereferenceIfPossible newArgExpr
 
                 | BuiltInOperations.AccessChain _ ->
@@ -217,16 +216,25 @@ module rec SpirvLowering =
                     else
                         AutoDereferenceIfPossible newArgExpr
 
-                | O.Call _ ->
-                    match newArgExpr.ResultType with
-                    | SpirvType.Pointer _ -> newArgExpr
-                    | resultTy ->
-                        let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
-                        let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
-                        E.Sequential(
-                            E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, newArgExpr, cenv.Module.GetTypeVoid())),
-                            valueExpr
-                        )                    
+                | O.Call(irFunc, _, _) ->
+                    let canAutoDereference =
+                        match irFunc.EmittedFunction with
+                        | SpirvFunction.BuiltIn(builtInFunc) ->
+                            builtInFunc.Flags.HasFlag(SpirvBuiltInFunctionFlags.AutoDereferenceArguments)
+                        | _ ->
+                            false
+                    if canAutoDereference then
+                        AutoDereferenceIfPossible newArgExpr
+                    else
+                        match newArgExpr.ResultType with
+                        | SpirvType.Pointer _ -> newArgExpr
+                        | resultTy ->
+                            let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                            let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+                            E.Sequential(
+                                E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, newArgExpr, cenv.Module.GetTypeVoid())),
+                                valueExpr
+                            )                    
 
                 | _ ->
                     raise(NotImplementedException(op.ToString()))

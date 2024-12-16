@@ -30,7 +30,7 @@ alias outref<T>
 #[import("spirv", "std", "vec")]
 struct vec<N, T> where N: constant int32
 
-#[open, export]
+#[open]
 extension vec2Extensions<T> =
     inherits vec<2, T>
 
@@ -46,7 +46,7 @@ extension vec2Extensions<T> =
         #[import("spirv", "std.vec2", "y")]
         set(y)
 
-#[open, export]
+#[open]
 extension vec3Extensions<T> =
     inherits vec<3, T>
 
@@ -69,7 +69,7 @@ extension vec3Extensions<T> =
         set(z)
 
 
-#[open, export]
+#[open]
 extension vec4Extensions<T> =
     inherits vec<4, T>
 
@@ -114,7 +114,7 @@ alias bvec3 = vec<3, bool>
 alias bvec4 = vec<4, bool>
 
 #[import("spirv", "std", "vec4")]
-vec4(xy: vec2, z: float32, w: float32): vec4
+vec4(xy: vec2, z: float, w: float): vec4
 
 // Attributes
 
@@ -132,7 +132,7 @@ struct blockAttribute = new()
 
 #[import("spirv", "std", "location")]
 #[intrinsic("importer")]
-struct locationAttribute = new(number: uint32)
+struct locationAttribute = new(number: uint)
 
 #[import("spirv", "std", "global_invocation_id")]
 #[intrinsic("importer")]
@@ -144,7 +144,7 @@ struct uniformAttribute = new()
 
 #[import("spirv", "std", "descriptor_set")]
 #[intrinsic("importer")]
-struct descriptor_setAttribute = new(uint32)
+struct descriptor_setAttribute = new(uint)
 
 #[import("spirv", "std", "binding")]
 #[intrinsic("importer")]
@@ -162,10 +162,10 @@ struct storage_bufferAttribute = new()
 
 /*
 #[intrinsic("unsafe_cast")]
-int32(uint32): int32
+int(uint): int
 
 #[intrinsic("unsafe_cast")]
-uint32(int32): uint32
+uint(int): uint
 */
 
 #[intrinsic("address_of")]
@@ -178,22 +178,22 @@ uint32(int32): uint32
 (==)(bool, bool): bool
 
 #[intrinsic("equal")]
-(==)(int32, int32): bool
+(==)(int, int): bool
 
 #[intrinsic("equal")]
-(==)(uint32, uint32): bool
+(==)(uint, uint): bool
 
 #[intrinsic("equal")]
-(==)(float32, float32): bool
+(==)(float, float): bool
 
 #[intrinsic("get_element")]
-(`[]`)<T>(T[], index: uint32): T
+(`[]`)<T>(T[], index: uint): T
 
 #[intrinsic("get_element")]
-(`[]`)<T>(mutable T[], index: uint32): T
+(`[]`)<T>(mutable T[], index: uint): T
 
 #[intrinsic("set_element")]
-(`[]`)<T>(mutable T[], index: uint32, T): ()
+(`[]`)<T>(mutable T[], index: uint, T): ()
 
 // BuiltIn
 
@@ -212,10 +212,10 @@ GlobalInvocationId: uvec3
 round<T>(T): T
 
 #[import("spirv", "GLSL.std.450", "1")]
-round<N, T>(vec<N, T>): vec<N, T> where N: constant int32
+round<N, T>(vec<N, T>): vec<N, T> where N: constant int
 
 #[import("spirv", "GLSL.std.450", "2")]
 roundEven<T>(T): T
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven<N, T>(vec<N, T>): vec<N, T> where N: constant int32
+roundEven<N, T>(vec<N, T>): vec<N, T> where N: constant int

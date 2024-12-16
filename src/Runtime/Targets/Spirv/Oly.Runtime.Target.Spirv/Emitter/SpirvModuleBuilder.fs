@@ -369,8 +369,9 @@ type SpirvField =
 // --
 
 type SpirvBuiltInFunctionFlags =
-    | None                   = 0b0000000000
-    | Constructor            = 0b0000000001
+    | None                     = 0b0000000000
+    | Constructor              = 0b0000000001
+    | AutoDereferenceArguments = 0b0000000010
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type SpirvBuiltInFunctionData =
@@ -398,7 +399,7 @@ type SpirvBuiltInFunction =
                 else
                     false
             else
-                not irFlags.IsConstructor && not irFlags.IsInstance
+                not irFlags.IsConstructor
 
 module BuiltInFunctions =
 
@@ -417,6 +418,33 @@ module BuiltInFunctions =
                 Flags = flags
             } |> SpirvFunction.BuiltIn
         )
+
+    let private AddExtractInsertComposite(name: string, index: uint) =
+        Add(name,             
+            SpirvBuiltInFunctionData.Intrinsic(
+                fun spvModule args returnTy ->
+                    match args.Length with
+                    | 1 ->
+                        match args |> ImArray.head with
+                        | (_, argIdRef) ->
+                            let idResult = spvModule.NewIdResult()
+                            idResult, [OpCompositeExtract(returnTy.IdResult, idResult, argIdRef, [index])]
+
+                    | 2 ->
+                        let idRefs =
+                            args
+                            |> ImArray.map snd
+
+                        0u,
+                        [
+                            OpCompositeInsert((fst args[1]).IdResult, spvModule.NewIdResult(), idRefs[1], idRefs[0], [index])
+                        ]
+
+                    | _ ->
+                        invalidOp name
+            ),
+            SpirvBuiltInFunctionFlags.AutoDereferenceArguments
+        )  
 
     do
         Add("position",                
@@ -508,7 +536,11 @@ module BuiltInFunctions =
                 fun varIdRef _ ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.GlobalInvocationId)]
             ),     
-            SpirvBuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.Constructor)
+        AddExtractInsertComposite("x", 0u)
+        AddExtractInsertComposite("y", 1u)
+        AddExtractInsertComposite("z", 2u)
+        AddExtractInsertComposite("w", 3u)
         Add("vec4",
             SpirvBuiltInFunctionData.Intrinsic(
                 fun spvModule args returnTy ->
@@ -541,7 +573,7 @@ module BuiltInFunctions =
                     | _ ->
                         raise(NotImplementedException())
             ),
-            SpirvBuiltInFunctionFlags.None
+            SpirvBuiltInFunctionFlags.AutoDereferenceArguments
         )
         Add("bitcast",
             SpirvBuiltInFunctionData.Intrinsic(
@@ -567,8 +599,8 @@ module BuiltInFunctions =
             |> Some
         else
 
-        if (ImArray.head path) <> "std" then None
-        else          
+        match ImArray.head path with
+        | "std" ->      
             let name =
                 if path.Length = 2 then
                     path[1]
@@ -586,25 +618,24 @@ module BuiltInFunctions =
             | _ ->
                 None
 
-    let IsValid(name: string) = Lookup.ContainsKey(name)
-
-module BuiltInOperations =
-
-    let inline (|NewVec4|_|)(op: O) =
-        match op with
-        | O.New(irFunc, argExprs, resultTy) ->
-            match irFunc.EmittedFunction with
-            | SpirvFunction.BuiltIn(builtInFunc) as func ->
-                OlyAssert.True(argExprs.Length >= 1)
-                OlyAssert.True(argExprs.Length <= 4)
-                if builtInFunc.Name = "vec4" then
-                    Some(func, argExprs, resultTy)
-                else
+        | "std.vec2"
+        | "std.vec3"
+        | "std.vec4" ->
+            match Lookup.TryGetValue(name) with
+            | true, func ->
+                match func.TryGetBuiltIn() with
+                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, irFlags) ->
+                    Some func
+                | _ ->
                     None
             | _ ->
                 None
         | _ ->
             None
+
+    let IsValid(name: string) = Lookup.ContainsKey(name)
+
+module BuiltInOperations =
 
     let inline (|AccessChain|_|)(op: O) =
         match op with

@@ -233,6 +233,8 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
             | OlyILEntityKind.Struct ->
                 let namedTy = builder.CreateTypeStructBuilder(enclosing, name)
                 namedTy.AsType
+            | OlyILEntityKind.TypeExtension ->
+                SpirvType.Invalid
             | _ ->
                 raise(NotSupportedException())
 

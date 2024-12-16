@@ -386,7 +386,7 @@ let private queryExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlag
                 | ExtensionMemberSymbol.Function(func) -> 
                     OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)
                     // REVIEW: What is this doing again? Once we figure it out, comment about it.
-                    func.NewSubstituteExtension(ty.TypeArguments)
+                    func.NewSubstituteExtension((stripTypeEquations ty).TypeArguments)
                     |> Some
                 | ExtensionMemberSymbol.Property _ ->
                     // TODO: Handle properties.
@@ -586,9 +586,9 @@ let private queryPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: Qu
                         | ExtensionMemberSymbol.Property prop -> 
                             // REVIEW: We do a similar thing when looking for extension member functions in 'findExtensionMembersOfType',
                             //         is there a way to combine these together so we do not have to repeat this logic?
-                            let tyArgs = ty.TypeArguments
-                            let enclosing = applyEnclosing tyArgs prop.Enclosing
-                            let prop = actualProperty enclosing tyArgs prop
+                            //let tyArgs = (stripTypeEquations ty).TypeArguments
+                            //let enclosing = applyEnclosing tyArgs prop.Enclosing
+                            //let prop = actualProperty enclosing tyArgs prop
                             Some prop
                         | _ -> 
                             None
