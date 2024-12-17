@@ -175,7 +175,25 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                         raise(InvalidOperationException())
                 | _ ->
                     if info.Platform <> "spirv" then raise(InvalidOperationException())
-                    match BuiltInFunctions.TryGetBuiltInFunction(info.Path, info.Name, flags) with
+                    let path = info.Path
+                    let name = info.Name
+                    let name =
+                        if name.StartsWith("get_") then
+                            name.Replace("get_", "")
+                        elif name.StartsWith("set_") then
+                            name.Replace("set_", "")
+                        else
+                            name
+                    let name =
+                        if flags.IsConstructor then
+                            let name = path[1]
+                            if name.StartsWith("vec") then
+                                "vec"
+                            else
+                                name
+                        else
+                            name
+                    match BuiltInFunctions.TryGetBuiltInFunction(path, name) with
                     | Some func -> func
                     | _ -> raise(InvalidOperationException())
             | _ ->

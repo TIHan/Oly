@@ -844,6 +844,9 @@ module rec ClrCodeGen =
     let GenOperation (cenv: cenv) prevEnv (irOp: O<ClrTypeInfo, _, _>) =
         let env = { prevEnv with isReturnable = false }
         match irOp with
+        | O.NewFixedArray _ ->
+            raise(NotImplementedException())
+
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             OlyAssert.False(receiverExpr.ResultType.IsStruct)
 

@@ -311,7 +311,7 @@ outColor: vec4
 main(): () =
     let mutable color = color
     color <- vec4(1)
-    if (color.X == 1)
+    if (color.x == 1)
         color <- vec4(0.5)
     outColor <- color
         """
@@ -336,7 +336,7 @@ outColor: vec4
 main(): () =
     let mutable color = color
     color <- vec4(1)
-    if (color.X == 1)
+    if (color.x == 1)
         color <- vec4(0.5)
     else
         color <- vec4(0)
@@ -363,7 +363,7 @@ outColor: vec4
 main(): () =
     let mutable color = color
     color <- vec4(1)
-    if (color.X == 1.1)
+    if (color.x == 1.1)
         color <- vec4(0.5)
     else
         color <- vec4(0)
@@ -391,7 +391,7 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
+        if (color.x == 1)
             vec4(0.5)
         else
             color
@@ -419,9 +419,9 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
-                if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
+                if (color.x == 1)
                     color <- vec4(1)
                     vec4(0.5)
                 else
@@ -454,7 +454,7 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1.1)
+        if (color.x == 1.1)
             vec4(0.5)
         else
             vec4(0)
@@ -482,7 +482,7 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
+        if (color.x == 1)
             color <- vec4(0)
             vec4(0.5)
         else
@@ -512,8 +512,8 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
                 color <- vec4(1)
             vec4(0.5)
         else
@@ -542,8 +542,8 @@ main(): () =
     let mutable color = color
     color <- vec4(0)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
                 color <- vec4(1)
             vec4(0.5)
         else
@@ -572,10 +572,10 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
                 color <- vec4(1)
-            if (color.X == 1)
+            if (color.x == 1)
                 vec4(1)
             else
                 vec4(0)
@@ -605,10 +605,10 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
                 color <- vec4(1)
-            vec4(color.X)
+            vec4(color.x)
         else
             vec4(0)
     outColor <- color
@@ -635,10 +635,10 @@ main(): () =
     let mutable color = color
     color <- vec4(1)
     color <-
-        if (color.X == 1)
-            if (color.X == 1)
+        if (color.x == 1)
+            if (color.x == 1)
                 color <- vec4(0.5)
-            vec4(color.X)
+            vec4(color.x)
         else
             vec4(0)
     outColor <- color
@@ -670,7 +670,7 @@ let ``Basic compute shader`` () =
 //}
     let src =
         """
-buffer: mutable float32[]
+buffer: mutable float[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
@@ -697,13 +697,13 @@ let ``Basic compute shader 2 - verify use of local creation`` () =
 //}
     let src =
         """
-buffer: mutable float32[]
+buffer: mutable float[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
 main(): () =
     let abc = GlobalInvocationId
-    let index = abc.X
+    let index = abc.x
     buffer[index] <- 123
         """
     OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
@@ -712,11 +712,11 @@ main(): () =
 let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
-buffer: mutable float32[]
+buffer: mutable float[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
-GetValue(x: float32): float32 =
+GetValue(x: float): float =
     x
 
 main(): () =
@@ -728,7 +728,7 @@ main(): () =
 let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
-buffer: mutable int32[]
+buffer: mutable int[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
@@ -748,7 +748,7 @@ let ``Basic compute shader 5 - verify struct`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float32 = 0
+    public field mutable Value: float = 0
 
 buffer: mutable TestData[]
     #[uniform, descriptor_set(0), binding(0)]
@@ -775,7 +775,7 @@ let ``Basic compute shader 6 - verify nested struct`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float32 = 0
+    public field mutable Value: float = 0
 
 struct TestData2 =
     public field mutable Value: TestData = TestData()
@@ -805,7 +805,7 @@ let ``Basic compute shader 7 - verify doubly nested structs`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float32 = 0
+    public field mutable Value: float = 0
 
 struct TestData2 =
     public field mutable Value: TestData = TestData()

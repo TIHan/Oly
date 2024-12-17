@@ -10,13 +10,16 @@ module OlyPrelude
 alias bool
 
 #[intrinsic("int32")]
-alias int32
+alias int
 
 #[intrinsic("uint32")]
-alias uint32
+alias uint
 
 #[intrinsic("float32")]
-alias float32
+alias float
+
+#[intrinsic("float64")]
+alias double
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -27,208 +30,86 @@ alias inref<T>
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
 
-#[import("spirv", "std", "vec")]
-struct vec<N, T> where N: constant int32
+#[import("spirv", "std", "vec2")]
+struct vec2 =
+    x: float get, set
+    y: float get, set
+    new(float)
+    new(float, float)
 
-#[open]
-extension vec2Extensions<T> =
-    inherits vec<2, T>
+#[import("spirv", "std", "vec3")]
+struct vec3 =
+    x: float get, set
+    y: float get, set
+    z: float get, set
+    new(float)
+    new(vec2, float)
+    new(float, float, float)
 
-    x: T 
-        #[import("spirv", "std.vec2", "x")]
-        get()
-        #[import("spirv", "std.vec2", "x")]
-        set(value)
+#[import("spirv", "std", "vec4")]
+struct vec4 =
+    x: float get, set
+    y: float get, set
+    z: float get, set
+    w: float get, set
+    new(float)
+    new(vec3, float)
+    new(vec2, float, float)
+    new(float, float, float, float)
 
-    y: T
-        #[import("spirv", "std.vec2", "y")]
-        get()
-        #[import("spirv", "std.vec2", "y")]
-        set(value)
+#[import("spirv", "std", "dvec2")]
+struct dvec2 =
+    x: double get, set
+    y: double get, set
+    new(double)
+    new(double, double)
 
-#[open]
-extension vec3Extensions<T> =
-    inherits vec<3, T>
+#[import("spirv", "std", "dvec3")]
+struct dvec3 =
+    x: double get, set
+    y: double get, set
+    z: double get, set
+    new(double)
+    new(vec2, double)
+    new(double, double, double)
 
-    x: T 
-        #[import("spirv", "std.vec3", "x")]
-        get()
-        #[import("spirv", "std.vec3", "x")]
-        set(value)
+#[import("spirv", "std", "dvec4")]
+struct dvec4 =
+    x: double get, set
+    y: double get, set
+    z: double get, set
+    w: double get, set
+    new(double)
+    new(vec3, double)
+    new(vec2, double, double)
+    new(double, double, double, double)
 
-    y: T
-        #[import("spirv", "std.vec3", "y")]
-        get()
-        #[import("spirv", "std.vec3", "y")]
-        set(value)
+#[import("spirv", "std", "uvec2")]
+struct uvec2 =
+    x: uint get, set
+    y: uint get, set
+    new(uint)
+    new(uint, uint)
 
-    z: T
-        #[import("spirv", "std.vec3", "z")]
-        get()
-        #[import("spirv", "std.vec3", "z")]
-        set(value)
+#[import("spirv", "std", "uvec3")]
+struct uvec3 =
+    x: uint get, set
+    y: uint get, set
+    z: uint get, set
+    new(uint)
+    new(uvec2, uint)
+    new(uint, uint, uint)
 
-
-#[open]
-extension vec4Extensions<T> =
-    inherits vec<4, T>
-
-    x: T 
-        #[import("spirv", "std.vec4", "x")]
-        get()
-        #[import("spirv", "std.vec4", "x")]
-        set(value)
-
-    y: T
-        #[import("spirv", "std.vec4", "y")]
-        get()
-        #[import("spirv", "std.vec4", "y")]
-        set(value)
-
-    z: T
-        #[import("spirv", "std.vec4", "z")]
-        get()
-        #[import("spirv", "std.vec4", "z")]
-        set(value)
-
-    w: T
-        #[import("spirv", "std.vec4", "w")]
-        get()
-        #[import("spirv", "std.vec4", "w")]
-        set(value)
-
-alias int = int32
-alias uint = uint32
-alias float = float32
-alias vec2 = vec<2, float32>
-alias vec3 = vec<3, float32>
-alias vec4 = vec<4, float32>
-alias ivec2 = vec<2, int32>
-alias ivec3 = vec<3, int32>
-alias ivec4 = vec<4, int32>
-alias uvec2 = vec<2, uint32>
-alias uvec3 = vec<3, uint32>
-alias uvec4 = vec<4, uint32>
-alias bvec2 = vec<2, bool>
-alias bvec3 = vec<3, bool>
-alias bvec4 = vec<4, bool>
-
-
-// vec of float
-
-#[import("spirv", "std", "vec")]
-vec2(float): vec2
-
-#[import("spirv", "std", "vec")]
-vec2(x: float, y: float): vec2
-
-#[import("spirv", "std", "vec")]
-vec3(float): vec3
-
-#[import("spirv", "std", "vec")]
-vec3(xy: vec2, z: float): vec3
-
-#[import("spirv", "std", "vec")]
-vec3(x: float, y: float, z: float): vec3
-
-#[import("spirv", "std", "vec")]
-vec4(float): vec4
-
-#[import("spirv", "std", "vec")]
-vec4(xyz: vec3, w: float): vec4
-
-#[import("spirv", "std", "vec")]
-vec4(xy: vec2, z: float, w: float): vec4
-
-#[import("spirv", "std", "vec")]
-vec4(x: float, y: float, z: float, w: float): vec4
-
-// vec of int
-
-#[import("spirv", "std", "vec")]
-ivec2(int): ivec2
-
-#[import("spirv", "std", "vec")]
-ivec2(x: int, y: int): ivec2
-
-#[import("spirv", "std", "vec")]
-ivec3(int): ivec3
-
-#[import("spirv", "std", "vec")]
-ivec3(xy: vec2, z: int): ivec3
-
-#[import("spirv", "std", "vec")]
-ivec3(x: int, y: int, z: int): ivec3
-
-#[import("spirv", "std", "vec")]
-ivec4(int): ivec4
-
-#[import("spirv", "std", "vec")]
-ivec4(xyz: ivec3, w: int): ivec4
-
-#[import("spirv", "std", "vec")]
-ivec4(xy: ivec2, z: int, w: int): ivec4
-
-#[import("spirv", "std", "vec")]
-ivec4(x: int, y: int, z: int, w: int): ivec4
-
-// vec of uint
-
-#[import("spirv", "std", "vec")]
-uvec2(uint): uvec2
-
-#[import("spirv", "std", "vec")]
-uvec2(x: uint, y: uint): uvec2
-
-#[import("spirv", "std", "vec")]
-uvec3(uint): uvec3
-
-#[import("spirv", "std", "vec")]
-uvec3(xy: vec2, z: uint): uvec3
-
-#[import("spirv", "std", "vec")]
-uvec3(x: uint, y: uint, z: uint): uvec3
-
-#[import("spirv", "std", "vec")]
-uvec4(uint): uvec4
-
-#[import("spirv", "std", "vec")]
-uvec4(xyz: uvec3, w: uint): uvec4
-
-#[import("spirv", "std", "vec")]
-uvec4(xy: uvec2, z: uint, w: uint): uvec4
-
-#[import("spirv", "std", "vec")]
-uvec4(x: uint, y: uint, z: uint, w: uint): uvec4
-
-// vec of bool
-
-#[import("spirv", "std", "vec")]
-bvec2(bool): bvec2
-
-#[import("spirv", "std", "vec")]
-bvec2(x: bool, y: bool): bvec2
-
-#[import("spirv", "std", "vec")]
-bvec3(bool): bvec3
-
-#[import("spirv", "std", "vec")]
-bvec3(xy: vec2, z: bool): bvec3
-
-#[import("spirv", "std", "vec")]
-bvec3(x: bool, y: bool, z: bool): bvec3
-
-#[import("spirv", "std", "vec")]
-bvec4(bool): bvec4
-
-#[import("spirv", "std", "vec")]
-bvec4(xyz: bvec3, w: bool): bvec4
-
-#[import("spirv", "std", "vec")]
-bvec4(xy: bvec2, z: bool, w: bool): bvec4
-
-#[import("spirv", "std", "vec")]
-bvec4(x: bool, y: bool, z: bool, w: bool): bvec4
+#[import("spirv", "std", "uvec4")]
+struct uvec4 =
+    x: uint get, set
+    y: uint get, set
+    z: uint get, set
+    w: uint get, set
+    new(uint)
+    new(uvec3, uint)
+    new(uvec2, uint, uint)
+    new(uint, uint, uint, uint)
 
 // Attributes
 
@@ -262,7 +143,7 @@ struct descriptor_setAttribute = new(uint)
 
 #[import("spirv", "std", "binding")]
 #[intrinsic("importer")]
-struct bindingAttribute = new(uint32)
+struct bindingAttribute = new(uint)
 
 #[import("spirv", "std", "buffer_block")]
 #[intrinsic("importer")]
@@ -323,13 +204,25 @@ GlobalInvocationId: uvec3
 // https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
 
 #[import("spirv", "GLSL.std.450", "1")]
-round<T>(T): T
+round(float): float
 
 #[import("spirv", "GLSL.std.450", "1")]
-round<N, T>(vec<N, T>): vec<N, T> where N: constant int
+round(vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "1")]
+round(vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "1")]
+round(vec4): vec4
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven<T>(T): T
+roundEven(float): float
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven<N, T>(vec<N, T>): vec<N, T> where N: constant int
+roundEven(vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "2")]
+roundEven(vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "3")]
+roundEven(vec4): vec4

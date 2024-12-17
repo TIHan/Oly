@@ -542,7 +542,7 @@ type BinderEnvironment =
             this
         else
 
-        let inheritsTy =
+        let extendsTy =
             match tyExt.Extends.Length = 1 with
             | true -> tyExt.Extends.[0]
             | _ -> failwith "Expecting a type extension that inherits a type."
@@ -558,10 +558,12 @@ type BinderEnvironment =
         if implementsTys.IsEmpty then
             // Normal type extension
 
+            let extendsTy = (stripTypeEquationsAndBuiltIn extendsTy).Formal
+
             let typeExtensionMembers = this.benv.senv.typeExtensionMembers
             let typeExtensionMembers2 =
                 let tyExts =
-                    match typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn inheritsTy) with
+                    match typeExtensionMembers.TryFind(extendsTy) with
                     | ValueSome tyExts -> tyExts
                     | _ -> ExtensionMemberSymbolOrderedSet.Create()
 
@@ -575,11 +577,11 @@ type BinderEnvironment =
 
                 let tyExts2 = tyExts.AddRange(funcs.AddRange(props))
 
-                if inheritsTy.IsError_t then
+                if extendsTy.IsError_t then
                     typeExtensionMembers
                 else
-                    OlyAssert.True(inheritsTy.IsSolved)
-                    typeExtensionMembers.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
+                    OlyAssert.True(extendsTy.IsSolved)
+                    typeExtensionMembers.SetItem(extendsTy, tyExts2)
             { this with
                 benv =
                     { this.benv with
@@ -595,7 +597,7 @@ type BinderEnvironment =
             let typeExtensionsWithImplements = this.benv.senv.typeExtensionsWithImplements
             let typeExtensionsWithImplements2 =
                 let tyExts =
-                    match typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn inheritsTy) with
+                    match typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn extendsTy) with
                     | ValueSome tyExts -> tyExts
                     | _ -> EntitySymbolGeneralizedMapEntitySet.Create()
 
@@ -609,7 +611,7 @@ type BinderEnvironment =
                             tyExts
                     )
 
-                typeExtensionsWithImplements.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
+                typeExtensionsWithImplements.SetItem(stripTypeEquationsAndBuiltIn extendsTy, tyExts2)
             { this with
                 benv =
                     { this.benv with

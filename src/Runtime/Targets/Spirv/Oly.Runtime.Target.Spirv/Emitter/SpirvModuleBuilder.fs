@@ -370,8 +370,7 @@ type SpirvField =
 
 type SpirvBuiltInFunctionFlags =
     | None                     = 0b0000000000
-    | Constructor              = 0b0000000001
-    | AutoDereferenceArguments = 0b0000000010
+    | AutoDereferenceArguments = 0b0000000001
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type SpirvBuiltInFunctionData =
@@ -388,18 +387,6 @@ type SpirvBuiltInFunction =
         Flags: SpirvBuiltInFunctionFlags
         Data: SpirvBuiltInFunctionData
     }
-
-    member this.IsValid(name: string, irFlags: OlyIRFunctionFlags) =
-        if this.Name <> name then 
-            false
-        else
-            if this.Flags.HasFlag(SpirvBuiltInFunctionFlags.Constructor) then
-                if irFlags.IsConstructor && irFlags.IsInstance then
-                    true
-                else
-                    false
-            else
-                not irFlags.IsConstructor
 
 module BuiltInFunctions =
 
@@ -457,7 +444,7 @@ module BuiltInFunctions =
                 fun varIdRef args ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.Position)]
             ),
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("point_size",            
             SpirvBuiltInFunctionData.DecorateFieldAndVariable(
                 SpirvFieldFlags.None, 
@@ -468,21 +455,21 @@ module BuiltInFunctions =
                 fun varIdRef _ ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.PointSize)]
             ),        
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("block",                     
             SpirvBuiltInFunctionData.DecorateType(
                 SpirvTypeFlags.None, 
                 fun tyIdRef ->
                     [OpDecorate(tyIdRef, Decoration.Block)]
             ),      
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("buffer_block",                     
             SpirvBuiltInFunctionData.DecorateType(
                 SpirvTypeFlags.None, 
                 fun tyIdRef ->
                     [OpDecorate(tyIdRef, Decoration.BufferBlock)]
             ),      
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("location",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
@@ -493,21 +480,21 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("uniform",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.Uniform, 
                 fun _varIdRef _args ->
                     []
             ),     
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("storage_buffer",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.StorageBuffer, 
                 fun _varIdRef _args ->
                     []
             ),     
-            SpirvBuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.None) 
         Add("descriptor_set",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
@@ -518,7 +505,7 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         Add("binding",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
@@ -529,14 +516,14 @@ module BuiltInFunctions =
                     | _ ->
                         raise(InvalidOperationException()) 
             ),     
-            SpirvBuiltInFunctionFlags.Constructor) 
+            SpirvBuiltInFunctionFlags.None) 
         Add("global_invocation_id",             
             SpirvBuiltInFunctionData.DecorateVariable(
                 SpirvVariableFlags.None, 
                 fun varIdRef _ ->
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.GlobalInvocationId)]
             ),     
-            SpirvBuiltInFunctionFlags.Constructor)
+            SpirvBuiltInFunctionFlags.None)
         AddExtractInsertComposite("x", 0u)
         AddExtractInsertComposite("y", 1u)
         AddExtractInsertComposite("z", 2u)
@@ -625,7 +612,7 @@ module BuiltInFunctions =
             SpirvBuiltInFunctionFlags.None
         )
 
-    let TryGetBuiltInFunction(path: string imarray, name: string, irFlags: OlyIRFunctionFlags) : SpirvFunction option =
+    let TryGetBuiltInFunction(path: string imarray, name: string) : SpirvFunction option =
         // Extended Instruction Sets
         if path.Length = 1 && path[0] = "GLSL.std.450" then
             SpirvFunction.ExtendedInstruction(path[0], UInt32.Parse(name))
@@ -634,30 +621,10 @@ module BuiltInFunctions =
 
         match ImArray.head path with
         | "std" ->      
-            let name =
-                if path.Length = 2 then
-                    path[1]
-                elif path.Length = 1 then
-                    name
-                else
-                    failwith "Invalid path."
             match Lookup.TryGetValue(name) with
             | true, func ->
                 match func.TryGetBuiltIn() with
-                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, irFlags) ->
-                    Some func
-                | _ ->
-                    None
-            | _ ->
-                None
-
-        | "std.vec2"
-        | "std.vec3"
-        | "std.vec4" ->
-            match Lookup.TryGetValue(name) with
-            | true, func ->
-                match func.TryGetBuiltIn() with
-                | ValueSome(builtInFunc) when builtInFunc.IsValid(name, irFlags) ->
+                | ValueSome(builtInFunc) ->
                     Some func
                 | _ ->
                     None
@@ -772,7 +739,7 @@ module BuiltInExpressions =
         )
 
     let Bitcast(argExpr: E, castToType: SpirvType) =
-        match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "bitcast", "", Unchecked.defaultof<_>) with
+        match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "bitcast", "") with
         | Some func -> 
             E.Operation(OlyIRDebugSourceTextRange.Empty, O.Call(OlyIRFunction(func), ImArray.createOne argExpr, castToType))
         | _ ->
@@ -782,7 +749,21 @@ module BuiltInTypes =
 
     let TryGetByName(spvModule: SpirvModuleBuilder, name: string) =
         match name with
-        | "vec" -> SpirvType.Vec(0u, 0u, SpirvType.Invalid) |> ValueSome
+        | "vec2" -> spvModule.GetTypeVec(2u, spvModule.GetTypeFloat32()) |> ValueSome
+        | "vec3" -> spvModule.GetTypeVec(3u, spvModule.GetTypeFloat32()) |> ValueSome
+        | "vec4" -> spvModule.GetTypeVec(4u, spvModule.GetTypeFloat32()) |> ValueSome
+        | "dvec2" -> spvModule.GetTypeVec(2u, spvModule.GetTypeFloat64()) |> ValueSome
+        | "dvec3" -> spvModule.GetTypeVec(3u, spvModule.GetTypeFloat64()) |> ValueSome
+        | "dvec4" -> spvModule.GetTypeVec(4u, spvModule.GetTypeFloat64()) |> ValueSome
+        | "ivec2" -> spvModule.GetTypeVec(2u, spvModule.GetTypeInt32()) |> ValueSome
+        | "ivec3" -> spvModule.GetTypeVec(3u, spvModule.GetTypeInt32()) |> ValueSome
+        | "ivec4" -> spvModule.GetTypeVec(4u, spvModule.GetTypeInt32()) |> ValueSome
+        | "uvec2" -> spvModule.GetTypeVec(2u, spvModule.GetTypeUInt32()) |> ValueSome
+        | "uvec3" -> spvModule.GetTypeVec(3u, spvModule.GetTypeUInt32()) |> ValueSome
+        | "uvec4" -> spvModule.GetTypeVec(4u, spvModule.GetTypeUInt32()) |> ValueSome
+        | "bvec2" -> spvModule.GetTypeVec(2u, spvModule.GetTypeBool()) |> ValueSome
+        | "bvec3" -> spvModule.GetTypeVec(3u, spvModule.GetTypeBool()) |> ValueSome
+        | "bvec4" -> spvModule.GetTypeVec(4u, spvModule.GetTypeBool()) |> ValueSome
         | _ -> ValueNone
 
 // --
@@ -830,6 +811,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let mutable cachedTypeInt32          = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeUInt32         = Unchecked.defaultof<SpirvType>
     let mutable cachedTypeFloat32        = Unchecked.defaultof<SpirvType>
+    let mutable cachedTypeFloat64        = Unchecked.defaultof<SpirvType>
     (**)
 
     let mutable newIdResultValue = 2u // This is '2u' because 'OpExtInstImport' uses '1u'.
@@ -920,7 +902,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             arrayTys[key] <- ty
             ty
 
-    member this.GetTypeVec(n: uint, elementTy: SpirvType) =
+    member this.GetTypeVec(n: uint, elementTy: SpirvType) : SpirvType =
         let key = (n, elementTy.IdResult)
         match vecTys.TryGetValue key with
         | true, ty -> ty
@@ -960,6 +942,12 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             cachedTypeFloat32 <- SpirvType.Float32(this.NewIdResult())
             this.AddType(cachedTypeFloat32)
         cachedTypeFloat32
+
+    member this.GetTypeFloat64() : SpirvType =
+        if isNull(box cachedTypeFloat64) then
+            cachedTypeFloat64 <- SpirvType.Float64(this.NewIdResult())
+            this.AddType(cachedTypeFloat64)
+        cachedTypeFloat64
 
     member this.GetTypeFunction(parTys: SpirvType imarray, returnTy: SpirvType) =
         let key = (returnTy, parTys)

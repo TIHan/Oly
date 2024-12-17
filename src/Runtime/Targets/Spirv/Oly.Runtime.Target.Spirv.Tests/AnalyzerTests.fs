@@ -11,7 +11,7 @@ let ``Should error with incorrect use of runtime array``() =
     """
 #target "spirv: vertex, 1.0"
 
-buffer: mutable float32[]
+buffer: mutable float[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
@@ -34,13 +34,13 @@ let ``Should error with incorrect use of GlobalInvocationId``() =
 #target "spirv: vertex, 1.0"
 
 main(): () =
-    let x = GlobalInvocationId.X
+    let x = GlobalInvocationId.x
     """
     |> buildHasErrors
         [
             ("SPIR-V: Only available in execution model(s) 'compute'.",
                 """
-    let x = GlobalInvocationId.X
+    let x = GlobalInvocationId.x
             ^^^^^^^^^^^^^^^^^^
 """
             )

@@ -194,6 +194,15 @@ type SpirvTarget() =
             // TODO: Add checks to verify if the combination of attributes and property type are used correctly.
             //       Or, we could do this verification when we check the attribute usage, but will require querying with a syntax node.
 
+        let isIntrinsicImport (valueSymbol: OlyValueSymbol) =
+            match valueSymbol.Enclosing.TryType with
+            | Some enclosingTy ->
+                match enclosingTy.Enclosing.TryType with
+                | Some enclosingTy -> enclosingTy.Name.Contains("OlyPrelude")
+                | _ -> false
+            | _ ->
+                false
+
         let checkPropertyDefinition (valueSymbol: OlyValueSymbol) (useSyntax: OlySyntaxNode) =
             OlyAssert.True(valueSymbol.IsProperty)
             match valueSymbol.TryPropertyGetterSetter with
@@ -201,7 +210,9 @@ type SpirvTarget() =
                 checkPropertyFunctionDefinition getter useSyntax
             | Some(Some setter, None) when setter.IsImported ->
                 checkPropertyFunctionDefinition setter useSyntax
-            | Some(Some getter, Some setter) when (not valueSymbol.Enclosing.IsTypeExtension) && (getter.IsImported || setter.IsImported) ->
+            | Some(Some getter, Some setter) 
+                    when (not (isIntrinsicImport valueSymbol)) && 
+                    (getter.IsImported || setter.IsImported) ->
                 diagnostics.Error($"This kind of property definition cannot have a getter and setter.", 10, useSyntax)
             | _ ->
                 ()

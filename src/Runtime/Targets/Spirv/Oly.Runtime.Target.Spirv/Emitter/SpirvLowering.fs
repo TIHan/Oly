@@ -142,6 +142,18 @@ module rec SpirvLowering =
     let private LowerOperation (cenv: cenv) (env: env) origExpr textRange (op: O) =
         let newOp =
             let env = env.NotReturnable
+
+            let op =
+                match op with
+                | O.New(irFunc, argExprs, resultTy) ->
+                    match irFunc.EmittedFunction with
+                    | SpirvFunction.BuiltIn _ ->
+                        O.Call(irFunc, argExprs, resultTy)
+                    | _ ->
+                        op
+                | _ ->
+                    op
+
             op.MapAndReplaceArguments (fun i argExpr ->
                 let newArgExpr = LowerExpression cenv env argExpr
                 match op with
@@ -234,7 +246,7 @@ module rec SpirvLowering =
                             E.Sequential(
                                 E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, newArgExpr, cenv.Module.GetTypeVoid())),
                                 valueExpr
-                            )                    
+                            )
 
                 | _ ->
                     raise(NotImplementedException(op.ToString()))

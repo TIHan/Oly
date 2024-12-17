@@ -921,8 +921,8 @@ type TypeSymbolMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
 
     member _.TryFind(key) =
         match map.TryGetValue key with
-        | true, value -> Some value
-        | _ -> None
+        | true, value -> ValueSome value
+        | _ -> ValueNone
 
     member _.Values = map.Values
    

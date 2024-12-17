@@ -21,8 +21,8 @@ let runAux input (program: OlyProgram) =
 let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let tyName =
         match typeof<'T> with
-        | x when x = typeof<float32> -> "float32"
-        | x when x = typeof<int32> -> "int32"
+        | x when x = typeof<float32> -> "float"
+        | x when x = typeof<int32> -> "int"
         | x ->
             invalidOp $"Type '{x.FullName}' not supported or implemented."
 
