@@ -405,10 +405,7 @@ let assertNoGC (projWeak: WeakReference<OlyProject>, compWeak: WeakReference<Oly
         GC.Collect(2, GCCollectionMode.Forced, true, true)
         GC.WaitForPendingFinalizers()
 
-    // TODO: Uncomment below when we know its the same project.
-    //       This is caused by the internal workspace function 'updateSolution' where it creates a new OlyProject after every update to ensure the solution is in sync with everything.
-    //       Note: Maybe this is ok?
-    //Assert.True(projWeak.TryGetTarget(&proj)) 
+    Assert.True(projWeak.TryGetTarget(&proj)) 
     Assert.True(compWeak.TryGetTarget(&comp))
     Assert.True(treeWeak.TryGetTarget(&tree))
 
