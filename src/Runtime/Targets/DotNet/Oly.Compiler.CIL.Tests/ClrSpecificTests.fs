@@ -9288,3 +9288,60 @@ module Main =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Property has the specified attribute``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class Testing1Attribute
+class Testing2Attribute
+
+class A
+
+class B =
+
+    #[Testing1]
+    P0: int32 get, set = 123
+
+    P1: int32 get, set = 123
+    
+    #[Testing2]
+    P2: int32 get, set = 123
+
+class C
+
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    if (xse.MoveNext())
+        f(xse.Current)
+
+main(): () =
+    let a = A()
+    let b = B()
+    let c = C()
+    ForEach(b.GetType().GetProperty("P0").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+    print("--")
+    ForEach(b.GetType().GetProperty("P1").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+    print("--")
+    ForEach(b.GetType().GetProperty("P2").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Testing1Attribute----Testing2Attribute"

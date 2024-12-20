@@ -2924,14 +2924,20 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         true, setter.IsInstance
 
                 if canEmitProperty then
-                    tyDefBuilder.CreatePropertyDefinitionBuilder(
-                        name, 
-                        ty.Handle, 
-                        isInstance, 
-                        getterOpt |> Option.map (fun x -> x.handle), 
-                        setterOpt |> Option.map (fun x -> x.handle)
+                    let propDef =
+                        tyDefBuilder.CreatePropertyDefinitionBuilder(
+                            name, 
+                            ty.Handle, 
+                            isInstance, 
+                            getterOpt |> Option.map (fun x -> x.handle), 
+                            setterOpt |> Option.map (fun x -> x.handle)
+                        )
+                    attrs
+                    |> ImArray.iter (fun x ->
+                        match x with
+                        | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
+                             asmBuilder.AddPropertyAttribute(propDef, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                     )
-                    |> ignore
             | _ ->
                 OlyAssert.Fail($"Expected type definition. {enclosingTy}")
 

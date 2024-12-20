@@ -1502,6 +1502,11 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             metadataBuilder.AddCustomAttribute(parent.EntityHandle, ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
         )
 
+    member _.AddPropertyAttribute(parent: ClrPropertyDefinitionBuilder, ctor: ClrMethodHandle, blobHandle) =
+        attrQueue.Enqueue(fun () ->
+            metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
+        )
+
     member _.AddMethodAttribute(parent: ClrMethodHandle, ctor: ClrMethodHandle, blobHandle) =
         attrQueue.Enqueue(fun () ->
             metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
@@ -2631,7 +2636,7 @@ type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name
     member _.GetterOption = getterOpt
     member _.SetterOption = setterOpt
 
-    member internal _.BuildAndCache() = handle.Value
+    member internal _.UnsafeLazilyEvaluateEntityHandle() : PropertyDefinitionHandle = handle.Value
 
 [<Sealed>]
 [<DebuggerDisplay("{FullyQualifiedName}")>]
@@ -2816,7 +2821,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
             // ---------------------------------------------------------------------------------------------------
 
             let addProperty (propDef: ClrPropertyDefinitionBuilder) =
-                let propDefHandle = propDef.BuildAndCache()
+                let propDefHandle = propDef.UnsafeLazilyEvaluateEntityHandle()
                 
                 match propDef.GetterOption with
                 | Some getter ->
@@ -2828,7 +2833,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                         | _ ->
                             failwith $"Invalid cast for getter method definition handle. Handle kind: {getterHandle.Kind}\n Enclosing type: {fullyQualifiedName}"
                     metadataBuilder.AddMethodSemantics(
-                        PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
+                        PropertyDefinitionHandle.op_Implicit(propDef.UnsafeLazilyEvaluateEntityHandle()), 
                         MethodSemanticsAttributes.Getter, 
                         getterHandle
                     )
@@ -2845,7 +2850,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                         | _ ->
                             failwith $"Invalid cast for setter method definition handle. Handle kind: {setterHandle.Kind}\n Enclosing type: {fullyQualifiedName}"
                     metadataBuilder.AddMethodSemantics(
-                        PropertyDefinitionHandle.op_Implicit(propDef.BuildAndCache()), 
+                        PropertyDefinitionHandle.op_Implicit(propDef.UnsafeLazilyEvaluateEntityHandle()), 
                         MethodSemanticsAttributes.Setter, 
                         setterHandle
                     )
