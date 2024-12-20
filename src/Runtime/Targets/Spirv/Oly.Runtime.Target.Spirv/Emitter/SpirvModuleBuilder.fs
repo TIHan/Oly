@@ -1137,109 +1137,98 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
             raise(InvalidOperationException())
 
         isBuilding <- true
-        let instrs =
-            headerInstrs @
-            (
-                let entryPointVarIdRefs =
-                    globalVars
-                    |> Seq.choose (fun par ->
-                        match par.Type with
-                        | SpirvType.Pointer(_, StorageClass.Input, _) -> (par.IdResult : IdRef) |> Some
-                        | SpirvType.Pointer(_, StorageClass.Output, _) -> (par.IdResult : IdRef) |> Some
-                        | _ -> None
-                    )
-                    |> List.ofSeq
 
-                [
-                    OpEntryPoint(executionModel, entryPoint.IdResult, entryPoint.Name, entryPointVarIdRefs)
-                    if executionModel = ExecutionModel.Fragment then
-                        OpExecutionMode(entryPoint.IdResult, ExecutionMode.OriginUpperLeft)
-                    elif executionModel = ExecutionModel.GLCompute then
-                        // TODO: What is this? How do we expose this?
-                        OpExecutionMode(entryPoint.IdResult, ExecutionMode.LocalSize(1u, 1u, 1u))
-                ]
-                
-            ) @
-            (
-                [
-                    for pair in strings do
-                        OpString(pair.Value, pair.Key)
-                ]
-            ) @
-            (
-                types
-                |> Seq.collect (fun x ->
-                    x.GetDefinitionInstructions()
-                )
-                |> List.ofSeq
-            ) @
-            (
-                [
-                    for globalVar in globalVars do
-                        yield! globalVar.DecorateInstructions
-                        OpVariable(globalVar.Type.IdResult, globalVar.IdResult, globalVar.StorageClass, None)
-                ]
-            ) @
-            ( 
-                constantsInt32 
-                |> Seq.map (fun pair -> OpConstant(this.GetTypeInt32().IdResult, pair.Value, uint32(pair.Key))) 
-                |> List.ofSeq
-            ) @
-            ( 
-                constantsUInt32 
-                |> Seq.map (fun pair -> OpConstant(this.GetTypeUInt32().IdResult, pair.Value, uint32(pair.Key))) 
-                |> List.ofSeq
-            ) @
-            (
-                constantsFloat32 
-                |> Seq.map (fun pair -> OpConstant(this.GetTypeFloat32().IdResult, pair.Value, System.Runtime.CompilerServices.Unsafe.BitCast(pair.Key))) 
-                |> List.ofSeq
-            ) @
-            (
-                constantsVectorFloat32
-                |> Seq.map (fun pair -> 
-                    let n = pair.Key.Length
-                    match n with
-                    | 3 ->
-                        OpConstantComposite(this.GetTypeVec(3u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
-                    | 4 ->
-                        OpConstantComposite(this.GetTypeVec(4u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
-                    | _ ->
-                        raise(NotImplementedException($"Vector{n} of float32 constant"))
-                )
-                |> List.ofSeq
-            ) @
-            (
-                funcs
-                |> Seq.collect (fun x -> x.Instructions)
-                |> List.ofSeq
+        let instrs = ImArray.builder()
+
+        instrs.AddRange(headerInstrs)
+
+        let entryPointVarIdRefs =
+            globalVars
+            |> Seq.choose (fun par ->
+                match par.Type with
+                | SpirvType.Pointer(_, StorageClass.Input, _) -> (par.IdResult : IdRef) |> Some
+                | SpirvType.Pointer(_, StorageClass.Output, _) -> (par.IdResult : IdRef) |> Some
+                | _ -> None
             )
+            |> List.ofSeq
+
+        instrs.Add(OpEntryPoint(executionModel, entryPoint.IdResult, entryPoint.Name, entryPointVarIdRefs))
+        if executionModel = ExecutionModel.Fragment then
+            instrs.Add(OpExecutionMode(entryPoint.IdResult, ExecutionMode.OriginUpperLeft))
+        elif executionModel = ExecutionModel.GLCompute then
+            // TODO: What is this? How do we expose this?
+            instrs.Add(OpExecutionMode(entryPoint.IdResult, ExecutionMode.LocalSize(1u, 1u, 1u)))
+
+        for pair in strings do
+            instrs.Add(OpString(pair.Value, pair.Key))
+
+        for ty in types do
+            instrs.AddRange(ty.GetDefinitionInstructions())
+
+        for globalVar in globalVars do
+            instrs.AddRange(globalVar.DecorateInstructions)
+            instrs.Add(OpVariable(globalVar.Type.IdResult, globalVar.IdResult, globalVar.StorageClass, None))
+
+        for pair in constantsInt32 do
+            instrs.Add(OpConstant(this.GetTypeInt32().IdResult, pair.Value, uint32(pair.Key)))
+
+        for pair in constantsUInt32 do
+            instrs.Add(OpConstant(this.GetTypeUInt32().IdResult, pair.Value, uint32(pair.Key)))
+
+        for pair in constantsFloat32 do
+            instrs.Add(OpConstant(this.GetTypeFloat32().IdResult, pair.Value,  System.Runtime.CompilerServices.Unsafe.BitCast(pair.Key)))
+
+        for pair in constantsVectorFloat32 do
+            let n = pair.Key.Length
+            match n with
+            | 3 ->
+                OpConstantComposite(this.GetTypeVec(3u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
+            | 4 ->
+                OpConstantComposite(this.GetTypeVec(4u, this.GetTypeFloat32()).IdResult, pair.Value, pair.Key)
+            | _ ->
+                raise(NotImplementedException($"Vector{n} of float32 constant"))
+            |> instrs.Add
+
+        for x in funcs do
+            instrs.AddRange(x.Instructions)
 
         let version = SpirvModule.CreateVersion(majorVersion, minorVersion)
-        let normalizedInstrs = Normalization.NormalizeAndCheck version instrs
+        let normalizedInstrs = Normalization.NormalizeAndCheck version (instrs.ToImmutable())
         let result = SpirvModule.Create(version, instrs = normalizedInstrs)
         isBuilding <- false
         result
 
 module private Normalization =
 
-    let NormalizeAndCheck version (instrs: Instruction list) =
+    let NormalizeAndCheck version (instrs: Instruction imarray): Instruction imarray =
         let struct(majorVersion, minorVersion) = SpirvModule.ExtractVersion(version)
 
-        let checkVersion text version =
+        let checkVersion (o: obj) version =
             let struct(major, minor) = SpirvModule.ExtractVersion(version)
             if (major > majorVersion) || (major = majorVersion && minor > minorVersion) then
-                invalidOp $"{text} requires version {major}.{minor} or later but is {majorVersion}{minorVersion}." 
+                invalidOp $"{o} requires version {major}.{minor} or later but is {majorVersion}{minorVersion}." 
 
         let capabilities = HashSet()
-        let checkCapabilities text xs =
+        let checkCapabilities (o: obj) xs =
             let result =
                 xs
                 |> List.forall (fun x ->
                     capabilities.Contains(x)
                 )
             if not result then
-                invalidOp $"{text} requires capabilities {xs |> List.sort} but has {capabilities |> List.ofSeq |> List.sort}."
+                invalidOp $"{o} requires capabilities {xs |> List.sort} but has {capabilities |> List.ofSeq |> List.sort}."
+
+        let checkInstruction (instr: Instruction) =
+            checkVersion instr instr.Version
+            checkCapabilities instr instr.Capabilities
+
+        let checkDecoration (decor: Decoration) =
+            checkVersion decor decor.Version
+            checkCapabilities decor decor.Capabilities
+
+        let checkExecutionMode (mode: ExecutionMode) =
+            checkVersion mode mode.Version
+            checkCapabilities mode mode.Capabilities
 
         let headerWithEntryPoint = List()
         let executionModes = List()
@@ -1251,10 +1240,8 @@ module private Normalization =
         let mutable hasEntryPoint = false
 
         instrs
-        |> List.iter (fun instr ->
-            let text = $"Instruction '{instr}'"
-            checkVersion text instr.Version
-            checkCapabilities text instr.Capabilities
+        |> ImArray.iter (fun instr ->
+            checkInstruction instr
 
             match instr with
             | OpCapability capability ->
@@ -1266,9 +1253,7 @@ module private Normalization =
                 headerWithEntryPoint.Add(instr)
 
             | OpMemberDecorate(_, _, decor) ->
-                let text = $"Decoration '{decor}'"
-                checkVersion text decor.Version
-                checkCapabilities text decor.Capabilities
+                checkDecoration decor
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
@@ -1280,9 +1265,7 @@ module private Normalization =
                 debugInstrs.Add(instr)
 
             | OpDecorate(_, decor) ->
-                let text = $"Decoration '{decor}'"
-                checkVersion text decor.Version
-                checkCapabilities text decor.Capabilities
+                checkDecoration decor
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
@@ -1293,9 +1276,7 @@ module private Normalization =
                 hasEntryPoint <- true
 
             | OpExecutionMode(_, mode) ->
-                let text = $"ExecutionMode '{mode}'"
-                checkVersion text mode.Version
-                checkCapabilities text mode.Capabilities
+                checkExecutionMode mode
 
                 if hasEntryPoint |> not then
                     raise(InvalidOperationException())
@@ -1308,12 +1289,22 @@ module private Normalization =
                     headerWithEntryPoint.Add(instr)
         )
 
-        [
-            yield! headerWithEntryPoint
-            yield! executionModes
-            yield! debugInstrs
-            yield! memberDecorates
-            yield! decorates
-            yield! other
-        ]
+        let builder = 
+            ImArray.builderWithSize(
+                headerWithEntryPoint.Count + 
+                executionModes.Count +
+                debugInstrs.Count +
+                memberDecorates.Count +
+                decorates.Count +
+                other.Count
+            )
+
+        builder.AddRange(headerWithEntryPoint)
+        builder.AddRange(executionModes)
+        builder.AddRange(debugInstrs)
+        builder.AddRange(memberDecorates)
+        builder.AddRange(decorates)
+        builder.AddRange(other)
+        
+        builder.MoveToImmutable()
         

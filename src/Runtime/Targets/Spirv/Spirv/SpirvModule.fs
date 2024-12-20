@@ -2,6 +2,7 @@
 module Spirv.SpirvModule
 
 open System.IO
+open System.Collections.Immutable
 open Spirv.InternalHelpers
 
 [<AutoOpen>]
@@ -48,7 +49,7 @@ type SpirvModule =
         versionNumber: uint32
         genMagicNumber: uint32
         bound: uint32
-        instrs: Instruction list
+        instrs: ImmutableArray<Instruction>
     }
 
     static member CreateVersion(major: uint32, minor: uint32) = 
@@ -60,7 +61,7 @@ type SpirvModule =
     static member Create (?version: uint32, ?bound: uint32, ?instrs) =
         let version = defaultArg version 65536u
         let bound = defaultArg bound 65536u
-        let instrs = defaultArg instrs []
+        let instrs = defaultArg instrs ImmutableArray.Empty
 
         {
             magicNumber = MagicNumber
@@ -71,9 +72,6 @@ type SpirvModule =
         }
 
     member x.Instructions = x.instrs
-
-    member x.AddInstructions instrs =
-        { x with instrs = x.instrs @ instrs }
 
     static member Deserialize(stream: Stream) =
         let spirvStream =
@@ -90,10 +88,10 @@ type SpirvModule =
         let _reserved = spirvStream.ReadUInt32 ()
 
         let instrs =
-            let xs = ResizeArray ()
+            let xs = ImmutableArray.CreateBuilder()
             while stream.Position < stream.Length do
                 xs.Add(readInstruction spirvStream)
-            xs |> List.ofSeq
+            xs.ToImmutable()
 
         {
             magicNumber = magicNumber
