@@ -207,7 +207,7 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
         let inputJson = $"""{{ \"ShaderKind\": \"compute\", \"DataKind\": \"{dataKind}\", \"Data\": """ + data + " }"
         new Oly.Core.ExternalProcess(
             "dotnet",
-            $"""{gpuTest} "" "{inputJson}" "{shaderPath}" """
+            $"""{gpuTest} shader "{inputJson}" "{shaderPath}" """
         )
 
     let output = p.RunAsync(Threading.CancellationToken.None).Result
