@@ -230,6 +230,7 @@ type OlyGetSemanticClassificationRequest() =
 
     member val Range: OlyTextRange = OlyTextRange() with get, set
     member val DocumentPath: string = null with get, set
+    member val Version: Nullable<int> = Nullable() with get, set
 
     interface IOlyRequest<ParsedToken[]> with
 

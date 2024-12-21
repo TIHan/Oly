@@ -239,7 +239,7 @@ export class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySy
 
 class DocumentRangeSemanticTokensProvider implements vscode.DocumentRangeSemanticTokensProvider {
 	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens> {
-		return client.sendRequest("oly/getSemanticClassification", { Range: OlyTextRange.fromVscodeRange(range), documentPath: document.uri.path }, token).then((tokens: IOlyToken []) => {
+		return client.sendRequest("oly/getSemanticClassification", { Range: OlyTextRange.fromVscodeRange(range), documentPath: document.uri.path, version: document.version }, token).then((tokens: IOlyToken []) => {
 			const builder = new vscode.SemanticTokensBuilder();
 			tokens.forEach((token) => {
 				builder.push(token.line, token.startCharacter, token.length, this._encodeTokenType(token.tokenType), this._encodeTokenModifiers(token.tokenModifiers));

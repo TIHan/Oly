@@ -168,8 +168,6 @@ type OlyProjectConfiguration =
 
     member Debuggable : bool
 
-    static member Deserialize : configName: string * System.IO.Stream -> OlyProjectConfiguration
-
 [<Sealed>]
 type OlyProject =
 

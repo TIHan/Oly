@@ -103,7 +103,7 @@ type OlyBuild(platformName: string) =
 
     member _.GetAbsoluteCacheDirectory(absolutePath: OlyPath) =
         if absolutePath.IsFile then
-            let fileName = OlyPath.GetFileName(absolutePath)
+            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(absolutePath))
             let dir = OlyPath.GetDirectory(absolutePath)
             OlyPath.Combine(dir, OlyPath.Combine(relativeCacheDir, fileName + "/"))
         else
@@ -111,7 +111,7 @@ type OlyBuild(platformName: string) =
 
     member _.GetAbsoluteBinDirectory(absolutePath: OlyPath) =
         if absolutePath.IsFile then
-            let fileName = OlyPath.GetFileName(absolutePath)
+            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(absolutePath))
             let dir = OlyPath.GetDirectory(absolutePath)
             OlyPath.Combine(dir, OlyPath.Combine(relativeBinDir, fileName + "/"))
         else
@@ -204,15 +204,45 @@ type ProjectConfiguration [<JsonConstructor>] (name: string, defines: string [],
 
 [<Sealed>]
 type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfiguration []) =
-    member _.Configurations = configurations
-
-    static member Default =
+    static let defaultConfig =
         ProjectConfigurations(
             [|
                 ProjectConfiguration("Release", [||], false)
                 ProjectConfiguration("Debug", [|"DEBUG"|], true)
             |]
         )
+    static member Default = defaultConfig
+
+    member _.Configurations = configurations
+
+    static member Deserialize(stream: System.IO.Stream): ProjectConfigurations =
+        let jsonOptions = JsonSerializerOptions()
+        jsonOptions.PropertyNameCaseInsensitive <- true
+        JsonSerializer.Deserialize<ProjectConfigurations>(stream, jsonOptions)
+
+    member this.Serialize(stream: System.IO.Stream): unit =
+        let jsonOptions = JsonSerializerOptions()
+        jsonOptions.PropertyNameCaseInsensitive <- true
+        JsonSerializer.Serialize<ProjectConfigurations>(stream, this, jsonOptions)
+
+    member _.GetConfiguration(configName: string): OlyProjectConfiguration =
+        let configOpt =
+            configurations
+            |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(configName, StringComparison.OrdinalIgnoreCase))
+
+        let config =
+            match configOpt with
+            | None ->
+                match configurations |> Array.tryHead with
+                | Some config -> config
+                | _ -> ProjectConfigurations.Default.Configurations[0] // Default to Release config
+            | Some config ->
+                config
+
+        let name = config.Name
+        let conditionalDefines = config.Defines |> ImArray.ofSeq
+        let isDebuggable = config.Debuggable
+        OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
 
 [<Sealed>]
 type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool) =
@@ -222,28 +252,6 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
     member _.Defines = defines
 
     member _.Debuggable = debuggable
-
-    static member Deserialize(configName: string, stream: System.IO.Stream): OlyProjectConfiguration =
-        let jsonOptions = JsonSerializerOptions()
-        jsonOptions.PropertyNameCaseInsensitive <- true
-        let configs = JsonSerializer.Deserialize<ProjectConfigurations>(stream, jsonOptions)
-        let configOpt =
-            configs.Configurations
-            |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(configName, StringComparison.OrdinalIgnoreCase))
-
-        let config =
-            match configOpt with
-            | None ->
-                match configs.Configurations |> Array.tryHead with
-                | Some config -> config
-                | _ -> ProjectConfigurations.Default.Configurations[0]
-            | Some config ->
-                config
-
-        let name = config.Name
-        let conditionalDefines = config.Defines |> ImArray.ofSeq
-        let isDebuggable = config.Debuggable
-        OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
 
 [<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
@@ -800,11 +808,23 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
-            let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
             try
-                this.SetResourceAsCopy(filePath, streamToCopy, dt)
-            finally
-                streamToCopy.Dispose()
+                let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
+                try
+                    this.SetResourceAsCopy(filePath, streamToCopy, dt)
+                finally
+                    streamToCopy.Dispose()
+            with
+            | _ ->
+                if fileInfo.Exists then
+                    System.Threading.Thread.Sleep(100) // HACK
+                    let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
+                    try
+                        this.SetResourceAsCopy(filePath, streamToCopy, dt)
+                    finally
+                        streamToCopy.Dispose()
+                else
+                    this.RemoveResource(filePath)
         else
             this
 
@@ -812,19 +832,17 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
 
     member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
-        let origLength = streamToCopy.Length - streamToCopy.Position
-        let length =
-            if origLength = 0 then
-                2L
-            else
-                origLength
-        let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
-        let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
-        try
-            streamToCopy.CopyTo(view)
-            this.SetResource(filePath, origLength, mmap, dt)
-        finally
-            view.Dispose()
+        let length = streamToCopy.Length - streamToCopy.Position
+        if length > 0 then
+            let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
+            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
+            try
+                streamToCopy.CopyTo(view)
+                this.SetResource(filePath, length, mmap, dt)
+            finally
+                view.Dispose()
+        else
+            this.RemoveResource(filePath)
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
         OlyWorkspaceResourceSnapshot(
@@ -906,17 +924,18 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         builder.ToImmutable()
 
     member this.GetProjectConfiguration(projectFilePath: OlyPath) =
+        let configName = this.GetActiveConfigurationName()
+
         match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
         | true, (length, mmap, _) ->
             let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
             try    
-                let configName = this.GetActiveConfigurationName()
-                let contents = OlyProjectConfiguration.Deserialize(configName, view)
-                contents
+                let configs = ProjectConfigurations.Deserialize(view)
+                configs.GetConfiguration(configName)
             finally
                 view.Dispose()
         | _ -> 
-            OlyProjectConfiguration("Release", ImArray.empty, false)
+            ProjectConfigurations.Default.GetConfiguration(configName)
 
     member _.GetActiveConfigurationName() =
         match state.files.TryGetValue(OlyPath.ChangeExtension(activeConfigPath, ".json")) with
@@ -930,7 +949,7 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             finally
                 view.Dispose()
         | _ ->
-            "Release"
+            "Release" // Default to Release
 
     member this.WithTextEditors(textEditors: OlySourceTextManager) =
         if obj.ReferenceEquals(state.textEditors, textEditors) then
@@ -1057,7 +1076,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             {
                 workspace = this
                 projects = ImmutableDictionary.Empty
-                version = 0UL
+                version = solution.Version
             }
             |> OlySolution
 

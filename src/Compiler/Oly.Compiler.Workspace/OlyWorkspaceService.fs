@@ -31,6 +31,15 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             let rootPath = getRootPath.Value
             let activeConfigPath = getActiveConfigPath.Value
 
+            if not(File.Exists(activeConfigPath.ToString())) then
+                let dir = OlyPath.GetDirectory(activeConfigPath)
+                if not(Directory.Exists(dir.ToString())) then
+                    Directory.CreateDirectory(dir.ToString()) |> ignore
+                File.WriteAllText(activeConfigPath.ToString(),"""{
+  "activeConfiguration": "Debug"
+}"""
+                )
+
             let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
 
             let projectsToUpdate = ImArray.builder()
@@ -78,6 +87,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     ()
             )
 
+            // TODO: We shouldn't have to do this. If we don't do it at the moment, then non-project files will not be updated properly.
             workspace.UpdateDocuments(rs, projectsToUpdate.ToImmutable(), CancellationToken.None)
 
             rs
@@ -85,43 +95,38 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
     let rsObj = obj()
     let mutable rsOpt = None
 
+    let setResourceAsCopy filePath =
+        let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+        try
+            rsOpt <- Some(rs.SetResourceAsCopy(filePath))
+        with
+        | _ ->
+            rsOpt <- Some(rs)
+
     do
-        // TODO: Handle state.json
 
         dirWatch.FileCreated.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                    try
-                        rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                    with
-                    | _ ->
-                        rsOpt <- Some(rs)
+                    setResourceAsCopy filePath
         )
 
         dirWatch.FileChanged.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                    try
-                        rsOpt <- Some(rs.SetResourceAsCopy(filePath))
-                    with
-                    | _ ->
-                        rsOpt <- Some(rs)
+                    setResourceAsCopy filePath
+                    // TODO: Handle state.json
+                    //if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
+                        //workspace.ClearSolution(CancellationToken.None)
         )
 
         dirWatch.FileDeleted.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                    try
-                        rsOpt <- Some(rs.RemoveResource(filePath))
-                    with
-                    | _ ->
-                        rsOpt <- Some(rs)
+                    setResourceAsCopy filePath
         )
 
         dirWatch.FileRenamed.Add(
@@ -131,11 +136,11 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     let filePath = OlyPath.CreateAbsolute(filePath)
                     let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                     try
-                        let rs = rs.RemoveResource(oldFilePath)
-                        rsOpt <- Some(rs.SetResourceAsCopy(filePath))
+                        rsOpt <-Some(rs.RemoveResource(oldFilePath))
                     with
                     | _ ->
                         rsOpt <- Some(rs)
+                    setResourceAsCopy filePath
         )
 
     member this.ResourceSnapshot = 

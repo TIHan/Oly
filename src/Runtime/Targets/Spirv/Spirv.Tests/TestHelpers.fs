@@ -197,7 +197,7 @@ type GPU =
                 match GPU.gpuTestService with
                 | Some gpuTestService -> gpuTestService
                 | _ ->
-                    let gpuTest = """C:\work\Evergreen\src\managed\Engine\bin\dotnet\gpu_test.olyx\gpu_test.dll"""
+                    let gpuTest = """C:\work\Evergreen\src\managed\Engine\bin\dotnet\gpu_test\gpu_test.dll"""
                     let result =
                         new Oly.Core.ExternalProcess(
                             "dotnet",

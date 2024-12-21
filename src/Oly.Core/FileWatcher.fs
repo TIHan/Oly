@@ -38,6 +38,9 @@ type DirectoryWatcher() =
     let dirFilesGate = obj()
     let dirFilesWatchers = ConcurrentDictionary<DirectoryFileKey, FileSystemWatcher * ConcurrentDictionary<OlyPath, DateTime>>()
 
+    let dirWatcherGate = obj()
+    let eventGate = obj()
+
     let updateLastWriteTime filePath (files: ConcurrentDictionary<OlyPath, DateTime>) =
         try
             let lastWriteTime = File.GetLastWriteTimeUtc(filePath.ToString())
@@ -54,25 +57,27 @@ type DirectoryWatcher() =
         let watcher = new FileSystemWatcher(dir)
         watcher.NotifyFilter <- NotifyFilters.DirectoryName
         watcher.Deleted.Add(fun args ->
-            let path = OlyPath.Create(args.FullPath)
-            directoryDeleted.Trigger(path.ToString())
+            lock dirWatcherGate (fun () ->
+                let path = OlyPath.Create(args.FullPath)
+                directoryDeleted.Trigger(path.ToString())
 
-            dirFilesWatchers
-            |> ImArray.ofSeq
-            |> ImArray.iter (fun pair ->
-                if pair.Key.Path.StartsWith(path) then
-                    match pair.Value with
-                    | (fsw, files) ->
-                        let filePaths = files.Keys |> ImArray.ofSeq
+                dirFilesWatchers
+                |> ImArray.ofSeq
+                |> ImArray.iter (fun pair ->
+                    if pair.Key.Path.StartsWith(path) then
+                        match pair.Value with
+                        | (fsw, files) ->
+                            let filePaths = files.Keys |> ImArray.ofSeq
 
-                        filePaths
-                        |> ImArray.iter (fun filePath ->
-                            files.TryRemove(filePath) |> ignore
-                            fileDeleted.Trigger(filePath.ToString())
-                        )
-                        fsw.Dispose()
+                            filePaths
+                            |> ImArray.iter (fun filePath ->
+                                files.TryRemove(filePath) |> ignore
+                                fileDeleted.Trigger(filePath.ToString())
+                            )
+                            fsw.Dispose()
                         
-                        dirFilesWatchers.TryRemove(pair.Key) |> ignore                         
+                            dirFilesWatchers.TryRemove(pair.Key) |> ignore                         
+                )
             )
         )
         watcher.IncludeSubdirectories <- true
@@ -82,23 +87,27 @@ type DirectoryWatcher() =
     let createWatcher dir filter (files: ConcurrentDictionary<OlyPath, DateTime>) =
         let watcher = new FileSystemWatcher(dir, filter)
         watcher.Changed.Add(fun args -> 
+            lock eventGate <| fun () ->
             if (args.ChangeType = WatcherChangeTypes.Changed) then
                 let path = OlyPath.Create(args.FullPath)
                 if updateLastWriteTime path files then
                     fileChanged.Trigger(path.ToString())
         )
         watcher.Created.Add(fun args ->
+            lock eventGate <| fun () ->
             let path = OlyPath.Create(args.FullPath)
             if updateLastWriteTime path files then
                 fileCreated.Trigger(path.ToString())
         )
         watcher.Deleted.Add(fun args ->
+            lock eventGate <| fun () ->
             let path = OlyPath.Create(args.FullPath)
             let mutable result = Unchecked.defaultof<_>
             if files.TryRemove(path, &result) then
                 fileDeleted.Trigger(args.FullPath)
         )
         watcher.Renamed.Add(fun args ->
+            lock eventGate <| fun () ->
             let oldPath = OlyPath.Create(args.OldFullPath)
             let path = OlyPath.Create(args.FullPath)
             if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
