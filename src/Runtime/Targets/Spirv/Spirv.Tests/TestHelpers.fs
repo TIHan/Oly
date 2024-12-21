@@ -184,11 +184,34 @@ let draw_quad (spvVertex: SpirvModule, spvFragment: SpirvModule) =
     indexBuffer.Dispose()
     graphicsDevice.Dispose()
 
-let mutable gpuTestService = None
+let lockGpuTestServiceObj = obj()
+type GPU =
+    [<DefaultValue>]
+    static val mutable private gpuTestService: Oly.Core.ExternalProcess option
+
+    static member GetTestService(): Oly.Core.ExternalProcess =
+        match GPU.gpuTestService with
+        | Some gpuTestService -> gpuTestService
+        | _ ->
+            lock lockGpuTestServiceObj (fun () ->
+                match GPU.gpuTestService with
+                | Some gpuTestService -> gpuTestService
+                | _ ->
+                    let gpuTest = """C:\work\Evergreen\src\managed\Engine\bin\dotnet\gpu_test.olyx\gpu_test.dll"""
+                    let result =
+                        new Oly.Core.ExternalProcess(
+                            "dotnet",
+                            gpuTest
+                        )
+                    result.Start()
+                    GPU.gpuTestService <- Some result
+                    result
+            )
 
 let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (spvCompute: SpirvModule, input: 'T array) =
 
-    let spvComputeBytes = new FileStream("compute.spv", FileMode.Create)
+    let spvFilePath = Guid.NewGuid().ToString() + ".spv"
+    let spvComputeBytes = new FileStream(spvFilePath, FileMode.Create)
     SpirvModule.Serialize(spvComputeBytes, spvCompute)
     spvComputeBytes.Dispose()
 
@@ -206,19 +229,7 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
 
     let inputJson = $"""{{ "ShaderKind": "compute", "DataKind": "{dataKind}", "Data": """ + data + " }"
 
-    let p =
-        match gpuTestService with
-        | Some gpuTestService -> gpuTestService
-        | _ ->
-            let gpuTest = """C:\work\Evergreen\src\managed\Engine\bin\dotnet\gpu_test.olyx\gpu_test.dll"""
-            let result =
-                new Oly.Core.ExternalProcess(
-                    "dotnet",
-                    gpuTest
-                )
-            result.Start()
-            gpuTestService <- Some result
-            result
+    let p = GPU.GetTestService()
 
     let output = p.SendLine($"shader;{inputJson};{shaderPath}", Unchecked.defaultof<_>)
     if String.IsNullOrWhiteSpace(output.Errors) then

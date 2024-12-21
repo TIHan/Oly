@@ -18,10 +18,12 @@ let private buildWithAux target isDebug src =
 
     let workspace = OlyWorkspace.Create([target])
 
-    let documentPath = OlyPath.Combine(preludeDir, "test.olyx")
+    let projectName = Guid.NewGuid().ToString()
+
+    let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
     let srcText = OlySourceText.Create(src)
 
-    let projConfigPath = OlyPath.Combine(preludeDir, "test.json")
+    let projConfigPath = OlyPath.Combine(preludeDir, $"{projectName}.json")
     use projConfigMs = new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "configurations": [{ "name": "Debug", "defines": ["DEBUG"], "debuggable": true }, { "name": "Release", "defines": ["RELEASE"], "debuggable": false }] }"""))
 
     let configPath = OlyPath.Create("state.json")
