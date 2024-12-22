@@ -808,23 +808,11 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
+            let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
             try
-                let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
-                try
-                    this.SetResourceAsCopy(filePath, streamToCopy, dt)
-                finally
-                    streamToCopy.Dispose()
-            with
-            | _ ->
-                if fileInfo.Exists then
-                    System.Threading.Thread.Sleep(100) // HACK
-                    let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
-                    try
-                        this.SetResourceAsCopy(filePath, streamToCopy, dt)
-                    finally
-                        streamToCopy.Dispose()
-                else
-                    this.RemoveResource(filePath)
+                this.SetResourceAsCopy(filePath, streamToCopy, dt)
+            finally
+                streamToCopy.Dispose()
         else
             this
 
@@ -1131,7 +1119,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     currentRs <- rs
                 return currentRs
             with
-            | _ ->
+            | :? OperationCanceledException ->
                 solution <- prevSolution
                 if isNull(currentRs: obj) then
                     clearSolution()
@@ -1146,7 +1134,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             async {
                 match! mbp.Receive() with
                 | GetSolution(rs, ct, reply) ->
-                    let! rs = getRs rs ct
+                    let! _ = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
 #endif
@@ -1162,7 +1150,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | RemoveProject(rs, projectPath, ct) ->
-                    let! rs = getRs rs ct
+                    let! _ = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
 #endif
@@ -1177,6 +1165,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
 
                 | ClearSolution(ct) ->
+                    currentRs <- Unchecked.defaultof<_>
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - ClearSolution")
 #endif

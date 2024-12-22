@@ -87,34 +87,43 @@ type DirectoryWatcher() =
     let createWatcher dir filter (files: ConcurrentDictionary<OlyPath, DateTime>) =
         let watcher = new FileSystemWatcher(dir, filter)
         watcher.Changed.Add(fun args -> 
-            lock eventGate <| fun () ->
-            if (args.ChangeType = WatcherChangeTypes.Changed) then
-                let path = OlyPath.Create(args.FullPath)
-                if updateLastWriteTime path files then
-                    fileChanged.Trigger(path.ToString())
+            if not(Directory.Exists(args.FullPath)) then
+                lock eventGate <| fun () ->
+                if (args.ChangeType = WatcherChangeTypes.Changed) then
+                    let path = OlyPath.Create(args.FullPath)
+                    if updateLastWriteTime path files then
+                        fileChanged.Trigger(path.ToString())
         )
         watcher.Created.Add(fun args ->
-            lock eventGate <| fun () ->
-            let path = OlyPath.Create(args.FullPath)
-            if updateLastWriteTime path files then
-                fileCreated.Trigger(path.ToString())
+            if not(Directory.Exists(args.FullPath)) then
+                lock eventGate <| fun () ->
+                let path = OlyPath.Create(args.FullPath)
+                if updateLastWriteTime path files then
+                    fileCreated.Trigger(path.ToString())
         )
         watcher.Deleted.Add(fun args ->
-            lock eventGate <| fun () ->
-            let path = OlyPath.Create(args.FullPath)
-            let mutable result = Unchecked.defaultof<_>
-            if files.TryRemove(path, &result) then
-                fileDeleted.Trigger(args.FullPath)
+            if not(Directory.Exists(args.FullPath)) then
+                lock eventGate <| fun () ->
+                let path = OlyPath.Create(args.FullPath)
+                let mutable result = Unchecked.defaultof<_>
+                if files.TryRemove(path, &result) then
+                    fileDeleted.Trigger(args.FullPath)
         )
         watcher.Renamed.Add(fun args ->
-            lock eventGate <| fun () ->
-            let oldPath = OlyPath.Create(args.OldFullPath)
-            let path = OlyPath.Create(args.FullPath)
-            if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
-                fileRenamed.Trigger(oldPath.ToString(), path.ToString())
+            if not(Directory.Exists(args.FullPath)) then
+                lock eventGate <| fun () ->
+                let oldPath = OlyPath.Create(args.OldFullPath)
+                let path = OlyPath.Create(args.FullPath)
+                if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
+                    fileRenamed.Trigger(oldPath.ToString(), path.ToString())
         )
         watcher.IncludeSubdirectories <- true
         watcher.EnableRaisingEvents <- true
+        watcher.NotifyFilter <- 
+            NotifyFilters.CreationTime |||
+            NotifyFilters.LastWrite |||
+            NotifyFilters.FileName |||
+            NotifyFilters.Size
 
         Directory.EnumerateFiles(dir, filter)
         |> Seq.iter (fun filePath ->
