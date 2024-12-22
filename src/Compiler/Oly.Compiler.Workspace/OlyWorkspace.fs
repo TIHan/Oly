@@ -207,7 +207,7 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
     static let defaultConfig =
         ProjectConfigurations(
             [|
-                ProjectConfiguration("Release", [||], false)
+                ProjectConfiguration("Release", [|"RELEASE"|], false)
                 ProjectConfiguration("Debug", [|"DEBUG"|], true)
             |]
         )
