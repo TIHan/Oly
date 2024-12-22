@@ -20,7 +20,7 @@ const legend = (function () {
 	const tokenTypesLegend = [
 		'comment', 'string', 'keyword', 'number', 'regexp', 'operator', 'namespace',
 		'type', 'struct', 'class', 'interface', 'enum', 'enumMember', 'typeParameter', 'function',
-		'member', 'macro', 'variable', 'parameter', 'property', 'label', 'field'
+		'member', 'macro', 'variable', 'parameter', 'property', 'label', 'field', 'conditionalDirectiveBody'
 	];
 	tokenTypesLegend.forEach((tokenType, index) => tokenTypes.set(tokenType, index));
 

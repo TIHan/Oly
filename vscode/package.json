@@ -127,6 +127,20 @@
 					"description": "Traces the communication between VS Code and the language server."
 				}
 			}
-		}
+		},
+		"semanticTokenTypes": [
+            {
+                "id": "conditionalDirectiveBody",
+                "superType": "conditionalDirectiveBody",
+                "description": "A conditional directive body."
+            }
+        ],
+        "configurationDefaults": {
+            "editor.semanticTokenColorCustomizations": {
+                "rules": {
+                    "conditionalDirectiveBody": "#9B9B9B"
+                }
+            }
+        }
 	}
 }

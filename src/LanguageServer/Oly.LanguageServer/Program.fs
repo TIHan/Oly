@@ -1780,8 +1780,31 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers
                         )
                         |> Array.ofSeq
+
+                    let extraClassifications =
+                        // TODO: We should do this in GetSemanticClassifications
+                        let syntaxTree = doc.SyntaxTree
+                        let sourceText = doc.GetSourceText(ct)
+                        let lines = sourceText.Lines
+                        match syntaxTree.TryFindNode(request.Range, ct) with
+                        | Some node ->
+                            node.GetDescendantTokens(false, (fun x -> x.IsConditionalDirective), ct)
+                            |> Seq.map (fun x ->
+                                let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
+                                let endLine = lines.GetLineFromPosition(x.TextSpan.End)
+                                seq {
+                                    for lineIndex = startLine.LineIndex + 1 to endLine.LineIndex - 1 do
+                                        let line = lines[lineIndex]
+                                        let textRange = sourceText.GetTextRange(line.TextSpan)
+                                        classify textRange.Start.Line textRange.Start.Column line.TextSpan.Width "conditionalDirectiveBody" Array.empty
+                                }
+                            )
+                            |> Seq.concat
+                            |> Array.ofSeq
+                        | _ ->
+                            Array.empty
             
-                    return classifications
+                    return Array.append classifications extraClassifications
                 })
 
 [<EntryPoint>]

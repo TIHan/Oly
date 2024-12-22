@@ -634,6 +634,15 @@ module OlySyntaxTreeExtensions =
         member this.IsError =
             this.InternalNode.IsError
 
+        member this.IsConditionalDirective =
+            match this.InternalNode with
+            | :? SyntaxToken as node ->
+                match node.RawToken with
+                | Token.ConditionalDirective _ -> true
+                | _ -> false
+            | _ ->
+                false
+
         member this.IsFunctionBindingDeclaration =
             match this.InternalNode with
             | :? SyntaxBindingDeclaration as node ->
@@ -766,9 +775,10 @@ module OlySyntaxTreeExtensions =
                 | :? 'T as x -> Some x
                 | _ -> parentNode.TryFindParent<'T>(ct)
 
-        member this.GetDescendantTokens(?skipTrivia: bool, ?ct: CancellationToken) : OlyToken imarray =
+        member this.GetDescendantTokens(?skipTrivia: bool, ?filter: OlySyntaxToken -> bool, ?ct: CancellationToken) : OlyToken imarray =
             let skipTrivia = defaultArg skipTrivia true
             let ct = defaultArg ct CancellationToken.None
+            let filter = defaultArg filter (fun _ -> true)
 
             let res = ImArray.builder()
             let rec loop (node: OlySyntaxNode) =
@@ -779,7 +789,8 @@ module OlySyntaxTreeExtensions =
                         node.Children
                         |> ImArray.iter loop
 
-                    res.Add(OlyToken(node))
+                    if filter node then
+                        res.Add(OlyToken(node))
                 | _ ->
                     node.Children
                     |> ImArray.iter loop
