@@ -6,13 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="interpreter_prelude.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="interpreter_prelude.olyx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="dotnet_prelude.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="dotnet_prelude.olyx">
