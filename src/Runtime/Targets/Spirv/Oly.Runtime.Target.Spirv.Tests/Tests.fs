@@ -43,19 +43,21 @@ let shouldRunVertex (program: OlyProgram) =
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
 
-    let defaultFragmentCode = @"
-#version 450
+    vertex(sm)
 
-layout(location = 0) in vec2 fsin_TexCoords;
-layout(location = 1) in vec4 fsin_Color;
-layout(location = 0) out vec4 fsout_Color;
+//    let defaultFragmentCode = @"
+//#version 450
 
-void main()
-{
-    fsout_Color = fsin_Color;
-}"
+//layout(location = 0) in vec2 fsin_TexCoords;
+//layout(location = 1) in vec4 fsin_Color;
+//layout(location = 0) out vec4 fsout_Color;
 
-    draw_quad(sm, glsl_to_fragment(defaultFragmentCode))
+//void main()
+//{
+//    fsout_Color = fsin_Color;
+//}"
+
+//    draw_quad(sm, glsl_to_fragment(defaultFragmentCode))
 
 let shouldRunCompute input (program: OlyProgram) =
     program.Run()

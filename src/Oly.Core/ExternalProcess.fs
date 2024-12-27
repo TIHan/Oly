@@ -35,7 +35,7 @@ type ExternalProcess(filePath: string, args: string, ?workingDirectory: string) 
         lock lockObj (fun () ->
             ct.ThrowIfCancellationRequested()
             p.StandardInput.WriteLine(text)
-            let outputStr = p.StandardOutput.ReadLine()
+            let mutable outputStr = p.StandardOutput.ReadLine()
             if outputStr.StartsWith("Error:") then
                 {| Output = ""; Errors = outputStr |}
             else

@@ -236,3 +236,22 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
         Json.JsonSerializer.Deserialize<'T[]>(output.Output)
     else
         failwith output.Errors
+
+let vertex (spv: SpirvModule) : unit =
+
+    let spvFilePath = Guid.NewGuid().ToString() + ".spv"
+    let spvBytes = new FileStream(spvFilePath, FileMode.Create)
+    SpirvModule.Serialize(spvBytes, spv)
+    spvBytes.Dispose()
+
+    let shaderPath = spvBytes.Name
+
+    let inputJson = $"""{{ "ShaderKind": "vertex", "DataKind": "float32", "Data": """ + "[0]" + " }"
+
+    let p = GPU.GetTestService()
+
+    let output = p.SendLine($"shader;{inputJson};{shaderPath}", Unchecked.defaultof<_>)
+    if String.IsNullOrWhiteSpace(output.Errors) then
+        ()
+    else
+        failwith output.Errors
