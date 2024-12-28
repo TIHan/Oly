@@ -23,7 +23,7 @@ type ExternalProcess(filePath: string, args: string, ?workingDirectory: string) 
         startInfo.UseShellExecute <- false
         startInfo.CreateNoWindow <- true
 
-    let p = new Process()
+    let mutable p = new Process()
 
     let lockObj = obj()
 
@@ -36,7 +36,14 @@ type ExternalProcess(filePath: string, args: string, ?workingDirectory: string) 
             ct.ThrowIfCancellationRequested()
             p.StandardInput.WriteLine(text)
             let mutable outputStr = p.StandardOutput.ReadLine()
-            if outputStr.StartsWith("Error:") then
+            if String.IsNullOrWhiteSpace(outputStr) then
+                // TODO: This is an automatic restart by default. Expose this as a property.
+                p.Dispose()
+                p <- new Process()
+                p.StartInfo <- startInfo
+                p.Start() |> ignore
+                {| Output = ""; Errors = "process failed - restarting" |}
+            elif outputStr.StartsWith("Error:") then
                 {| Output = ""; Errors = outputStr |}
             else
                 {| Output = outputStr; Errors = "" |}

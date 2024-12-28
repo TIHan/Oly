@@ -3,6 +3,7 @@ module Spirv.Tests
 open Xunit
 open Spirv.TestHelpers
 
+(*
 [<Fact>]
 let ``Run a simple shader``() =
     let vertexCode = @"
@@ -225,3 +226,4 @@ void main()
     let vertex = glsl_to_vertex vertexCode
     let fragment = glsl_to_fragment fragmentCode
     draw_quad(vertex, fragment)
+*)

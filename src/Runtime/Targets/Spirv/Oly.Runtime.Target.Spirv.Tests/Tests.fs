@@ -1,7 +1,7 @@
-[<Xunit.Collection("Sequential")>]
 module Oly.Runtime.Target.Spirv.Tests
 
 open System
+open System.Drawing
 open WorkspaceUtilities
 open Xunit
 open Spirv.TestHelpers
@@ -17,24 +17,7 @@ let shouldRunFragment (program: OlyProgram) =
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
-    let defaultVertexCode = @"
-#version 450
-
-layout(location = 0) in vec2 Position;
-layout(location = 1) in vec2 TexCoords;
-layout(location = 2) in vec4 Color;
-
-layout(location = 0) out vec2 fsin_TexCoords;
-layout(location = 1) out vec4 fsin_Color;
-
-void main()
-{
-    gl_Position = vec4(Position, 0, 1);
-    fsin_TexCoords = TexCoords;
-    fsin_Color = Color;
-}"
-
-    draw_quad(glsl_to_vertex(defaultVertexCode), sm)
+    fragment(sm)
 
 let shouldRunVertex (program: OlyProgram) =
     program.Run()
@@ -42,7 +25,6 @@ let shouldRunVertex (program: OlyProgram) =
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
-
     vertex(sm)
 
 //    let defaultFragmentCode = @"
@@ -65,26 +47,29 @@ let shouldRunCompute input (program: OlyProgram) =
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
-
     compute(sm, input)
 
-let OlyVertex (src: string) =
+let OlyVertex (x, y, expectedColor: Color) (src: string) =
     let src = $"""
 #target "spirv: vertex, 1.0"
 
 {src}
 """
-    build true src |> shouldRunVertex
-    build false src |> shouldRunVertex
+    let output = build true src |> shouldRunVertex
+    Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
+    let output = build false src |> shouldRunVertex
+    Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
 
-let OlyFragment (src: string) =
+let OlyFragment (x, y, expectedColor: Color) (src: string) =
     let src = $"""
 #target "spirv: fragment, 1.0"
 
 {src}
 """
-    build true src |> shouldRunFragment
-    build false src |> shouldRunFragment
+    let output = build true src |> shouldRunFragment
+    Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
+    let output = build false src |> shouldRunFragment
+    Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
 
 let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
@@ -109,7 +94,19 @@ let ``Blank vertex shader`` () =
 //}
     let src =
         """
-outColor: vec2
+position: vec2
+    #[location(0)]
+    get
+
+texCoords: vec2
+    #[location(1)]
+    get
+
+color: vec4
+    #[location(2)]
+    get
+
+outTexCoords: vec2
     #[location(0)]
     set
 
@@ -120,7 +117,7 @@ outColor: vec4
 main(): () =
     ()
         """
-    OlyVertex src
+    OlyVertex (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Blank vertex shader but has output`` () =
@@ -135,7 +132,19 @@ let ``Blank vertex shader but has output`` () =
 //}
     let src =
         """
-outColor: vec2
+position: vec2
+    #[location(0)]
+    get
+
+texCoords: vec2
+    #[location(1)]
+    get
+
+color: vec4
+    #[location(2)]
+    get
+
+outTexCoords: vec2
     #[location(0)]
     set
 
@@ -146,7 +155,7 @@ outColor: vec4
 main(): () =
     Position <- vec4(1)
         """
-    OlyVertex src
+    OlyVertex (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Basic vertex shader`` () =
@@ -192,7 +201,7 @@ main(): () =
     outTexCoords <- texCoords
     outColor <- color
         """
-    OlyVertex src
+    OlyVertex (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Blank fragment shader`` () =
@@ -203,10 +212,22 @@ let ``Blank fragment shader`` () =
 //}
     let src =
         """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
 main(): () =
     ()
         """
-    OlyFragment src
+    OlyFragment (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Basic fragment shader`` () =
@@ -237,7 +258,7 @@ outColor: vec4
 main(): () =
     outColor <- color
         """
-    OlyFragment src
+    OlyFragment (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Should create a new value and use it`` () =
@@ -269,7 +290,7 @@ main(): () =
     outTexCoords <- texCoords
     outColor <- color
         """
-    OlyVertex src
+    OlyVertex (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Should mutate a new value and use it`` () =
@@ -292,7 +313,7 @@ main(): () =
     color <- vec4(1)
     outColor <- color
         """
-    OlyFragment src // Should show white
+    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // Should show white
 
 [<Fact>]
 let ``Should use if/else`` () =
@@ -317,7 +338,7 @@ main(): () =
         color <- vec4(0.5)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 2`` () =
@@ -344,7 +365,7 @@ main(): () =
         color <- vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 3`` () =
@@ -371,7 +392,7 @@ main(): () =
         color <- vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show black
+    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 4`` () =
@@ -399,7 +420,7 @@ main(): () =
             color
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 5`` () =
@@ -434,7 +455,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 6`` () =
@@ -462,7 +483,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show black
+    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 7`` () =
@@ -492,7 +513,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 8`` () =
@@ -522,7 +543,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 9`` () =
@@ -552,7 +573,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show black
+    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 10`` () =
@@ -585,7 +606,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show white
+    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
 
 [<Fact>]
 let ``Should use if/else 11`` () =
@@ -615,7 +636,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show white
+    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
 
 [<Fact>]
 let ``Should use if/else 12`` () =
@@ -645,7 +666,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment src // should show grey
+    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Blank compute shader`` () =
