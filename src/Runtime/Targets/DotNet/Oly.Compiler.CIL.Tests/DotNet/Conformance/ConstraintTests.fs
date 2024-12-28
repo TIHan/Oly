@@ -1,0 +1,104 @@
+﻿module DotNet.Conformance.ConstraintTests
+
+open System.IO
+open Xunit
+open TestUtilities
+open Utilities
+open Oly.Compiler
+open Oly.Compiler.Text
+open Oly.Compiler.Syntax
+open Oly.Compiler.Workspace
+open Oly.Runtime.Target.DotNet
+open Oly.Core
+open System.Runtime.Loader
+open System
+
+let OlyWithCSharp csSrc src (callback: TestCompilation -> unit): unit =
+    let tmp = Path.GetTempFileName()
+    let dllTmp = Path.Combine(Environment.CurrentDirectory, Path.ChangeExtension(Path.GetFileNameWithoutExtension(tmp), ".dll"))
+
+    try
+
+    let csAsm = DotNetTarget.CompileCSharp(Path.GetFileNameWithoutExtension(dllTmp), csSrc, getDefaultReferences() |> ImArray.map (fun x -> x.Path), System.Threading.CancellationToken.None)
+    let csRef = OlyCompilationReference.Create(OlyPath.Create(dllTmp), 42UL, Importer.Import(Path.GetFileNameWithoutExtension(dllTmp), csAsm))
+    csAsm.Position <- 0L
+    File.WriteAllBytes(dllTmp, csAsm.ToArray())
+
+    callback(OlyWithCRef csRef src)
+
+    finally
+        try File.Delete dllTmp with _ -> ()
+        try File.Delete tmp with _ -> ()
+
+[<Fact>]
+let ``C# new() constraint``() =
+    let csSrc =
+        """
+public static class ExampleModule
+{
+    public static T M<T>() where T : new()
+    {
+        return new T();
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    X: int32 get
+    new() = { X = 123 }
+
+main(): () =
+    let example = ExampleModule.M<Example>()
+    Console.Write(example.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
+
+[<Fact>]
+let ``C# new() constraint on interface method``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : new();
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: { new() } =
+        T()
+
+class C =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    Console.Write(c.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
