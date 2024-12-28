@@ -585,7 +585,7 @@ module BuiltInFunctions =
                         let idRefs = args |> ImArray.map snd
                         match returnTy with
                         | SpirvType.Vec(_, 4u, _) ->
-                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[3]; idRefs[4]])]
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[2]; idRefs[3]])]
                         | _ ->
                             invalidOp "Bad return type."
 
