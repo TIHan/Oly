@@ -5898,10 +5898,10 @@ extension MutableArrayExtensions<T> =
     AsSpan(): Span<T> = Span(this)
 
 #[open]
-extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+extension MutableArrayCastExtensions<T> where T: struct, ValueType, { new() } =
     inherits mutable T[]
 
-    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
 
 main(): () =
     let xs = mutable [S()]
