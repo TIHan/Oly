@@ -48,6 +48,12 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
     | TypeReference of ClrTypeHandle * isReadOnly: bool * isStruct: bool
     | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
     | ByRef of ClrTypeInfo * kind: OlyIRByRefKind * appliedTyHandle: ClrTypeHandle
+    | Shape // only for { new() } on constraints
+
+    member this.IsShape_t =
+        match this with
+        | Shape -> true
+        | _ -> false
 
     member this.FullyQualifiedName =
         match this with
@@ -57,7 +63,8 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
             tyHandle.FullyQualifiedName
         | TypeGenericInstance(formalTy, _, _) ->
             formalTy.FullyQualifiedName
-        | ByRef _ ->
+        | ByRef _
+        | Shape ->
             failwith "Not a named typed."
 
     member this.IsDefinitionEnum =
@@ -76,6 +83,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
         | TypeReference(isReadOnly=isReadOnly)
         | TypeDefinition(isReadOnly=isReadOnly) -> isReadOnly
         | ByRef(kind=kind) -> kind = OlyIRByRefKind.ReadOnly
+        | Shape -> false
 
     member this.IsWriteOnly =
         match this with
@@ -90,7 +98,8 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
             if flags.HasFlag(ClrTypeFlags.Struct) then true
             else
                 (match info.enumBaseTyOpt with Some ty -> ty.IsStruct | _ -> false)
-        | ByRef _ ->
+        | ByRef _
+        | Shape ->
             false
 
     member this.IsTypeVariable =
@@ -158,7 +167,8 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
         | TypeGenericInstance(x, _, _) -> x.IsClosure
         | TypeReference _ -> false
         | TypeDefinition(isClosure=isClosure) -> isClosure
-        | ByRef _ -> false
+        | ByRef _ 
+        | Shape -> false
 
     member this.IsScopedClosure = this.IsClosure && this.IsStruct
 
@@ -178,6 +188,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
         | TypeReference(handle, _, _) -> handle
         | TypeDefinition(tyDefBuilder, _, _, _, _, _) -> tyDefBuilder.Handle
         | ByRef(_, _, handle) -> handle
+        | Shape -> failwith "Handle not valid"
 
     member this.TypeArguments: ClrTypeHandle imarray =
         match this with
@@ -222,7 +233,7 @@ type ClrFieldInfo =
 
     member this.Handle: ClrFieldHandle = this.handle
 
-and [<ReferenceEquality;NoComparison>] ClrMethodInfo =
+and [<ReferenceEquality;NoComparison>] ClrMethodInfoDefinition =
     {
         isEnclosingClosure: bool
         enclosingTyHandle: ClrTypeHandle
@@ -245,13 +256,22 @@ and [<ReferenceEquality;NoComparison>] ClrMethodInfo =
 
     member this.Parameters = this.pars
 
+and [<RequireQualifiedAccess;ReferenceEquality;NoComparison>] ClrMethodInfo =
+    | Definition of ClrMethodInfoDefinition
+    | DefaultConstructorConstraint
+
+    member this.AsDefinition = 
+        match this with
+        | Definition d -> d
+        | _ -> failwith "Not a method definition"
+
 type BlobBuilder with
 
     member b.WriteSerializedUTF8(value: string) =
         b.WriteByte(byte value.Length)
         b.WriteUTF8(value)
 
-    member b.WriteTypeOfC(asmBuilder: ClrAssemblyBuilder, x: C<ClrTypeInfo, _>) =
+    member b.WriteTypeOfC(asmBuilder: ClrAssemblyBuilder, x: C<ClrTypeInfo, ClrMethodInfo>) =
         match x with
         | C.Int8 _ -> 
             let mutable encoder = SignatureTypeEncoder(b)
@@ -311,6 +331,7 @@ type BlobBuilder with
             raise(System.NotSupportedException("constant variable"))
 
         | C.External(func) -> 
+            let func = func.AsDefinition
             match func.specialKind with
             | ClrMethodSpecialKind.TypeOf ->
                 if func.ReturnType.IsStruct then
@@ -333,7 +354,7 @@ type BlobBuilder with
             | _ ->
                 raise(System.NotSupportedException($"Constant function '{func.name}'."))
 
-    member b.WriteValueOfC(x, asCountedUtf8) =
+    member b.WriteValueOfC(x: C<ClrTypeInfo, ClrMethodInfo>, asCountedUtf8) =
         match x with
         | C.UInt8(value) -> b.WriteByte(value)
         | C.Int8(value) -> b.WriteSByte(value)
@@ -360,6 +381,7 @@ type BlobBuilder with
         | C.Variable _ ->
             raise(System.NotSupportedException("constant variable"))
         | C.External(func) -> 
+            let func = func.AsDefinition
             match func.specialKind with
             | ClrMethodSpecialKind.TypeOf when func.tyInst.Length = 1 ->
                 let ty = func.tyInst.[0]
@@ -486,7 +508,8 @@ module rec ClrCodeGen =
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
                         info.Handle = tr
-                    | ClrTypeInfo.ByRef _ ->
+                    | ClrTypeInfo.ByRef _
+                    | ClrTypeInfo.Shape ->
                         false
                 | _ ->
                     false
@@ -503,7 +526,8 @@ module rec ClrCodeGen =
                         handle = tr
                     | ClrTypeInfo.TypeGenericInstance(info, _, _) ->
                         info.Handle = tr
-                    | ClrTypeInfo.ByRef _ ->
+                    | ClrTypeInfo.ByRef _
+                    | ClrTypeInfo.Shape ->
                         false
                 | _ ->
                     false
@@ -857,14 +881,14 @@ module rec ClrCodeGen =
                 OlyAssert.True(receiverExpr.ResultType.TryByRefElementType.Value.IsStruct)
                 I.Conv_u |> emitInstruction cenv
 
-            emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.handle))
+            emitInstruction cenv (I.Ldftn(irFunc.EmittedFunction.AsDefinition.handle))
 
             let ctor = 
                 if funcTy.IsTypeDefinition_t then
                     ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
                 else
                     ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
-            I.Newobj(ctor, irFunc.EmittedFunction.Parameters.Length - 1) |> emitInstruction cenv
+            I.Newobj(ctor, irFunc.EmittedFunction.AsDefinition.Parameters.Length - 1) |> emitInstruction cenv
 
         | O.CallStaticConstructor _ ->
             // .NET already handles static constructor invocation.
@@ -1345,19 +1369,19 @@ module rec ClrCodeGen =
             I.Stelem(contentTy.Handle) |> emitInstruction cenv
 
         | O.New(irFunc, irArgs, _) ->
-            GenNew cenv env irFunc.EmittedFunction irArgs
+            GenNew cenv env irFunc.EmittedFunction.AsDefinition irArgs
 
         | O.Call(irFunc, irArgs, _) ->
-            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false ValueNone
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction.AsDefinition irArgs false ValueNone
 
         | O.CallVirtual(irFunc, irArgs, _) ->
-            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs true ValueNone
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction.AsDefinition irArgs true ValueNone
 
         | O.CallIndirect(runtimeArgTys, irFunArg, irArgs, runtimeResultTy) ->
             GenCallIndirect cenv env irFunArg irArgs runtimeArgTys runtimeResultTy
 
         | O.CallConstrained(constrainedTy, irFunc, irArgs, _) ->
-            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction irArgs false (ValueSome constrainedTy)
+            GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction.AsDefinition irArgs false (ValueSome constrainedTy)
 
     let GenValue (cenv: cenv) env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
@@ -1414,20 +1438,20 @@ module rec ClrCodeGen =
             I.Ldarga n |> emitInstruction cenv
 
         | V.FunctionPtr(methInfo, _) ->
-            emitInstruction cenv (I.Ldftn(methInfo.handle))
+            emitInstruction cenv (I.Ldftn(methInfo.AsDefinition.handle))
 
         | V.Function(irFunc, funcTy) ->
             let methInfo = irFunc.EmittedFunction
 
             I.Ldnull |> emitInstruction cenv
-            emitInstruction cenv (I.Ldftn(methInfo.handle))
+            emitInstruction cenv (I.Ldftn(methInfo.AsDefinition.handle))
 
             let ctor = 
                 if funcTy.IsTypeDefinition_t then
                     ClrCodeGen.createMulticastDelegateConstructor cenv.assembly funcTy
                 else
                     ClrCodeGen.createAnonymousFunctionConstructor cenv.assembly funcTy.Handle
-            I.Newobj(ctor, methInfo.Parameters.Length) |> emitInstruction cenv
+            I.Newobj(ctor, methInfo.AsDefinition.Parameters.Length) |> emitInstruction cenv
 
         | V.Default(ty) ->
             match ty.Handle with
@@ -1441,13 +1465,13 @@ module rec ClrCodeGen =
                 emitInstruction cenv (I.Initobj(ty.Handle))
                 emitInstruction cenv (I.Ldloc(localIndex))
 
-    let canTailCall cenv (func: ClrMethodInfo) =
+    let canTailCall cenv (func: ClrMethodInfoDefinition) =
         cenv.emitTailCalls && 
       //  func.ReturnType.Handle <> cenv.assembly.TypeReferenceVoid && 
         not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x)) &&
         not(isByRefLike cenv.assembly func.ReturnType)
 
-    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfo) (irArgs: E<_, _, _> imarray) isVirtual (constrainedTyOpt: ClrTypeInfo voption) =
+    let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfoDefinition) (irArgs: E<_, _, _> imarray) isVirtual (constrainedTyOpt: ClrTypeInfo voption) =
 #if DEBUG || CHECKED
         if func.IsInstance && func.isConstructor then
             OlyAssert.Equal(func.pars.Length + 1, irArgs.Length)
@@ -1529,7 +1553,7 @@ module rec ClrCodeGen =
         | _ ->
             failwith "Invalid special method."
 
-    let GenNew cenv env (func: ClrMethodInfo) irArgs =
+    let GenNew cenv env (func: ClrMethodInfoDefinition) irArgs =
         irArgs |> ImArray.iter (fun x -> GenArgumentExpression cenv env x)
         I.Newobj(func.handle, irArgs.Length) |> emitInstruction cenv
 
@@ -2112,7 +2136,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 Constraints =
                     x.Constraints
                     |> ImArray.choose (function
-                        | OlyIRConstraint.SubtypeOf(ty) ->
+                        | OlyIRConstraint.SubtypeOf(ty) when not ty.IsShape_t ->
                             ClrTypeConstraint.SubtypeOf(ty.Handle)
                             |> Some
                         | _ ->
@@ -2126,7 +2150,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             (flags: OlyIRFunctionFlags) 
             (name: string) 
             (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) 
-            (originalOverridesOpt: ClrMethodInfo option)
+            (originalOverridesOpt: ClrMethodInfoDefinition option)
             (pars: OlyIRParameter<ClrTypeInfo, ClrMethodInfo> imarray) 
             (returnTy: ClrTypeInfo) =
 
@@ -2271,13 +2295,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let objectCtor =
                 match vm.TryFindFunction(("System.Object", 0), ".ctor", 0, ImArray.empty, ("System.Void", 0), OlyFunctionKind.Instance) with
-                | Some x -> x.handle
+                | Some x -> x.AsDefinition.handle
                 | _ -> failwith "Unable to find 'System.Object..ctor'"
 
             let debuggerBrowsableCtor =
                 let pars = ImArray.createOne("System.Diagnostics.DebuggerBrowsableState", 0)
                 match vm.TryFindFunction(("System.Diagnostics.DebuggerBrowsableAttribute", 0), ".ctor", 0, pars, ("System.Void", 0), OlyFunctionKind.Instance) with
-                | Some x -> x.handle
+                | Some x -> x.AsDefinition.handle
                 | _ -> failwith "Unable to find 'System.Diagnostics.DebuggerBrowsableAttribute..ctor'"
 
             g <-
@@ -2514,6 +2538,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             ClrTypeInfo.TypeGenericInstance(ty, tyArgHandles, appliedTyHandle)
 
         member this.EmitTypeDefinitionInfo(tyDef, enclosing, kind, flags, _, irTyPars, extends, implements, irAttrs, runtimeTyOpt) =
+            if kind = OlyILEntityKind.Shape then
+                ()
+            else
+
             let isStruct = kind = OlyILEntityKind.Struct
             let isEnum = kind = OlyILEntityKind.Enum
             let isNewtype = kind = OlyILEntityKind.Newtype
@@ -2561,7 +2589,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             |> ImArray.iter (fun x ->
                 match x with
                 | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                    asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
+                    asmBuilder.AddTypeAttribute(tyDefBuilder.Handle, ctor.AsDefinition.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
             )
 
             if flags.IsScoped then
@@ -2583,9 +2611,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) 
                             when irArgs.Length = 1 && 
-                                 ctor.name = ".ctor" &&
-                                 ctor.enclosingTyHandle.IsNamed &&
-                                 ctor.enclosingTyHandle.FullyQualifiedName.StartsWith("System.Runtime.InteropServices.StructLayoutAttribute") ->
+                                 ctor.AsDefinition.name = ".ctor" &&
+                                 ctor.AsDefinition.enclosingTyHandle.IsNamed &&
+                                 ctor.AsDefinition.enclosingTyHandle.FullyQualifiedName.StartsWith("System.Runtime.InteropServices.StructLayoutAttribute") ->
                         let irArg = irArgs[0]
                         match irArg with
                         | C.Int16(0s) -> Some System.Runtime.InteropServices.LayoutKind.Sequential
@@ -2733,6 +2761,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 tyDef.TypeDefinitionInfo.typeExtensionInfo <- ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle)
 
         member this.EmitTypeDefinition(enclosing, ilKind, irTyFlags, name, tyParCount) =
+            if ilKind = OlyILEntityKind.Shape then
+                ClrTypeInfo.Shape
+            else
+
             match enclosing with
             | Choice2Of2(tyInfo) ->
                 match tyInfo.Handle with
@@ -2870,7 +2902,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 |> ImArray.iter (fun x ->
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                        asmBuilder.AddFieldAttribute(fieldHandle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
+                        asmBuilder.AddFieldAttribute(fieldHandle, ctor.AsDefinition.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                 )
 
                 // REVIEW: Should we actually mark fields in OlyIL as not browsable?
@@ -2907,6 +2939,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 let canEmitProperty, isInstance =
                     match getterOpt, setterOpt with
                     | Some getter, Some setter ->
+                        let getter = getter.AsDefinition
+                        let setter = setter.AsDefinition
                         if (not getter.enclosingTyHandle.IsTypeDefinition) then
                             failwith "expected type definition"
                         if (not setter.enclosingTyHandle.IsTypeDefinition) then
@@ -2915,10 +2949,12 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     | None, None ->
                         false, false
                     | Some getter, None ->
+                        let getter = getter.AsDefinition
                         if (not getter.enclosingTyHandle.IsTypeDefinition) then
                             failwith "expected type definition"
                         true, getter.IsInstance
                     | None, Some setter ->
+                        let setter = setter.AsDefinition
                         if (not setter.enclosingTyHandle.IsTypeDefinition) then
                             failwith "expected type definition"
                         true, setter.IsInstance
@@ -2929,50 +2965,57 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                             name, 
                             ty.Handle, 
                             isInstance, 
-                            getterOpt |> Option.map (fun x -> x.handle), 
-                            setterOpt |> Option.map (fun x -> x.handle)
+                            getterOpt |> Option.map (fun x -> x.AsDefinition.handle), 
+                            setterOpt |> Option.map (fun x -> x.AsDefinition.handle)
                         )
                     attrs
                     |> ImArray.iter (fun x ->
                         match x with
                         | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                             asmBuilder.AddPropertyAttribute(propDef, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
+                             asmBuilder.AddPropertyAttribute(propDef, ctor.AsDefinition.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                     )
             | _ ->
                 OlyAssert.Fail($"Expected type definition. {enclosingTy}")
 
         member this.EmitFunctionInstance(enclosingTy, func: ClrMethodInfo, tyArgs: imarray<ClrTypeInfo>): ClrMethodInfo = 
+            let funcDef = func.AsDefinition
             let newHandle =
                 if enclosingTy.TypeArguments.IsEmpty && tyArgs.IsEmpty then
                     failwith "Expected type arguments."
                 else
                     let tyArgHandles = tyArgs |> ImArray.map (fun x -> x.Handle)
-                    if enclosingTy.Handle.EntityHandle.Equals(func.enclosingTyHandle.EntityHandle) then
-                        asmBuilder.AddMethodSpecification(func.handle, tyArgHandles)
+                    if enclosingTy.Handle.EntityHandle.Equals(funcDef.enclosingTyHandle.EntityHandle) then
+                        asmBuilder.AddMethodSpecification(funcDef.handle, tyArgHandles)
                     else
-                        asmBuilder.CreateMethodSpecification(enclosingTy.Handle, func.handle, tyArgHandles)
-            { func with handle = newHandle; tyInst = tyArgs }
+                        asmBuilder.CreateMethodSpecification(enclosingTy.Handle, funcDef.handle, tyArgHandles)
+            ClrMethodInfo.Definition({ funcDef with handle = newHandle; tyInst = tyArgs })
 
         member this.EmitFunctionReference(enclosingTy, func: ClrMethodInfo): ClrMethodInfo =
+            let funcDef = func.AsDefinition
             let newHandle =
                 let parTys = 
-                    if func.IsInstance && not func.isConstructor then
-                        func.Parameters.RemoveAt(0) |> ImArray.map (fun x -> (snd x).Handle)
+                    if funcDef.IsInstance && not funcDef.isConstructor then
+                        funcDef.Parameters.RemoveAt(0) |> ImArray.map (fun x -> (snd x).Handle)
                     else
-                        func.Parameters |> ImArray.map (fun x -> (snd x).Handle)
+                        funcDef.Parameters |> ImArray.map (fun x -> (snd x).Handle)
                         
                 asmBuilder.AddMethodReference(
                     SignatureCallingConvention.Default, 
-                    func.IsInstance, 
+                    funcDef.IsInstance, 
                     enclosingTy.Handle, 
-                    func.name, 
-                    func.tyParCount, 
+                    funcDef.name, 
+                    funcDef.tyParCount, 
                     parTys,
-                    func.ReturnType.Handle
+                    funcDef.ReturnType.Handle
                 )
-            { func with handle = newHandle }
+            ClrMethodInfo.Definition({ funcDef with handle = newHandle })
 
         member this.EmitFunctionDefinition(externalInfoOpt, enclosingTy, flags, name, tyPars, pars, returnTy, originalOverridesOpt, _, irAttrs) =
+            match enclosingTy with
+            | ClrTypeInfo.Shape ->
+                ClrMethodInfo.DefaultConstructorConstraint
+            | _ ->
+
             // Note on Scoped Closures:
             //      - For scoped closures, its Invoke function cannot actually be an instance function. Instead, force it to be a static function.
             let isCtor = flags.IsConstructor
@@ -2985,7 +3028,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     flags
                     name
                     tyPars
-                    originalOverridesOpt
+                    (originalOverridesOpt |> Option.map (_.AsDefinition))
                     pars
                     returnTy
             let isTypeExtension =
@@ -3074,7 +3117,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 
             let methRefHandle, methDefBuilderOpt =
                 match enclosingTy with
-                | ClrTypeInfo.ByRef _ -> failwith "Invalid enclosing type."
+                | ClrTypeInfo.ByRef _
+                | ClrTypeInfo.Shape -> failwith "Invalid enclosing type."
                 | ClrTypeInfo.TypeGenericInstance(_, _, enclosingTyHandle)
                 | ClrTypeInfo.TypeReference(enclosingTyHandle, _, _) ->
                     let convention = SignatureCallingConvention.Default
@@ -3087,7 +3131,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         let methDefBuilder = createMethod enclosingTy flags methodName tyPars parHandles cilReturnTy2.Handle isStatic isCtor tyDefBuilder
                         overridesOpt
                         |> Option.iter (fun x ->
-                            methDefBuilder.Overrides <- Some x.handle
+                            methDefBuilder.Overrides <- Some x.AsDefinition.handle
                         )
 
                         if isTypeExtension && not flags.IsStatic then
@@ -3096,7 +3140,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                                 let instanceMethDefBuilder = createMethod enclosingTy flags methodName tyPars (parHandles.RemoveAt(0)) cilReturnTy2.Handle false false instanceTyDefBuilder
                                 match originalOverridesOpt with
                                 | Some overrides ->
-                                   instanceMethDefBuilder.Overrides <- Some overrides.handle
+                                   instanceMethDefBuilder.Overrides <- Some overrides.AsDefinition.handle
                                 | _ ->
                                     ()
 
@@ -3184,7 +3228,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 |> ImArray.iter (fun x ->
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) ->
-                        asmBuilder.AddMethodAttribute(handle, ctor.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
+                        asmBuilder.AddMethodAttribute(handle, ctor.AsDefinition.handle, ClrCodeGen.writeAttributeArguments asmBuilder irArgs irNamedArgs)
                 )
 
                 if flags.IsEntryPoint then
@@ -3229,6 +3273,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 specialKind = specialKind
                 tyParCount = tyPars.Length
             }
+            |> ClrMethodInfo.Definition
 
         member this.EmitFunctionBody(irFuncBody, irTier, func) =
             let output = ImArray.builder()
@@ -3274,7 +3319,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             ClrCodeGen.GenExpression cenv env expr
 
-            match func.builder with
+            match func.AsDefinition.builder with
             | Some methDefBuilder ->
                 methDefBuilder.Locals <-
                     cenv.locals

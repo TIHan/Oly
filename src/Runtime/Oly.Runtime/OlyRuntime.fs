@@ -4180,25 +4180,26 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if (func.IsExternal || func.IsExported) && (not func.TypeParameters.IsEmpty || not func.EnclosingType.TypeParameters.IsEmpty) then
             (func.TypeParameters, func.TypeArguments)
             ||> ImArray.iter2 (fun tyPar tyArg ->
-                tyPar.ConstraintSubtypes.Value
-                |> ImArray.iter (fun constrTy ->
-                    if constrTy.IsShape then
-                        let constrEnt = constrTy.AsEntity
-                        let ilAsm = assemblies[constrEnt.AssemblyIdentity].ilAsm
-                        let ilEntDef = ilAsm.GetEntityDefinition(constrEnt.ILEntityDefinitionHandle)
-                        ilEntDef.FunctionHandles
-                        |> ImArray.iter (fun ilFuncDefHandle ->
-                            let func = resolveFunctionDefinition constrTy ilFuncDefHandle
-                            let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature tyArg func
-                            if funcs.IsEmpty then
-                                failwith $"Unable to find function '{func.Name}' for '{tyArg.Name}'."
-                            elif funcs.Length > 1 then
-                                failwith $"'{func.Name}' has ambiguous functions for '{tyArg.Name}'."
-                            else
-                                let targetFunc = funcs |> ImArray.head
-                                vm.EmitFunction(targetFunc) |> ignore // force emit
-                        )
-                )
+                if not tyArg.IsTypeVariable then
+                    tyPar.ConstraintSubtypes.Value
+                    |> ImArray.iter (fun constrTy ->
+                        if constrTy.IsShape then
+                            let constrEnt = constrTy.AsEntity
+                            let ilAsm = assemblies[constrEnt.AssemblyIdentity].ilAsm
+                            let ilEntDef = ilAsm.GetEntityDefinition(constrEnt.ILEntityDefinitionHandle)
+                            ilEntDef.FunctionHandles
+                            |> ImArray.iter (fun ilFuncDefHandle ->
+                                let func = resolveFunctionDefinition constrTy ilFuncDefHandle
+                                let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature tyArg func
+                                if funcs.IsEmpty then
+                                    failwith $"Unable to find function '{func.Name}' for '{tyArg.Name}'."
+                                elif funcs.Length > 1 then
+                                    failwith $"'{func.Name}' has ambiguous functions for '{tyArg.Name}'."
+                                else
+                                    let targetFunc = funcs |> ImArray.head
+                                    vm.EmitFunction(targetFunc) |> ignore // force emit
+                            )
+                    )
             )
 
         if func.IsFormal then

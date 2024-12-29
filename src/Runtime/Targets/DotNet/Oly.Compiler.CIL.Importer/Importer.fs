@@ -539,7 +539,7 @@ module internal rec Helpers =
 
                 let olyConstrs =
                     if genericPar.Attributes.HasFlag(GenericParameterAttributes.DefaultConstructorConstraint) then
-                        olyConstrs.Add(cenv.olyDefaultCtorConstr.contents)
+                        olyConstrs//.Add(cenv.olyDefaultCtorConstr.contents)
                     else
                         olyConstrs
 

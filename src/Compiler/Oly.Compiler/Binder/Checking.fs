@@ -118,8 +118,8 @@ let checkUsageTypeExport cenv syntaxNode (name: string) (ty: TypeSymbol) =
     // Do not strip type equations here.
     match ty with
     | TypeSymbol.Entity(ent) ->
-        if not ent.IsExported && not ent.IsImported then
-            cenv.diagnostics.Error($"'{name}' cannot be exported as its usage of type '{ent.Name}' s neither imported or exported.", 10, syntaxNode)
+      //  if not ent.IsExported && not ent.IsImported then
+       //     cenv.diagnostics.Error($"'{name}' cannot be exported as its usage of type '{ent.Name}' s neither imported or exported.", 10, syntaxNode)
         ent.TypeArguments
         |> ImArray.iter (checkUsageTypeExport cenv syntaxNode name)
     | _ ->
