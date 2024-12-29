@@ -351,7 +351,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Entities = lazyEntities.Value
     override this.Extends = lazyExtends.Value
     override this.Fields = lazyFields.Value
-    override this.Flags = ent.Flags
+    override this.Flags = ent.Flags ||| EntityFlags.Retargeted
     override this.Formal = this
     override this.Functions = lazyFunctions.Value
     override this.Implements = lazyImplements.Value
@@ -469,7 +469,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             ent
         | _ ->
             let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-            importer.AddEntity(qualName, rtgtEnt)
+            importer.SetEntity(qualName, rtgtEnt)
             // We do this to stop infinite recursion from happenening.
             rtgtEnt.ComputeConstraints()
             rtgtEnt
@@ -2034,7 +2034,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     member this.TryGetEntity(qualName, rent: outref<EntitySymbol>): bool =
         entities.TryGetValue(qualName, &rent)
 
-    member this.AddEntity(qualName, rent: EntitySymbol) =
+    member this.SetEntity(qualName, rent: EntitySymbol) =
         OlyAssert.False(rent.IsAnonymous)
         entities[qualName] <- rent
 
@@ -2082,7 +2082,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                         if not ent.IsAnonymous then
                             ct.ThrowIfCancellationRequested()
                             let qualName = ent.QualifiedName
-                            this.AddEntity(qualName, ent)
+                            this.SetEntity(qualName, ent)
                             f ent
                     | _ ->
                         ()
@@ -2094,7 +2094,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
                     let qualName = ent.QualifiedName
-                    this.AddEntity(qualName, ent)
+                    this.SetEntity(qualName, ent)
                     forEachPrimTy ty ent
                 )
         )

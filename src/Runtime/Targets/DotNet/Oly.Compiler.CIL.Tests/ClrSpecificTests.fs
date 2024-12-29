@@ -9397,14 +9397,14 @@ interface IComponent
 
 interface IComponent<N, T> where N: constant int32 where T: blittable, struct, ValueType, { new() } =
     inherits IComponent
-
+        """
+    let src =
+        """
 struct S
 
 newtype NewS =
     public field Value: S
-        """
-    let src =
-        """
+
 #[open]
 extension NewSExtensions =
     inherits NewS
