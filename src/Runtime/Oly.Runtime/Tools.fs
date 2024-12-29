@@ -164,7 +164,7 @@ type DummyLocalManager(ilAsm: OlyILAssembly) =
     member this.GetLocals() = ilLocals |> ImArray.ofSeq
 
 let createEntityDefinitionHandle (ilAsm: OlyILAssembly) =
-    ilAsm.NextEntityDefinition()
+    ilAsm.NextEntityDefinitionHandle()
 
 let createType ilAsm ilEntDefHandle ilKind name ilFuncDefHandles ilFieldDefHandles =
     addEntity ilAsm ilEntDefHandle ilKind name ImArray.empty ilFuncDefHandles ilFieldDefHandles

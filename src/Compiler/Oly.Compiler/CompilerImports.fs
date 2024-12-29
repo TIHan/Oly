@@ -2079,10 +2079,11 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                     match ilEntDef.Enclosing with
                     | OlyILEnclosing.Namespace _ ->
                         let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
-                        ct.ThrowIfCancellationRequested()
-                        let qualName = ent.QualifiedName
-                        this.AddEntity(qualName, ent)
-                        f ent
+                        if not ent.IsAnonymous then
+                            ct.ThrowIfCancellationRequested()
+                            let qualName = ent.QualifiedName
+                            this.AddEntity(qualName, ent)
+                            f ent
                     | _ ->
                         ()
                 )

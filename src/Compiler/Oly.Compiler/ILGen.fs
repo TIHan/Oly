@@ -730,7 +730,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         if func.Enclosing.IsNamespace then
             failwithf "Function '%s''s enclosing is a namespace; must be a type." func.Name
 
-        if func.IsConstructor && (func.IsVirtual || func.IsAbstract) then
+        if func.IsConstructor && (func.IsVirtual || func.IsAbstract) && not func.Enclosing.IsShape then
             failwith "A constructor cannot be virtual or abstract."
 
         let ilMemberFlags =
@@ -1211,7 +1211,7 @@ and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefi
     match cenv.cachedEntDefs.TryGetValue ent.FormalId with
     | true, res -> res
     | _ ->
-        let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinition()
+        let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinitionHandle()
         if not(String.IsNullOrWhiteSpace ent.Documentation) then
             cenv.assembly.SetEntityDefinitionDocumentation(ilEntDefHandleFixup, ent.Documentation)
         cenv.cachedEntDefs.Add(ent.FormalId, ilEntDefHandleFixup)

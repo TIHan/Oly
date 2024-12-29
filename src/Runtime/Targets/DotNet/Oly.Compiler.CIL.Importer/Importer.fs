@@ -430,6 +430,7 @@ module internal rec Helpers =
         {
             olyAsm: OlyILAssembly
             reader: MetadataReader
+            olyDefaultCtorConstr: OlyILConstraint ref
             stringCache: Dictionary<string, OlyILStringHandle>
             stringToOlyStringCache: Dictionary<StringHandle, OlyILStringHandle>
             tyDefToOlyEntRefCache: Dictionary<TypeDefinitionHandle, OlyILEntityReferenceHandle>
@@ -535,6 +536,12 @@ module internal rec Helpers =
                     |> ImArray.choose (fun constrHandle ->
                         tryImportConstraintAsOlyILConstraint cenv constrHandle
                     )
+
+                let olyConstrs =
+                    if genericPar.Attributes.HasFlag(GenericParameterAttributes.DefaultConstructorConstraint) then
+                        olyConstrs.Add(cenv.olyDefaultCtorConstr.contents)
+                    else
+                        olyConstrs
 
                 let olyTyPar =
                     OlyILTypeParameter(
@@ -1097,7 +1104,7 @@ module internal rec Helpers =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
-        let olyEntDefHandle = olyAsm.NextEntityDefinition()
+        let olyEntDefHandle = olyAsm.NextEntityDefinitionHandle()
         let fullTyParCount = getFullTypeParameterCount cenv tyDefHandle
         cenv.tyDefToOlyEntDefCache.[tyDefHandle] <- (olyEntDefHandle, fullTyParCount)
      
@@ -1476,6 +1483,7 @@ type Importer private (name: string, peReader: PEReader) =
             {
                 olyAsm = olyAsm
                 reader = reader
+                olyDefaultCtorConstr = ref Unchecked.defaultof<_>
                 stringCache = Dictionary()
                 stringToOlyStringCache = Dictionary()
                 tyDefToOlyEntRefCache = Dictionary()
@@ -1485,6 +1493,63 @@ type Importer private (name: string, peReader: PEReader) =
                 exportedTyToOlyEntRefCache = Dictionary()
                 methDefToOlyFuncDefCache = Dictionary()
             }
+
+        let olyDefaultCtorConstr =
+            let olyEntDefHandle = olyAsm.NextEntityDefinitionHandle()
+            OlyAssert.Equal(0, olyEntDefHandle.Index)
+
+            let olyCtorAttrs =
+                OlyILAttribute.Export
+                |> ImArray.createOne
+
+            let olyEntAttrs =
+                OlyILAttribute.Export
+                |> ImArray.createOne
+
+            let olyDefaultCtorHandle =
+                let olyFuncSpec =
+                    OlyILFunctionSpecification(
+                        true,
+                        OlyILCallingConvention.Default,
+                        importRawString cenv "__oly_ctor",
+                        ImArray.empty,
+                        ImArray.empty,
+                        OlyILTypeVoid
+                    )
+
+                let olyFuncSpecHandle = olyAsm.AddFunctionSpecification(olyFuncSpec)
+                let olyFuncDef =
+                    OlyILFunctionDefinition(
+                        OlyILFunctionFlags.Constructor,
+                        OlyILMemberFlags.Abstract,
+                        olyCtorAttrs,
+                        olyFuncSpecHandle,
+                        None,
+                        ref None
+                    )
+                olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
+
+            let olyEntDef =
+                OlyILEntityDefinition(
+                    OlyILEntityKind.Shape,
+                    OlyILEntityFlags.Abstract,
+                    olyEntAttrs,
+                    OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
+                    OlyILStringHandle.GetNil(OlyILTableKind.String),
+                    ImArray.empty,
+                    ImArray.createOne olyDefaultCtorHandle,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty
+                )
+            olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
+            let olyEntInst = OlyILEntityInstance(olyEntDefHandle, ImArray.empty)
+            OlyILConstraint.SubtypeOf(OlyILTypeEntity(olyEntInst))
+
+        cenv.olyDefaultCtorConstr.contents <- olyDefaultCtorConstr
 
         reader.TypeDefinitions
         |> Seq.iter (fun x ->

@@ -1132,7 +1132,7 @@ type OlyILAssembly =
         this.SetEntityDefinitionLookup(handle, entDef)
         handle
 
-    member this.NextEntityDefinition() : OlyILEntityDefinitionHandle =
+    member this.NextEntityDefinitionHandle() : OlyILEntityDefinitionHandle =
         this.entDefs.Next()
 
     member this.SetEntityDefinition(handle: OlyILEntityDefinitionHandle, entDef: OlyILEntityDefinition) =
