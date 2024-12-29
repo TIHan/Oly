@@ -1600,15 +1600,15 @@ extension MutableArrayDotNetExtensions<T> =
     AsReadOnlySpan(start: int32, length: int32): ReadOnlySpan<T> = ReadOnlySpan(this, start, length)
 
 #[open]
-extension MutableArrayCastDotNetExtensions<T> where T: struct, ValueType =
+extension MutableArrayCastDotNetExtensions<T> where T: struct, ValueType, { new() } =
     inherits mutable T[]
 
-    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsSpan<TCast>(start: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsSpan<TCast>(start: int32, length: int32): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
-    AsReadOnlySpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this))
-    AsReadOnlySpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, this.Length))
-    AsReadOnlySpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(ReadOnlySpan(this, start, length))
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(start: int32, length: int32): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
+    AsReadOnlySpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(ReadOnlySpan(this))
+    AsReadOnlySpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(ReadOnlySpan(this, start, this.Length))
+    AsReadOnlySpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(ReadOnlySpan(this, start, length))
 
 #[open]
 extension ArrayDotNetExtensions<T> =
@@ -1620,12 +1620,12 @@ extension ArrayDotNetExtensions<T> =
     AsMemory(): ReadOnlyMemory<T> = ReadOnlyMemory(Unsafe.AsMutable(this))
 
 #[open]
-extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
+extension ArrayCastDotNetExtensions<T> where T: struct, ValueType, { new() } =
     inherits T[]
 
-    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
-    AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
-    AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>()
+    AsSpan<TCast>(start: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start)
+    AsSpan<TCast>(start: int32, length: int32): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = Unsafe.AsMutable(this).AsReadOnlySpan<TCast>(start, length)
 #end
 
 #[inline]

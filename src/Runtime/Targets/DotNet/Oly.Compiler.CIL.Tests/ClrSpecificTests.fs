@@ -9345,3 +9345,74 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "Testing1Attribute----Testing2Attribute"
+
+[<Fact>]
+let ``Able to use newtype when a constraint requires ValueType``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(): () where T: ValueType = ()
+
+class C<T> where T: ValueType
+
+struct S
+        """
+    let src =
+        """
+newtype NewS =
+    public field Value: S
+
+main(): () =
+    M<NewS>()
+    let _ = C<NewS>()
+    print("hello")
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Able to use newtype when a constraint requires ValueType 2``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IComponent
+
+interface IComponent<N, T> where N: constant int32 where T: blittable, struct, ValueType, { new() } =
+    inherits IComponent
+
+struct S
+
+newtype NewS =
+    public field Value: S
+        """
+    let src =
+        """
+#[open]
+extension NewSExtensions =
+    inherits NewS
+    implements IComponent<1, NewS>
+
+main(): () =
+    print("hello")
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"

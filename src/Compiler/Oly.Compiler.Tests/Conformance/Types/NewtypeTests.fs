@@ -115,7 +115,7 @@ newtype A
     |> ignore
 
 [<Fact>]
-let ``Newtype should not work with a non-trait shape constraint``() =
+let ``Newtype should work with a non-trait shape constraint - NOTE - THIS USED TO NOT WORK``() =
     let src =
         """
 #[intrinsic("print")]
@@ -137,13 +137,4 @@ main(): () =
     M(ns)
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("'NewInt' is a newtype. Newtypes have a runtime limitation in that they cannot be a solution for solving a non-trait shape constraint.",
-             """
-    M(ns)
-    ^
-"""
-            )
-        ]
-    |> ignore
+    |> shouldCompile

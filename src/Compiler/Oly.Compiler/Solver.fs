@@ -253,19 +253,8 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSol
 
     let solveSubsumption () =
         if target.IsShape then
-            if solver = WitnessSolver.Subtype && ty.IsNewtype then
-                // The current explanation is ok, but it is not specific. The reason why we have this limitation is because
-                //     the platform that the Oly runtime will target may have valid non-trait shape constraints, such as .NET's constructor constaint.
-                //     However, newtypes are eliminated at the Oly runtime level and thus any members on that newtype do not actually exist on its underlying type.
-                //     With *trait* shape constraints, we can get around this because 'trait' is, at the moment, only specific to Oly and generics will be erased.
-                //     While Oly and Oly Runtime are agnostic about .NET, it is still the primary target and .NET does not have trait constraints.
-                //     In some future, this could change and will need to be re-evaluated.
-                //     At the moment, this limitation feels pretty sound.
-                env.diagnostics.Error($"'{PrettyPrint.printType env.benv ty}' is a newtype. Newtypes have a runtime limitation in that they cannot be a solution for solving a non-trait shape constraint.", 10, syntaxNode)
-                true // Error recovery // TODO: We should make better error messages for constraints
-            else
-                solveShape env syntaxNode tyArgs witnessArgs target tyPar ty
-                true // Error recovery // TODO: We should make better error messages for constraints
+            solveShape env syntaxNode tyArgs witnessArgs target tyPar ty
+            true // Error recovery // TODO: We should make better error messages for constraints
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then
                 witnessArgs
@@ -375,7 +364,7 @@ and solveConstraintStruct env (syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSy
     | TypeSymbol.Variable(tyPar)
     | TypeSymbol.HigherVariable(tyPar, _) ->
         tyPar.Constraints 
-        |> ImArray.exists (function ConstraintSymbol.Struct | ConstraintSymbol.Unmanaged | ConstraintSymbol.Blittable -> true | _ -> false)
+        |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
 
     | tyArg ->
         tyArg.IsAnyStruct
