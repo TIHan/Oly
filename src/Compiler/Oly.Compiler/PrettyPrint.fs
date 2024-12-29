@@ -424,7 +424,7 @@ let private printField (benv: BoundEnvironment) (field: IFieldSymbol) =
 
 let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbol) =
     let prefixText =
-        if value.IsInstance || value.IsLocal || OlySyntaxFacts.IsOperator(value.Name) then ""
+        if value.IsInstance || value.IsLocal || OlySyntaxFacts.IsOperator(value.Name) then String.Empty
         elif value.IsFunction && (value :?> IFunctionSymbol).IsPatternFunction then "pattern "
         elif value.IsFieldConstant then "constant "
         else "static "
@@ -441,13 +441,13 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
                             func.TypeParameters
                     let printedTyPars, printedConstrs = printTypeParameters benv tyPars
                     if noConstrs then
-                        printedTyPars, ""
+                        printedTyPars, String.Empty
                     else
                         printedTyPars, printedConstrs
                 else
-                    if func.TypeArguments.IsEmpty then "", ""
+                    if func.TypeArguments.IsEmpty then String.Empty, String.Empty
                     else
-                        "<" + (func.TypeArguments |> Seq.map (fun x -> printTypeAux benv false false x) |> String.concat ", ") + ">" , ""
+                        "<" + (func.TypeArguments |> Seq.map (fun x -> printTypeAux benv false false x) |> String.concat ", ") + ">" , String.Empty
             let name =
                 if func.IsConstructor then
                     "new", printedConstrs
@@ -456,32 +456,43 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             name
 
         | :? IFieldSymbol as field ->
-            printField benv field, ""
+            printField benv field, String.Empty
 
         | :? IPropertySymbol as prop ->
             if prop.Getter.IsSome && prop.Setter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} get, set", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get, set", String.Empty
             elif prop.Getter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} get", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get", String.Empty
             elif prop.Setter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} set", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} set", String.Empty
             else
-                prop.Name + $": {printTypeAux benv false false value.Type} (invalid)", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} (invalid)", String.Empty
         | _ ->
-            value.Name + ": ", ""
+            value.Name + ": ", String.Empty
     let right =
         match value with
-        | :? IFunctionSymbol as func when not func.IsFunctionGroup ->
-            let printedOutput = printTypeAux benv false false func.ReturnType
-            let printedInput = 
-                if func.IsParameterLessFunction then
-                    String.Empty
+        | :? IFunctionSymbol as func ->
+            if func.IsFunctionGroup then
+                func.Name
+            else
+                let printedOutput = 
+                    let returnTy = func.ReturnType
+                    if returnTy.IsShape then // handles anonymous shapes with ctors, ex: '{ new() }'
+                        String.Empty
+                    else
+                        printTypeAux benv false false func.ReturnType
+                let printedInput = 
+                    if func.IsParameterLessFunction then
+                        String.Empty
+                    else
+                        printLogicalParameters benv func
+                if String.IsNullOrWhiteSpace(printedOutput) then
+                    printedInput
                 else
-                    printLogicalParameters benv func
-            printedInput + ": " + printedOutput
+                    printedInput + ": " + printedOutput
 
         | _ ->
-            if value.IsField || value.IsProperty then ""
+            if value.IsField || value.IsProperty then String.Empty
             else
                 printTypeAux benv false false value.Type
 

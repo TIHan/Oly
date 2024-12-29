@@ -181,7 +181,12 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
             shapeMembers
             |> ImArray.iter (fun (abstractFunc, funcs) ->
                 if funcs.IsEmpty then
-                    env.diagnostics.Error($"Shape member '{printValue env.benv abstractFunc.Formal}' does not exist on '{printType env.benv principalTyArg}'.", 10, syntaxNode)
+                    let formalAbstractFunc = abstractFunc.Formal
+                    // If the struct doesn't have an instance constructor, we will still allow it for the shape member '{ new() }' since it can technically be constructed.
+                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsAnyStruct then
+                        ()
+                    else
+                        env.diagnostics.Error($"Shape member '{printValue env.benv formalAbstractFunc}' does not exist on '{printType env.benv principalTyArg}'.", 10, syntaxNode)
                 elif funcs.Length > 1 then
                     env.diagnostics.Error($"'{printValueName abstractFunc}' has ambiguous functions.", 10, syntaxNode)                     
             )
