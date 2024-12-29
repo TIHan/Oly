@@ -793,7 +793,7 @@ let bindAnonymousShapeType (cenv: cenv) (env: BinderEnvironment) (tyPars: TypePa
             ||> ImArray.fold (fun env tyPar ->
                 scopeInTypeParameter env tyPar
             )
-    let entBuilder = EntitySymbolBuilder.CreateAnonymousShape(currentEnclosing env, cenv.asm)
+    let entBuilder = EntitySymbolBuilder.CreateAnonymousShape(cenv.asm)
     let env = env.SetEnclosing(entBuilder.Entity.AsEnclosing).SetEnclosingTypeParameters(tyPars)
 
     entBuilder.SetTypeParameters(Pass0, tyPars)

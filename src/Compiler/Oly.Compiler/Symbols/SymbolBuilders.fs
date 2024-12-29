@@ -196,14 +196,8 @@ type EntitySymbolBuilder private (
     static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name, flags) =
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure, String.Empty)
 
-    static member CreateAnonymousShape(enclosing, asm) =
-        match enclosing with
-        | EnclosingSymbol.RootNamespace
-        | EnclosingSymbol.Entity _
-        | EnclosingSymbol.Local -> ()
-        | _ -> failwith "Invalid enclosing for anonymous shape."
-
-        EntitySymbolBuilder.Create(Some asm, enclosing, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
+    static member CreateAnonymousShape(asm) =
+        EntitySymbolBuilder.Create(Some asm, EnclosingSymbol.RootNamespace, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
 
 [<Sealed>]
 type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
