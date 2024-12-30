@@ -486,8 +486,6 @@ let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace -> enclosing
     | EnclosingSymbol.Witness _ -> OlyAssert.Fail("Invalid enclosing symbol")
-    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-        enclosing
     | EnclosingSymbol.Entity(ent) ->
         let rtgtEnclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
         let rtgtEnt = retargetEntity currentAsmIdent importer rtgtEnclosing ent
@@ -2100,7 +2098,8 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
                         if not ent.IsAnonymous then
                             ct.ThrowIfCancellationRequested()
                             this.AddEntity(ent.QualifiedName, ent)
-                            f(ent)//this.RetargetEntity(currentAsmIdent, ent))
+                            //f(this.RetargetEntity(currentAsmIdent, ent))
+                            f(ent)
                     | _ ->
                         ()
                 )
@@ -2110,8 +2109,8 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
                     ct.ThrowIfCancellationRequested()
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
+                   // let ent = this.RetargetEntity(currentAsmIdent, ent)
                     this.AddEntity(ent.QualifiedName, ent)
-                    f(ent)//this.RetargetEntity(currentAsmIdent, ent))
                     forEachPrimTy ty ent
                 )
         )
@@ -2121,7 +2120,11 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
             f ent
 
         // Add namespaces last as it should be populated after we tried to import other entities.
-        namespaceEnv.ForEach f //(fun namespac -> f(this.RetargetEntity(currentAsmIdent, namespac)))
+        namespaceEnv.ForEach(fun namespac -> 
+            ct.ThrowIfCancellationRequested()
+            f namespac
+           // f(this.RetargetEntity(currentAsmIdent, namespac))
+        )
 
 [<Sealed>]
 type CompilerImports private (namespaceEnv, importer) =

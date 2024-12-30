@@ -1208,6 +1208,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 
 and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefinitionHandle =
     OlyAssert.True(ent.IsFormal)
+    OlyAssert.False(if ent.IsShape then false else ent.Flags.HasFlag(EntityFlags.Retargeted))
     match cenv.cachedEntDefs.TryGetValue ent.FormalId with
     | true, res -> res
     | _ ->
