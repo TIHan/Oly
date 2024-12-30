@@ -1996,10 +1996,10 @@ let private isPossiblyNotSpecific (func: IFunctionSymbol) (targetFunc: IFunction
     if targetFunc.IsStatic && targetFunc.FunctionOverrides.IsSome then (areLogicalFunctionSignaturesEqual func targetFunc)
     else
 
-    if (func.Enclosing.IsTypeExtension && targetFunc.Enclosing.IsTypeExtension) && (areLogicalFunctionSignaturesEqual func targetFunc) then (areLogicalFunctionSignaturesEqual func targetFunc)
+    if func.Enclosing.IsTypeExtension && targetFunc.Enclosing.IsTypeExtension then (areLogicalFunctionSignaturesEqual func targetFunc)
     else
 
-    (func.IsConstructor && targetFunc.IsConstructor && areLogicalConstructorSignaturesEqual func targetFunc) 
+    func.IsConstructor && targetFunc.IsConstructor && areLogicalConstructorSignaturesEqual func targetFunc
 
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
