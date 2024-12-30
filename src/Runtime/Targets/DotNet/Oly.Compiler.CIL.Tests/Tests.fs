@@ -20577,3 +20577,100 @@ main(): () =
     |> Oly
     |> withCompile
     |> shouldRunWithExpectedOutput "5"
+
+[<Fact>]
+let ``Constraint { new() } and T() should work for struct``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M<T>(): T where T: { new() }
+
+class Example =
+    implements IExample
+
+    M<T>(): T where T: { new() } = T()
+
+struct S =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let s = example.M<S>()
+    print(s.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Constraint { new() } and T() should work for struct 2 - no parameterless constructor``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M<T>(): T where T: { new() }
+
+class Example =
+    implements IExample
+
+    M<T>(): T where T: { new() } = T()
+
+struct S =
+
+    new(x: int32) = { X = x }
+    X: int32 get
+
+main(): () =
+    let example = Example()
+    let s = example.M<S>()
+    print(s.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+
+[<Fact>]
+let ``Constraint { new() } and T() should work for class``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M<T>(): T where T: { new() }
+
+class Example =
+    implements IExample
+
+    M<T>(): T where T: { new() } = T()
+
+class C =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    print(c.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"

@@ -104,6 +104,85 @@ main(): () =
         )
 
 [<Fact>]
+let ``C# new() constraint on interface method 2 - uses a struct``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : new();
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: { new() } =
+        T()
+
+struct C =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    Console.Write(c.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
+
+[<Fact>]
+let ``C# new() constraint on interface method 3 - uses a struct with no parameterless constructor``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : new();
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: { new() } =
+        T()
+
+struct C =
+
+    new(x: int32) = { X = x }
+    X: int32 get
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    Console.Write(c.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "0"
+        )
+
+[<Fact>]
 let ``C# struct constraint on interface method``() =
     let csSrc =
         """

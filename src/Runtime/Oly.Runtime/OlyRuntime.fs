@@ -13,6 +13,12 @@ open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
 
+let FailExpectedInstanceForFunctionSignature() =
+    failwith "Function signature should have been an instance."
+
+let FailExpectedStaticForFunctionSignature() =
+    failwith "Function signature should have been static."
+
 let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) : OlyILTypeParameter imarray =
     let enclosingTyPars =
         match ilEntDef.Enclosing with
@@ -214,6 +220,13 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 
     if enclosingTy.IsBuiltIn then
         failwith "Expected non-built-in type."
+
+    if ilFuncDef.IsStatic then
+        if ilFuncSpec.IsInstance then
+            FailExpectedStaticForFunctionSignature()
+    else
+        if not ilFuncSpec.IsInstance then
+            FailExpectedInstanceForFunctionSignature()
 
     let genericContext = GenericContext.Default
 
@@ -523,6 +536,23 @@ let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type
     else
         V.Null(emittedTy) |> asExpr
 
+/// TODO: This isn't very efficient as we keep looping through all the function definitions. Is there a way to make this better?
+///       Do we need to make it better?
+[<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+let hasParameterlessInstanceConstructor(ilAsm: OlyILReadOnlyAssembly, ilEntDefHandle: OlyILEntityDefinitionHandle) =
+    let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
+    ilEntDef.FunctionHandles
+    |> ImArray.exists (fun ilFuncDefHandle ->
+        let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
+        ilFuncDef.IsConstructor && not ilFuncDef.IsStatic && 
+        (
+            let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+            if not ilFuncSpec.IsInstance then
+                FailExpectedInstanceForFunctionSignature()
+            ilFuncSpec.Parameters.IsEmpty
+        )
+    )
+
 let importCatchCase (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTy: RuntimeType) (ilCatchCase: OlyILCatchCase) =
     match ilCatchCase with
     | OlyILCatchCase.CatchCase(localIndex, ilBodyExpr) ->
@@ -578,6 +608,91 @@ let importSequentialExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<
 
     | _ ->
         OlyAssert.Fail("Invalid sequential expression.")
+
+let importOperationNew 
+        (cenv: cenv<'Type, 'Function, 'Field>) 
+        (env: env<'Type, 'Function, 'Field>)
+        (irTextRange: OlyIRDebugSourceTextRange) 
+        (ilFuncInst: OlyILFunctionInstance) 
+        (ilArgs: OlyILExpression imarray) =
+    let inline asExpr irOp = E.Operation(irTextRange, irOp)
+
+    let func = cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
+
+    OlyAssert.True(func.Flags.IsConstructor)
+    OlyAssert.True(func.Flags.IsInstance)
+
+    let parTys =
+        func.Parameters
+        |> ImArray.map (fun x -> x.Type)
+    let irArgs = ilArgs |> ImArray.mapi (fun i ilArg -> importArgumentExpression cenv env parTys.[i] ilArg)
+
+    let enclosingTy = func.EnclosingType
+
+    if enclosingTy.IsNewtype then
+        irArgs[0], enclosingTy.RuntimeType.Value
+    else
+
+    let emittedFunc = cenv.EmitFunction(func)
+    let emittedEnclosingTy = cenv.EmitType(enclosingTy)
+
+    let irFunc = OlyIRFunction(emittedFunc, func)
+    let newExpr = O.New(irFunc, irArgs, emittedEnclosingTy) |> asExpr
+
+    if func.EnclosingType.Formal <> env.Function.EnclosingType.Formal then
+        match cenv.TryGetCallStaticConstructorExpression(func) with
+        | Some callStaticCtorExpr ->
+            E.Sequential(
+                callStaticCtorExpr,
+                newExpr
+            ), enclosingTy
+        | _ ->
+            newExpr, enclosingTy
+    else
+        newExpr, enclosingTy
+
+/// This implementation is largely driven by the behavior in .NET even though Oly tries to be platform agnostic.
+let importOperationNewOrDefault
+        (cenv: cenv<'Type, 'Function, 'Field>) 
+        (env: env<'Type, 'Function, 'Field>)
+        (irTextRange: OlyIRDebugSourceTextRange) 
+        (ilFuncInst: OlyILFunctionInstance) 
+        (ilArgs: OlyILExpression imarray) =
+    let inline asExpr irOp = E.Operation(irTextRange, irOp)
+
+    // '{ new() }' shape works for structs that have no parameterless instance constructor.
+    if ilArgs.IsEmpty && ilFuncInst.Enclosing.IsWitness then
+        match ilFuncInst with
+        | OlyILFunctionInstance(OlyILEnclosing.Witness(OlyILTypeVariable _ as ilEnclosingTy, ilEnclosingAbstractEntInst), ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) 
+                when ilFuncTyArgs.IsEmpty && ilWitnesses.IsEmpty ->
+            let isShape = 
+                match ilEnclosingAbstractEntInst with
+                // Shapes can only be entity definitions.
+                | OlyILEntityInstance.OlyILEntityInstance(ilHandle, _) when ilHandle.Kind = OlyILTableKind.EntityDefinition ->
+                    let ilEntDef = env.ILAssembly.GetEntityDefinition(ilHandle)
+                    ilEntDef.Kind = OlyILEntityKind.Shape
+                | _ -> 
+                    false
+            if isShape then
+                let ilFuncSpec = env.ILAssembly.GetFunctionSpecification(ilFuncSpecHandle)
+                OlyAssert.True(ilFuncSpec.IsInstance)
+
+                // TODO: Verify that the function is an instance constructor with no parameters on the abstract entity instance.
+
+                let enclosingTy = cenv.ResolveType(env.ILAssembly, ilEnclosingTy, env.GenericContext)
+                if enclosingTy.IsTypeVariable then
+                    let newExpr = O.NewOrDefaultOfTypeVariable(cenv.EmitType(enclosingTy)) |> asExpr
+                    newExpr, enclosingTy
+                elif enclosingTy.IsAnyStruct && not(hasParameterlessInstanceConstructor(cenv.GetILAssembly(enclosingTy.AssemblyIdentity), enclosingTy.ILEntityDefinitionHandle)) then
+                    createDefaultExpression irTextRange (enclosingTy, cenv.EmitType(enclosingTy)), enclosingTy
+                else
+                    importOperationNew cenv env irTextRange ilFuncInst ilArgs
+            else
+                importOperationNew cenv env irTextRange ilFuncInst ilArgs
+        | _ ->
+            importOperationNew cenv env irTextRange ilFuncInst ilArgs
+    else
+        importOperationNew cenv env irTextRange ilFuncInst ilArgs
 
 let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let resolveFunction (ilFuncInst: OlyILFunctionInstance) =
@@ -1429,39 +1544,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.CallIndirect(emittedArgTys, irFunArg, irArgs, emittedReturnTy) |> asExpr, returnTy
 
         | OlyILOperation.New(ilFuncInst, ilArgs) ->
-            let func = cenv.ResolveFunction(env.ILAssembly, ilFuncInst, env.GenericContext, env.PassedWitnesses)
-
-            OlyAssert.True(func.Flags.IsConstructor)
-            OlyAssert.True(func.Flags.IsInstance)
-
-            let parTys =
-                func.Parameters
-                |> ImArray.map (fun x -> x.Type)
-            let irArgs = ilArgs |> ImArray.mapi (fun i ilArg -> importArgumentExpression cenv env parTys.[i] ilArg)
-
-            let enclosingTy = func.EnclosingType
-
-            if enclosingTy.IsNewtype then
-                irArgs[0], enclosingTy.RuntimeType.Value
-            else
-
-            let emittedFunc = cenv.EmitFunction(func)
-            let emittedEnclosingTy = cenv.EmitType(enclosingTy)
-
-            let irFunc = OlyIRFunction(emittedFunc, func)
-            let newExpr = O.New(irFunc, irArgs, emittedEnclosingTy) |> asExpr
-
-            if func.EnclosingType.Formal <> env.Function.EnclosingType.Formal then
-                match cenv.TryGetCallStaticConstructorExpression(func) with
-                | Some callStaticCtorExpr ->
-                    E.Sequential(
-                        callStaticCtorExpr,
-                        newExpr
-                    ), enclosingTy
-                | _ ->
-                    newExpr, enclosingTy
-            else
-                newExpr, enclosingTy
+            importOperationNewOrDefault cenv env irTextRange ilFuncInst ilArgs
 
         | OlyILOperation.Call(ilFuncInst, ilArgs) ->
             let constrainedTy =
@@ -2902,6 +2985,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member this.ResolveFunctionDefinition(enclosingTy: RuntimeType, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
         resolveFunctionDefinition enclosingTy ilFuncDefHandle
 
+    /// REVIEW: If the enclosing is a witness of a shape for a type variable, then calling this will fail. The reason being is that we haven't figured out
+    ///         a good way to represent calling the shape's function for a type variable.
+    ///         Technically, we do handle one case and that is '{ new() }'; see 'importOperationNewOrDefault'.
+    ///         A possible representation would look like something you would see in a dynamic type system.
     member this.ResolveFunction(ilAsm: OlyILReadOnlyAssembly, ilFuncInst: OlyILFunctionInstance, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray) : RuntimeFunction =
         let vm = this
         match ilFuncInst with

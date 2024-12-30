@@ -311,6 +311,16 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | NewArray of                   elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
     | NewFixedArray of              length: int * elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
 
+    /// This is specialized in that this operation will only exist if the result type is a type variable.
+    /// Rules:
+    ///     1. The target platform must support generics.
+    ///     2. Result type of the operation is a type variable.
+    ///     3. During execution, if the type variable is substituted with a type struct that contains a parameterless instance constructor, call it.
+    ///     4. During execution, if the type variable is substituted with a struct that does not contain a parameterless instance constructor, then initialize memory for the struct with all bytes to zero.
+    ///     5. During execution, if the type variable is not substituted with a type struct or type variable, call the type's parameterless instance constructor.
+    ///     6. Violation of any of the above rules will result in undefined behavior.
+    | NewOrDefaultOfTypeVariable of resultTy: 'Type
+
     | Witness of                    body: OlyIRExpression<'Type, 'Function, 'Field> * witnessTy: 'Type * resultTy: 'Type
     | Ignore of                     arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
 
@@ -413,7 +423,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
                 else
                     indexArgs[index - 1]
 
-        | CallStaticConstructor _ ->
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ ->
             raise(IndexOutOfRangeException())
 
     member inline this.ForEachArgument ([<InlineIfLambda>] f) =
@@ -493,7 +504,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
                 f (i + 1) indexArgs[i]
             f (indexArgs.Length + 1) arg
 
-        | CallStaticConstructor _ -> ()
+        | CallStaticConstructor _ 
+        | NewOrDefaultOfTypeVariable _ -> ()
 
     member inline this.MapArguments ([<InlineIfLambda>] mapper: int -> OlyIRExpression<_, _, _> -> OlyIRExpression<_, _, _>) : OlyIRExpression<_, _, _> imarray =
         let args = ImArray.builderWithSize this.ArgumentCount
@@ -587,7 +599,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | StoreArrayElement(receiver=_;indexArgs=indexArgs;arg=_) ->
             indexArgs.Length + 2
 
-        | CallStaticConstructor _ -> 0
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ -> 0
 
     member this.GetArguments() =
         let builder = ImArray.builderWithSize this.ArgumentCount
@@ -715,7 +728,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | StoreArrayElement(receiver=_;indexArgs=indexArgs;arg=_) ->
             StoreArrayElement(newArgs[0], newArgs.RemoveAt(newArgs.Length - 1).RemoveAt(0), newArgs[newArgs.Length - 1], this.ResultType)
 
-        | CallStaticConstructor _ ->
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ ->
             this
 
     member this.WithResultType(resultTy) =
@@ -786,6 +800,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | NewFixedArray(length, elementTy, kind, args, resultTy) ->
             NewFixedArray(length, elementTy, kind, args, resultTy)
 
+        | NewOrDefaultOfTypeVariable(_) -> NewOrDefaultOfTypeVariable(resultTy)
+
     member this.ResultType =
         match this with
         | CallStaticConstructor(resultTy=resultTy)
@@ -843,6 +859,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Cast(resultTy=resultTy)
         | NewArray(resultTy=resultTy) 
         | NewFixedArray(resultTy=resultTy)
+        | NewOrDefaultOfTypeVariable(resultTy=resultTy)
         | Ignore(resultTy=resultTy) -> resultTy
 
     override this.ToString() =

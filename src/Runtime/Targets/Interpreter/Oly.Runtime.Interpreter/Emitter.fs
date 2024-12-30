@@ -1551,6 +1551,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
                     irFunc.EmittedFunction)
                 |> stack.Push
 
+            | InterpreterOperation.NewOrDefaultOfTypeVariable _ ->
+                raise(System.NotSupportedException())
+
             | _ ->
                 raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
 

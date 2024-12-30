@@ -1,16 +1,17 @@
 ﻿module Oly.Runtime.Clr.Emitter
 
 open System
-open Oly.Core
-open Oly.Platform.Clr.Metadata
+open System.Collections.Generic
+open System.Collections.Concurrent
 open System.Reflection
-open System.Reflection.PortableExecutable
 open System.Reflection.Metadata
 open System.Reflection.Metadata.Ecma335
+open Oly.Core
 open Oly.Metadata
 open Oly.Runtime
 open Oly.Runtime.CodeGen
 open Oly.Runtime.CodeGen.Patterns
+open Oly.Platform.Clr.Metadata
 open ClrPatterns
 
 [<RequireQualifiedAccess>]
@@ -393,6 +394,8 @@ type BlobBuilder with
 
 module rec ClrCodeGen =
 
+    
+
     [<NoEquality;NoComparison>]
     type g =
         {
@@ -423,7 +426,26 @@ module rec ClrCodeGen =
             ``Object_.ctor``: ClrMethodHandle
 
             ``DebuggerBrowsable.ctor``: ClrMethodHandle
+
+            ``Activator_CreateInstance`1``: ClrMethodHandle
+
+            // Caches
+            ActivatorCreateInstanceCacheLock: obj
+            ActivatorCreateInstanceCache: ConcurrentDictionary<ClrTypeHandle, ClrMethodHandle>
         }
+
+        member this.GetActivatorCreateInstance(asm: ClrAssemblyBuilder, tyHandle: ClrTypeHandle) =
+            match this.ActivatorCreateInstanceCache.TryGetValue(tyHandle) with
+            | true, result -> result
+            | _ ->
+                lock this.ActivatorCreateInstanceCacheLock (fun () ->
+                    match this.ActivatorCreateInstanceCache.TryGetValue(tyHandle) with
+                    | true, result -> result
+                    | _ ->
+                        let result = asm.AddMethodSpecification(this.``Activator_CreateInstance`1``, ImArray.createOne tyHandle)
+                        this.ActivatorCreateInstanceCache[tyHandle] <- result
+                        result
+                )
 
     [<NoEquality;NoComparison>]
     type cenv =
@@ -1385,6 +1407,11 @@ module rec ClrCodeGen =
 
         | O.CallConstrained(constrainedTy, irFunc, irArgs, _) ->
             GenCall cenv env prevEnv.isReturnable irFunc.EmittedFunction.AsDefinition irArgs false (ValueSome constrainedTy)
+
+        | O.NewOrDefaultOfTypeVariable(resultTy) ->
+            OlyAssert.True(resultTy.IsTypeVariable)
+            let methHandle = cenv.g.GetActivatorCreateInstance(cenv.assembly, resultTy.Handle)
+            I.Call(methHandle, 0) |> emitInstruction cenv
 
     let GenValue (cenv: cenv) env (irValue: V<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irValue with
@@ -2350,6 +2377,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.AnsiClass ||| TypeAttributes.BeforeFieldInit
                 tyDef.Handle
 
+            let ``Activator_CreateInstance`1`` =
+                vm.TryFindFunction(("System.Activator", 0), "CreateInstance", 1, 0, OlyFunctionKind.Static).Value.AsDefinition.handle
+
             g <-
                 {
                     ``Attribute`` = ``Attribute``
@@ -2378,6 +2408,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
                     ``Object_.ctor`` = objectCtor
                     ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
+                    ``Activator_CreateInstance`1`` = ``Activator_CreateInstance`1``
+
+                    ActivatorCreateInstanceCacheLock = obj()
+                    ActivatorCreateInstanceCache = ConcurrentDictionary()
                 } : ClrCodeGen.g
 
         member this.EmitTypeArray(elementTy: ClrTypeInfo, rank, _kind): ClrTypeInfo =
