@@ -468,6 +468,13 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
+            let ent =
+                // If we are trying to retarget a retargeted entity,
+                // then retarget the original.
+                if ent.Flags.HasFlag(EntityFlags.Retargeted) then
+                    (ent :?> RetargetedEntitySymbol).Original
+                else
+                    ent
             let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
             importer.SetEntity(qualName, rtgtEnt)
             // We do this to stop infinite recursion from happenening.
@@ -479,6 +486,8 @@ let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace -> enclosing
     | EnclosingSymbol.Witness _ -> OlyAssert.Fail("Invalid enclosing symbol")
+    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
+        enclosing
     | EnclosingSymbol.Entity(ent) ->
         let renclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
         let rent = retargetEntity currentAsmIdent importer renclosing ent
