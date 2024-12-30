@@ -2052,6 +2052,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
             | EnclosingSymbol.Entity(enclosingEnt) when enclosingEnt.IsNamespace ->
                 let namespaceBuilder = importNamespace namespaceEnv enclosingEnt.FullNamespacePath
                 let rent = retargetEntity currentAsmIdent this (EnclosingSymbol.Entity(namespaceBuilder.Entity)) ent
+                OlyAssert.True(rent.Flags.HasFlag(EntityFlags.Retargeted))
                 namespaceBuilder.AddEntity(rent, rent.LogicalTypeParameterCount)
                 this.HandleEntity(rent)
             | _ ->

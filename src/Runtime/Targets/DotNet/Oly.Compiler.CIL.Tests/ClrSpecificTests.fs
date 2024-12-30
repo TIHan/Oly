@@ -8414,10 +8414,10 @@ extension ArrayDotNetExtensions<T> =
     AsSpan(): ReadOnlySpan<T> = AsMutable(this).AsReadOnlySpan()
 
 #[open]
-extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
+extension ArrayCastDotNetExtensions<T> where T: struct, ValueType, { new() } =
     inherits T[]
 
-    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = 
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = 
         Span<_>.op_Implicit(MemoryMarshal.Cast(AsMutable(this).AsSpan()))
 
 main(): () =
