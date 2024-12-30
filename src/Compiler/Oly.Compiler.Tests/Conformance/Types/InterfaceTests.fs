@@ -797,7 +797,7 @@ class A =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("'ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+            ("'M' type parameter constraints do not match its overriden function.\nExpected: M<T>(): () where T: trait ISee\nActual: M<T>(): () where T: ISee",
                 """
     M<T>(): () where T: ISee = ()
     ^
@@ -822,7 +822,7 @@ class A =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("'trait ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+            ("'M' type parameter constraints do not match its overriden function.\nExpected: M<T>(): () where T: ISee\nActual: M<T>(): () where T: trait ISee",
                 """
     M<T>(): () where T: trait ISee = ()
     ^

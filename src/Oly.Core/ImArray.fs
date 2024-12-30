@@ -43,6 +43,9 @@ module ImArray =
     let inline createTwo (item1: 'T) (item2: 'T) : imarray<_> =
         imarray.Create(item1, item2)
 
+    let inline createThree (item1: 'T) (item2: 'T) (item3: 'T) : imarray<_> =
+        imarray.Create(item1, item2, item3)
+
     [<GeneralizableValue>]
     let empty<'T> = ImmutableArray<'T>.Empty
 

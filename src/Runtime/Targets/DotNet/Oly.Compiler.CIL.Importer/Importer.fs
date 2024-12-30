@@ -500,7 +500,7 @@ module internal rec Helpers =
         | _ ->
             failwith "Invalid handle kind."
 
-    let tryImportConstraintAsOlyILConstraint (cenv: cenv) (constrHandle: GenericParameterConstraintHandle) =
+    let importConstraintAsOlyILConstraints (cenv: cenv) (constrHandle: GenericParameterConstraintHandle) : OlyILConstraint imarray =
         let reader = cenv.reader
 
         let constr = reader.GetGenericParameterConstraint(constrHandle)
@@ -510,18 +510,19 @@ module internal rec Helpers =
         | OlyILTypeModified(olyModifierTy, olyTy) ->
             if OlyTypeName.Check(olyModifierTy, cenv.olyAsm, "System.Runtime.InteropServices", "UnmanagedType") &&
                 OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
-                OlyILConstraint.Unmanaged
-                |> Some
+                (OlyILConstraint.SubtypeOf(olyTy), OlyILConstraint.Struct, OlyILConstraint.Unmanaged)
+                |||> ImArray.createThree
+                
             else
                 OlyILConstraint.SubtypeOf(olyTy)
-                |> Some
+                |> ImArray.createOne
         | _ ->
             if OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
-                OlyILConstraint.Struct
-                |> Some
+                (OlyILConstraint.SubtypeOf(olyTy), OlyILConstraint.Struct)
+                ||> ImArray.createTwo
             else
                 OlyILConstraint.SubtypeOf(olyTy)
-                |> Some
+                |> ImArray.createOne
 
     let importGenericParametersAsOlyILTypeParameters (cenv: cenv) (genericParHandles: GenericParameterHandleCollection) =
         let olyAsm = cenv.olyAsm
@@ -533,9 +534,16 @@ module internal rec Helpers =
 
                 let olyConstrs =
                     genericPar.GetConstraints().ToImmutableArray()
-                    |> ImArray.choose (fun constrHandle ->
-                        tryImportConstraintAsOlyILConstraint cenv constrHandle
+                    |> ImArray.map (fun constrHandle ->
+                        importConstraintAsOlyILConstraints cenv constrHandle
                     )
+                    |> ImArray.concat
+
+                let olyConstrs =
+                    if genericPar.Attributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint) then
+                        olyConstrs.Add(OlyILConstraint.NotStruct)
+                    else
+                        olyConstrs
 
                 let olyConstrs =
                     if genericPar.Attributes.HasFlag(GenericParameterAttributes.DefaultConstructorConstraint) then

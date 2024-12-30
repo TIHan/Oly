@@ -397,14 +397,19 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
 
                         (func.TypeParameters, overridenFunc.TypeParameters)
                         ||> ImArray.tryIter2 (fun tyPar1 tyPar2 ->
+                            let mutable constraintsMatch = true
+
                             if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
                                 (tyPar1.Constraints, tyPar2.Constraints)
                                 ||> ImArray.iter2 (fun constr1 constr2 ->
                                     if not(areConstraintsEqualWith Indexable constr1 constr2) then
-                                        cenv.diagnostics.Error($"'{printConstraint env.benv constr1}' constraint does not exist on the overriden function's type parameter '{printType env.benv tyPar2.AsType}'.", 10, syntax.Identifier)
+                                        constraintsMatch <- false
                                 )
                             else
-                                cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.", 10, syntax.Identifier)
+                                constraintsMatch <- false
+
+                            if not constraintsMatch then
+                                cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.\nExpected: {printValue env.benv overridenFunc}\nActual: {printValue env.benv func}", 10, syntax.Identifier)
                         )
 
                         let isExported = func.IsExported

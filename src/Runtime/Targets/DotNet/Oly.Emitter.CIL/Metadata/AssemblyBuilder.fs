@@ -437,6 +437,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let metadataBuilder = MetadataBuilder()
     let pdbBuilder = ClrPdbBuilder()
 
+    let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (EntityHandle * EntityHandle), EntityHandle>()
+
     // TODO: This assembly name equality is probably not entirely correct.
     let asmRefComparer =
         { new IEqualityComparer<AssemblyName> with
@@ -810,8 +812,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member val TypeReferenceVoid: ClrTypeHandle = sysTy "Void" false
     member val TypeReferenceObject: ClrTypeHandle = sysTyObject
-    member val TypeReferenceValueType: ClrTypeHandle = sysTy "ValueType" false
-    member val TypeReferenceEnum: ClrTypeHandle = sysTy "Enum" false
     member val TypeReferenceByte: ClrTypeHandle = sysTy "Byte" true
     member val TypeReferenceSByte: ClrTypeHandle = sysTy "SByte" true
     member val TypeReferenceInt16: ClrTypeHandle = sysTy "Int16" true
@@ -1082,6 +1082,22 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
                 metadataBuilder.AddTypeSpecification(metadataBuilder.GetOrAddBlob(signature))
         handle
+
+    member internal this.AddModReq(modifierHandle: ClrTypeHandle, tyHandle: ClrTypeHandle) : EntityHandle =
+        let key = struct(modifierHandle.EntityHandle, tyHandle.EntityHandle)
+        match typeCache_ModReq.TryGetValue(key) with
+        | true, result -> result
+        | _ ->
+            let signature = BlobBuilder()
+            let mutable encoder = BlobEncoder(signature)
+            let mutable encoder = encoder.TypeSpecificationSignature()
+            encoder.CustomModifiers().AddModifier(modifierHandle.EntityHandle, false)
+            |> ignore
+            MetadataHelpers.encodeType(encoder, tyHandle, this)
+            let result: EntityHandle = 
+                TypeSpecificationHandle.op_Implicit(metadataBuilder.AddTypeSpecification(metadataBuilder.GetOrAddBlob(signature)))
+            typeCache_ModReq[key] <- result
+            result
 
     member internal this.EnqueueOverride(f) =
         overrideQueue.Enqueue(f)
@@ -1457,13 +1473,14 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         valueTupleTy, createMemRef realHandle name signature
 
-    member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct) =
-        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, isStruct, false)
+    member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct, baseTypeHandle) =
+        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, isStruct, false, baseTypeHandle)
         tyDefQueue.Enqueue(fun () -> tyDefBuilder.Handle.EntityHandle |> ignore)
         tyDefBuilder
-
-    member this.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int) =
-        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, false, true)
+        
+    /// TODO: Remove this and just use CreateTypeDefinitionBuilder.
+    member this.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, baseTypeHandle) =
+        let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, false, true, baseTypeHandle)
         tyDefQueue.Enqueue(fun () -> tyDefBuilder.Handle.EntityHandle |> ignore)
         tyDefBuilder
 
@@ -1565,6 +1582,7 @@ type ClrTypeParameter =
     {
         Name: string
         Constraints: ClrTypeConstraint imarray
+        Flags: GenericParameterAttributes
     }
 
 [<Sealed>]
@@ -2551,12 +2569,18 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 for i = 0 to tyPars.Length - 1 do
                     let tyPar = tyPars.[i]
                     let name = metadataBuilder.GetOrAddString(tyPar.Name)
-                    let handle = metadataBuilder.AddGenericParameter(castedHandle, GenericParameterAttributes.None, name, enclosingTyParCount + i)
+                    let handle = metadataBuilder.AddGenericParameter(castedHandle, tyPar.Flags, name, enclosingTyParCount + i)
                     tyPar.Constraints
                     |> ImArray.iter (fun constr ->
                         match constr with
                         | ClrTypeConstraint.SubtypeOf(tyHandle) ->
-                            metadataBuilder.AddGenericParameterConstraint(handle, tyHandle.EntityHandle)
+                            let entHandle =
+                                match tyHandle with
+                                | ClrTypeHandle.ModReq(modifierHandle, tyHandle) ->
+                                    asmBuilder.AddModReq(modifierHandle, tyHandle)
+                                | _ ->
+                                    tyHandle.EntityHandle
+                            metadataBuilder.AddGenericParameterConstraint(handle, entHandle)
                             |> ignore
                     )
             if not tyPars.IsEmpty then
@@ -2640,7 +2664,7 @@ type ClrPropertyDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, name
 
 [<Sealed>]
 [<DebuggerDisplay("{FullyQualifiedName}")>]
-type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyParCount: int, isValueType: bool, isEnum: bool) as this =
+type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosingTyHandle: ClrTypeHandle, namespac: string, name: string, tyParCount: int, isValueType: bool, isEnum: bool, baseTypeHandle: ClrTypeHandle) as this =
 
     let fullyQualifiedName =
         if enclosingTyHandle.IsNamed then
@@ -2674,9 +2698,9 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
     member _.FullyQualifiedName = fullyQualifiedName
 
     member val Attributes = TypeAttributes() with get, set
-
-    member val BaseType = (if isValueType then asmBuilder.TypeReferenceValueType elif isEnum then asmBuilder.TypeReferenceEnum else asmBuilder.TypeReferenceObject) with get, set
     member val InterfaceImplementations: ClrTypeHandle imarray = ImArray.empty with get, set
+
+    member val BaseType = baseTypeHandle with get, set
 
     member _.FindField(name: string) = fieldDefs |> Seq.find (fun (x, _) -> x = name) |> snd
 

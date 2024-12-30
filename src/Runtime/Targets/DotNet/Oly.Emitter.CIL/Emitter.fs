@@ -396,6 +396,11 @@ module rec ClrCodeGen =
     [<NoEquality;NoComparison>]
     type g =
         {
+            ``Attribute``:    ClrTypeInfo
+            ``Enum``:         ClrTypeInfo
+            ``IsUnmanagedAttribute``: ClrTypeHandle
+            ``UnmanagedType``: ClrTypeInfo
+            ``ValueType``:    ClrTypeInfo
             ``ValueTuple``:   ClrTypeInfo
             ``ValueTuple`1``: ClrTypeInfo
             ``ValueTuple`2``: ClrTypeInfo
@@ -562,11 +567,10 @@ module rec ClrCodeGen =
 
         asmBuilder.AddBlob(b)
 
-    let createScopedFunctionTypeDefinition (asmBuilder: ClrAssemblyBuilder) name =
-        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true)
+    let createScopedFunctionTypeDefinition (g: g) (asmBuilder: ClrAssemblyBuilder) name =
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true, g.ValueType.Handle)
 
         tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
-        tyDef.BaseType <- asmBuilder.TypeReferenceValueType
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceIntPtr) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
@@ -595,10 +599,9 @@ module rec ClrCodeGen =
 
     let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) name invokeParTys invokeReturnTy =
 
-        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false)
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, false, asmBuilder.MulticastDelegate)
 
         tyDef.Attributes <- TypeAttributes.Sealed
-        tyDef.BaseType <- asmBuilder.MulticastDelegate
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
@@ -1502,7 +1505,7 @@ module rec ClrCodeGen =
             else
                 let argTy0 = irArgs.[0].ResultType
                 if isVirtual && func.IsInstance then
-                    if argTy0.IsByRefOfTypeVariable || (argTy0.IsByRefOfStruct && (not func.enclosingTyHandle.IsValueType || (func.enclosingTyHandle = cenv.assembly.TypeReferenceValueType))) then
+                    if argTy0.IsByRefOfTypeVariable || (argTy0.IsByRefOfStruct && (not func.enclosingTyHandle.IsValueType || (func.enclosingTyHandle = cenv.g.ValueType.Handle))) then
                         match argTy0.TryByRefElementType with
                         | ValueSome(elementTy) ->
                             I.Constrained(elementTy.Handle) |> emitInstruction cenv
@@ -2126,22 +2129,46 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         fun () -> System.Threading.Interlocked.Increment i
 
     let newUniquePrivateTypeName () =
-        "__oly_unique_" + string (newUniqueId ())
+        "__oly_unique" + string (newUniqueId ())
 
-    let convertTyPars (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) =
+    let convertTyPars (g: ClrCodeGen.g) (tyPars: OlyIRTypeParameter<ClrTypeInfo> imarray) =
         tyPars
         |> ImArray.map (fun x -> 
+            let mutable flags = GenericParameterAttributes.None
+            let constrs =
+                x.Constraints
+                |> ImArray.choose (function
+                    | OlyIRConstraint.SubtypeOf(ty) ->
+                        if ty.IsShape_t then
+                            flags <- flags ||| GenericParameterAttributes.DefaultConstructorConstraint
+                            None
+                        else
+                            if g.ValueType.Handle = ty.Handle then
+                                let isUnmanaged =
+                                    x.Constraints
+                                    |> ImArray.exists (fun x -> match x with OlyIRConstraint.Unmanaged -> true | _ -> false)
+                                if isUnmanaged then
+                                    ClrTypeConstraint.SubtypeOf(ClrTypeHandle.ModReq(g.UnmanagedType.Handle, ty.Handle))
+                                    |> Some
+                                else
+                                    ClrTypeConstraint.SubtypeOf(ty.Handle)
+                                    |> Some
+                            else
+                                ClrTypeConstraint.SubtypeOf(ty.Handle)
+                                |> Some
+                    | OlyIRConstraint.Struct ->
+                        flags <- flags ||| GenericParameterAttributes.NotNullableValueTypeConstraint
+                        None
+                    | OlyIRConstraint.NotStruct ->
+                        flags <- flags ||| GenericParameterAttributes.ReferenceTypeConstraint
+                        None
+                    | _ ->
+                        None
+                )
             {
                 Name = x.Name
-                Constraints =
-                    x.Constraints
-                    |> ImArray.choose (function
-                        | OlyIRConstraint.SubtypeOf(ty) when not ty.IsShape_t ->
-                            ClrTypeConstraint.SubtypeOf(ty.Handle)
-                            |> Some
-                        | _ ->
-                            None
-                    )
+                Constraints = constrs
+                Flags = flags
             } : ClrTypeParameter
         )
 
@@ -2209,8 +2236,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         asmBuilder.AddGenericInstanceTypeReference(tyHandle, tyArgs)
     
     let createMulticastDelegateTypeDefinition (asmBuilder: ClrAssemblyBuilder) enclosingTyHandle invokeParTys invokeReturnTy =
-        let name = "__oly_delegate_" + (newUniqueId().ToString())
-        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false)
+        let name = "__oly_delegate" + (newUniqueId().ToString())
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false, asmBuilder.TypeReferenceObject)
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
@@ -2226,7 +2253,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
     let lazyScopedFunc =
         lazy
             let name = "__oly_scoped_func"
-            let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition asmBuilder name
+            let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition g asmBuilder name
             ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
     
     let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
@@ -2266,6 +2293,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             | None -> failwith "System.ValueTuple not found."
             | Some(result) ->
 
+            let ``Attribute`` = vm.TryFindType("System.Attribute").Value
+            let ``Enum`` = vm.TryFindType("System.Enum").Value
+            let ``UnmanagedType`` = vm.TryFindType("System.Runtime.InteropServices.UnmanagedType").Value
+            let ``ValueType`` = vm.TryFindType("System.ValueType").Value
             let ``ValueTuple`` = vm.TryFindType("System.ValueTuple", 0).Value
             let ``ValueTuple`1`` = vm.TryFindType("System.ValueTuple", 1).Value
             let ``ValueTuple`2`` = result
@@ -2304,8 +2335,28 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | Some x -> x.AsDefinition.handle
                 | _ -> failwith "Unable to find 'System.Diagnostics.DebuggerBrowsableAttribute..ctor'"
 
+
+            let ``IsUnmanagedAttribute`` =
+                // TODO: This isn't finished.
+                let tyDef = 
+                    asmBuilder.CreateTypeDefinitionBuilder(
+                        ClrTypeHandle.Empty, 
+                        "System.Runtime.CompilerServices", 
+                        "IsUnmanagedAttribute", 
+                        0, 
+                        false,
+                        ``Attribute``.Handle
+                    )
+                tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.AnsiClass ||| TypeAttributes.BeforeFieldInit
+                tyDef.Handle
+
             g <-
                 {
+                    ``Attribute`` = ``Attribute``
+                    ``Enum`` = ``Enum``
+                    ``IsUnmanagedAttribute`` = ``IsUnmanagedAttribute``
+                    ``UnmanagedType`` = ``UnmanagedType``
+                    ``ValueType`` = ``ValueType``
                     ``ValueTuple`` = ``ValueTuple``
                     ``ValueTuple`1`` = ``ValueTuple`1``
                     ``ValueTuple`2`` = ``ValueTuple`2``
@@ -2571,15 +2622,15 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     // Enum -> System.Enum
                     // TODO: We should not have to do this.
                     if isStruct && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
-                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceValueType, false, false))
+                        ImArray.createOne (ClrTypeInfo.TypeReference(g.ValueType.Handle, false, false))
                     elif isEnum && extends.Length = 1 && extends[0].Handle = asmBuilder.TypeReferenceObject then
-                        ImArray.createOne (ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceEnum, false, false))
+                        ImArray.createOne (ClrTypeInfo.TypeReference(g.Enum.Handle, false, false))
                     else
                         extends
 
             let isExported = flags.IsExported
 
-            let tyPars = convertTyPars irTyPars
+            let tyPars = convertTyPars g irTyPars
 
             let tyDefBuilder = tyDef.TypeDefinitionBuilder
 
@@ -2644,7 +2695,6 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
                     layout ||| TypeAttributes.BeforeFieldInit
                 elif isInterface then
-                    tyDefBuilder.BaseType <- ClrTypeHandle.Empty
                     TypeAttributes.Interface
                 else
                     TypeAttributes.Class ||| TypeAttributes.BeforeFieldInit
@@ -2695,7 +2745,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 let extendedTy = extends |> Seq.exactlyOne
                 // ** INSTANCE GENERATION **
 
-                let instanceTyDefBuilder = asmBuilder.CreateTypeDefinitionBuilder(tyDefBuilder.Handle, "", "__oly_instance", tyPars.Length, false)
+                let instanceTyDefBuilder = asmBuilder.CreateTypeDefinitionBuilder(tyDefBuilder.Handle, "", "__oly_instance", tyPars.Length, false, asmBuilder.TypeReferenceObject)
                 instanceTyDefBuilder.SetTypeParameters(tyPars)
                 instanceTyDefBuilder.Attributes <- TypeAttributes.Class ||| TypeAttributes.NestedPublic
                 if not implements.IsEmpty then
@@ -2792,9 +2842,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
 
             let tyDefBuilder = 
                 if isEnum then
-                    asmBuilder.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount)
+                    asmBuilder.CreateEnumTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, g.Enum.Handle)
+                elif isStruct then
+                    asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, true, g.ValueType.Handle)
+                elif isInterface then
+                    asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct, ClrTypeHandle.Empty)
                 else
-                    asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct)
+                    asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount, isStruct, asmBuilder.TypeReferenceObject)
 
             let tyFlags = 
                 if isStruct then
@@ -3113,7 +3167,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     isStatic
 
-            let tyPars = convertTyPars tyPars
+            let tyPars = convertTyPars g tyPars
                 
             let methRefHandle, methDefBuilderOpt =
                 match enclosingTy with

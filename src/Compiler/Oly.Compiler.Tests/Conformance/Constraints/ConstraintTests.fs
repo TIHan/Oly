@@ -123,7 +123,7 @@ class B =
     Oly src
     |> withErrorDiagnostics
         [
-            "'Test' type parameter constraints do not match its overriden function."
+            "'Test' type parameter constraints do not match its overriden function.\nExpected: Test<T>(): () where T: struct\nActual: Test<T>(): ()"
         ]
     |> ignore
 
@@ -144,7 +144,7 @@ class B =
     Oly src
     |> withErrorDiagnostics
         [
-            "'struct' constraint does not exist on the overriden function's type parameter 'T'."
+            "'Test' type parameter constraints do not match its overriden function.\nExpected: Test<T>(): () where T: struct\nActual: Test<T>(): () where T: struct"
         ]
     |> ignore
 

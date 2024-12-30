@@ -338,40 +338,35 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
             if Seq.isEmpty constrs then
                 None
             else
-                // TODO: This is the wrong way to print constaints. Fix this.
+                let tyParText = 
+                    let isTyCtor = tyPar.HasArity
+                    printTypeAux benv false isTyCtor tyPar.AsType
                 let constrs =
                     constrs |> Seq.map (fun constr ->
                         match constr with
                         | ConstraintSymbol.Null ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": null"
+                            "null"
                         | ConstraintSymbol.Struct ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": struct"
+                            "struct"
                         | ConstraintSymbol.NotStruct ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": not struct"
+                            "struct"
                         | ConstraintSymbol.Unmanaged ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": unmanaged"
+                            "unmanaged"
                         | ConstraintSymbol.Blittable ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": blittable"
+                            "blittable"
                         | ConstraintSymbol.Scoped ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": scoped"
+                            "scoped"
                         | ConstraintSymbol.SubtypeOf(ty) ->
                             let isTyCtor = ty.Value.IsTypeConstructor
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": " + printTypeAux benv false isTyCtor ty.Value
+                            printTypeAux benv false isTyCtor ty.Value
                         | ConstraintSymbol.ConstantType(ty) ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": constant " + printTypeAux benv false isTyCtor ty.Value
+                            "constant " + printTypeAux benv (* isDefinition *) false (* isTyCtor *) false ty.Value
                         | ConstraintSymbol.TraitType(ty) ->
                             let isTyCtor = ty.Value.IsTypeConstructor
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": trait " + printTypeAux benv false isTyCtor ty.Value
+                            "trait " + printTypeAux benv false isTyCtor ty.Value
                     )
-                    |> String.concat " and "
-                Some(constrs)
+                    |> String.concat ", "
+                Some(tyParText + ": " + constrs)
         )
 
     let constrs =
@@ -379,7 +374,7 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
         if Seq.isEmpty constrs then
             String.Empty
         else
-            " where " + (constrs |> String.concat " and ")
+            " where " + (constrs |> String.concat "")
 
     if tyPars.IsEmpty then
         String.Empty, String.Empty

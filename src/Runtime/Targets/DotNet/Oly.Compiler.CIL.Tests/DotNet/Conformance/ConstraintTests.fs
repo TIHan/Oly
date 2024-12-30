@@ -102,3 +102,153 @@ main(): () =
         withCompile
         >> shouldRunWithExpectedOutput "123"
         )
+
+[<Fact>]
+let ``C# struct constraint on interface method``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : struct;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: ValueType, struct, { new() } =
+        default
+
+struct S =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let s = example.M<S>()
+    Console.Write(s.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "0"
+        )
+
+[<Fact>]
+let ``C# class constraint on interface method``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void M<T>() where T : class;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): () where T: not struct = ()
+
+class C =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    Console.Write("hello")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "hello"
+        )
+
+[<Fact>]
+let ``C# unmanaged constraint on interface method``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : unmanaged;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: ValueType, struct, unmanaged, { new() } =
+        default
+
+struct S =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let s = example.M<S>()
+    Console.Write(s.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "0"
+        )
+
+[<Fact>]
+let ``Unmanaged constraint on interface method``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[export]
+interface IExample =
+
+    M<T>(): T where T: ValueType, struct, unmanaged, { new() }
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: ValueType, struct, unmanaged, { new() } =
+        default
+
+struct S =
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let s = example.M<S>()
+    Console.Write(s.X)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
