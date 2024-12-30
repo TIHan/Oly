@@ -1988,7 +1988,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
 /// Not thread safe.
 [<Sealed>]
-type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
+type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
 
     let entities: ConcurrentDictionary<QualifiedName, EntitySymbol> = ConcurrentDictionary()
 
@@ -2001,7 +2001,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
     member val AnonymousEntityCache: ConcurrentDictionary<EntitySymbol, EntitySymbol> = ConcurrentDictionary(EntitySymbolComparer())
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
-        let namespaceBuilder = importNamespace namespaceEnv ent.FullNamespacePath
+        let namespaceBuilder = importNamespace importedNamespaceEnv ent.FullNamespacePath
         ent.Entities
         |> Seq.iter (fun ent ->
             if not ent.IsNamespace then
@@ -2069,7 +2069,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
                 let rent = retargetEntity currentAsmIdent this EnclosingSymbol.RootNamespace ent
                 this.HandleEntity(rent)
             | EnclosingSymbol.Entity(enclosingEnt) when enclosingEnt.IsNamespace ->
-                let namespaceBuilder = importNamespace namespaceEnv enclosingEnt.FullNamespacePath
+                let namespaceBuilder = importNamespace importedNamespaceEnv enclosingEnt.FullNamespacePath
                 let rent = retargetEntity currentAsmIdent this (EnclosingSymbol.Entity(namespaceBuilder.Entity)) ent
                 OlyAssert.True(rent.Flags.HasFlag(EntityFlags.Retargeted))
                 namespaceBuilder.AddEntity(rent, rent.LogicalTypeParameterCount)
@@ -2087,9 +2087,9 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
             if currentAssemblies.ContainsKey(ilAsm.Identity) then
                 let cenv =
                     {
-                        namespaceEnv = namespaceEnv
+                        namespaceEnv = importedNamespaceEnv
                         ilAsm = ilAsm
-                        imports = Imports.Create(diagnostics, namespaceEnv, sharedCache)
+                        imports = Imports.Create(diagnostics, importedNamespaceEnv, sharedCache)
                     }
                 ilAsm.EntityDefinitions
                 |> Seq.iter (fun (ilEntDefHandle, _) ->
@@ -2121,7 +2121,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
             f ent
 
         // Add namespaces last as it should be populated after we tried to import other entities.
-        namespaceEnv.ForEach(fun namespac -> 
+        importedNamespaceEnv.ForEach(fun namespac -> 
             ct.ThrowIfCancellationRequested()
             f(this.RetargetEntity(currentAsmIdent, namespac))
         )

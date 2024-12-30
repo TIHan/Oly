@@ -1989,6 +1989,18 @@ let filterMostSpecificFunctionsByEnclosing (funcs: IFunctionSymbol imarray) =
     else
         filteredFuncs
 
+let private isPossiblyNotSpecific (func: IFunctionSymbol) (targetFunc: IFunctionSymbol) =
+    if targetFunc.IsVirtual then (areLogicalFunctionSignaturesEqual func targetFunc)
+    else
+
+    if targetFunc.IsStatic && targetFunc.FunctionOverrides.IsSome then (areLogicalFunctionSignaturesEqual func targetFunc)
+    else
+
+    if (func.Enclosing.IsTypeExtension && targetFunc.Enclosing.IsTypeExtension) && (areLogicalFunctionSignaturesEqual func targetFunc) then (areLogicalFunctionSignaturesEqual func targetFunc)
+    else
+
+    (func.IsConstructor && targetFunc.IsConstructor && areLogicalConstructorSignaturesEqual func targetFunc) 
+
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
     |> ImArray.filter (fun func1 ->
@@ -1997,8 +2009,7 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
             |> ImArray.exists (fun func2 ->
                 if func1.Id = func2.Id then false
                 else
-                    if (func2.IsVirtual || (func1.Enclosing.IsTypeExtension && func2.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual func1 func2) ||
-                        (func1.IsConstructor && func2.IsConstructor && areLogicalConstructorSignaturesEqual func1 func2) then
+                    if isPossiblyNotSpecific func1 func2 then
                         match func1.Enclosing.TryEntity, func2.Enclosing.TryEntity with
                         | Some ent1, Some ent2 -> 
                             if ent1.IsTypeExtension && ent2.IsTypeExtension then
@@ -2033,10 +2044,7 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
                                     else
                                         false
                                 else
-                                    if subsumesEntity ent1 ent2 then
-                                        true
-                                    else
-                                        false
+                                    subsumesEntity ent1 ent2
                         | _ -> 
                             false
                     else
