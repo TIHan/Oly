@@ -274,7 +274,7 @@ let private importCompilations (ilAsmIdent: OlyILAssemblyIdentity) (importer: Im
 
 let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
     let sharedImportCache = SharedImportCache.Create()
-    let imports = CompilerImports(sharedImportCache)
+    let imports = CompilerImports(ilAsmIdent, sharedImportCache)
     let importer = imports.Importer
     let importDiags = ImArray.builder()
 
@@ -405,7 +405,7 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let imports = CompilerImports(SharedImportCache.Create())
+        let imports = CompilerImports(state.assembly.Identity, SharedImportCache.Create())
         let importer = imports.Importer
 
         let binders1 =

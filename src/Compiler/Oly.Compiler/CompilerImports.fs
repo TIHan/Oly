@@ -476,7 +476,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
                 else
                     ent
             let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-            importer.SetEntity(qualName, rtgtEnt)
+            importer.AddEntity(qualName, rtgtEnt)
             // We do this to stop infinite recursion from happenening.
             rtgtEnt.ComputeConstraints()
             rtgtEnt
@@ -489,12 +489,12 @@ let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
         enclosing
     | EnclosingSymbol.Entity(ent) ->
-        let renclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
-        let rent = retargetEntity currentAsmIdent importer renclosing ent
-        if obj.ReferenceEquals(ent, rent) then
+        let rtgtEnclosing = retargetEnclosing currentAsmIdent importer ent.Enclosing
+        let rtgtEnt = retargetEntity currentAsmIdent importer rtgtEnclosing ent
+        if obj.ReferenceEquals(ent, rtgtEnt) then
             enclosing
         else
-            EnclosingSymbol.Entity(rent)
+            EnclosingSymbol.Entity(rtgtEnt)
 
 let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParameterSymbol imarray) (ty: TypeSymbol) =
     match ty with
@@ -1986,7 +1986,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
 /// Not thread safe.
 [<Sealed>]
-type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
+type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache) =
 
     let entities: ConcurrentDictionary<QualifiedName, EntitySymbol> = ConcurrentDictionary()
 
@@ -2043,9 +2043,17 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
     member this.TryGetEntity(qualName, rent: outref<EntitySymbol>): bool =
         entities.TryGetValue(qualName, &rent)
 
-    member this.SetEntity(qualName, rent: EntitySymbol) =
-        OlyAssert.False(rent.IsAnonymous)
-        entities[qualName] <- rent
+    member this.AddEntity(qualName, ent: EntitySymbol) =
+        OlyAssert.False(ent.IsAnonymous)
+      //  OlyAssert.False(entities.ContainsKey(qualName))
+        entities[qualName] <- ent
+
+    member this.RetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
+        match entities.TryGetValue(ent.QualifiedName) with
+        | true, ent -> ent
+        | _ -> 
+            let enclosing = retargetEnclosing currentAsmIdent this ent.Enclosing
+            retargetEntity currentAsmIdent this enclosing ent
 
     member this.ImportAndRetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
         if ent.IsNamespace then
@@ -2091,9 +2099,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                         let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                         if not ent.IsAnonymous then
                             ct.ThrowIfCancellationRequested()
-                            let qualName = ent.QualifiedName
-                            this.SetEntity(qualName, ent)
-                            f ent
+                            this.AddEntity(ent.QualifiedName, ent)
+                            f(ent)//this.RetargetEntity(currentAsmIdent, ent))
                     | _ ->
                         ()
                 )
@@ -2103,8 +2110,8 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
                     ct.ThrowIfCancellationRequested()
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
-                    let qualName = ent.QualifiedName
-                    this.SetEntity(qualName, ent)
+                    this.AddEntity(ent.QualifiedName, ent)
+                    f(ent)//this.RetargetEntity(currentAsmIdent, ent))
                     forEachPrimTy ty ent
                 )
         )
@@ -2114,7 +2121,7 @@ type Importer(namespaceEnv: NamespaceEnvironment, sharedCache: SharedImportCache
             f ent
 
         // Add namespaces last as it should be populated after we tried to import other entities.
-        namespaceEnv.ForEach(f)
+        namespaceEnv.ForEach f //(fun namespac -> f(this.RetargetEntity(currentAsmIdent, namespac)))
 
 [<Sealed>]
 type CompilerImports private (namespaceEnv, importer) =
@@ -2123,7 +2130,7 @@ type CompilerImports private (namespaceEnv, importer) =
 
     member _.Importer = importer
 
-    new(sharedCache) =
+    new(currentAsmIdent: OlyILAssemblyIdentity, sharedCache) =
         let namespaceEnv = NamespaceEnvironment.Create()
-        let importer = Importer(namespaceEnv, sharedCache)
+        let importer = Importer(currentAsmIdent, namespaceEnv, sharedCache)
         CompilerImports(namespaceEnv, importer)
