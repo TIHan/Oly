@@ -5832,6 +5832,7 @@ module SymbolHelpers =
                     let funcOpt =
                         witnessArg.Function
                         |> Option.map (fun func -> func.Substitute(tyParLookup) :?> IFunctionSymbol)
+                    OlyAssert.True(witnessArg.HasSolution)
                     let witness =
                         let witness = witnessArg.Solution.Value
                         // Important: If the witness type is a type constructor, do not substitute its values.

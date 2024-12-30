@@ -468,18 +468,22 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            let ent =
-                // If we are trying to retarget a retargeted entity,
-                // then retarget the original.
-                if ent.Flags.HasFlag(EntityFlags.Retargeted) then
-                    (ent :?> RetargetedEntitySymbol).Original
-                else
-                    ent
-            let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-            importer.AddEntity(qualName, rtgtEnt)
-            // We do this to stop infinite recursion from happenening.
-            rtgtEnt.ComputeConstraints()
-            rtgtEnt
+            if not ent.IsNamespace && (let asmIdent = ent.ContainingAssembly.Value.Identity in asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key) then
+                importer.AddEntity(qualName, ent)
+                ent
+            else
+                let ent =
+                    // If we are trying to retarget a retargeted entity,
+                    // then retarget the original.
+                    if ent.Flags.HasFlag(EntityFlags.Retargeted) then
+                        (ent :?> RetargetedEntitySymbol).Original
+                    else
+                        ent
+                let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
+                importer.AddEntity(qualName, rtgtEnt)
+                // We do this to stop infinite recursion from happenening.
+                rtgtEnt.ComputeConstraints()
+                rtgtEnt
 
 let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
     match enclosing with
@@ -2043,7 +2047,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
 
     member this.AddEntity(qualName, ent: EntitySymbol) =
         OlyAssert.False(ent.IsAnonymous)
-      //  OlyAssert.False(entities.ContainsKey(qualName))
+     //   OlyAssert.False(entities.ContainsKey(qualName))
         entities[qualName] <- ent
 
     member this.RetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
@@ -2097,9 +2101,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
                         let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                         if not ent.IsAnonymous then
                             ct.ThrowIfCancellationRequested()
-                            this.AddEntity(ent.QualifiedName, ent)
-                            //f(this.RetargetEntity(currentAsmIdent, ent))
-                            f(ent)
+                            f(this.RetargetEntity(currentAsmIdent, ent))
                     | _ ->
                         ()
                 )
@@ -2109,8 +2111,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
                     ct.ThrowIfCancellationRequested()
                     let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
                     ct.ThrowIfCancellationRequested()
-                   // let ent = this.RetargetEntity(currentAsmIdent, ent)
-                    this.AddEntity(ent.QualifiedName, ent)
+                    let ent = this.RetargetEntity(currentAsmIdent, ent)
                     forEachPrimTy ty ent
                 )
         )
@@ -2122,8 +2123,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, namespaceEnv: NamespaceEnv
         // Add namespaces last as it should be populated after we tried to import other entities.
         namespaceEnv.ForEach(fun namespac -> 
             ct.ThrowIfCancellationRequested()
-            f namespac
-           // f(this.RetargetEntity(currentAsmIdent, namespac))
+            f(this.RetargetEntity(currentAsmIdent, namespac))
         )
 
 [<Sealed>]

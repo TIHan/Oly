@@ -514,12 +514,12 @@ and solveConstraints
                     if not solved then
                         Error_MissingConstraint(env.benv, syntaxNode, tyArg, constr)
                         |> env.diagnostics.Report
+                )
 
-                        witnessArgs
-                        |> ImArray.filter (fun x -> not x.HasSolution)
-                        |> ImArray.iter (fun x ->
-                            x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
-                        )
+                witnessArgs
+                |> ImArray.filter (fun x -> not x.HasSolution)
+                |> ImArray.iter (fun x ->
+                    x.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
                 )
             | _ ->
                 OlyAssert.Fail("Expected type parameter associated with inference variable.")

@@ -9416,3 +9416,35 @@ main(): () =
     OlyWithRef refSrc src
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Equality operator should work for nint``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("unsafe_cast")]
+nint(int32): nint
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+        """
+    let src =
+        """
+main(): () =
+    print(nint(0) == nint(0))
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"

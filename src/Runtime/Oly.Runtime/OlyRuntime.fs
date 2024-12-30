@@ -4175,8 +4175,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         // This forces emitting a target function from one of the type arguments that conform with the shape constraint.
         // We need to do this to ensure we actually emit the function so that it can be used on the target platform.
-        // This is only needed for imported or exported functions.
+        // This is only needed for imported and exported functions.
         // TODO: What about the trait constraints?
+        // TODO: This handles function type parameters, but what about entity/type type parameters?
         if (func.IsExternal || func.IsExported) && (not func.TypeParameters.IsEmpty || not func.EnclosingType.TypeParameters.IsEmpty) then
             (func.TypeParameters, func.TypeArguments)
             ||> ImArray.iter2 (fun tyPar tyArg ->
@@ -4192,9 +4193,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 let func = resolveFunctionDefinition constrTy ilFuncDefHandle
                                 let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature tyArg func
                                 if funcs.IsEmpty then
-                                    failwith $"Unable to find function '{func.Name}' for '{tyArg.Name}'."
+                                    // Structs implicitly have a default ctor even if it isn't defined. It simply allocates the struct.
+                                    if tyArg.IsAnyStruct && func.Flags.IsInstance && func.Flags.IsConstructor && func.Parameters.IsEmpty then
+                                        ()
+                                    else
+                                        failwith $"Unable to find shape function '{func.Name}' for '{tyArg.Name}'."
                                 elif funcs.Length > 1 then
-                                    failwith $"'{func.Name}' has ambiguous functions for '{tyArg.Name}'."
+                                    failwith $"'{func.Name}' has ambiguous shape functions for '{tyArg.Name}'."
                                 else
                                     let targetFunc = funcs |> ImArray.head
                                     vm.EmitFunction(targetFunc) |> ignore // force emit

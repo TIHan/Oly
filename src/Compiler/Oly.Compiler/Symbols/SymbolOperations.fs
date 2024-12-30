@@ -1991,15 +1991,15 @@ let filterMostSpecificFunctionsByEnclosing (funcs: IFunctionSymbol imarray) =
 
 let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
     funcs
-    |> ImArray.filter (fun x ->
+    |> ImArray.filter (fun func1 ->
         let isNotSpecific =
             funcs
-            |> ImArray.exists (fun y ->
-                if x.Id = y.Id then false
+            |> ImArray.exists (fun func2 ->
+                if func1.Id = func2.Id then false
                 else
-                    if (y.IsVirtual || (x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual x y) ||
-                        (x.IsConstructor && y.IsConstructor && areLogicalConstructorSignaturesEqual x y) then
-                        match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
+                    if (func2.IsVirtual || (func1.Enclosing.IsTypeExtension && func2.Enclosing.IsTypeExtension)) && (areLogicalFunctionSignaturesEqual func1 func2) ||
+                        (func1.IsConstructor && func2.IsConstructor && areLogicalConstructorSignaturesEqual func1 func2) then
+                        match func1.Enclosing.TryEntity, func2.Enclosing.TryEntity with
                         | Some ent1, Some ent2 -> 
                             if ent1.IsTypeExtension && ent2.IsTypeExtension then
                                 if areTypesEqual ent1.Extends[0] ent2.Extends[0] then
@@ -2026,14 +2026,17 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
                                             let t = t: IA<int32>
                                             t.Test(123)
                                     *)
-                                    let xCount = getTotalTypeVariableUseCountFromType x.Formal.AsFunction.Type
-                                    let yCount = getTotalTypeVariableUseCountFromType y.Formal.AsFunction.Type
+                                    let xCount = getTotalTypeVariableUseCountFromType func1.Formal.AsFunction.Type
+                                    let yCount = getTotalTypeVariableUseCountFromType func2.Formal.AsFunction.Type
                                     if xCount > yCount then
                                         true
                                     else
                                         false
                                 else
-                                    subsumesEntity ent1 ent2
+                                    if subsumesEntity ent1 ent2 then
+                                        true
+                                    else
+                                        false
                         | _ -> 
                             false
                     else
@@ -2045,29 +2048,29 @@ let filterMostSpecificFunctions (funcs: IFunctionSymbol imarray) =
 
 let filterMostSpecificProperties (props: IPropertySymbol seq) =
     props
-    |> Seq.filter (fun x ->
-            let isNotSpecific =
-                props
-                |> Seq.exists (fun y ->
-                    if x.Id = y.Id then false
-                    else
-                        if ((x.Enclosing.IsTypeExtension && y.Enclosing.IsTypeExtension)) && ((x.Name = y.Name && areTypesEqual x.Type y.Type)) then
-                            match x.Enclosing.TryEntity, y.Enclosing.TryEntity with
-                            | Some ent1, Some ent2 -> 
-                                if ent1.IsTypeExtension && ent2.IsTypeExtension then
-                                    if areTypesEqual ent1.Extends[0] ent2.Extends[0] then
-                                        false
-                                    else
-                                        subsumesType ent1.Extends[0] ent2.Extends[0]
+    |> Seq.filter (fun prop1 ->
+        let isNotSpecific =
+            props
+            |> Seq.exists (fun prop2 ->
+                if prop1.Id = prop2.Id then false
+                else
+                    if ((prop1.Enclosing.IsTypeExtension && prop2.Enclosing.IsTypeExtension)) && ((prop1.Name = prop2.Name && areTypesEqual prop1.Type prop2.Type)) then
+                        match prop1.Enclosing.TryEntity, prop2.Enclosing.TryEntity with
+                        | Some ent1, Some ent2 -> 
+                            if ent1.IsTypeExtension && ent2.IsTypeExtension then
+                                if areTypesEqual ent1.Extends[0] ent2.Extends[0] then
+                                    false
                                 else
-                                    subsumesEntity ent1 ent2
-                            | _ -> 
-                                false
-                        else
+                                    subsumesType ent1.Extends[0] ent2.Extends[0]
+                            else
+                                subsumesEntity ent1 ent2
+                        | _ -> 
                             false
-                )
-            if isNotSpecific then false
-            else true
+                    else
+                        false
+            )
+        if isNotSpecific then false
+        else true
     )
 
 let distinctFunctions (funcs: IFunctionSymbol imarray) =
