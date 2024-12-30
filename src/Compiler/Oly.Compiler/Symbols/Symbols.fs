@@ -4334,6 +4334,7 @@ type TypeSymbol =
         | NativeFunctionPtr _ -> true
         | _ -> false
 
+    /// TODO: Exclude looking at type variables.
     member this.IsAnyStruct =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsAnyStruct
