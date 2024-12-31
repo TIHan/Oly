@@ -20674,3 +20674,78 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Constraint { new() } and T() should work for class 2 - has a static constructor``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M<T>(): T where T: { new() }
+
+class Example =
+    implements IExample
+
+    M<T>(): T where T: { new() } = T()
+
+class C =
+
+    static Y: int32 get = 
+        print("static")
+        456
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    print(c.X)
+    let _ = C.Y
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123static"
+
+[<Fact>]
+let ``Constraint { new() } and T() should work for class 3 - has a static constructor``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M<T>(): T where T: { new() }
+
+class Example =
+    implements IExample
+
+    M<T>(): T where T: { new() } = T()
+
+class C =
+
+    static Y: int32 get = 
+        print("static")
+        456
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    let _ = C.Y
+    print(c.X)
+    let _ = C.Y
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "static123"

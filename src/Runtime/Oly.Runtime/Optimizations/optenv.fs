@@ -189,6 +189,16 @@ module internal Helpers =
                     true
             | _ ->
                 false
+
+        // These are considered side-effectful because of static constructors.
+        // If the target platform doesn't directly support static constructors,
+        // this *technically* will not be side-effectful as the Oly runtime
+        // will emit a static constructor call operation explicitly.
+        // A target platform that does support static constructors will
+        // call it implicitly when a static field is first accessed.
+        | E.Value(value=V.StaticField _)
+        | E.Value(value=V.StaticFieldAddress _) -> true
+
         | E.Value _ -> false
         | E.Operation(_, irOp) ->
             match irOp with

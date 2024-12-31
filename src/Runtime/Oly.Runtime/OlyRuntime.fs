@@ -405,9 +405,6 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
     member inline _.TryGetCallStaticConstructorExpression(field: RuntimeField): E<'Type, 'Function, 'Field> option =
         vm.TryGetCallStaticConstructorExpression(field)
 
-    member inline _.TryGetCallStaticConstructorExpression(func: RuntimeFunction): E<'Type, 'Function, 'Field> option =
-        vm.TryGetCallStaticConstructorExpression(func)
-
     member inline _.EmittedTypeVoid: 'Type = 
         vm.TypeVoid.Value
 
@@ -639,17 +636,7 @@ let importOperationNew
     let irFunc = OlyIRFunction(emittedFunc, func)
     let newExpr = O.New(irFunc, irArgs, emittedEnclosingTy) |> asExpr
 
-    if func.EnclosingType.Formal <> env.Function.EnclosingType.Formal then
-        match cenv.TryGetCallStaticConstructorExpression(func) with
-        | Some callStaticCtorExpr ->
-            E.Sequential(
-                callStaticCtorExpr,
-                newExpr
-            ), enclosingTy
-        | _ ->
-            newExpr, enclosingTy
-    else
-        newExpr, enclosingTy
+    newExpr, enclosingTy
 
 /// This implementation is largely driven by the behavior in .NET even though Oly tries to be platform agnostic.
 let importOperationNewOrDefault
@@ -4367,12 +4354,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             )
             |> Some
         | _ ->
-            None
-
-    member this.TryGetCallStaticConstructorExpression(targetFunc: RuntimeFunction) =
-        if (not targetFunc.Flags.IsStatic && targetFunc.Flags.IsConstructor) then
-            this.TryGetCallStaticConstructorExpression(targetFunc.EnclosingType)
-        else
             None
 
     member this.TryGetCallStaticConstructorExpression(targetField: RuntimeField) =

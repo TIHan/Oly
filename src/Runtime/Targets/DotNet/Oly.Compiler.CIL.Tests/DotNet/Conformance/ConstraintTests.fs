@@ -183,6 +183,95 @@ main(): () =
         )
 
 [<Fact>]
+let ``C# new() constraint on interface method 4 - uses a struct with a static constructor``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : new();
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: { new() } =
+        T()
+
+#[export]
+struct C =
+
+    static Y: int32 get =
+        Console.Write("static")
+        456
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let c = example.M<C>()
+    Console.Write(c.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
+
+[<Fact>]
+let ``C# new() constraint on interface method 5 - uses a class with a static constructor``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    T M<T>() where T : new();
+}
+        """
+
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+class Example =
+    implements IExample
+
+    #[export]
+    M<T>(): T where T: { new() } =
+        T()
+
+#[export]
+class C =
+
+    public static field Y: int32 =
+        Console.Write("static")
+        456
+
+    X: int32 get = 123
+
+main(): () =
+    let example = Example()
+    let _ = C()
+    let c = example.M<C>()
+    Console.Write(c.X)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123"
+        )
+
+[<Fact>]
 let ``C# struct constraint on interface method``() =
     let csSrc =
         """
