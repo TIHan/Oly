@@ -696,7 +696,6 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, cenv.EmitType(resultTy)), resultTy
 
     | OlyILExpression.While(ilConditionExpr, ilBodyExpr) ->
-        // TODO: Fail if this is in a "non-imperative" context.
         let irConditionExpr = importArgumentExpression cenv env RuntimeType.Bool ilConditionExpr
         let irBodyExpr = importArgumentExpression cenv env RuntimeType.Void ilBodyExpr
         E.While(irConditionExpr, irBodyExpr, cenv.EmittedTypeVoid), RuntimeType.Void
