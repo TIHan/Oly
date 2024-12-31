@@ -345,6 +345,11 @@ type OlyILEnclosing =
     | Witness of ty: OlyILType * abstractEntInst: OlyILEntityInstance
     | Namespace of path: OlyILStringHandle imarray * identity: OlyILAssemblyIdentity
 
+    member this.IsWitness_t =
+        match this with
+        | Witness _ -> true
+        | _ -> false
+
     member this.TypeArgumentCount =
         match this with
         | Entity(OlyILEntityInstance(_, tyArgs)) -> tyArgs.Length

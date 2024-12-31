@@ -648,7 +648,7 @@ let importOperationNewOrDefault
     let inline asExpr irOp = E.Operation(irTextRange, irOp)
 
     // '{ new() }' shape works for structs that have no parameterless instance constructor.
-    if ilArgs.IsEmpty && ilFuncInst.Enclosing.IsWitness then
+    if ilArgs.IsEmpty && ilFuncInst.Enclosing.IsWitness_t then
         match ilFuncInst with
         | OlyILFunctionInstance(OlyILEnclosing.Witness(OlyILTypeVariable _ as ilEnclosingTy, ilEnclosingAbstractEntInst), ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) 
                 when ilFuncTyArgs.IsEmpty && ilWitnesses.IsEmpty ->
