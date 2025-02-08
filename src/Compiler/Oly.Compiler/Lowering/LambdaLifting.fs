@@ -1392,7 +1392,7 @@ type Rewriter(cenv: cenv, core) =
             match binding with
             | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
                 match bindingInfo with
-                | BindingFunction(func) when func.TypeParameters.Length > 0 ->
+                | BindingFunction(func) ->
                     let bodyExpr = lazyBodyExpr.Expression
 
                     let prevFuncTyPars = cenv.funcTyPars
