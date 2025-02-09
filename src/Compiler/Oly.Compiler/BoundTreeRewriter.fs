@@ -301,7 +301,7 @@ type BoundExpressionVisitResult =
             Kind = BoundExpressionVisitResultKind.Continue
         }
 
-    static member Stop() =
+    static member Abort() =
         {
             Expression = Unchecked.defaultof<_>
             Kind = BoundExpressionVisitResultKind.Abort
