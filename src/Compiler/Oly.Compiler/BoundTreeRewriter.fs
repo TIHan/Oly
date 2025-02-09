@@ -309,7 +309,7 @@ type BoundExpressionVisitResult =
 
 type BoundTreeRewriteVisitor() =
 
-    abstract Preorder : BoundExpression * rewrite: (BoundExpression ->  BoundExpression) -> BoundExpressionVisitResult
+    abstract Preorder : BoundExpression * visit: (BoundExpression ->  BoundExpression) -> BoundExpressionVisitResult
     default _.Preorder(expr, _) = BoundExpressionVisitResult.Continue(expr)
 
     abstract Postorder : BoundExpression -> BoundExpression

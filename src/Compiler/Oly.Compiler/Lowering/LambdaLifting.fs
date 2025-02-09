@@ -1202,12 +1202,12 @@ type LambdaLiftingRewriter(cenv: cenv) =
         | _ ->
             origExpr
 
-    override this.Preorder(origExpr, rewrite) =
+    override this.Preorder(origExpr, visit) =
         match origExpr with
         | E.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
             let prevEnclosingTyPars = cenv.enclosingTyPars
             cenv.enclosingTyPars <- ent.TypeParameters
-            let newBodyExpr = rewrite(bodyExpr)
+            let newBodyExpr = visit(bodyExpr)
             cenv.enclosingTyPars <- prevEnclosingTyPars
             if newBodyExpr = bodyExpr then
                 BoundExpressionVisitResult.Visited(origExpr)
@@ -1224,7 +1224,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
 
                     let prevFuncTyPars = cenv.funcTyPars
                     cenv.funcTyPars <- func.TypeParameters
-                    let newBodyExpr = rewrite(bodyExpr)
+                    let newBodyExpr = visit(bodyExpr)
                     cenv.funcTyPars <- prevFuncTyPars
                     
                     if newBodyExpr = bodyExpr then
