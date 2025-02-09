@@ -1216,7 +1216,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
 
         | E.MemberDefinition(syntaxInfo, binding) ->
             match binding with
-            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, (E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars) as rhsExpr)) ->
+            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
                 match bindingInfo with
                 | BindingFunction(func)
                 | BindingPattern(_, func) ->
