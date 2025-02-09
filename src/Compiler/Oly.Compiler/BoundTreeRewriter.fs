@@ -277,14 +277,14 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
             else
                 BoundRoot.Global(syntax, benv, newBody)
 
-type BoundExpressionVisitResultKind =
+type private BoundExpressionVisitResultKind =
     | Visited = 0
     | Continue = 1
     | Abort = 2
 
 [<Struct;NoComparison;NoEquality>]
 type BoundExpressionVisitResult =
-    {
+    private {
         Expression: BoundExpression
         Kind: BoundExpressionVisitResultKind
     }
@@ -316,7 +316,7 @@ type BoundTreeRewriteVisitor() =
     default _.CanRewrite _ = true
 
     abstract PreorderRewrite : BoundExpression * rewrite: (BoundExpression ->  BoundExpression) -> BoundExpressionVisitResult
-    default _.PreorderRewrite(expr, rewrite) = BoundExpressionVisitResult.Continue(rewrite(expr))
+    default _.PreorderRewrite(expr, _) = BoundExpressionVisitResult.Continue(expr)
 
     abstract Rewrite : BoundExpression -> BoundExpression
     default _.Rewrite expr = expr
