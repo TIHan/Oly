@@ -1152,8 +1152,8 @@ let toClosureExpression cenv (info: ClosureInfo) =
     )
 
 [<Sealed>]
-type LambdaLiftingRewriterCore(cenv: cenv) =
-    inherit BoundTreeRewriterCore2()
+type LambdaLiftingRewriter(cenv: cenv) =
+    inherit BoundTreeRewriteVisitor()
 
     let makeLambdaBound expr =
         match expr with
@@ -1204,15 +1204,44 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
 
     override this.PreorderRewrite(origExpr, rewrite) =
         match origExpr with
+        | E.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
+            let prevEnclosingTyPars = cenv.enclosingTyPars
+            cenv.enclosingTyPars <- ent.TypeParameters
+            let newBodyExpr = rewrite(bodyExpr)
+            cenv.enclosingTyPars <- prevEnclosingTyPars
+            if newBodyExpr = bodyExpr then
+                BoundExpressionVisitResult.Visited(origExpr)
+            else
+                BoundExpressionVisitResult.Visited(E.EntityDefinition(syntaxInfo, newBodyExpr, ent))
+
         | E.MemberDefinition(syntaxInfo, binding) ->
             match binding with
-            | BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, rhsExpr) when bindingInfo.Value.IsFunction ->
+            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, (E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars) as rhsExpr)) ->
                 match bindingInfo with
-                | BindingFunction _ 
-                | BindingPattern _ -> ()
-                | _ -> OlyAssert.Fail("Invalid member binding")
+                | BindingFunction(func)
+                | BindingPattern(_, func) ->
+                    let bodyExpr = lazyBodyExpr.Expression
 
-                BoundExpressionVisitResult.Continue(E.MemberDefinition(syntaxInfo, BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, makeLambdaBound rhsExpr)))
+                    let prevFuncTyPars = cenv.funcTyPars
+                    cenv.funcTyPars <- func.TypeParameters
+                    let newBodyExpr = rewrite(bodyExpr)
+                    cenv.funcTyPars <- prevFuncTyPars
+                    
+                    if newBodyExpr = bodyExpr then
+                        BoundExpressionVisitResult.Visited(origExpr)
+                    else
+                        E.MemberDefinition(syntaxInfo,
+                            BoundBinding.Implementation(
+                                syntaxInfoBinding,
+                                bindingInfo,
+                                E.Lambda(syntaxInfoLambda, flags, tyPars, pars, LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr), cachedLambdaTy, freeLocals, freeVars)
+                            )
+                        )
+                        |> BoundExpressionVisitResult.Visited
+
+                | _ ->
+                    BoundExpressionVisitResult.Continue(origExpr)
+
             | _ ->
                 BoundExpressionVisitResult.Continue(origExpr)
 
@@ -1376,50 +1405,6 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
         | _ ->
             BoundExpressionVisitResult.Continue(origExpr)
 
-[<Sealed>]
-type Rewriter(cenv: cenv, core) =
-    inherit BoundTreeRewriter2(core)
-
-    override this.Rewrite(expr) =
-        match expr with
-        | E.EntityDefinition(ent=ent) ->
-            let prevEnclosingTyPars = cenv.enclosingTyPars
-            cenv.enclosingTyPars <- ent.TypeParameters
-            let result = base.Rewrite(expr)
-            cenv.enclosingTyPars <- prevEnclosingTyPars
-            result
-
-        | E.MemberDefinition(syntaxInfo, binding) ->
-            match binding with
-            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
-                match bindingInfo with
-                | BindingFunction(func) ->
-                    let bodyExpr = lazyBodyExpr.Expression
-
-                    let prevFuncTyPars = cenv.funcTyPars
-                    cenv.funcTyPars <- func.TypeParameters
-                    let newBodyExpr = base.Rewrite(bodyExpr)
-                    cenv.funcTyPars <- prevFuncTyPars
-                    
-                    if newBodyExpr = bodyExpr then
-                        expr
-                    else
-                        E.MemberDefinition(syntaxInfo,
-                            BoundBinding.Implementation(
-                                syntaxInfoBinding,
-                                bindingInfo,
-                                E.Lambda(syntaxInfoLambda, flags, tyPars, pars, LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr), cachedLambdaTy, freeLocals, freeVars)
-                            )
-                        )
-
-                | _ ->
-                    base.Rewrite(expr)
-            | _ ->
-                base.Rewrite(expr)
-            
-        | _ ->
-            base.Rewrite(expr)
-
 let Lower (g: g) (tree: BoundTree) =
     let cenv =
         {
@@ -1430,8 +1415,7 @@ let Lower (g: g) (tree: BoundTree) =
             genNameNumber = ref 0
         }
 
-    let rewriter = Rewriter(cenv, LambdaLiftingRewriterCore(cenv))
-    let tree = tree.UpdateRoot(rewriter.RewriteRoot(tree.Root))
+    let tree = tree.UpdateRoot(tree.Root.Visit(LambdaLiftingRewriter(cenv)))
 #if DEBUG || CHECKED
     match tree.Root with
     | BoundRoot.Global(body=bodyExpr)

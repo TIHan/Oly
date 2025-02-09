@@ -24,7 +24,7 @@ type LambdaFlags =
     | Scoped                = 0x0100000
 
     /// Only used in lambda-lifting
-    | Bound                 = 0x1000000
+    | Bound                 = 0x1000000 // TODO: Get rid of this.
 
 [<Flags>]
 type CallFlags =

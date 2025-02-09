@@ -7,6 +7,7 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.BoundTree
 open Oly.Core
 
+/// TODO: Use/replace with the new BoundTreeRewriteVisitor instead.
 type BoundTreeRewriterCore() =
 
     abstract CanPostorderRewrite : BoundExpression -> bool
@@ -21,6 +22,7 @@ type BoundTreeRewriterCore() =
     abstract Rewrite : BoundExpression -> BoundExpression
     default _.Rewrite expr = expr
 
+/// TODO: Use/replace with the new BoundTreeRewriteVisitor instead.
 type BoundTreeRewriter(core: BoundTreeRewriterCore) =
     inherit BoundTreeRewriterCore()
 
@@ -278,7 +280,7 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
 type BoundExpressionVisitResultKind =
     | Visited = 0
     | Continue = 1
-    | Stop = 2
+    | Abort = 2
 
 [<Struct;NoComparison;NoEquality>]
 type BoundExpressionVisitResult =
@@ -302,10 +304,10 @@ type BoundExpressionVisitResult =
     static member Stop() =
         {
             Expression = Unchecked.defaultof<_>
-            Kind = BoundExpressionVisitResultKind.Stop
+            Kind = BoundExpressionVisitResultKind.Abort
         }
 
-type BoundTreeRewriterCore2() =
+type BoundTreeRewriteVisitor() =
 
     abstract CanPostorderRewrite : BoundExpression -> bool
     default _.CanPostorderRewrite _ = true
@@ -319,26 +321,17 @@ type BoundTreeRewriterCore2() =
     abstract Rewrite : BoundExpression -> BoundExpression
     default _.Rewrite expr = expr
 
-type BoundTreeRewriter2(core: BoundTreeRewriterCore2) as this =
-    inherit BoundTreeRewriterCore2()
+[<Sealed>]
+type private BoundTreeRewriteVisitorRunner(core: BoundTreeRewriteVisitor) as this =
 
     let rewrite = this.Rewrite
 
-    override this.CanPostorderRewrite(expr) =
-        core.CanPostorderRewrite(expr)
-
-    override this.CanRewrite(expr) =
-        core.CanRewrite(expr)
-
-    override this.PreorderRewrite(expr, rewrite) =
-        core.PreorderRewrite(expr, rewrite)
-
-    override this.Rewrite(expr) =
+    member this.Rewrite(expr) =
 #if DEBUG || CHECKED
         StackGuard.Do <| fun () ->
 #endif
-        if this.CanRewrite expr then
-            let exprResult = this.PreorderRewrite(expr, rewrite)
+        if core.CanRewrite expr then
+            let exprResult = core.PreorderRewrite(expr, rewrite)
             match exprResult.Kind with
             | BoundExpressionVisitResultKind.Continue ->
             let expr = exprResult.Expression
@@ -557,7 +550,7 @@ type BoundTreeRewriter2(core: BoundTreeRewriterCore2) as this =
                 expr
 
             |> core.Rewrite
-            | BoundExpressionVisitResultKind.Stop -> expr
+            | BoundExpressionVisitResultKind.Abort -> expr
             | BoundExpressionVisitResultKind.Visited -> exprResult.Expression
             | _ -> failwith "Invalid result kind"
         else
@@ -580,3 +573,9 @@ type BoundTreeRewriter2(core: BoundTreeRewriterCore2) as this =
                 root
             else
                 BoundRoot.Global(syntax, benv, newBody)
+
+type BoundRoot with
+
+    member this.Visit(core: BoundTreeRewriteVisitor) =
+        let runner = BoundTreeRewriteVisitorRunner(core)
+        runner.RewriteRoot(this)
