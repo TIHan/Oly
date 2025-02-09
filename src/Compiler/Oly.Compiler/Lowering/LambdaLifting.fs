@@ -1162,7 +1162,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
         | _ ->
             OlyAssert.Fail("Expected lambda expression")
 
-    override this.Rewrite(origExpr) =
+    override this.Postorder(origExpr) =
         match origExpr with
         | E.Lambda(syntaxInfo=syntaxInfo;flags=lambdaFlags;tyPars=tyPars;pars=pars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) ->
             let newExpr = 
@@ -1202,7 +1202,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
         | _ ->
             origExpr
 
-    override this.PreorderRewrite(origExpr, rewrite) =
+    override this.Preorder(origExpr, rewrite) =
         match origExpr with
         | E.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
             let prevEnclosingTyPars = cenv.enclosingTyPars
