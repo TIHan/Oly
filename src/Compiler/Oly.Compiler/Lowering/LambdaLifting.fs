@@ -1153,7 +1153,7 @@ let toClosureExpression cenv (info: ClosureInfo) =
 
 [<Sealed>]
 type LambdaLiftingRewriterCore(cenv: cenv) =
-    inherit BoundTreeRewriterCore()
+    inherit BoundTreeRewriterCore2()
 
     let makeLambdaBound expr =
         match expr with
@@ -1202,7 +1202,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
         | _ ->
             origExpr
 
-    override this.PreorderRewrite(origExpr) =
+    override this.PreorderRewrite(origExpr, rewrite) =
         match origExpr with
         | E.MemberDefinition(syntaxInfo, binding) ->
             match binding with
@@ -1212,9 +1212,9 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                 | BindingPattern _ -> ()
                 | _ -> OlyAssert.Fail("Invalid member binding")
 
-                E.MemberDefinition(syntaxInfo, BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, makeLambdaBound rhsExpr))
+                BoundExpressionVisitResult.Continue(E.MemberDefinition(syntaxInfo, BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, makeLambdaBound rhsExpr)))
             | _ ->
-                origExpr
+                BoundExpressionVisitResult.Continue(origExpr)
 
         | E.Let(syntaxInfo, bindingInfo, (E.Lambda(flags=lambdaFlags) as rhsExpr), bodyExpr) when bindingInfo.Value.IsFunction ->
             match bindingInfo with
@@ -1346,7 +1346,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 expr
                         )
 
-                    E.Let(syntaxInfo, BindingLocalFunction(newFunc), newRhsExpr, newBodyExpr)
+                    BoundExpressionVisitResult.Continue(E.Let(syntaxInfo, BindingLocalFunction(newFunc), newRhsExpr, newBodyExpr))
                 | _ ->
                     OlyAssert.Fail("Expected lambda expression")
             else
@@ -1371,13 +1371,14 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     newRhsExpr,
                     newBodyExpr
                 )
+                |> BoundExpressionVisitResult.Continue
 
         | _ ->
-            origExpr
+            BoundExpressionVisitResult.Continue(origExpr)
 
 [<Sealed>]
 type Rewriter(cenv: cenv, core) =
-    inherit BoundTreeRewriter(core)
+    inherit BoundTreeRewriter2(core)
 
     override this.Rewrite(expr) =
         match expr with
