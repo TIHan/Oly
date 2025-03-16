@@ -24,7 +24,7 @@ let private MaxStringInternSpaceCount = 128
 let private StringInternSpace = Array.zeroCreate<Token> MaxStringInternSpaceCount
 
 [<Sealed>]
-type private SlidingTextWindow (text: IOlySourceText) =
+type SlidingTextWindow (text: IOlySourceText) =
 
     let StringIntern = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, string>(InternStringComparer)
     let StringInternIdent = System.Collections.Concurrent.ConcurrentDictionary<ReadOnlyMemory<char>, Token>(InternStringComparer)
