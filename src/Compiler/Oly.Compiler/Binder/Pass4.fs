@@ -227,7 +227,7 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 | ValueSome baseEnt ->
                     if bindingInfo.Value.IsInstance then
                         if bindingInfo.Value.IsConstructor then
-                            let baseCtors = createBaseInstanceConstructors "base" baseEnt
+                            let baseCtors = createBaseInstanceConstructors baseEnt
                             if baseCtors.IsEmpty then
                                 env
                             else

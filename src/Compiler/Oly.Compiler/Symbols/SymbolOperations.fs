@@ -2344,13 +2344,16 @@ let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
             ty
     createLocalParameterBaseValue(name, ty)
 
-let createBaseInstanceConstructors name (ent: EntitySymbol) =
+let createBaseInstanceConstructors (ent: EntitySymbol) =
     ent.Functions
     |> ImArray.filter (fun x -> x.IsInstance && x.IsConstructor)
     |> ImArray.map (fun x ->
         let id = newId()
+        // TODO: This isn't efficient.
+        let notFormal = x // TODO: This is gross.
+        let x = x.Formal.AsFunction
         { new IFunctionSymbol with
-            member _.Name = name
+            member _.Name = x.Name
             member _.Enclosing = x.Enclosing
             member _.TypeParameters = x.TypeParameters
             member _.TypeArguments = x.TypeArguments
@@ -2360,7 +2363,7 @@ let createBaseInstanceConstructors name (ent: EntitySymbol) =
             member _.MemberFlags = x.MemberFlags &&& ~~~MemberFlags.Virtual
             member _.FunctionFlags = x.FunctionFlags
             member _.Attributes = x.Attributes
-            member _.Formal = x.Formal
+            member this.Formal = this
             member _.IsFunction = x.IsFunction
             member _.IsField = x.IsField
             member _.IsThis = true
@@ -2373,7 +2376,7 @@ let createBaseInstanceConstructors name (ent: EntitySymbol) =
             member _.Semantic = x.Semantic
             member _.WellKnownFunction = WellKnownFunction.None
             member _.AssociatedFormalPattern = None
-        }
+        }.WithEnclosing(notFormal.Enclosing).AsFunction
     )
 
 let createThisInstanceConstructors name (ent: EntitySymbol) =
