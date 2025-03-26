@@ -9448,3 +9448,34 @@ main(): () =
     OlyWithRef refSrc src
     |> withCompile
     |> shouldRunWithExpectedOutput "True"
+
+[<Fact>]
+let ``C# abstract generic class should work``() =
+    let csSrc =
+        """
+public abstract class BaseA<T>
+{
+}
+        """
+
+    let src =
+        """
+class A =
+    inherits BaseA<__oly_int32>
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "hello"
+        )
