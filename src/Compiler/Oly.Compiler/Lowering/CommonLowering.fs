@@ -420,7 +420,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                 match baseTy.TryEntity with
                                 | ValueSome(baseEnt) ->
                                     let baseDefaultInstanceCtorOpt =
-                                        createBaseInstanceConstructors "" baseEnt
+                                        createBaseInstanceConstructors baseEnt
                                         |> ImArray.tryFind (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
 
                                     match baseDefaultInstanceCtorOpt with
