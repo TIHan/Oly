@@ -2156,7 +2156,6 @@ type WellKnownFunction =
             WellKnownFunction.TryFromName(name)
         )
 
-[<DebuggerDisplay("{Name}")>]
 type IFunctionSymbol =
     inherit IValueSymbol
 
@@ -2472,7 +2471,6 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
 
         member this.AssociatedFormalPattern = None
 
-[<DebuggerDisplay("{Name}")>]
 type IFieldSymbol =
     inherit IValueSymbol
 
@@ -2594,7 +2592,6 @@ type PolymorphicFieldSymbol(enclosing, field: IFieldSymbol, ty: TypeSymbol, tyAr
 
         member _.IsBase = false
 
-[<DebuggerDisplay("{Name}")>]
 type IPropertySymbol =
     inherit IValueSymbol
 
@@ -2656,7 +2653,6 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         member this.ValueFlags: ValueFlags = valueFlags
         member this.BackingField = backingFieldOpt
 
-[<DebuggerDisplay("{Name}")>]
 type IPatternSymbol =
     inherit IValueSymbol
 
@@ -2792,7 +2788,6 @@ type ExtensionMemberSymbol =
         | Property(prop) -> prop.Type
 
 /// A value is a local, function, or field.
-[<DebuggerDisplay("{Name}")>]
 type IValueSymbol =
     inherit ISymbol
 
@@ -4627,7 +4622,6 @@ type TypeSymbol =
 type IModuleSymbol = EntitySymbol
 type INamespaceOrModuleSymbol = EntitySymbol
 
-[<DebuggerDisplay("{Name}")>]
 type IAssembly =
     inherit ISymbol
 

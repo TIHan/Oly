@@ -1319,13 +1319,12 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             if field.EnclosingType.IsNewtype then
                 let irArg, argTy =
                     if argTy.IsByRef_t then
-                        let elementTy = argTy.TypeArguments[0]
                         E.Operation(
                             NoRange,
-                            O.LoadFromAddress(irArg, cenv.EmitType(elementTy))
-                        ), elementTy
+                            O.LoadFromAddress(irArg, cenv.EmitType(field.Type))
+                        ), field.Type
                     else
-                        irArg, argTy
+                        irArg, field.Type
                 irArg, argTy
             else
 
@@ -1334,11 +1333,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     createByReferenceRuntimeType OlyIRByRefKind.ReadOnly field.EnclosingType
                 else
                     field.EnclosingType
+
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
-
-            let emittedField = cenv.EmitField(field)
-
-            let irField = OlyIRField(emittedField, field)
+            let irField = OlyIRField(cenv.EmitField(field), field)
             O.LoadField(irField, irArg, cenv.EmitType(field.Type)) |> asExpr, field.Type
 
         | OlyILOperation.LoadFieldAddress(ilFieldRef, ilArg, ilByRefKind) ->
@@ -1359,20 +1356,16 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     field.EnclosingType
 
             let irArg, argTy = importExpression cenv env (Some expectedArgTy) ilArg
-
+            let resultTy = createByReferenceRuntimeType irByRefKind field.Type
             if field.EnclosingType.IsNewtype then
                 if argTy.IsByRef_t then
-                    irArg, argTy
+                    irArg, resultTy
                 else
                     OlyAssert.Fail("Expected a byref type")
             else
 
             let irArg, _ = env.HandleReceiver(cenv, expectedArgTy, irArg, argTy, false)
-
-            let emittedField = cenv.EmitField(field)
-
-            let irField = OlyIRField(emittedField, field)
-            let resultTy = createByReferenceRuntimeType irByRefKind field.Type
+            let irField = OlyIRField(cenv.EmitField(field), field)
             O.LoadFieldAddress(irField, irArg, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.LoadFromAddress(ilArg) ->

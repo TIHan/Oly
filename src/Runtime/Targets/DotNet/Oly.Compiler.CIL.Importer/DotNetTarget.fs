@@ -72,24 +72,7 @@ module private DotNetReferences =
         backgroundTask {
             let dotnetBuildJson = OlyPath.Combine(cacheDir, $"{cachePrefix}_dotnet_build.json")
 
-            if File.Exists(dotnetBuildJson.ToString()) then
-                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
-                return 
-                    {
-                        ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
-                        OutputPath = resultJsonFriendly.OutputPath
-                        DepsJson = resultJsonFriendly.DepsJson
-                        RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
-                        References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-                        FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-
-                        ReferenceNames =
-                            (ImmutableHashSet.Empty, resultJsonFriendly.References)
-                            ||> Array.fold (fun s r ->
-                                s.Add(Path.GetFileName(r))
-                            )
-                    }
-            else
+            let build() = backgroundTask {
                 let msbuild = MSBuild()
                 let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
 
@@ -105,6 +88,35 @@ module private DotNetReferences =
 
                 do! JsonFileStore.SetContents(dotnetBuildJson, resultJsonFriendly, ct)
                 return result
+            }
+
+            if File.Exists(dotnetBuildJson.ToString()) then
+                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
+
+                let isValid =
+                    resultJsonFriendly.References
+                    |> Array.forall File.Exists
+
+                if isValid then
+                    return 
+                        {
+                            ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+                            OutputPath = resultJsonFriendly.OutputPath
+                            DepsJson = resultJsonFriendly.DepsJson
+                            RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
+                            References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                            FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+
+                            ReferenceNames =
+                                (ImmutableHashSet.Empty, resultJsonFriendly.References)
+                                ||> Array.fold (fun s r ->
+                                    s.Add(Path.GetFileName(r))
+                                )
+                        }
+                else
+                    return! build()
+            else
+                return! build()
         }
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
