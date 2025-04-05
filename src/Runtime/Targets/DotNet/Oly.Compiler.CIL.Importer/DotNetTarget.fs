@@ -90,33 +90,35 @@ module private DotNetReferences =
                 return result
             }
 
-            if File.Exists(dotnetBuildJson.ToString()) then
-                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
+            return! build()
 
-                let isValid =
-                    resultJsonFriendly.References
-                    |> Array.forall File.Exists
+            //if File.Exists(dotnetBuildJson.ToString()) then
+            //    let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
 
-                if isValid then
-                    return 
-                        {
-                            ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
-                            OutputPath = resultJsonFriendly.OutputPath
-                            DepsJson = resultJsonFriendly.DepsJson
-                            RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
-                            References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-                            FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+            //    let isValid =
+            //        resultJsonFriendly.References
+            //        |> Array.forall File.Exists
 
-                            ReferenceNames =
-                                (ImmutableHashSet.Empty, resultJsonFriendly.References)
-                                ||> Array.fold (fun s r ->
-                                    s.Add(Path.GetFileName(r))
-                                )
-                        }
-                else
-                    return! build()
-            else
-                return! build()
+            //    if isValid then
+            //        return 
+            //            {
+            //                ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+            //                OutputPath = resultJsonFriendly.OutputPath
+            //                DepsJson = resultJsonFriendly.DepsJson
+            //                RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
+            //                References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+            //                FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+
+            //                ReferenceNames =
+            //                    (ImmutableHashSet.Empty, resultJsonFriendly.References)
+            //                    ||> Array.fold (fun s r ->
+            //                        s.Add(Path.GetFileName(r))
+            //                    )
+            //            }
+            //    else
+            //        return! build()
+            //else
+            //    return! build()
         }
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
