@@ -32,7 +32,7 @@ const legend = (function () {
 
 	return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
 })();
-6
+
 interface IOlyToken {
 	line: number;
 	startCharacter: number;
