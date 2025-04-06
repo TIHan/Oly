@@ -68,14 +68,15 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
 
 module private DotNetReferences =
 
-    let getDotNetInfo (cachePrefix: string) (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
+    let getDotNetInfo (cachePrefix: string) (cacheDir: OlyPath) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
         backgroundTask {
             let dotnetBuildJson = OlyPath.Combine(cacheDir, $"{cachePrefix}_dotnet_build.json")
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, configName, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
 
+                // TODO: Handle 'isExe' and 'configName'.
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
                         result.ProjectPath.ToString(),
@@ -269,7 +270,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     if ext.Equals(".cs") then
                         // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
                         let cacheDir = this.GetAbsoluteCacheDirectory(path)
-                        let! netInfo = DotNetReferences.getDotNetInfo "cs" cacheDir false targetInfo.Name [] [] [] ct
+                        let! netInfo = DotNetReferences.getDotNetInfo "cs" cacheDir targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -333,7 +334,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir targetInfo.ProjectConfiguration.Name targetInfo.ProjectConfiguration.Debuggable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with

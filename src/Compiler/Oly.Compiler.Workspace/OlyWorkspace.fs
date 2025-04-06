@@ -79,9 +79,10 @@ type OlyOutputKind =
     | Executable
 
 [<Sealed>]
-type OlyTargetInfo(name: string, outputKind: OlyOutputKind, implicitExtendsForStructOpt: string option, implicitExtendsForEnumOpt: string option) =
+type OlyTargetInfo(name: string, projConfig: OlyProjectConfiguration, outputKind: OlyOutputKind, implicitExtendsForStructOpt: string option, implicitExtendsForEnumOpt: string option) =
 
     member _.Name = name
+    member _.ProjectConfiguration = projConfig
     member _.OutputKind = outputKind
     member _.IsExecutable = outputKind = OlyOutputKind.Executable
     member _.ImplicitExtendsForStruct = implicitExtendsForStructOpt
@@ -1345,7 +1346,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyOutputKind.Executable
 
             let targetInfo =
-                OlyTargetInfo(targetName, outputKind, targetPlatform.GetImplicitExtendsForStruct(), targetPlatform.GetImplicitExtendsForEnum())
+                OlyTargetInfo(targetName, projConfig, outputKind, targetPlatform.GetImplicitExtendsForStruct(), targetPlatform.GetImplicitExtendsForEnum())
 
             if String.IsNullOrWhiteSpace(platformName) |> not && targetPlatform.IsValidTargetName(targetInfo) |> not then
                 diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))

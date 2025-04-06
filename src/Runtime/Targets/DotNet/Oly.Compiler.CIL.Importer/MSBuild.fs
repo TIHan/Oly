@@ -114,7 +114,7 @@ type MSBuild() =
 </Project>
         """
     
-    let getInfo (outputPath: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
+    let getInfo (outputPath: OlyPath) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
@@ -136,7 +136,7 @@ type MSBuild() =
                 ct.ThrowIfCancellationRequested()
 
                 let publishDir = 
-                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName)
+                    Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), configName), targetName)
                     //Path.Combine(Path.Combine(Path.Combine(Path.Combine(dir.FullName, "bin"), "Release"), targetName), "publish")
 
                 let cleanup() =
@@ -155,7 +155,7 @@ type MSBuild() =
                 try
                     try Directory.Delete(publishDir) with | _ -> ()
 
-                    use p = new ExternalProcess("dotnet", $"build -c Release {projectName}.csproj", workingDirectory = dir.FullName)
+                    use p = new ExternalProcess("dotnet", $"build -c {configName} {projectName}.csproj", workingDirectory = dir.FullName)
                     //use p = new ExternalProcess("dotnet", "publish -c Release __oly_placeholder.csproj", workingDirectory = dir.FullName)
                     let! _result = p.RunAsync(ct)
                     let refs =
@@ -221,8 +221,8 @@ type MSBuild() =
                 () // TODO: ??
         }
 
-    member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, isExe: bool, targetName, references, projectReferences, packages, ct) =
-        getInfo outputPath isExe targetName references projectReferences packages projectName ct
+    member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, configName: string, isExe: bool, targetName, references, projectReferences, packages, ct) =
+        getInfo outputPath configName isExe targetName references projectReferences packages projectName ct
 
     member this.DeleteProjectObjDirectory(info: ProjectBuildInfo) =
         try Directory.Delete(Path.Combine(info.ProjectPath.ToString(), "obj"), true) with | _ -> ()

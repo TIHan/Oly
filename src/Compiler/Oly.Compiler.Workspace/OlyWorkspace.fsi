@@ -80,9 +80,10 @@ type OlyOutputKind =
 [<Sealed>]
 type OlyTargetInfo =
 
-    new : name: string * outputKind: OlyOutputKind * implicitExtendsForStructOpt: string option * implicitExtendsForEnumOpt: string option -> OlyTargetInfo
+    new : name: string * projConfig: OlyProjectConfiguration * outputKind: OlyOutputKind * implicitExtendsForStructOpt: string option * implicitExtendsForEnumOpt: string option -> OlyTargetInfo
 
     member Name: string
+    member ProjectConfiguration: OlyProjectConfiguration
     member OutputKind: OlyOutputKind
     member IsExecutable: bool
     member ImplicitExtendsForStruct: string option
