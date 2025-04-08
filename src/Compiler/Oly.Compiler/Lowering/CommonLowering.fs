@@ -105,7 +105,8 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                                     E.CreateValue(
                                                         syntaxInfo.Syntax.Tree,
                                                         pars[1]
-                                                    )
+                                                    ),
+                                                    isCtorInit = false
                                                 )
                                             else
                                                 E.SetValue(
@@ -445,7 +446,8 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                     syntaxInfoGenerated,
                                     thisExpr,
                                     (ent.GetInstanceFields()[0]),
-                                    E.CreateValue(syntaxInfoGenerated, ctor.Parameters[1])
+                                    E.CreateValue(syntaxInfoGenerated, ctor.Parameters[1]),
+                                    isCtorInit = true
                                 )
                             else
                                 (E.None(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)), fieldBindings)
@@ -453,7 +455,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                     match fieldBinding with
                                     | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when field.IsInstance ->
                                         E.CreateSequential(
-                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisExpr, field, rhsExpr),
+                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisExpr, field, rhsExpr, isCtorInit = true),
                                             expr
                                         )
                                     | _ ->

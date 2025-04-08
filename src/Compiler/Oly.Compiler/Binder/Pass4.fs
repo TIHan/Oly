@@ -1042,7 +1042,7 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
                             let syntaxInfo =
                                 BoundSyntaxInfo.User(syntaxFieldPat, env.benv, Some syntaxName, None)
 
-                            BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr)
+                            BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr, isCtorInit = true)
                         | _ ->
                             cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxConstructTy)
                             invalidExpression syntaxFieldPat env.benv
@@ -1268,7 +1268,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
                         receiver
 
                 let syntaxInfo = syntaxInfo.ReplaceIfPossible(syntaxToCapture)
-                BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr)
+                BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr, isCtorInit = false)
 
             | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
                 if prop.Setter.IsNone then

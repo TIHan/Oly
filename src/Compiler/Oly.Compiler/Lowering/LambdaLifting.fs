@@ -98,7 +98,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
     | E.GetField(receiver=receiverExpr) ->
         checkLocals localScope receiverExpr
 
-    | E.SetField(_, receiverExpr, _, rhsExpr) ->
+    | E.SetField(_, receiverExpr, _, rhsExpr, _) ->
         checkLocals localScope receiverExpr
         checkLocals localScope rhsExpr
 
@@ -315,12 +315,12 @@ let substitute
                         let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
                         E.GetField(syntaxInfo, receiverExpr, newField)
 
-                | BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr) ->
+                | BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr, isCtorInit) ->
                     if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
                         origExpr
                     else
                         let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
-                        E.SetField(syntaxInfo, receiverExpr, newField, rhsExpr)
+                        E.SetField(syntaxInfo, receiverExpr, newField, rhsExpr, isCtorInit)
 
                 | BoundExpression.Literal(syntaxInfo, literal) ->
                     let newLiteral = substituteLiteral(tyParLookup, literal)
@@ -435,7 +435,7 @@ let substitute
                         else
                             match appliedNewValue with
                             | :? IFieldSymbol as appliedNewField ->
-                                BoundExpression.SetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField, rhsExpr)
+                                BoundExpression.SetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField, rhsExpr, isCtorInit = false)
                             | _ ->
                                 BoundExpression.SetValue(syntaxInfo, appliedNewValue, rhsExpr)
                     | _ ->
@@ -733,7 +733,8 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
                 BoundSyntaxInfo.Generated(syntaxTree),
                 thisExpr,
                 field,
-                E.CreateValue(syntaxTree, localPar)
+                E.CreateValue(syntaxTree, localPar),
+                isCtorInit = true
             )
         )
 

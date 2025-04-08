@@ -2056,7 +2056,7 @@ type OlyBoundModel internal (
                     ()
 
             | BoundExpression.GetField(syntaxInfo, _, field)
-            | BoundExpression.SetField(syntaxInfo, _, field, _) ->
+            | BoundExpression.SetField(syntaxInfo, _, field, _, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
                     getValueSymbolByIdentifier this addSymbol benv predicate syntaxName.LastIdentifier field

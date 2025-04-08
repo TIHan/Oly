@@ -150,7 +150,6 @@ type env =
         context: LocalContext
         isReturnable: bool
         isInInstance: bool
-        isInConstructor: bool
         isInArg: bool
         locals: System.Collections.Immutable.ImmutableHashSet<int64>
     }
@@ -160,7 +159,6 @@ type env =
             context = LocalContext.Namespace Seq.empty
             isReturnable = false
             isInInstance = false
-            isInConstructor = false
             isInArg = false
             locals = System.Collections.Immutable.ImmutableHashSet<_>.Empty
         }
@@ -1543,10 +1541,8 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.GetField(receiver=receiver;field=field) ->
         GenGetFieldExpression cenv env ilTextRange ValueNone receiver field
 
-    | E.SetField(receiver=receiver;field=field;rhs=rhs) ->
-        if (not env.isInConstructor && not field.IsMutable) ||
-            // TODO: Does not take into account subsumption
-           (env.isInConstructor && not (areEnclosingsEqual env.context.RealEntity.AsEnclosing field.Enclosing)) then
+    | E.SetField(receiver=receiver;field=field;rhs=rhs;isCtorInit=isCtorInit) ->
+        if (not field.IsMutable && not isCtorInit) then
             failwith ($"Field must be mutable. Field: {field.Name}, EnclosingType: {field.Enclosing.AsType.DebugName}")
         GenSetFieldExpression cenv env ilTextRange (Some receiver) field rhs
 
@@ -2200,7 +2196,6 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
         let env = 
             { env with 
                 isInInstance = func.IsInstance
-                isInConstructor = func.IsConstructor
                 locals = Collections.Immutable.ImmutableHashSet<_>.Empty 
             }
 

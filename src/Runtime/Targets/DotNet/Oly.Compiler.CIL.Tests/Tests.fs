@@ -20809,3 +20809,89 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "static123"
+
+[<Fact>]
+let ``Higher-kind with byref types``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
+    ()
+
+main(): () =
+    M<_, int32>((_, x: inref<int32>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Constructor immutable field assignment should pass with 'let' expression``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: inref<S>): () =
+    print(x.X)
+
+struct S =
+
+    public field mutable X: int32 = 0
+
+class C =
+
+    field s: S
+
+    new() =
+        {
+            s =
+                let mutable s = S()
+                s.X <- 123
+                s
+        }
+
+    Call(): () =
+        M(&this.s)
+
+main(): () =
+    let c = C()
+    c.Call()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"

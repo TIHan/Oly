@@ -150,14 +150,14 @@ type BoundTreeRewriter(core: BoundTreeRewriterCore) =
                 else
                     BoundExpression.GetField(syntaxInfo, newReceiver, field)
 
-            | BoundExpression.SetField(syntaxInfo, receiver, field, rhs) ->
+            | BoundExpression.SetField(syntaxInfo, receiver, field, rhs, isCtorInit) ->
                 let newRhs = this.Rewrite(rhs)
                 let newReceiver = this.Rewrite(receiver)
 
                 if newReceiver = receiver && newRhs = rhs then
                     expr
                 else
-                    BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs)
+                    BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs, isCtorInit)
 
             | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
                 let newReceiverOpt = receiverOpt |> Option.map this.Rewrite
@@ -437,14 +437,14 @@ type private BoundTreeRewriteVisitorRunner(core: BoundTreeRewriteVisitor) as thi
             else
                 BoundExpression.GetField(syntaxInfo, newReceiver, field)
 
-        | BoundExpression.SetField(syntaxInfo, receiver, field, rhs) ->
+        | BoundExpression.SetField(syntaxInfo, receiver, field, rhs, isCtorInit) ->
             let newRhs = this.Rewrite(rhs)
             let newReceiver = this.Rewrite(receiver)
 
             if newReceiver = receiver && newRhs = rhs then
                 expr
             else
-                BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs)
+                BoundExpression.SetField(syntaxInfo, newReceiver, field, newRhs, isCtorInit)
 
         | BoundExpression.GetProperty(syntaxInfo, receiverOpt, prop, isVirtual) ->
             let newReceiverOpt = receiverOpt |> Option.map this.Rewrite

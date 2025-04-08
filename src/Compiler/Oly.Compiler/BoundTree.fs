@@ -308,7 +308,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | Literal of syntaxInfo: BoundSyntaxInfo * BoundLiteral
     | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntityDefinitionSymbol
     | GetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol
-    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression
+    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression * isCtorInit: bool
 
     // REVIEW: Do GetProperty and SetProperty need witnessArgs? Not really since we do not handle witnesses for type-level type parameters/arguments.
     | GetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol * isVirtual: bool
@@ -345,7 +345,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             binding.GetValidUserSyntax()
         | GetField(syntaxInfo, receiver, _) when syntaxInfo.IsGenerated ->
             receiver.GetValidUserSyntax()
-        | SetField(syntaxInfo, receiver, _, rhs) when syntaxInfo.IsGenerated ->
+        | SetField(syntaxInfo, receiver, _, rhs, _) when syntaxInfo.IsGenerated ->
             let r1 = receiver.GetValidUserSyntax()
             if r1.IsDummy then
                 rhs.GetValidUserSyntax()

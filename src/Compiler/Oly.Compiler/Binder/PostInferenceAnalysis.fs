@@ -1175,7 +1175,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.SetField(_, receiver, field, rhs) ->
+    | E.SetField(_, receiver, field, rhs, _) ->
         analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs field.Type |> ignore
         analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
         checkValue acenv aenv syntaxNode field
