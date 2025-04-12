@@ -507,24 +507,24 @@ let private queryMostSpecificIntrinsicFunctionsOfTypeParameter (tyPar: TypeParam
     |> ImArray.ofSeq
     |> filterMostSpecificFunctions
 
-let private queryImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+let private queryImmediateFieldsOfEntity ac queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
     filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-    |> filterValuesByAccessibility benv.ac queryMemberFlags
+    |> filterValuesByAccessibility ac queryMemberFlags
     
-let private queryIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-    let fields = queryImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
+let private queryIntrinsicFieldsOfEntity ac queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
+    let fields = queryImmediateFieldsOfEntity ac queryMemberFlags valueFlags nameOpt ent
     
     let inheritedFields =
         ent.Extends
         |> Seq.map (fun x ->
             match x.TryEntity with
             | ValueSome x ->
-                queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
+                queryIntrinsicFieldsOfEntity ac queryMemberFlags valueFlags nameOpt x
             | _ ->
                 Seq.empty
         )
         |> Seq.concat
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
+        |> filterValuesByAccessibility ac queryMemberFlags
     
     Seq.append inheritedFields fields
     
@@ -548,7 +548,7 @@ let private queryFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryM
             filterFields queryMemberFlags valueFlags nameOpt ent.Fields
         )
     | TypeSymbol.Entity(ent) ->
-        queryIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
+        queryIntrinsicFieldsOfEntity benv.ac queryMemberFlags valueFlags nameOpt ent
     | _ ->
         Seq.empty
 
@@ -668,11 +668,11 @@ module Extensions =
         member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags, name) =
             queryMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
 
-        member this.FindIntrinsicFields(benv, queryMemberFlags) =
-            queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
+        member this.FindIntrinsicFields(ac, queryMemberFlags) =
+            queryIntrinsicFieldsOfEntity ac queryMemberFlags ValueFlags.None None this
 
-        member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-            queryIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
+        member this.FindIntrinsicFields(ac, queryMemberFlags, name) =
+            queryIntrinsicFieldsOfEntity ac queryMemberFlags ValueFlags.None (Some name) this
 
         member this.FindIntrinsicProperties(benv, queryMemberFlags) =
             queryIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
@@ -739,8 +739,17 @@ module Extensions =
                 Seq.empty
 
         member this.FindField(name: string) =
-            this.Fields
-            |> ImArray.find (fun x -> x.Name = name)
+            match this.TryEntity with
+            | ValueSome ent ->
+                let asmIdent =
+                    match ent.ContainingAssembly with
+                    | Some asm -> asm.Identity
+                    | _ -> Unchecked.defaultof<_>
+                let ac = { Entity = Some ent; AssemblyIdentity = asmIdent }
+                queryIntrinsicFieldsOfEntity ac QueryMemberFlags.StaticOrInstance ValueFlags.None (Some name) ent
+                |> Seq.exactlyOne
+            | _ ->
+                failwith "Expected an entity"
 
         member this.FindFields(benv, queryMemberFlags) =
             queryFieldsOfType benv queryMemberFlags ValueFlags.None None this

@@ -199,7 +199,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
         )
 
     let fieldOrPropSet =
-        ent.FindIntrinsicFields(env.benv, QueryMemberFlags.StaticOrInstance)
+        ent.FindIntrinsicFields(env.benv.ac, QueryMemberFlags.StaticOrInstance)
         |> Seq.filter (fun x ->
             match x.Enclosing.TryEntity with
             | Some ent -> ent.FormalId <> entBuilder.Entity.FormalId
