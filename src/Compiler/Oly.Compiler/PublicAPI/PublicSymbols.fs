@@ -75,6 +75,16 @@ type OlySymbol internal () =
         | :? OlyValueSymbol as symbol -> symbol.IsProperty
         | _ -> false
 
+    member this.IsField =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsField
+        | _ -> false
+
+    member this.IsFieldOrAutoProperty =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsField || symbol.Internal.IsAutoProperty
+        | _ -> false
+
     member this.IsFunctionGroup =
         match this with
         | :? OlyFunctionGroupSymbol -> true
@@ -275,6 +285,8 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     member _.IsTuple = ty.IsAnyTuple
 
     member _.IsStruct = ty.IsAnyStruct
+
+    member _.IsBuiltIn = ty.IsBuiltIn
 
     member _.IsModule = ty.IsModule
 

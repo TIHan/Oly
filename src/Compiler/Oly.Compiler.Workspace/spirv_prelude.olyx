@@ -32,8 +32,8 @@ alias outref<T>
 
 #[import("spirv", "std", "vec2")]
 struct vec2 =
-    x: float get, set
-    y: float get, set
+    public field mutable x: float
+    public field mutable y: float
     new(float)
     new(float, float)
 

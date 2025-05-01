@@ -124,8 +124,8 @@ type SpirvType =
             raise(InvalidOperationException("ConstantInt32 must be lowered."))
         | Pointer _ ->
             raise(NotImplementedException())
-        | Vec _ ->
-            raise(NotImplementedException())
+        | Vec(_, n, elemTy) ->
+            n * elemTy.GetSizeInBytes()
         | Function _ ->
             raise(NotSupportedException())
         | RuntimeArray _ ->
@@ -794,11 +794,6 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let headerInstrs =
         [
             OpCapability(Capability.Shader)
-            if (majorVersion >= 1u && minorVersion >= 3u) then
-                OpCapability(Capability.Addresses)
-                OpCapability(Capability.VariablePointers)
-                OpCapability(Capability.VariablePointersStorageBuffer)
-                OpCapability(Capability.PhysicalStorageBufferAddresses)
             OpExtInstImport(GLSL_std_450, "GLSL.std.450")
             OpMemoryModel(AddressingModel.Logical, MemoryModel.GLSL450)
         ]

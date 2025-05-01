@@ -1,6 +1,7 @@
 ﻿module Oly.Runtime.Target.Spirv.GLSL_std_450_Tests
 
 open System
+open System.Numerics
 open WorkspaceUtilities
 open Xunit
 open Spirv.TestHelpers
@@ -22,6 +23,9 @@ let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new
     let tyName =
         match typeof<'T> with
         | x when x = typeof<float32> -> "float"
+        | x when x = typeof<Vector2> -> "vec2"
+        | x when x = typeof<Vector3> -> "vec3"
+        | x when x = typeof<Vector4> -> "vec4"
         | x when x = typeof<int32> -> "int"
         | x ->
             invalidOp $"Type '{x.FullName}' not supported or implemented."
@@ -74,6 +78,30 @@ let ``Round 5``() =
 let ``Round 6``() =
     "round(input)"
     |> run [|4.5f|] [|4.0f|]
+
+[<Fact>]
+let ``Round 7``() =
+    "round(input)"
+    |> run [|Vector2(0.1f)|] [|Vector2(0.0f)|]
+
+    "round(input)"
+    |> run [|Vector2(0.1f, 0.9f)|] [|Vector2(0.0f, 1.0f)|]
+
+[<Fact>]
+let ``Round 8``() =
+    "round(input)"
+    |> run [|Vector3(0.1f)|] [|Vector3(0.0f)|]
+
+    "round(input)"
+    |> run [|Vector3(0.1f, 0.1f, 0.9f)|] [|Vector3(0.0f, 0.0f, 1.0f)|]
+
+[<Fact>]
+let ``Round 9``() =
+    "round(input)"
+    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
+
+    "round(input)"
+    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
 
 [<Fact>]
 let ``RoundEven``() =

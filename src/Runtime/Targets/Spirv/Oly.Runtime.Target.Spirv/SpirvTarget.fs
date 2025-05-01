@@ -126,6 +126,16 @@ type SpirvTarget() =
         else
 
         let kind = splits[0]
+        let versions = 
+            if splits.Length = 1 then
+                [|"1";"0"|]
+            else
+                splits[1].Split('.')
+
+        let majorVersion = Int32.Parse(versions[0])
+        let minorVersion = Int32.Parse(versions[1])
+
+        let isGreaterOrEqualToVersion_1_3 = majorVersion >= 1 && minorVersion < 3
 
         let targetFlag =
             match kind with
@@ -249,6 +259,20 @@ type SpirvTarget() =
             if symbolInfo.Syntax.IsDefinition then
                 if symbolInfo.Symbol.IsProperty then
                     checkPropertyDefinition symbolInfo.Symbol.AsValue symbolInfo.Syntax
+
+                let isStructTy (ty: OlyTypeSymbol) =
+                    not ty.IsBuiltIn && not ty.IsAlias && ty.IsStruct && not ty.IsImported
+
+                if isGreaterOrEqualToVersion_1_3 then
+                    if symbolInfo.Symbol.IsFieldOrAutoProperty then
+                        let ty = symbolInfo.Symbol.AsValue.Type
+                        if isStructTy ty then
+                            diagnostics.Error($"Nested structs are only available in version 1.3 or greater.", 10, symbolInfo.Syntax)
+
+                if symbolInfo.Symbol.IsType then
+                    let ty = symbolInfo.Symbol.AsType
+                    if isStructTy ty && Seq.isEmpty ty.Fields then
+                        diagnostics.Error($"'{symbolInfo.Symbol.Name}' must declare at least one or more fields.", 10, symbolInfo.Syntax)
 
             // Usage
             else

@@ -5,6 +5,7 @@
 open System
 open System.IO
 open System.Text
+open System.Numerics
 open System.Drawing
 open Spirv
 
@@ -32,6 +33,24 @@ type GPU =
                     result
             )
 
+[<Struct;NoComparison>]
+type TestData =
+    {
+        Value: float32
+    }
+
+[<Struct;NoComparison>]
+type TestData2 =
+    {
+        Value: TestData
+    }
+
+[<Struct;NoComparison>]
+type TestData3 =
+    {
+        Value: TestData2
+    }
+
 let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (spvCompute: SpirvModule, input: 'T array) =
 
     let spvFilePath = Guid.NewGuid().ToString() + ".spv"
@@ -47,9 +66,23 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
             "float32"
         elif ty = typeof<int32> then
             "int32"
+        elif ty = typeof<Vector2> then
+            "vec2"
+        elif ty = typeof<Vector3> then
+            "vec3"
+        elif ty = typeof<Vector4> then
+            "vec4"
+        elif ty = typeof<TestData> then
+            "TestData"
+        elif ty = typeof<TestData2> then
+            "TestData2"
+        elif ty = typeof<TestData3> then
+            "TestData3"
         else
             failwith $"Invalid data kind: {ty.FullName}"
-    let data = Json.JsonSerializer.Serialize<_>(input)
+    let options = Json.JsonSerializerOptions()
+    options.IncludeFields <- true
+    let data = Json.JsonSerializer.Serialize<_>(input, options)
 
     let inputJson = $"""{{ "ShaderKind": "compute", "DataKind": "{dataKind}", "Data": """ + data + " }"
 

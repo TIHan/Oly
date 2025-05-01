@@ -2,6 +2,7 @@ module Oly.Runtime.Target.Spirv.Tests
 
 open System
 open System.Drawing
+open System.Numerics
 open WorkspaceUtilities
 open Xunit
 open Spirv.TestHelpers
@@ -49,7 +50,7 @@ let shouldRunCompute input (program: OlyProgram) =
     System.IO.File.Delete(program.Path.ToString())
     compute(sm, input)
 
-let OlyVertex (x, y, expectedColor: Color) (src: string) =
+let OlyVertex_1_0 (x, y, expectedColor: Color) (src: string) =
     let src = $"""
 #target "spirv: vertex, 1.0"
 
@@ -60,7 +61,7 @@ let OlyVertex (x, y, expectedColor: Color) (src: string) =
     let output = build false src |> shouldRunVertex
     Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
 
-let OlyFragment (x, y, expectedColor: Color) (src: string) =
+let OlyFragment_1_0 (x, y, expectedColor: Color) (src: string) =
     let src = $"""
 #target "spirv: fragment, 1.0"
 
@@ -71,9 +72,20 @@ let OlyFragment (x, y, expectedColor: Color) (src: string) =
     let output = build false src |> shouldRunFragment
     Assert.Equal<Color>(expectedColor, output.GetPixel(x, y))
 
-let OlyCompute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
+let OlyCompute_1_0<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
     let src = $"""
 #target "spirv: compute, 1.0"
+
+{src}
+"""
+    let output = build true src |> shouldRunCompute input
+    Assert.Equal<'T>(expectedOutput, output)
+    let output = build false src |> shouldRunCompute input
+    Assert.Equal<'T>(expectedOutput, output)
+
+let OlyCompute_1_3<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
+    let src = $"""
+#target "spirv: compute, 1.3"
 
 {src}
 """
@@ -117,7 +129,7 @@ outColor: vec4
 main(): () =
     ()
         """
-    OlyVertex (64, 64, Color.FromArgb(255, 0, 0, 0)) src
+    OlyVertex_1_0 (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Blank vertex shader but has output`` () =
@@ -155,7 +167,7 @@ outColor: vec4
 main(): () =
     Position <- vec4(1)
         """
-    OlyVertex (64, 64, Color.FromArgb(255, 0, 0, 0)) src
+    OlyVertex_1_0 (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Basic vertex shader`` () =
@@ -201,7 +213,7 @@ main(): () =
     outTexCoords <- texCoords
     outColor <- color
         """
-    OlyVertex (64, 64, Color.FromArgb(255, 0, 64, 191)) src
+    OlyVertex_1_0 (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Blank fragment shader`` () =
@@ -227,7 +239,7 @@ outColor: vec4
 main(): () =
     ()
         """
-    OlyFragment (64, 64, Color.FromArgb(255, 0, 0, 0)) src
+    OlyFragment_1_0 (64, 64, Color.FromArgb(255, 0, 0, 0)) src
 
 [<Fact>]
 let ``Basic fragment shader`` () =
@@ -258,7 +270,7 @@ outColor: vec4
 main(): () =
     outColor <- color
         """
-    OlyFragment (64, 64, Color.FromArgb(255, 0, 64, 191)) src
+    OlyFragment_1_0 (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Should create a new value and use it`` () =
@@ -290,7 +302,7 @@ main(): () =
     outTexCoords <- texCoords
     outColor <- color
         """
-    OlyVertex (64, 64, Color.FromArgb(255, 0, 64, 191)) src
+    OlyVertex_1_0 (64, 64, Color.FromArgb(255, 0, 64, 191)) src
 
 [<Fact>]
 let ``Should mutate a new value and use it`` () =
@@ -313,7 +325,7 @@ main(): () =
     color <- vec4(1)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // Should show white
+    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 255, 255, 255)) src // Should show white
 
 [<Fact>]
 let ``Should use if/else`` () =
@@ -338,7 +350,7 @@ main(): () =
         color <- vec4(0.5)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 2`` () =
@@ -365,7 +377,7 @@ main(): () =
         color <- vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 3`` () =
@@ -392,7 +404,7 @@ main(): () =
         color <- vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
+    OlyFragment_1_0 (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 4`` () =
@@ -420,7 +432,7 @@ main(): () =
             color
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 5`` () =
@@ -455,7 +467,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 6`` () =
@@ -483,7 +495,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
+    OlyFragment_1_0 (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 7`` () =
@@ -513,7 +525,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 8`` () =
@@ -543,7 +555,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Should use if/else 9`` () =
@@ -573,7 +585,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
+    OlyFragment_1_0 (0, 0, Color.FromArgb(0, 0, 0, 0)) src // should show black
 
 [<Fact>]
 let ``Should use if/else 10`` () =
@@ -606,7 +618,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
+    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
 
 [<Fact>]
 let ``Should use if/else 11`` () =
@@ -636,7 +648,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
+    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 255, 255, 255)) src // should show white
 
 [<Fact>]
 let ``Should use if/else 12`` () =
@@ -666,7 +678,7 @@ main(): () =
             vec4(0)
     outColor <- color
         """
-    OlyFragment (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
 
 [<Fact>]
 let ``Blank compute shader`` () =
@@ -675,7 +687,7 @@ let ``Blank compute shader`` () =
 main(): () =
     ()
         """
-    OlyCompute [|0f|] [|0f|] src
+    OlyCompute_1_0 [|0f|] [|0f|] src
 
 [<Fact>]
 let ``Basic compute shader`` () =
@@ -701,7 +713,7 @@ main(): () =
     let index = GlobalInvocationId.x
     buffer[index] <- 123
         """
-    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+    OlyCompute_1_0 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
 let ``Basic compute shader 2 - verify use of local creation`` () =
@@ -729,7 +741,7 @@ main(): () =
     let index = abc.x
     buffer[index] <- 123
         """
-    OlyCompute [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+    OlyCompute_1_0 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
 let ``Basic compute shader 3 - verify use of function GetValue`` () =
@@ -745,7 +757,7 @@ GetValue(x: float): float =
 main(): () =
     buffer[1] <- GetValue(123)
         """
-    OlyCompute [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
+    OlyCompute_1_0 [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
 
 [<Fact>]
 let ``Basic compute shader 4 - verify use of int32`` () =
@@ -758,13 +770,7 @@ buffer: mutable int[]
 main(): () =
     buffer[1] <- 123
         """
-    OlyCompute [|0;0;0;0|] [|0;123;0;0|] src
-
-[<Struct;NoComparison>]
-type TestData =
-    {
-        Value: float32
-    }
+    OlyCompute_1_0 [|0;0;0;0|] [|0;123;0;0|] src
 
 [<Fact>]
 let ``Basic compute shader 5 - verify struct`` () =
@@ -778,20 +784,17 @@ buffer: mutable TestData[]
     get
 
 main(): () =
+    let mutable v = vec2(0)
+    v.x <- 123
+    v.y <- 456
     let mutable tdata = TestData()
-    tdata.Value <- 123
+    tdata.Value <- v.x
     buffer[1] <- tdata
         """
     src
-    |> OlyCompute 
-        [|{ Value = 0f };{ Value =   0f };{ Value = 0f }|] 
+    |> OlyCompute_1_0 
+        [|{ TestData.Value = 0f };{ Value =   456f };{ Value = 0f }|] 
         [|{ Value = 0f };{ Value = 123f };{ Value = 0f }|]
-
-[<Struct;NoComparison>]
-type TestData2 =
-    {
-        Value: TestData
-    }
 
 [<Fact>]
 let ``Basic compute shader 6 - verify nested struct`` () =
@@ -813,15 +816,9 @@ main(): () =
     buffer[1] <- tdata2
         """
     src
-    |> OlyCompute 
-        [|{ Value = { Value = 0f } };{ Value = { Value =   0f } };{ Value = { Value = 0f } }|] 
+    |> OlyCompute_1_3
+        [|{ TestData2.Value = { TestData.Value = 0f } };{ Value = { Value =   0f } };{ Value = { Value = 0f } }|] 
         [|{ Value = { Value = 0f } };{ Value = { Value = 123f } };{ Value = { Value = 0f } }|]
-
-[<Struct;NoComparison>]
-type TestData3 =
-    {
-        Value: TestData2
-    }
 
 [<Fact>]
 let ``Basic compute shader 7 - verify doubly nested structs`` () =
@@ -846,26 +843,25 @@ main(): () =
     buffer[1] <- tdata3
         """
     src
-    |> OlyCompute 
-        [|{ Value = { Value = { Value = 0f } } };{ Value = { Value = { Value =   0f } } };{ Value = { Value = { Value = 0f } } }|] 
+    |> OlyCompute_1_3 
+        [|{ Value = { Value = { TestData.Value = 0f } } };{ Value = { Value = { Value =   0f } } };{ Value = { Value = { Value = 0f } } }|] 
         [|{ Value = { Value = { Value = 0f } } };{ Value = { Value = { Value = 123f } } };{ Value = { Value = { Value = 0f } } }|]
 
-type EmptyStruct = struct end
-
 [<Fact>]
-let ``Basic compute shader 8 - verify empty struct`` () =
+let ``Basic compute shader 8 - verify vec2`` () =
     let src =
         """
-struct EmptyStruct
-
-buffer: mutable EmptyStruct[]
+buffer: mutable vec2[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
-    buffer[1] <- EmptyStruct()
+    let mutable v = vec2(0)
+    v.x <- 123
+    v.y <- 456
+    buffer[0] <- v 
         """
     src
-    |> OlyCompute 
-        [|EmptyStruct();EmptyStruct();EmptyStruct();EmptyStruct()|] 
-        [|EmptyStruct();EmptyStruct();EmptyStruct();EmptyStruct()|] 
+    |> OlyCompute_1_3 
+        [|Vector2(5.0f, 5.0f)|] 
+        [|Vector2(123.0f, 456.0f)|]
