@@ -135,7 +135,8 @@ type SpirvTarget() =
         let majorVersion = Int32.Parse(versions[0])
         let minorVersion = Int32.Parse(versions[1])
 
-        let isGreaterOrEqualToVersion_1_3 = majorVersion >= 1 && minorVersion < 3
+        let isGreaterOrEqualToVersion_1_3 = majorVersion >= 1 && minorVersion >= 3
+        let isGreaterOrEqualToVersion_1_2 = majorVersion >= 1 && minorVersion >= 2
 
         let targetFlag =
             match kind with
@@ -174,6 +175,25 @@ type SpirvTarget() =
             | "position" -> true
             | _ -> false
 
+        let checkAlignment (ty: OlyTypeSymbol) (useSyntax: OlySyntaxNode) =
+            let is16byteAligned =
+                match ty.TryGetPackedSizeInBytes() with
+                | ValueSome sizeInBytes ->
+                    let rm = sizeInBytes % 16
+                    if rm <> 0 && 
+                        sizeInBytes <> 1 && 
+                        sizeInBytes <> 2 && 
+                        sizeInBytes <> 4 && 
+                        sizeInBytes <> 8 then
+                        false
+                    else
+                        true
+                | _ ->
+                    false
+
+            if not is16byteAligned then
+                diagnostics.Error($"'{ty.Name}' must be 16-byte aligned.", 10, useSyntax)
+
         let checkAttributeUsage name (useSyntax: OlySyntaxNode) =
             let isValid =
                 match useSyntax.TryFindParent<OlySyntaxPropertyBinding>(ct) with
@@ -203,6 +223,30 @@ type SpirvTarget() =
             OlyAssert.True(valueSymbol.IsGetterFunction || valueSymbol.IsSetterFunction)
             // TODO: Add checks to verify if the combination of attributes and property type are used correctly.
             //       Or, we could do this verification when we check the attribute usage, but will require querying with a syntax node.
+            match valueSymbol.ReturnType with
+            | Some(retTy) when valueSymbol.IsGetterFunction ->
+                let mutable isUniform = false
+                let mutable isStorageBuffer = false
+                valueSymbol.ForEachAttribute(
+                    fun attr ->
+                        match attr.Name with
+                        | "uniformAttribute" ->
+                            isUniform <- true
+                        | "storage_bufferAttribute" ->
+                            isStorageBuffer <- true
+                        | _ ->
+                            ()
+                )
+                if not isGreaterOrEqualToVersion_1_3 && isStorageBuffer then
+                    diagnostics.Error("Storage buffers are only available in version 1.3 or greater.", 10, useSyntax)
+                if isUniform then
+                    if retTy.IsMutableArray then
+                        diagnostics.Error("Uniforms cannot be a mutable array type.", 10, useSyntax)
+
+                if retTy.IsAnyArray then
+                    checkAlignment retTy.TypeArguments[0] useSyntax
+            | _ ->
+                ()
 
         let isIntrinsicImport (valueSymbol: OlyValueSymbol) =
             match valueSymbol.Enclosing.TryType with
@@ -263,7 +307,7 @@ type SpirvTarget() =
                 let isStructTy (ty: OlyTypeSymbol) =
                     not ty.IsBuiltIn && not ty.IsAlias && ty.IsStruct && not ty.IsImported
 
-                if isGreaterOrEqualToVersion_1_3 then
+                if not isGreaterOrEqualToVersion_1_3 then
                     if symbolInfo.Symbol.IsFieldOrAutoProperty then
                         let ty = symbolInfo.Symbol.AsValue.Type
                         if isStructTy ty then
@@ -271,8 +315,13 @@ type SpirvTarget() =
 
                 if symbolInfo.Symbol.IsType then
                     let ty = symbolInfo.Symbol.AsType
-                    if isStructTy ty && Seq.isEmpty ty.Fields then
-                        diagnostics.Error($"'{symbolInfo.Symbol.Name}' must declare at least one or more fields.", 10, symbolInfo.Syntax)
+                    if isStructTy ty then
+                        let fields = ty.Fields |> Seq.filter (fun x -> not x.IsStatic) |> ImArray.ofSeq
+                        if fields.IsEmpty then
+                            diagnostics.Error($"'{symbolInfo.Symbol.Name}' must declare at least one or more fields.", 10, symbolInfo.Syntax)
+                        else
+                            checkAlignment ty symbolInfo.Syntax                           
+
 
             // Usage
             else

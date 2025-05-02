@@ -11,7 +11,7 @@ let ``Should error with incorrect use of runtime array``() =
     """
 #target "spirv: vertex, 1.0"
 
-buffer: mutable float[]
+buffer: float[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
@@ -104,6 +104,93 @@ main(): () =
                 """
 struct EmptyStruct
        ^^^^^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Should error with a mutable array as a uniform``() =
+    """
+#target "spirv: compute, 1.0"
+
+buffer: mutable vec2[]
+    #[uniform, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    ()
+    """
+    |> buildHasErrors
+        [
+            ("SPIR-V: Uniforms cannot be a mutable array type.",
+                """
+buffer: mutable vec2[]
+^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Should error with storage buffer under version 1_3``() =
+    """
+#target "spirv: compute, 1.2"
+
+buffer: mutable vec2[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    ()
+    """
+    |> buildHasErrors
+        [
+            ("SPIR-V: Storage buffers are only available in version 1.3 or greater.",
+                """
+buffer: mutable vec2[]
+^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Should error when not 16-byte aligned`` () =
+    """
+#target "spirv: compute, 1.1"
+
+buffer: vec3[]
+    #[uniform, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    ()
+    """
+    |> buildHasErrors
+        [
+            ("SPIR-V: 'vec3' must be 16-byte aligned.",
+                """
+buffer: vec3[]
+^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Should error when not 16-byte aligned - 2`` () =
+    """
+#target "spirv: compute, 1.1"
+
+struct S =
+    public field mutable Value: vec3 = vec3(0)
+
+main(): () =
+    ()
+    """
+    |> buildHasErrors
+        [
+            ("SPIR-V: 'S' must be 16-byte aligned.",
+                """
+struct S =
+       ^
 """
             )
         ]

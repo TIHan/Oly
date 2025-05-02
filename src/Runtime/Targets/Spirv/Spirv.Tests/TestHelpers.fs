@@ -63,9 +63,9 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
     let dataKind =
         let ty = typeof<'T>
         if ty = typeof<float32> then
-            "float32"
+            "float"
         elif ty = typeof<int32> then
-            "int32"
+            "int"
         elif ty = typeof<Vector2> then
             "vec2"
         elif ty = typeof<Vector3> then
@@ -90,7 +90,7 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
 
     let output = p.SendLine($"shader;{inputJson};{shaderPath}", Unchecked.defaultof<_>)
     if String.IsNullOrWhiteSpace(output.Errors) then
-        Json.JsonSerializer.Deserialize<'T[]>(output.Output)
+        Json.JsonSerializer.Deserialize<'T[]>(output.Output, options)
     else
         failwith output.Errors
 
@@ -103,7 +103,7 @@ let private shaderAux (kind: string) (spv: SpirvModule) : Bitmap =
 
     let shaderPath = spvBytes.Name
 
-    let inputJson = $"""{{ "ShaderKind": "{kind}", "DataKind": "int32", "Data": """ + "[123]" + " }"
+    let inputJson = $"""{{ "ShaderKind": "{kind}", "DataKind": "int", "Data": """ + "[123]" + " }"
 
     let p = GPU.GetTestService()
 

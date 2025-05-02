@@ -31,10 +31,10 @@ let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new
             invalidOp $"Type '{x.FullName}' not supported or implemented."
 
     let src = $"""
-#target "spirv: compute, 1.0"
+#target "spirv: compute, 1.3"
 
 Buffer: mutable {tyName}[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 Test(input: {tyName}): {tyName} =
@@ -89,11 +89,11 @@ let ``Round 7``() =
 
 [<Fact>]
 let ``Round 8``() =
-    "round(input)"
-    |> run [|Vector3(0.1f)|] [|Vector3(0.0f)|]
+    "let result = round(vec3(input.y, input.z, input.w))\n    vec4(0, result.x, result.y, result.z)"
+    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
 
-    "round(input)"
-    |> run [|Vector3(0.1f, 0.1f, 0.9f)|] [|Vector3(0.0f, 0.0f, 1.0f)|]
+    "let result = round(vec3(input.y, input.z, input.w))\n    vec4(0, result.x, result.y, result.z)"
+    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
 
 [<Fact>]
 let ``Round 9``() =

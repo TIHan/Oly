@@ -406,33 +406,6 @@ module BuiltInFunctions =
             } |> SpirvFunction.BuiltIn
         )
 
-    let private AddExtractInsertComposite(name: string, index: uint) =
-        Add(name,             
-            SpirvBuiltInFunctionData.Intrinsic(
-                fun spvModule args returnTy ->
-                    match args.Length with
-                    | 1 ->
-                        match args |> ImArray.head with
-                        | (_, argIdRef) ->
-                            let idResult = spvModule.NewIdResult()
-                            idResult, [OpCompositeExtract(returnTy.IdResult, idResult, argIdRef, [index])]
-
-                    | 2 ->
-                        let idRefs =
-                            args
-                            |> ImArray.map snd
-
-                        0u,
-                        [
-                            OpCompositeInsert((fst args[1]).IdResult, spvModule.NewIdResult(), idRefs[1], idRefs[0], [index])
-                        ]
-
-                    | _ ->
-                        invalidOp name
-            ),
-            SpirvBuiltInFunctionFlags.AutoDereferenceArguments
-        )  
-
     do
         Add("position",                
             SpirvBuiltInFunctionData.DecorateFieldAndVariable(
@@ -524,10 +497,6 @@ module BuiltInFunctions =
                     [OpDecorate(varIdRef, Decoration.BuiltIn BuiltIn.GlobalInvocationId)]
             ),     
             SpirvBuiltInFunctionFlags.None)
-        AddExtractInsertComposite("x", 0u)
-        AddExtractInsertComposite("y", 1u)
-        AddExtractInsertComposite("z", 2u)
-        AddExtractInsertComposite("w", 3u)
         Add("vec",
             SpirvBuiltInFunctionData.Intrinsic(
                 fun spvModule args returnTy ->
@@ -565,7 +534,7 @@ module BuiltInFunctions =
                         let idRefs = args |> ImArray.map snd
                         match returnTy with
                         | SpirvType.Vec(_, 3u, _) ->
-                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[3]])]
+                            idResult, [OpCompositeConstruct(returnTy.IdResult, idResult, [idRefs[0]; idRefs[1]; idRefs[2]])]
                         | SpirvType.Vec(_, (4u as n), elementTy) ->
                             let argIdResults = List.init ((int n) - 2) (fun _ -> spvModule.NewIdResult())
                             let arg1IdRef = idRefs[1]

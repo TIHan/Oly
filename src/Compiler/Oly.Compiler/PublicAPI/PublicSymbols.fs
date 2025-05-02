@@ -296,6 +296,12 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
 
     member _.IsAnyArray = ty.IsAnyArray
 
+    /// Is it an immutable array?
+    member _.IsArray = ty.IsArray
+
+    /// Is it a mutable array?
+    member _.IsMutableArray = ty.IsMutableArray_t
+
     member _.IsTypeAnyByRef = ty.IsByRef_t
 
     member _.GetTupleItemSignatureTexts() =
@@ -346,6 +352,59 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         match ty with
         | TypeSymbol.Entity(ent) -> ent.Documentation.Trim()
         | _ -> String.Empty
+
+    member this.TypeArguments =
+        ty.TypeArguments
+        |> ImArray.map (fun x -> OlyTypeSymbol(x))
+
+    /// This only returns if all the types are structs with primitives.
+    member this.TryGetPackedSizeInBytes() =
+        let visited = System.Collections.Generic.Dictionary(TypeSymbolComparer());
+        let rec tryGetSizeInBytes ty =
+            let ty = stripTypeEquationsAndBuiltIn ty
+            match visited.TryGetValue(ty) with
+            | true, v -> v
+            | _ ->
+                let v =
+                    match ty with
+                    | TypeSymbol.UInt8
+                    | TypeSymbol.Int8 -> 1
+                    | TypeSymbol.UInt16
+                    | TypeSymbol.Int16 
+                    | TypeSymbol.Char16 -> 2
+                    | TypeSymbol.ConstantInt32 _ 
+                    | TypeSymbol.UInt32
+                    | TypeSymbol.Int32 
+                    | TypeSymbol.Float32 -> 4
+                    | TypeSymbol.UInt64
+                    | TypeSymbol.Int64 
+                    | TypeSymbol.Float64 -> 8
+                    | ty ->
+                        if ty.IsAnyStruct then
+                            let mutable isValid = true
+                            let fieldBytes =
+                                ty.GetInstanceFields()
+                                |> ImArray.map (fun x -> 
+                                    match tryGetSizeInBytes x.Type with
+                                    | -1 ->
+                                        isValid <- false
+                                        -1
+                                    | v ->
+                                        v)
+                            if fieldBytes.IsEmpty || not isValid then
+                                -1
+                            elif fieldBytes.Length > 1 then
+                                fieldBytes
+                                |> ImArray.reduce (+)
+                            else
+                                fieldBytes[0]
+                        else
+                            -1
+                visited[ty] <- v
+                v
+        match tryGetSizeInBytes ty with
+        | -1 -> ValueNone
+        | v -> ValueSome v
 
 and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | UInt8 of value: uint8

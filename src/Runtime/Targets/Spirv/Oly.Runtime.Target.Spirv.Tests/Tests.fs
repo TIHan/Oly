@@ -706,14 +706,14 @@ let ``Basic compute shader`` () =
     let src =
         """
 buffer: mutable float[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
     let index = GlobalInvocationId.x
     buffer[index] <- 123
         """
-    OlyCompute_1_0 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+    OlyCompute_1_3 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
 let ``Basic compute shader 2 - verify use of local creation`` () =
@@ -733,7 +733,7 @@ let ``Basic compute shader 2 - verify use of local creation`` () =
     let src =
         """
 buffer: mutable float[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -741,14 +741,14 @@ main(): () =
     let index = abc.x
     buffer[index] <- 123
         """
-    OlyCompute_1_0 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
+    OlyCompute_1_3 [|0f;0f;0f;0f|] [|123f;123f;123f;123f|] src
 
 [<Fact>]
 let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
 buffer: mutable float[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 GetValue(x: float): float =
@@ -757,20 +757,20 @@ GetValue(x: float): float =
 main(): () =
     buffer[1] <- GetValue(123)
         """
-    OlyCompute_1_0 [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
+    OlyCompute_1_3 [|0f;0f;0f;0f|] [|0f;123f;0f;0f|] src
 
 [<Fact>]
 let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
 buffer: mutable int[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
     buffer[1] <- 123
         """
-    OlyCompute_1_0 [|0;0;0;0|] [|0;123;0;0|] src
+    OlyCompute_1_3 [|0;0;0;0|] [|0;123;0;0|] src
 
 [<Fact>]
 let ``Basic compute shader 5 - verify struct`` () =
@@ -780,7 +780,7 @@ struct TestData =
     public field mutable Value: float = 0
 
 buffer: mutable TestData[]
-    #[uniform, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
 main(): () =
@@ -792,7 +792,7 @@ main(): () =
     buffer[1] <- tdata
         """
     src
-    |> OlyCompute_1_0 
+    |> OlyCompute_1_3
         [|{ TestData.Value = 0f };{ Value =   456f };{ Value = 0f }|] 
         [|{ Value = 0f };{ Value = 123f };{ Value = 0f }|]
 
@@ -862,6 +862,70 @@ main(): () =
     buffer[0] <- v 
         """
     src
-    |> OlyCompute_1_3 
+    |> OlyCompute_1_3
         [|Vector2(5.0f, 5.0f)|] 
         [|Vector2(123.0f, 456.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 9 - verify vec3`` () =
+    let src =
+        """
+struct new_vec4 =
+    public field mutable xyz: vec3 = vec3(0)
+    public field mutable w: float = 0
+
+buffer: mutable new_vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    let mutable v = new_vec4()
+    v.xyz <- vec3(123, 456, 789)
+    v.w <- 999
+    buffer[0] <- v
+    buffer[1] <- v
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f);Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f);Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 9 - verify vec3 - 2`` () =
+    let src =
+        """
+struct new_vec4 =
+    public field mutable w: float = 0
+    public field mutable xyz: vec3 = vec3(0)
+
+buffer: mutable new_vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    let mutable v = new_vec4()
+    v.xyz <- vec3(123, 456, 789)
+    v.w <- 999
+    buffer[0] <- v
+    buffer[1] <- v
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f);Vector4(0.0f)|] 
+        [|Vector4(999.0f, 123.0f, 456.0f, 789.0f);Vector4(999.0f, 123.0f, 456.0f, 789.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 10 - verify vec4`` () =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+main(): () =
+    buffer[0] <- vec4(123, 456, 789, 999)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
