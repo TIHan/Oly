@@ -150,7 +150,10 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         (irLocalFlags: OlyIRLocalFlags [])
         (irExpr: E<'Type, 'Function, 'Field>)
         (genericContext: GenericContext)
-        (irTier: OlyIRFunctionTier) =
+        (irTier: OlyIRFunctionTier)
+        (enclosingTyName: string)
+        (funcName: string) 
+        =
     let argLocalManager =
         ArgumentLocalManager(irArgFlags, ResizeArray irLocalFlags)
 
@@ -194,9 +197,9 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         |> checkExpr "DeadCodeElimination" optenv
 
     //if optenv.IsDebuggable then
-    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug_before.oly-ir", Dump.DumpExpression irExpr)
+    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_debug_before.oly-ir", Dump.DumpExpression irExpr)
     //else
-    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_before.oly-ir", Dump.DumpExpression irExpr)
+    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_before.oly-ir", Dump.DumpExpression irExpr)
 
     let irOptimizedExpr = 
         let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr "InlineFunctions" optenv
@@ -223,8 +226,8 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     let irArgFlags = optenv.GetArgumentFlags()
 
     //if optenv.IsDebuggable then
-    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}_debug.oly-ir", Dump.DumpExpression irOptimizedExpr)
+    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_debug.oly-ir", Dump.DumpExpression irOptimizedExpr)
     //else
-    //    System.IO.File.WriteAllText($"{optenv.func.EnclosingType.Name}_{optenv.func.Name}.oly-ir", Dump.DumpExpression irOptimizedExpr)
+    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}.oly-ir", Dump.DumpExpression irOptimizedExpr)
 
     OlyIRFunctionBody<'Type, 'Function, 'Field>(irOptimizedExpr, irArgFlags, irLocalFlags)

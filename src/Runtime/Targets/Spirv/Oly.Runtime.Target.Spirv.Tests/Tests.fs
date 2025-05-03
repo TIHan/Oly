@@ -929,3 +929,99 @@ main(): () =
     |> OlyCompute_1_3
         [|Vector4(0.0f)|] 
         [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 11 - verify struct ctor`` () =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+struct Doot =
+    public field mutable X: float = 999
+
+main(): () =
+    let mutable doot = Doot()
+    buffer[0] <- vec4(123, 456, 789, doot.X)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 12 - verify struct instance method`` () =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+struct Doot =
+    public field mutable X: float = 0
+
+    mutable SetX(x: float): () =
+        this.X <- x
+
+main(): () =
+    let mutable doot = Doot()
+    doot.SetX(999)
+    buffer[0] <- vec4(123, 456, 789, doot.X)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 12 - verify struct instance method - 2``() =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+struct Doot =
+    public field mutable X: float = 0
+
+    mutable M(): () =
+        this.X <- 999
+
+main(): () =
+    let mutable doot = Doot()
+    doot.M()
+    buffer[0] <- vec4(123, 456, 789, doot.X)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Basic compute shader 12 - verify struct instance method - 3``() =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+struct Doot =
+    public field mutable X: float = 0
+
+    mutable M(): () =
+        this.X <- 999
+
+    #[inline(never)]
+    mutable M2(): () =
+        this.M()
+
+main(): () =
+    let mutable doot = Doot()
+    doot.M2()
+    buffer[0] <- vec4(123, 456, 789, doot.X)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]

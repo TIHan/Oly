@@ -740,6 +740,32 @@ module BuiltInTypes =
 [<Sealed>]
 type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: ExecutionModel) =
 
+    let isTyEq (ty1: SpirvType) (ty2: SpirvType) =
+        match ty1, ty2 with
+        | SpirvType.Struct(builder1), SpirvType.Struct(builder2) -> builder1.IdResult = builder2.IdResult
+        | _ -> ty1 = ty2
+
+    let functionTypeComparer =
+        { new IEqualityComparer<(SpirvType * SpirvType imarray)> with
+
+            member _.GetHashCode (obj: SpirvType * SpirvType imarray): int = 
+                let (returnTy, _) = obj
+                int(returnTy.IdResult)
+
+            member _.Equals(obj1: SpirvType * SpirvType imarray, obj2: SpirvType * SpirvType imarray): bool =
+                let (returnTy1, parTys1) = obj1
+                let (returnTy2, parTys2) = obj2
+
+                isTyEq returnTy1 returnTy2 &&
+                (
+                    if parTys1.Length = parTys2.Length then
+                        (parTys1, parTys2)
+                        ||> ImArray.forall2 (isTyEq)
+                    else
+                        false
+                )
+        }
+
     let mutable isBuilding = false
 
     let types = List<SpirvType>()
@@ -749,7 +775,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
     let pointerTys = Dictionary<(StorageClass * IdRef), SpirvType>()
     let vecTys = Dictionary<(uint * IdRef), SpirvType>()
     let arrayTys = Dictionary<(SpirvArrayKind * IdRef), SpirvType>()
-    let funcTys = Dictionary<(SpirvType * SpirvType imarray), SpirvType>()
+    let funcTys = Dictionary<(SpirvType * SpirvType imarray), SpirvType>(functionTypeComparer)
 
     let strings = Dictionary<string, IdResult>()
 

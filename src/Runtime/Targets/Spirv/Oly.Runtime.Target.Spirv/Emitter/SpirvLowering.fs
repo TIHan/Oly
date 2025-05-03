@@ -28,18 +28,19 @@ module rec SpirvLowering =
 
         member this.IsEntryPoint = this.Function.IsEntryPoint
 
-        member this.SetLocal(localIndex: int32, ty: SpirvType) =
+        member this.SetLocal(localIndex: int32, ty: SpirvType, idResult: IdResult) =
             let ty =
                 match ty with
                 | SpirvType.Pointer(elementTy=elementTy) -> 
                     this.Module.GetTypePointer(StorageClass.Function, elementTy)
                 | _ -> 
                     raise(InvalidOperationException("Expected a pointer type."))
-
-            let idResult = this.Module.NewIdResult()
             this.Locals[localIndex] <- idResult
             this.LocalTypes[localIndex] <- ty
             ty
+
+        member this.SetLocal(localIndex: int32, ty: SpirvType) =
+            this.SetLocal(localIndex, ty, this.Module.NewIdResult())
 
         member this.AddLocal(ty: SpirvType) =
             let localIndex = this.Locals.Count
@@ -103,6 +104,17 @@ module rec SpirvLowering =
             let envNotReturnable = env.NotReturnable
             let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
             let resultTy = newRhsExpr.ResultType
+
+            // LOGICAL ADDRESSING ONLY
+            // --
+            match resultTy, rhsExpr with
+            | SpirvType.Pointer _, E.Value(value=V.LocalAddress(index, _, _)) ->
+                cenv.SetLocal(localIndex, resultTy, cenv.Locals[index])
+                |> ignore
+                LowerLinearExpression cenv env bodyExpr
+            | _ ->
+            // --
+
             match resultTy with
             | SpirvType.Pointer _ ->
                 cenv.SetLocal(localIndex, resultTy)
@@ -131,10 +143,16 @@ module rec SpirvLowering =
     let private LowerValue (cenv: cenv) (env: env) origExpr textRange value =
         match value with
         | V.Argument(argIndex, _)
-        | V.ArgumentAddress(argIndex, _, _)->
+        // LOGICAL ADDRESSING ONLY
+        // --
+        | V.ArgumentAddress(argIndex, _, _) ->
+        // --
             LowerArgument cenv env textRange argIndex            
         | V.Local(localIndex, _)
+        // LOGICAL ADDRESSING ONLY
+        // --
         | V.LocalAddress(localIndex, _, _) ->
+        // --
             LowerLocal cenv env textRange localIndex
         | _ ->
             origExpr

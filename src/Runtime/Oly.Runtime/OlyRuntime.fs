@@ -2726,7 +2726,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let body =
             lazy
                 let funcBody = body.Value
-                optimizeFunctionBody func funcBody genericContext
+                optimizeFunctionBody func funcBody genericContext func.EnclosingType.Name func.Name
 
         let irTier = this.GetFunctionTier(func)
 

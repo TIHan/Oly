@@ -15,4 +15,6 @@ val OptimizeFunctionBody<'Type, 'Function, 'Field> :
     E<'Type, 'Function, 'Field> -> 
     GenericContext ->
     irTier: OlyIRFunctionTier ->
+    enclosingTyName: string ->
+    funcName: string ->
     OlyIRFunctionBody<'Type, 'Function, 'Field>

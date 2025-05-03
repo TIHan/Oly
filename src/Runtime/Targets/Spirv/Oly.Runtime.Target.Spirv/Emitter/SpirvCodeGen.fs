@@ -73,15 +73,17 @@ module rec SpirvCodeGen =
         GenExpression newCenv env expr
         |> ignore
 
+        let localSet = HashSet()
         for i = 0 to cenv.Locals.Count - 1 do
             let localIdResult = cenv.Locals[i]
             let localTy = cenv.LocalTypes[i]
-            match localTy with
-            | SpirvType.Pointer(pointerTyIdResult, StorageClass.Function, _) ->
-                OpVariable(pointerTyIdResult, localIdResult, StorageClass.Function, None)
-                |> emitInstruction cenv
-            | _ ->
-                raise(InvalidOperationException("Expected a pointer type of storage class 'Function'."))
+            if localSet.Add(localIdResult) then
+                match localTy with
+                | SpirvType.Pointer(pointerTyIdResult, StorageClass.Function, _) ->
+                    OpVariable(pointerTyIdResult, localIdResult, StorageClass.Function, None)
+                    |> emitInstruction cenv
+                | _ ->
+                    raise(InvalidOperationException("Expected a pointer type of storage class 'Function'."))
 
         emitInstructions cenv newCenv.Instructions
 
@@ -316,7 +318,10 @@ module rec SpirvCodeGen =
                             |> ImArray.ofSeq
                         let idRef, instrs = create cenv.Module args op.ResultType
                         emitInstructions cenv instrs
-                        idRef
+                        if resultTy.IsVoid then
+                            IdRef0
+                        else
+                            idRef
                     | _ ->
                         raise(InvalidOperationException())
 
@@ -330,13 +335,19 @@ module rec SpirvCodeGen =
                     )
                     OpFunctionCall(funcBuilder.ReturnType.IdResult, idResult, funcBuilder.IdResult, idRefs |> List.ofArray)
                     |> emitInstruction cenv
-                    idResult
+                    if resultTy.IsVoid then
+                        IdRef0
+                    else
+                        idResult
 
                 | SpirvFunction.ExtendedInstruction(set, n) ->
                     let idResult = cenv.Module.NewIdResult()
                     OpExtInst(resultTy.IdResult, idResult, cenv.GetExtendedInstructionSet(set), n, idRefs |> List.ofArray)
                     |> emitInstruction cenv
-                    idResult
+                    if resultTy.IsVoid then
+                        IdRef0
+                    else
+                        idResult
 
             | _ ->
                 raise(NotImplementedException(op.ToString()))
