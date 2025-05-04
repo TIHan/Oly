@@ -20,8 +20,8 @@ type cenv =
         Function: SpirvFunctionBuilder
         Module: SpirvModuleBuilder
         Instructions: List<Instruction>
-        Locals: IList<IdResult>
-        LocalTypes: IList<SpirvType>
+        Locals: IReadOnlyList<IdResult>
+        LocalTypes: IReadOnlyList<SpirvType>
 
         mutable PredecessorBlockLabel: IdRef
     }

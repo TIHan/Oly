@@ -196,14 +196,14 @@ module rec SpirvLowering =
                 | O.Store(localIndex, _, _) ->
                     let localTy = cenv.LocalTypes[localIndex]
                     if localTy.IsPointer && localTy.ElementType.IsPointer then
-                        loweredArgExpr
+                        failwith "Invalid local"
                     else
                         AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | O.StoreArgument(argIndex, _, _) ->
                     let parTy = cenv.Function.Parameters[argIndex].Type
                     if parTy.IsPointer && parTy.ElementType.IsPointer then
-                        loweredArgExpr
+                        failwith "Invalid argument"
                     else
                         AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
