@@ -634,6 +634,15 @@ module ROMem =
         for i = 0 to (min items1.Length items2.Length) - 1 do
             f items1.[i] items2.[i]
 
+    let inline forall ([<InlineIfLambda>] f) (items: romem<'T1>) =
+        let mutable allAreEqual = true
+        let mutable i = 0
+        let items = items.Span
+        while(allAreEqual && i < items.Length) do
+            allAreEqual <- f items[i]
+            i <- i + 1
+        allAreEqual
+
     let inline forall2 ([<InlineIfLambda>] f) (items1: romem<'T1>) (items2: romem<'T2>) =
         if items1.Length <> items2.Length then
             invalidOp "Lengths do not match."

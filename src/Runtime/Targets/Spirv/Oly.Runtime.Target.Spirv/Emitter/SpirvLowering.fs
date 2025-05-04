@@ -105,15 +105,15 @@ module rec SpirvLowering =
             let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
             let resultTy = newRhsExpr.ResultType
 
-            // LOGICAL ADDRESSING ONLY
-            // --
-            match resultTy, rhsExpr with
-            | SpirvType.Pointer _, E.Value(value=V.LocalAddress(index, _, _)) ->
-                cenv.SetLocal(localIndex, resultTy, cenv.Locals[index])
-                |> ignore
-                LowerLinearExpression cenv env bodyExpr
-            | _ ->
-            // --
+            //// LOGICAL ADDRESSING ONLY
+            //// --
+            //match resultTy, rhsExpr with
+            //| SpirvType.Pointer _, E.Value(value=V.LocalAddress(index, _, _)) ->
+            //    cenv.SetLocal(localIndex, resultTy, cenv.Locals[index])
+            //    |> ignore
+            //    LowerLinearExpression cenv env bodyExpr
+            //| _ ->
+            //// --
 
             match resultTy with
             | SpirvType.Pointer _ ->
@@ -157,20 +157,40 @@ module rec SpirvLowering =
         | _ ->
             origExpr
 
-    let private LowerOperation (cenv: cenv) (env: env) origExpr textRange (op: O) =
-        let newOp =
+    let private CopyLoweredArgument (cenv: cenv) (loweredArgExpr: E) =
+        OlyAssert.False(loweredArgExpr.ResultType.IsOlyByRef)
+        let loweredArgExpr =
+            if loweredArgExpr.ResultType.IsPointer then
+                E.Operation(
+                    EmptyTextRange, 
+                    O.LoadFromAddress(loweredArgExpr, loweredArgExpr.ResultType.ElementType)
+                )
+            else
+                loweredArgExpr
+        let localTy, localIndex = 
+            cenv.AddLocal(
+                cenv.Module.GetTypePointer(StorageClass.Function, loweredArgExpr.ResultType)
+            )
+        let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+        E.Sequential(
+            E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, loweredArgExpr, cenv.Module.GetTypeVoid())),
+            valueExpr
+        )
+
+    let private LowerOperation (cenv: cenv) (env: env) origExpr textRange (origOp: O) =
+        let loweredOp =
             let env = env.NotReturnable
 
             let op =
-                match op with
+                match origOp with
                 | O.New(irFunc, argExprs, resultTy) ->
                     match irFunc.EmittedFunction with
                     | SpirvFunction.BuiltIn _ ->
                         O.Call(irFunc, argExprs, resultTy)
                     | _ ->
-                        op
+                        origOp
                 | _ ->
-                    op
+                    origOp
 
             op.MapAndReplaceArguments (fun i origArgExpr ->
                 let loweredArgExpr = LowerExpression cenv env origArgExpr
@@ -262,24 +282,7 @@ module rec SpirvLowering =
                             OlyAssert.True(loweredArgExpr.ResultType.IsPointer)
                             loweredArgExpr
                         | _ ->
-                            OlyAssert.False(loweredArgExpr.ResultType.IsOlyByRef)
-                            let loweredArgExpr =
-                                if loweredArgExpr.ResultType.IsPointer then
-                                    E.Operation(
-                                        EmptyTextRange, 
-                                        O.LoadFromAddress(loweredArgExpr, loweredArgExpr.ResultType.ElementType)
-                                    )
-                                else
-                                    loweredArgExpr
-                            let localTy, localIndex = 
-                                cenv.AddLocal(
-                                    cenv.Module.GetTypePointer(StorageClass.Function, loweredArgExpr.ResultType)
-                                )
-                            let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
-                            E.Sequential(
-                                E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, loweredArgExpr, cenv.Module.GetTypeVoid())),
-                                valueExpr
-                            )
+                            CopyLoweredArgument cenv loweredArgExpr
 
                 | _ ->
                     raise(NotImplementedException(op.ToString()))
@@ -292,8 +295,8 @@ module rec SpirvLowering =
             | _ ->
                 O.Call(irFunc, argExprs, var.Type)
 
-        let newOp =
-            match newOp with
+        let loweredOp =
+            match loweredOp with
             | O.Call(irFunc, argExprs, resultTy) ->
                 match irFunc.EmittedFunction with
                 | SpirvFunction.Variable var ->
@@ -305,43 +308,97 @@ module rec SpirvLowering =
                 | SpirvFunction.ExtendedInstruction _ ->
                     O.Call(irFunc, argExprs |> ImArray.map AutoDereferenceIfPossible, resultTy)
                 | _ ->
-                    newOp
+                    loweredOp
             | _ ->
-                newOp
+                loweredOp
 
-        match newOp with
-        | O.LoadFromAddress(bodyExpr, _) ->
-            bodyExpr
-        | O.New(ctor, argExprs, resultTy) ->
-            match ctor.EmittedFunction with
-            | SpirvFunction.BuiltIn _ ->
-                E.Operation(textRange, O.Call(ctor, argExprs, resultTy))
+        let loweredExpr =
+            match loweredOp with
+            | O.LoadFromAddress(bodyExpr, _) ->
+                bodyExpr
+            | O.New(ctor, argExprs, resultTy) ->
+                match ctor.EmittedFunction with
+                | SpirvFunction.BuiltIn _ ->
+                    E.Operation(textRange, O.Call(ctor, argExprs, resultTy))
 
-            | SpirvFunction.Function(funcBuilder) ->
-                OlyAssert.Equal(cenv.Module.GetTypeVoid(), funcBuilder.ReturnType)
-                let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
-                let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
-                E.CreateSequential(
-                    [
-                        E.Operation(textRange,
-                            O.Call(ctor,
-                                argExprs
-                                |> ImArray.prependOne valueExpr,
-                                funcBuilder.ReturnType
+                | SpirvFunction.Function(funcBuilder) ->
+                    OlyAssert.Equal(cenv.Module.GetTypeVoid(), funcBuilder.ReturnType)
+                    let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                    let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
+                    E.CreateSequential(
+                        [
+                            E.Operation(textRange,
+                                O.Call(ctor,
+                                    argExprs
+                                    |> ImArray.prependOne valueExpr,
+                                    funcBuilder.ReturnType
+                                )
                             )
-                        )
-                        valueExpr
-                    ]
-                    |> ImArray.ofSeq
-                )
+                            valueExpr
+                        ]
+                        |> ImArray.ofSeq
+                    )
 
+                | _ ->
+                    raise(NotImplementedException(loweredOp.ToString()))
             | _ ->
-                raise(NotImplementedException(newOp.ToString()))
-        | _ ->
-            if newOp = op then
-                origExpr
-            else
-                E.Operation(textRange, newOp)
+                if loweredOp = origOp then
+                    origExpr
+                else
+                    E.Operation(textRange, loweredOp)
+
+        let theAshleyTransform loweredExpr =
+            match loweredExpr with
+            | E.Operation(textRange, (O.Call(func, _, _) as loweredOp)) ->
+                match func.EmittedFunction with
+                | SpirvFunction.Function _ ->
+                    let copyRestoreExprs = ResizeArray()
+                    let loweredOp =
+                        loweredOp.MapAndReplaceArguments (fun _ loweredArgExpr ->
+                            match loweredArgExpr with
+                            | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
+#if DEBUG || CHECKED
+                                let isValid =
+                                    match baseExpr with
+                                    | E.Value _ ->
+                                        indexExprs
+                                        |> ROMem.forall (function E.Value _ -> true | _ -> false)
+                                    | _ ->
+                                        false
+                                OlyAssert.True(isValid)
+#endif
+                                let copiedLoweredArgExpr = CopyLoweredArgument cenv loweredArgExpr
+                                copyRestoreExprs.Add(loweredArgExpr, copiedLoweredArgExpr)
+                                copiedLoweredArgExpr
+                            | _ ->
+                                loweredArgExpr
+                        )
+
+                    (E.Operation(textRange, loweredOp), copyRestoreExprs)
+                    ||> Seq.fold (fun loweredExpr ((loweredArgExpr, copiedLoweredArgExpr)) ->
+                        let restoreExpr =
+                            let valueExpr = 
+                                let exprs = copiedLoweredArgExpr.GetExpressions()
+                                exprs[exprs.Length - 1] // get last expression
+#if DEBUG || CHECKED
+                            match valueExpr with
+                            | E.Value _ -> ()
+                            | _ -> OlyAssert.Fail("Expected value expression.")
+#endif
+                            OlyAssert.True(valueExpr.ResultType.IsPointer)
+                            let loadValueExpr = E.Operation(EmptyTextRange, O.LoadFromAddress(valueExpr, valueExpr.ResultType.ElementType))
+                            E.Operation(EmptyTextRange, O.StoreToAddress(loweredArgExpr, loadValueExpr, cenv.Module.GetTypeVoid()))
+                        E.Sequential(
+                            loweredExpr,
+                            restoreExpr
+                        )
+                    )
+                | _ ->
+                    loweredExpr
+            | _ ->
+                loweredExpr
+
+        theAshleyTransform loweredExpr
 
     let private LowerIfElse (cenv: cenv) (env: env) origExpr conditionExpr trueTargetExpr falseTargetExpr resultTy =
         let newConditionExpr = LowerExpression cenv env.NotReturnable conditionExpr
