@@ -271,6 +271,12 @@ type SpirvType =
         | Pointer(elementTy=elementTy) -> elementTy.IsPointerOfStructRuntimeArray
         | _ -> false
 
+    member this.ElementType =
+        match this with
+        | Pointer(elementTy=elementTy)
+        | OlyByRef(elementTy=elementTy) -> elementTy
+        | _ -> raise(InvalidOperationException("Type does not have an element type."))
+
 [<Sealed>]
 type SpirvVariable(idResult: IdResult, ty: SpirvType, decorateInstrs: Instruction list) =
     member _.IdResult = idResult

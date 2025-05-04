@@ -172,50 +172,50 @@ module rec SpirvLowering =
                 | _ ->
                     op
 
-            op.MapAndReplaceArguments (fun i argExpr ->
-                let newArgExpr = LowerExpression cenv env argExpr
+            op.MapAndReplaceArguments (fun i origArgExpr ->
+                let loweredArgExpr = LowerExpression cenv env origArgExpr
                 match op with
                 | O.Store _ ->
-                    AutoDereferenceIfPossible newArgExpr
+                    AutoDereferenceIfPossible loweredArgExpr
 
                 | O.StoreArgument _ ->
-                    raise(NotImplementedException(op.ToString()))
+                    AutoDereferenceIfPossible loweredArgExpr
 
                 | O.StoreField _ ->
                     if i = 0 then
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
                     else
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
 
                 | O.StoreToAddress _ ->
                     if i = 1 then
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
                     else
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
 
                 | O.StoreArrayElement _ ->
                     // In Spirv, the index must always be an uint32.
                     if i = 0 then
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
                     elif i = 1 then // 1 dim - the index
-                        let newArgExpr = AutoDereferenceIfPossible newArgExpr 
+                        let newArgExpr = AutoDereferenceIfPossible loweredArgExpr 
                         match newArgExpr.ResultType with
                         | SpirvType.UInt32 _ ->
                             newArgExpr
                         | _ ->
                             E.Operation(EmptyTextRange, O.Cast(newArgExpr, cenv.Module.GetTypeUInt32()))
                     else
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
 
                 | O.LoadArrayElement _ ->
                     if i = 0 then
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
                     else
-                        let newArgExpr = AutoDereferenceIfPossible newArgExpr 
+                        let newArgExpr = AutoDereferenceIfPossible loweredArgExpr 
                         match newArgExpr.ResultType with
                         | SpirvType.UInt32 _ ->
                             newArgExpr
@@ -225,26 +225,26 @@ module rec SpirvLowering =
                 | O.LoadField _
                 | O.LoadFieldAddress _
                 | O.LoadFromAddress _ ->
-                    AssertPointerType newArgExpr
-                    newArgExpr
+                    AssertPointerType loweredArgExpr
+                    loweredArgExpr
                 
                 | O.Equal _
                 | O.Cast _ ->
-                    AutoDereferenceIfPossible newArgExpr
+                    AutoDereferenceIfPossible loweredArgExpr
 
                 | BuiltInOperations.AccessChain _ ->
                     if i = 0 then
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
                     else
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
 
                 | BuiltInOperations.PtrAccessChain _ ->
                     if i = 0 then
-                        AssertPointerType newArgExpr
-                        newArgExpr
+                        AssertPointerType loweredArgExpr
+                        loweredArgExpr
                     else
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
 
                 | O.Call(irFunc, _, _) ->
                     let canAutoDereference =
@@ -254,15 +254,30 @@ module rec SpirvLowering =
                         | _ ->
                             false
                     if canAutoDereference then
-                        AutoDereferenceIfPossible newArgExpr
+                        AutoDereferenceIfPossible loweredArgExpr
                     else
-                        match newArgExpr.ResultType with
-                        | SpirvType.Pointer _ -> newArgExpr
-                        | resultTy ->
-                            let localTy, localIndex = cenv.AddLocal(cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
+                        match origArgExpr.ResultType with
+                        | SpirvType.OlyByRef _
+                        | SpirvType.Pointer _ -> 
+                            OlyAssert.True(loweredArgExpr.ResultType.IsPointer)
+                            loweredArgExpr
+                        | _ ->
+                            OlyAssert.False(loweredArgExpr.ResultType.IsOlyByRef)
+                            let loweredArgExpr =
+                                if loweredArgExpr.ResultType.IsPointer then
+                                    E.Operation(
+                                        EmptyTextRange, 
+                                        O.LoadFromAddress(loweredArgExpr, loweredArgExpr.ResultType.ElementType)
+                                    )
+                                else
+                                    loweredArgExpr
+                            let localTy, localIndex = 
+                                cenv.AddLocal(
+                                    cenv.Module.GetTypePointer(StorageClass.Function, loweredArgExpr.ResultType)
+                                )
                             let valueExpr = E.Value(EmptyTextRange, V.Local(localIndex, localTy))
                             E.Sequential(
-                                E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, newArgExpr, cenv.Module.GetTypeVoid())),
+                                E.Operation(EmptyTextRange, O.StoreToAddress(valueExpr, loweredArgExpr, cenv.Module.GetTypeVoid())),
                                 valueExpr
                             )
 
@@ -413,8 +428,11 @@ module rec SpirvLowering =
                 AssertPointerType localExpr
                 E.Operation(textRange, O.StoreToAddress(localExpr, rhsExpr, resultTy))
 
-            | O.StoreArgument _ ->
-                raise(NotImplementedException(op.ToString()))
+            | O.StoreArgument(argIndex, rhsExpr, resultTy) ->
+                let argTy = cenv.Function.Parameters[argIndex].Type
+                let argExpr = E.Value(EmptyTextRange, V.Argument(argIndex, argTy))
+                AssertPointerType argExpr
+                E.Operation(textRange, O.StoreToAddress(argExpr, rhsExpr, resultTy))
 
             | O.StoreField(field, receiverExpr, rhsExpr, resultTy) ->
                 let field = field.EmittedField
