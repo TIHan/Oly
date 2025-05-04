@@ -77,7 +77,7 @@ module rec SpirvCodeGen =
         for i = 0 to cenv.Locals.Count - 1 do
             let localIdResult = cenv.Locals[i]
             let localTy = cenv.LocalTypes[i]
-            if localSet.Add(localIdResult) then
+            if localSet.Add(localIdResult) && not localTy.IsInvalid then
                 match localTy with
                 | SpirvType.Pointer(pointerTyIdResult, StorageClass.Function, _) ->
                     OpVariable(pointerTyIdResult, localIdResult, StorageClass.Function, None)
@@ -177,13 +177,29 @@ module rec SpirvCodeGen =
             |> emitInstruction cenv
             idResult
 
-        | O.StoreToAddress(E.Value(value=V.Local(lhsLocalIndex, _)), E.Value(value=V.LocalAddress(rhsLocalIndex, _, _)), _) ->
-            cenv.Locals[lhsLocalIndex] <- cenv.Locals[rhsLocalIndex]
-            IdRef0
-
-        | O.StoreToAddress(E.Value(value=V.Local(lhsLocalIndex, _)), E.Operation(op=O.LoadFieldAddress _), _) ->
-            raise(System.NotImplementedException())
-            IdRef0
+        //// logical addressing
+        //| O.StoreToAddress(lhsExpr, rhsExpr, _) when lhsExpr.ResultType.IsPointer && lhsExpr.ResultType.ElementType.IsPointer ->
+        //    match lhsExpr with
+        //    | E.Value(value=V.Local(lhsLocalIndex, _)) ->
+        //        match rhsExpr with
+        //        | E.Value(value=V.LocalAddress(rhsLocalIndex, _, _)) ->
+        //            cenv.Locals[lhsLocalIndex] <- cenv.Locals[rhsLocalIndex]
+        //            IdRef0
+        //        | E.Operation(op=O.LoadFromAddress(rhsExpr, _)) ->
+        //            let idRef = GenExpression cenv env rhsExpr
+        //            cenv.Locals[lhsLocalIndex] <- idRef
+        //            cenv.LocalTypes[lhsLocalIndex] <- SpirvType.Invalid
+        //            IdRef0
+        //        | _ ->
+        //            raise(NotImplementedException())
+        //    | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
+        //        match rhsExpr with
+        //        | E.Operation(op=O.LoadFromAddress(E.Value(value=V.Local(rhsLocalIndex, _)), _)) ->
+        //            IdRef0
+        //        | _ ->
+        //            raise(NotImplementedException())
+        //    | _ ->
+        //        raise(NotSupportedException())
 
         | op ->
             let argCount = op.ArgumentCount

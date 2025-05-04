@@ -126,19 +126,21 @@ module rec SpirvLowering =
         let resultTy = cenv.Function.Parameters[argIndex].Type
         E.Value(textRange, V.Argument(argIndex, CheckArgumentOrLocalType resultTy))
 
-    let private LowerArgumentAddress (cenv: cenv) (_env: env) textRange argIndex byRefKind =
-        let resultTy = cenv.Function.Parameters[argIndex].Type
-        let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
-        E.Value(textRange, V.ArgumentAddress(argIndex, byRefKind, CheckArgumentOrLocalType resultTy))
+    let private LowerArgumentAddress (cenv: cenv) (env: env) textRange argIndex byRefKind =
+        LowerArgument cenv env textRange argIndex
+        //let resultTy = cenv.Function.Parameters[argIndex].Type
+        //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+        //E.Value(textRange, V.ArgumentAddress(argIndex, byRefKind, CheckArgumentOrLocalType resultTy))
         
     let private LowerLocal (cenv: cenv) (_env: env) textRange localIndex =
         let resultTy = cenv.LocalTypes[localIndex]
         E.Value(textRange, V.Local(localIndex, CheckArgumentOrLocalType resultTy))
 
-    let private LowerLocalAddress (cenv: cenv) (_env: env) textRange localIndex byRefKind =
-        let resultTy = cenv.LocalTypes[localIndex]
-        let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
-        E.Value(textRange, V.LocalAddress(localIndex, byRefKind, CheckArgumentOrLocalType resultTy))
+    let private LowerLocalAddress (cenv: cenv) (env: env) textRange localIndex byRefKind =
+        LowerLocal cenv env textRange localIndex
+        //let resultTy = cenv.LocalTypes[localIndex]
+        //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+        //E.Value(textRange, V.LocalAddress(localIndex, byRefKind, CheckArgumentOrLocalType resultTy))
 
     let private LowerValue (cenv: cenv) (env: env) origExpr textRange value =
         match value with
@@ -475,9 +477,9 @@ module rec SpirvLowering =
                         raise(InvalidOperationException())
 
                     let resultTy = 
-                        if resultTy.IsPointer then
-                            SpirvType.Pointer(0u, storageClass, resultTy) // fake pointer of pointer - logical addressing
-                        else
+                        //if resultTy.IsPointer then
+                        //    SpirvType.Pointer(0u, storageClass, resultTy) // fake pointer of pointer - logical addressing
+                        //else
                             cenv.Module.GetTypePointer(storageClass, resultTy)
 
                     BuiltInExpressions.AccessChain(
@@ -568,7 +570,7 @@ module rec SpirvLowering =
                 match expr.ResultType with
                 | SpirvType.OlyByRef(elementTy=elementTy) ->
                     let resultTy = cenv.Module.GetTypePointer(StorageClass.Function, elementTy)
-                    let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+                    //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
                     expr.WithResultType(resultTy)
                 | SpirvType.RuntimeArray _ ->
                     raise(InvalidOperationException($"Runtime array is not used correctly:\n{expr}"))
