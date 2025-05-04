@@ -81,7 +81,7 @@ module rec SpirvLowering =
             raise(InvalidOperationException("Expected pointer or by-ref type."))
 
     /// Use this in post-lowering.
-    let private AutoDereferenceIfPossible (expr: E) =
+    let private AutoDereferenceLoweredExpressionIfPossible (expr: E) =
         match expr.ResultType with
         | SpirvType.Pointer(elementTy=elementTy) ->
             E.Operation(EmptyTextRange, O.LoadFromAddress(expr, elementTy))
@@ -102,18 +102,8 @@ module rec SpirvLowering =
         
         | E.Let(_, localIndex, rhsExpr, bodyExpr) ->
             let envNotReturnable = env.NotReturnable
-            let newRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
-            let resultTy = newRhsExpr.ResultType
-
-            //// LOGICAL ADDRESSING ONLY
-            //// --
-            //match resultTy, rhsExpr with
-            //| SpirvType.Pointer _, E.Value(value=V.LocalAddress(index, _, _)) ->
-            //    cenv.SetLocal(localIndex, resultTy, cenv.Locals[index])
-            //    |> ignore
-            //    LowerLinearExpression cenv env bodyExpr
-            //| _ ->
-            //// --
+            let loweredRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
+            let resultTy = loweredRhsExpr.ResultType
 
             match resultTy with
             | SpirvType.Pointer _ ->
@@ -124,7 +114,7 @@ module rec SpirvLowering =
                 |> ignore
             E.Sequential(
                 // Lower Store to StoreToAddress.
-                E.Operation(EmptyTextRange, O.Store(localIndex, newRhsExpr, cenv.Module.GetTypeVoid()))
+                E.Operation(EmptyTextRange, O.Store(localIndex, loweredRhsExpr, cenv.Module.GetTypeVoid()))
                 |> LowerExpression cenv envNotReturnable,
                 LowerLinearExpression cenv env bodyExpr
             )
@@ -135,25 +125,31 @@ module rec SpirvLowering =
     let private LowerArgument (cenv: cenv) (_env: env) textRange argIndex =
         let resultTy = cenv.Function.Parameters[argIndex].Type
         E.Value(textRange, V.Argument(argIndex, CheckArgumentOrLocalType resultTy))
+
+    let private LowerArgumentAddress (cenv: cenv) (_env: env) textRange argIndex byRefKind =
+        let resultTy = cenv.Function.Parameters[argIndex].Type
+        let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+        E.Value(textRange, V.ArgumentAddress(argIndex, byRefKind, CheckArgumentOrLocalType resultTy))
         
     let private LowerLocal (cenv: cenv) (_env: env) textRange localIndex =
         let resultTy = cenv.LocalTypes[localIndex]
         E.Value(textRange, V.Local(localIndex, CheckArgumentOrLocalType resultTy))
 
+    let private LowerLocalAddress (cenv: cenv) (_env: env) textRange localIndex byRefKind =
+        let resultTy = cenv.LocalTypes[localIndex]
+        let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+        E.Value(textRange, V.LocalAddress(localIndex, byRefKind, CheckArgumentOrLocalType resultTy))
+
     let private LowerValue (cenv: cenv) (env: env) origExpr textRange value =
         match value with
-        | V.Argument(argIndex, _)
-        // LOGICAL ADDRESSING ONLY
-        // --
-        | V.ArgumentAddress(argIndex, _, _) ->
-        // --
-            LowerArgument cenv env textRange argIndex            
-        | V.Local(localIndex, _)
-        // LOGICAL ADDRESSING ONLY
-        // --
-        | V.LocalAddress(localIndex, _, _) ->
-        // --
+        | V.Argument(argIndex, _) ->
+            LowerArgument cenv env textRange argIndex
+        | V.ArgumentAddress(argIndex, byRefKind, _) ->
+            LowerArgumentAddress cenv env textRange argIndex byRefKind          
+        | V.Local(localIndex, _) ->
             LowerLocal cenv env textRange localIndex
+        | V.LocalAddress(localIndex, byRefKind, _) ->
+            LowerLocalAddress cenv env textRange localIndex byRefKind
         | _ ->
             origExpr
 
@@ -195,22 +191,30 @@ module rec SpirvLowering =
             op.MapAndReplaceArguments (fun i origArgExpr ->
                 let loweredArgExpr = LowerExpression cenv env origArgExpr
                 match op with
-                | O.Store _ ->
-                    AutoDereferenceIfPossible loweredArgExpr
+                | O.Store(localIndex, _, _) ->
+                    let localTy = cenv.LocalTypes[localIndex]
+                    if localTy.IsPointer && localTy.ElementType.IsPointer then
+                        loweredArgExpr
+                    else
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
-                | O.StoreArgument _ ->
-                    AutoDereferenceIfPossible loweredArgExpr
+                | O.StoreArgument(argIndex, _, _) ->
+                    let parTy = cenv.Function.Parameters[argIndex].Type
+                    if parTy.IsPointer && parTy.ElementType.IsPointer then
+                        loweredArgExpr
+                    else
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | O.StoreField _ ->
                     if i = 0 then
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
                     else
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | O.StoreToAddress _ ->
                     if i = 1 then
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
                     else
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
@@ -221,21 +225,21 @@ module rec SpirvLowering =
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
                     elif i = 1 then // 1 dim - the index
-                        let newArgExpr = AutoDereferenceIfPossible loweredArgExpr 
+                        let newArgExpr = AutoDereferenceLoweredExpressionIfPossible loweredArgExpr 
                         match newArgExpr.ResultType with
                         | SpirvType.UInt32 _ ->
                             newArgExpr
                         | _ ->
                             E.Operation(EmptyTextRange, O.Cast(newArgExpr, cenv.Module.GetTypeUInt32()))
                     else
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | O.LoadArrayElement _ ->
                     if i = 0 then
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
                     else
-                        let newArgExpr = AutoDereferenceIfPossible loweredArgExpr 
+                        let newArgExpr = AutoDereferenceLoweredExpressionIfPossible loweredArgExpr 
                         match newArgExpr.ResultType with
                         | SpirvType.UInt32 _ ->
                             newArgExpr
@@ -250,21 +254,21 @@ module rec SpirvLowering =
                 
                 | O.Equal _
                 | O.Cast _ ->
-                    AutoDereferenceIfPossible loweredArgExpr
+                    AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | BuiltInOperations.AccessChain _ ->
                     if i = 0 then
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
                     else
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | BuiltInOperations.PtrAccessChain _ ->
                     if i = 0 then
                         AssertPointerType loweredArgExpr
                         loweredArgExpr
                     else
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
                 | O.Call(irFunc, _, _) ->
                     let canAutoDereference =
@@ -274,7 +278,7 @@ module rec SpirvLowering =
                         | _ ->
                             false
                     if canAutoDereference then
-                        AutoDereferenceIfPossible loweredArgExpr
+                        AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
                     else
                         match origArgExpr.ResultType with
                         | SpirvType.OlyByRef _
@@ -300,13 +304,13 @@ module rec SpirvLowering =
             | O.Call(irFunc, argExprs, resultTy) ->
                 match irFunc.EmittedFunction with
                 | SpirvFunction.Variable var ->
-                    let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
+                    let argExprs = argExprs |> ImArray.map AutoDereferenceLoweredExpressionIfPossible
                     handleCallVariable var irFunc argExprs resultTy
                 | SpirvFunction.LazyVariable lazyVar ->
-                    let argExprs = argExprs |> ImArray.map AutoDereferenceIfPossible
+                    let argExprs = argExprs |> ImArray.map AutoDereferenceLoweredExpressionIfPossible
                     handleCallVariable lazyVar.Value irFunc argExprs resultTy
                 | SpirvFunction.ExtendedInstruction _ ->
-                    O.Call(irFunc, argExprs |> ImArray.map AutoDereferenceIfPossible, resultTy)
+                    O.Call(irFunc, argExprs |> ImArray.map AutoDereferenceLoweredExpressionIfPossible, resultTy)
                 | _ ->
                     loweredOp
             | _ ->
@@ -411,8 +415,8 @@ module rec SpirvLowering =
             | SpirvType.OlyByRef _ -> raise(NotImplementedException())
             | _ -> false
 
-        let newTrueTargetExpr = if isPointer then newTrueTargetExpr else AutoDereferenceIfPossible newTrueTargetExpr
-        let newFalseTargetExpr = if isPointer then newFalseTargetExpr else AutoDereferenceIfPossible newFalseTargetExpr
+        let newTrueTargetExpr = if isPointer then newTrueTargetExpr else AutoDereferenceLoweredExpressionIfPossible newTrueTargetExpr
+        let newFalseTargetExpr = if isPointer then newFalseTargetExpr else AutoDereferenceLoweredExpressionIfPossible newFalseTargetExpr
 
         if newConditionExpr = conditionExpr && newTrueTargetExpr = trueTargetExpr && newFalseTargetExpr = falseTargetExpr then
             origExpr
@@ -464,17 +468,22 @@ module rec SpirvLowering =
             | O.LoadField(field, receiverExpr, resultTy)
             | O.LoadFieldAddress(field, receiverExpr, _, SpirvType.Pointer(elementTy=resultTy)) ->
                 let field = field.EmittedField
-                OlyAssert.Equal(field.Type, resultTy)
 
                 match receiverExpr.ResultType with
                 | SpirvType.Pointer(storageClass=storageClass) ->
                     if storageClass = StorageClass.Output then
                         raise(InvalidOperationException())
 
+                    let resultTy = 
+                        if resultTy.IsPointer then
+                            SpirvType.Pointer(0u, storageClass, resultTy) // fake pointer of pointer - logical addressing
+                        else
+                            cenv.Module.GetTypePointer(storageClass, resultTy)
+
                     BuiltInExpressions.AccessChain(
                         receiverExpr, 
                         BuiltInExpressions.IndexConstantFromField cenv.Module field |> ImArray.createOne,
-                        cenv.Module.GetTypePointer(storageClass, field.Type)
+                        resultTy
                     )
                 | _ ->
                     raise(InvalidOperationException())
@@ -507,8 +516,9 @@ module rec SpirvLowering =
                             cenv.Module.GetTypePointer(storageClass, field.Type)
                         )
 
+                    let rhsExpr = AutoDereferenceLoweredExpressionIfPossible rhsExpr
                     E.Operation(textRange,
-                        O.StoreToAddress(accessChainExpr, AutoDereferenceIfPossible rhsExpr, resultTy)
+                        O.StoreToAddress(accessChainExpr, rhsExpr, resultTy)
                     )
                 | _ ->
                     raise(InvalidOperationException())
@@ -557,7 +567,9 @@ module rec SpirvLowering =
             | _ ->
                 match expr.ResultType with
                 | SpirvType.OlyByRef(elementTy=elementTy) ->
-                    expr.WithResultType(cenv.Module.GetTypePointer(StorageClass.Function, elementTy))
+                    let resultTy = cenv.Module.GetTypePointer(StorageClass.Function, elementTy)
+                    let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
+                    expr.WithResultType(resultTy)
                 | SpirvType.RuntimeArray _ ->
                     raise(InvalidOperationException($"Runtime array is not used correctly:\n{expr}"))
                 | _ ->
@@ -572,7 +584,7 @@ module rec SpirvLowering =
             | E.IfElse _ -> expr
             | _ ->
                 // We do this because we cannot return a pointer in Logical addressing model
-                AutoDereferenceIfPossible expr
+                AutoDereferenceLoweredExpressionIfPossible expr
         else
             expr
 

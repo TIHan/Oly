@@ -366,12 +366,14 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
                             match irValue with
                             | V.Local(localIndex, _) -> 
                                 ForwardSubValue.Local(localIndex, false)
-                            | V.LocalAddress(index=localIndex) -> 
-                                ForwardSubValue.Local(localIndex, false)
+                            | V.LocalAddress(index=localIndex;kind=kind) -> 
+                                raise(NotImplementedException())
+                                ForwardSubValue.LocalAddress(localIndex, kind)
                             | V.Argument(index=argIndex) -> 
                                 ForwardSubValue.Argument(argIndex)
-                            | V.ArgumentAddress(index=argIndex) -> 
-                                ForwardSubValue.Argument(argIndex)
+                            | V.ArgumentAddress(index=argIndex;kind=kind) -> 
+                                raise(NotImplementedException())
+                                ForwardSubValue.LocalAddress(argIndex, kind)
                             | V.Constant(constant, _) -> 
                                 ForwardSubValue.Constant(constant)
                             | _ -> 
@@ -905,14 +907,27 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     OlyAssert.True(func.IsArgumentByRefType(argIndex) = optenv.IsLocalByRefType(newLocalIndex))
                     E.Value(textRange, V.Local(newLocalIndex, resultTy))
 
-                | ForwardSubValue.LocalAddress(localIndex, byRefKind) ->
+                | ForwardSubValue.LocalAddress(localIndex, subByRefKind) ->
                     OlyAssert.True(func.IsArgumentByRefType(argIndex))
                     OlyAssert.False(optenv.IsLocalByRefType(localIndex))
+
+                    let byRefKind =
+                        if func.IsArgumentReadOnlyByRefType(argIndex) then
+                            OlyIRByRefKind.ReadOnly
+                        elif func.IsArgumentWriteOnlyByRefType(argIndex) then
+                            OlyIRByRefKind.WriteOnly
+                        else
+                            OlyIRByRefKind.ReadWrite
 #if DEBUG || CHECKED
-                    match byRefKind with
-                    | OlyIRByRefKind.ReadWrite -> OlyAssert.True(func.IsArgumentReadWriteByRefType(argIndex))
-                    | OlyIRByRefKind.ReadOnly -> OlyAssert.True(func.IsArgumentReadOnlyByRefType(argIndex))
-                    | OlyIRByRefKind.WriteOnly -> OlyAssert.True(func.IsArgumentWriteOnlyByRefType(argIndex))
+                    match subByRefKind, byRefKind with
+                    | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.ReadWrite
+                    | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.ReadOnly
+                    | OlyIRByRefKind.ReadWrite, OlyIRByRefKind.WriteOnly
+                    | OlyIRByRefKind.ReadOnly, OlyIRByRefKind.ReadOnly
+                    | OlyIRByRefKind.WriteOnly, OlyIRByRefKind.WriteOnly ->
+                        ()
+                    | _ ->
+                        failwith "Invalid address substitution."
 #endif
                     E.Value(textRange, V.LocalAddress(localIndex, byRefKind, resultTy))
 

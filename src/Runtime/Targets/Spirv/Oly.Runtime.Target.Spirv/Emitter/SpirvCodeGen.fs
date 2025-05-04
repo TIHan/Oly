@@ -20,8 +20,8 @@ type cenv =
         Function: SpirvFunctionBuilder
         Module: SpirvModuleBuilder
         Instructions: List<Instruction>
-        Locals: IReadOnlyList<IdResult>
-        LocalTypes: IReadOnlyList<SpirvType>
+        Locals: IList<IdResult>
+        LocalTypes: IList<SpirvType>
 
         mutable PredecessorBlockLabel: IdRef
     }
@@ -100,9 +100,16 @@ module rec SpirvCodeGen =
     let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
         | BuiltInOperations.AccessChain(baseExpr, indexExprs, resultTy) ->
-            match resultTy with
-            | SpirvType.Pointer _ -> ()
-            | _ -> raise(InvalidOperationException("Expected a pointer type."))
+            let resultTy =
+                match resultTy with
+                | SpirvType.Pointer(elementTy=elementTy) ->
+                    if elementTy.IsPointer then
+                        // logical addressing
+                        elementTy
+                    else
+                        resultTy
+                | _ -> 
+                    raise(InvalidOperationException("Expected a pointer type."))
 
 #if DEBUG || CHECKED
             match baseExpr.ResultType, resultTy with
@@ -170,6 +177,14 @@ module rec SpirvCodeGen =
             |> emitInstruction cenv
             idResult
 
+        | O.StoreToAddress(E.Value(value=V.Local(lhsLocalIndex, _)), E.Value(value=V.LocalAddress(rhsLocalIndex, _, _)), _) ->
+            cenv.Locals[lhsLocalIndex] <- cenv.Locals[rhsLocalIndex]
+            IdRef0
+
+        | O.StoreToAddress(E.Value(value=V.Local(lhsLocalIndex, _)), E.Operation(op=O.LoadFieldAddress _), _) ->
+            raise(System.NotImplementedException())
+            IdRef0
+
         | op ->
             let argCount = op.ArgumentCount
             let idRefs = Array.zeroCreate argCount
@@ -187,9 +202,12 @@ module rec SpirvCodeGen =
 #if DEBUG || CHECKED
                 match lhsExpr.ResultType with
                 | SpirvType.Pointer(elementTy=elementTy) ->
+                    OlyAssert.False(elementTy.IsPointer)
                     OlyAssert.Equal(rhsExpr.ResultType.IdResult, elementTy.IdResult)
                 | _ ->
                     raise(InvalidOperationException("Expected a pointer type."))
+
+                OlyAssert.False(rhsExpr.ResultType.IsPointer)
 #endif
 
                 OpStore(argIdRef, rhsIdRef, None) |> emitInstruction cenv
@@ -378,9 +396,13 @@ module rec SpirvCodeGen =
         | V.Local(localIndex, _) ->
             cenv.GetLocalIdRef(localIndex)
 
-        | V.ArgumentAddress _
-        | V.LocalAddress _ ->
-            raise(NotSupportedException(value.ToString()))
+        | V.ArgumentAddress(argIndex, _, _) ->
+            // logical addressing
+            cenv.GetArgumentIdRef(argIndex)
+
+        | V.LocalAddress(localIndex, _, _) ->
+            // logical addressing
+            cenv.GetLocalIdRef(localIndex)
 
         | _ ->
             raise(NotImplementedException(value.ToString()))
