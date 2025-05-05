@@ -97,7 +97,9 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                     SpirvLowering.cenv.Module = builder
                     SpirvLowering.cenv.Function = funcBuilder
                     SpirvLowering.cenv.Locals = List(Array.zeroCreate body.LocalCount)
-                    SpirvLowering.cenv.LocalTypes = List(Array.zeroCreate body.LocalCount) 
+                    SpirvLowering.cenv.LocalTypes = List(Array.zeroCreate body.LocalCount)
+                    SpirvLowering.cenv.LocalsIsMutable = body.LocalFlags |> ImArray.ofSeq |> ImArray.map (fun x -> x.HasFlag(OlyIRLocalFlags.Mutable))
+                    SpirvLowering.cenv.ForwardSubLocalExpressions = Dictionary()
                 }
             let codeGenCenv = 
                 { 

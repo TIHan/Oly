@@ -100,16 +100,11 @@ module rec SpirvCodeGen =
     let GenOperation (cenv: cenv) (env: env) (op: O) : IdRef =
         match op with
         | BuiltInOperations.AccessChain(baseExpr, indexExprs, resultTy) ->
-            let resultTy =
-                match resultTy with
-                | SpirvType.Pointer(elementTy=elementTy) ->
-                    if elementTy.IsPointer then
-                        // logical addressing
-                        elementTy
-                    else
-                        resultTy
-                | _ -> 
-                    raise(InvalidOperationException("Expected a pointer type."))
+            match resultTy with
+            | SpirvType.Pointer(elementTy=elementTy) ->
+                OlyAssert.False(elementTy.IsPointer)
+            | _ -> 
+                raise(InvalidOperationException("Expected a pointer type."))
 
 #if DEBUG || CHECKED
             match baseExpr.ResultType, resultTy with
@@ -176,30 +171,6 @@ module rec SpirvCodeGen =
             OpPtrAccessChain(resultTy.IdResult, idResult, baseIdRef, elementIdRef, indexIdRefs)
             |> emitInstruction cenv
             idResult
-
-        //// logical addressing
-        //| O.StoreToAddress(lhsExpr, rhsExpr, _) when lhsExpr.ResultType.IsPointer && lhsExpr.ResultType.ElementType.IsPointer ->
-        //    match lhsExpr with
-        //    | E.Value(value=V.Local(lhsLocalIndex, _)) ->
-        //        match rhsExpr with
-        //        | E.Value(value=V.LocalAddress(rhsLocalIndex, _, _)) ->
-        //            cenv.Locals[lhsLocalIndex] <- cenv.Locals[rhsLocalIndex]
-        //            IdRef0
-        //        | E.Operation(op=O.LoadFromAddress(rhsExpr, _)) ->
-        //            let idRef = GenExpression cenv env rhsExpr
-        //            cenv.Locals[lhsLocalIndex] <- idRef
-        //            cenv.LocalTypes[lhsLocalIndex] <- SpirvType.Invalid
-        //            IdRef0
-        //        | _ ->
-        //            raise(NotImplementedException())
-        //    | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
-        //        match rhsExpr with
-        //        | E.Operation(op=O.LoadFromAddress(E.Value(value=V.Local(rhsLocalIndex, _)), _)) ->
-        //            IdRef0
-        //        | _ ->
-        //            raise(NotImplementedException())
-        //    | _ ->
-        //        raise(NotSupportedException())
 
         | op ->
             let argCount = op.ArgumentCount
@@ -410,14 +381,6 @@ module rec SpirvCodeGen =
             cenv.GetArgumentIdRef(argIndex)
 
         | V.Local(localIndex, _) ->
-            cenv.GetLocalIdRef(localIndex)
-
-        | V.ArgumentAddress(argIndex, _, _) ->
-            // logical addressing
-            cenv.GetArgumentIdRef(argIndex)
-
-        | V.LocalAddress(localIndex, _, _) ->
-            // logical addressing
             cenv.GetLocalIdRef(localIndex)
 
         | _ ->

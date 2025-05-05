@@ -24,6 +24,8 @@ module rec SpirvLowering =
             Function: SpirvFunctionBuilder
             Locals: List<IdResult>
             LocalTypes: List<SpirvType>
+            LocalsIsMutable: bool imarray
+            ForwardSubLocalExpressions: Dictionary<int, E>
         }
 
         member this.IsEntryPoint = this.Function.IsEntryPoint
@@ -100,10 +102,12 @@ module rec SpirvLowering =
             else
                 E.Sequential(newExpr1, newExpr2)
         
-        | E.Let(_, localIndex, rhsExpr, bodyExpr) ->
+        | E.Let(_, localIndex, origRhsExpr, bodyExpr) ->
             let envNotReturnable = env.NotReturnable
-            let loweredRhsExpr = LowerLinearExpression cenv envNotReturnable rhsExpr
+            let loweredRhsExpr = LowerLinearExpression cenv envNotReturnable origRhsExpr
             let resultTy = loweredRhsExpr.ResultType
+
+            let origRhsExprTy = origRhsExpr.ResultType
 
             match resultTy with
             | SpirvType.Pointer _ ->
@@ -112,12 +116,36 @@ module rec SpirvLowering =
             | _ ->
                 cenv.SetLocal(localIndex, cenv.Module.GetTypePointer(StorageClass.Function, resultTy))
                 |> ignore
-            E.Sequential(
-                // Lower Store to StoreToAddress.
-                E.Operation(EmptyTextRange, O.Store(localIndex, loweredRhsExpr, cenv.Module.GetTypeVoid()))
-                |> LowerExpression cenv envNotReturnable,
-                LowerLinearExpression cenv env bodyExpr
-            )
+
+            if origRhsExprTy.IsPointer || origRhsExprTy.IsOlyByRef then
+                // logical addressing
+                // For scenarios such as this: 
+                //     let x = &y
+                // We need to do forward substitution as we cannot store an address in SPIR-V with the logical addressing execution model.
+
+                let rec isValidForwardSub loweredExpr =
+                    match loweredExpr with
+                    | E.Value(value=V.Local _) -> true
+                    | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
+                        isValidForwardSub baseExpr &&
+                        (indexExprs |> ROMem.forall(function E.Value(value=V.Constant _) -> true | _ -> false))
+                    | _ ->
+                        false
+
+                if isValidForwardSub loweredRhsExpr && not cenv.LocalsIsMutable[localIndex] then
+                    AssertPointerType loweredRhsExpr
+                    cenv.ForwardSubLocalExpressions.Add(localIndex, loweredRhsExpr)
+                    LowerLinearExpression cenv env bodyExpr
+                else
+                    raise(InvalidOperationException("Fatal forward substitution for logical addressing."))
+            else
+
+                E.Sequential(
+                    // Lower Store to StoreToAddress.
+                    E.Operation(EmptyTextRange, O.Store(localIndex, loweredRhsExpr, cenv.Module.GetTypeVoid()))
+                    |> LowerExpression cenv envNotReturnable,
+                    LowerLinearExpression cenv env bodyExpr
+                )
 
         | _ ->
             LowerExpression cenv env expr
@@ -126,21 +154,19 @@ module rec SpirvLowering =
         let resultTy = cenv.Function.Parameters[argIndex].Type
         E.Value(textRange, V.Argument(argIndex, CheckArgumentOrLocalType resultTy))
 
-    let private LowerArgumentAddress (cenv: cenv) (env: env) textRange argIndex byRefKind =
+    let private LowerArgumentAddress (cenv: cenv) (env: env) textRange argIndex _byRefKind =
         LowerArgument cenv env textRange argIndex
-        //let resultTy = cenv.Function.Parameters[argIndex].Type
-        //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
-        //E.Value(textRange, V.ArgumentAddress(argIndex, byRefKind, CheckArgumentOrLocalType resultTy))
         
     let private LowerLocal (cenv: cenv) (_env: env) textRange localIndex =
+        match cenv.ForwardSubLocalExpressions.TryGetValue(localIndex) with
+        | true, expr -> expr
+        | _ ->
+
         let resultTy = cenv.LocalTypes[localIndex]
         E.Value(textRange, V.Local(localIndex, CheckArgumentOrLocalType resultTy))
 
-    let private LowerLocalAddress (cenv: cenv) (env: env) textRange localIndex byRefKind =
+    let private LowerLocalAddress (cenv: cenv) (env: env) textRange localIndex _byRefKind =
         LowerLocal cenv env textRange localIndex
-        //let resultTy = cenv.LocalTypes[localIndex]
-        //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
-        //E.Value(textRange, V.LocalAddress(localIndex, byRefKind, CheckArgumentOrLocalType resultTy))
 
     let private LowerValue (cenv: cenv) (env: env) origExpr textRange value =
         match value with
@@ -363,7 +389,6 @@ module rec SpirvLowering =
                         loweredOp.MapAndReplaceArguments (fun _ loweredArgExpr ->
                             match loweredArgExpr with
                             | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
-#if DEBUG || CHECKED
                                 let isValid =
                                     match baseExpr with
                                     | E.Value _ ->
@@ -371,8 +396,9 @@ module rec SpirvLowering =
                                         |> ROMem.forall (function E.Value _ -> true | _ -> false)
                                     | _ ->
                                         false
-                                OlyAssert.True(isValid)
-#endif
+                                if not isValid then
+                                    raise(InvalidOperationException("Fatal copy-restore on function argument."))
+
                                 let copiedLoweredArgExpr = CopyLoweredArgument cenv loweredArgExpr
                                 copyRestoreExprs.Add(loweredArgExpr, copiedLoweredArgExpr)
                                 copiedLoweredArgExpr
@@ -476,12 +502,7 @@ module rec SpirvLowering =
                     if storageClass = StorageClass.Output then
                         raise(InvalidOperationException())
 
-                    let resultTy = 
-                        //if resultTy.IsPointer then
-                        //    SpirvType.Pointer(0u, storageClass, resultTy) // fake pointer of pointer - logical addressing
-                        //else
-                            cenv.Module.GetTypePointer(storageClass, resultTy)
-
+                    let resultTy = cenv.Module.GetTypePointer(storageClass, resultTy)
                     BuiltInExpressions.AccessChain(
                         receiverExpr, 
                         BuiltInExpressions.IndexConstantFromField cenv.Module field |> ImArray.createOne,
@@ -570,7 +591,6 @@ module rec SpirvLowering =
                 match expr.ResultType with
                 | SpirvType.OlyByRef(elementTy=elementTy) ->
                     let resultTy = cenv.Module.GetTypePointer(StorageClass.Function, elementTy)
-                    //let resultTy = SpirvType.Pointer(0u, StorageClass.Function, resultTy) // fake pointer of pointer - logical addressing
                     expr.WithResultType(resultTy)
                 | SpirvType.RuntimeArray _ ->
                     raise(InvalidOperationException($"Runtime array is not used correctly:\n{expr}"))
