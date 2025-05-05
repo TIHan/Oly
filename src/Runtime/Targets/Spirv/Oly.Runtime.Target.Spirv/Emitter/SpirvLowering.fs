@@ -17,6 +17,15 @@ module rec SpirvLowering =
 
     let private EmptyTextRange = OlyIRDebugSourceTextRange.Empty
 
+    let rec private isValidForwardSub loweredExpr =
+        match loweredExpr with
+        | E.Value(value=V.Local _) -> true
+        | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
+            isValidForwardSub baseExpr &&
+            (indexExprs |> ROMem.forall(function E.Value(value=V.Constant _) -> true | _ -> false))
+        | _ ->
+            false
+
     [<NoEquality;NoComparison>]
     type cenv =
         {
@@ -122,15 +131,6 @@ module rec SpirvLowering =
                 // For scenarios such as this: 
                 //     let x = &y
                 // We need to do forward substitution as we cannot store an address in SPIR-V with the logical addressing execution model.
-
-                let rec isValidForwardSub loweredExpr =
-                    match loweredExpr with
-                    | E.Value(value=V.Local _) -> true
-                    | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
-                        isValidForwardSub baseExpr &&
-                        (indexExprs |> ROMem.forall(function E.Value(value=V.Constant _) -> true | _ -> false))
-                    | _ ->
-                        false
 
                 if isValidForwardSub loweredRhsExpr && not cenv.LocalsIsMutable[localIndex] then
                     AssertPointerType loweredRhsExpr
@@ -388,15 +388,8 @@ module rec SpirvLowering =
                     let loweredOp =
                         loweredOp.MapAndReplaceArguments (fun _ loweredArgExpr ->
                             match loweredArgExpr with
-                            | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
-                                let isValid =
-                                    match baseExpr with
-                                    | E.Value _ ->
-                                        indexExprs
-                                        |> ROMem.forall (function E.Value _ -> true | _ -> false)
-                                    | _ ->
-                                        false
-                                if not isValid then
+                            | E.Operation(op=BuiltInOperations.AccessChain _) ->
+                                if not (isValidForwardSub loweredArgExpr) then
                                     raise(InvalidOperationException("Fatal copy-restore on function argument."))
 
                                 let copiedLoweredArgExpr = CopyLoweredArgument cenv loweredArgExpr

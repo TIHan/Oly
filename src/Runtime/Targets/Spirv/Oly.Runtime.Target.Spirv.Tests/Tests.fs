@@ -1054,6 +1054,36 @@ main(): () =
         [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
 
 [<Fact>]
+let ``Basic compute shader 12 - verify struct instance method - 5``() =
+    let src =
+        """
+buffer: mutable vec4[]
+    #[storage_buffer, descriptor_set(0), binding(0)]
+    get
+
+struct NestedDoot =
+    public field mutable X: float = 0
+
+    mutable M(): () =
+        this.X <- 999
+
+struct NestedDoot2 =
+    public field mutable Nested: NestedDoot = NestedDoot()
+
+struct Doot =
+    public field mutable Nested: NestedDoot2 = NestedDoot2()
+
+main(): () =
+    let mutable doot = Doot()
+    doot.Nested.Nested.M()
+    buffer[0] <- vec4(123, 456, 789, doot.Nested.Nested.X)
+        """
+    src
+    |> OlyCompute_1_3
+        [|Vector4(0.0f)|] 
+        [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
 let ``Basic compute shader 13 - verify modifying argument does not impact the original local that was passed``() =
     let src =
         """
