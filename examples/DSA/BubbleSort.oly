@@ -18,6 +18,8 @@ private BubbleSortAux(arr: mutable int32[]): bool =
 
     didSwap
 
+// Complexity:
+//     O(n^2) - Quadratic Time: The execution time grows proportionally to the square of the input size.
 BubbleSort(arr: mutable int32[]): () =
     let mutable finished = false
     while (!finished)

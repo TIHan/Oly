@@ -1,0 +1,154 @@
+module DSA.BinarySearchTree
+
+open System
+open System.Diagnostics
+
+enum BinarySearchTreeTraversalKind =
+    | InOrder
+    | PreOrder
+    | PostOrder
+
+#[null]
+class BinarySearchNode<T> where T: IComparable<T> =
+    Item: T get, private set
+    Left: BinarySearchNode<T> get, private set
+    Right: BinarySearchNode<T> get, private set
+
+    new(item: T) =
+        {
+            Item = item
+            Left = null
+            Right = null
+        }
+
+    IsLeaf: bool get() = this.Left === null && this.Right === null
+
+    // Left-most
+    Min(): BinarySearchNode<T> =
+        let mutable node = this
+        while (node.Left !== null)
+            node <- node.Left
+        node
+
+    // Right-most
+    Max(): BinarySearchNode<T> =
+        let mutable node = this
+        while (node.Right !== null)
+            node <- node.Right
+        node
+
+    Add(item: T): BinarySearchNode<T> =
+        if (item.CompareTo(this.Item) < 0)
+            if (this.Left === null)
+                this.Left <- BinarySearchNode(item)
+                this.Left
+            else
+                this.Left.Add(item)
+        else if (this.Right === null)
+            this.Right <- BinarySearchNode(item)
+            this.Right
+        else
+            this.Right.Add(item)
+
+    private static Remove(root: BinarySearchNode<T>, item: T): BinarySearchNode<T> =
+        if (root === null)
+            null
+        else
+            let mutable returnNode = root
+
+            let cmpValue = item.CompareTo(root.Item)
+            if (cmpValue < 0)
+                root.Left <- Remove(root.Left, item)
+            else if (cmpValue > 0)
+                root.Right <- Remove(root.Right, item)
+            else if (root.Left === null)
+                returnNode <- root.Right
+            else if (root.Right === null)
+                returnNode <- root.Left
+            else
+                // This is hardest part of 'Delete'.
+                // TODO: Describe why.
+                let newRoot = root.Right.Min()
+                root.Item <- newRoot.Item
+                root.Right <- Remove(root.Right, newRoot.Item)
+
+            returnNode
+
+    Remove(item: T): BinarySearchNode<T> =
+        Remove(this, item)
+
+    private static TryFind(root: BinarySearchNode<T>, item: T): BinarySearchNode<T> =
+        if (root === null)
+            null
+        else
+            let cmpValue = item.CompareTo(root.Item)
+            if (cmpValue < 0)
+                TryFind(root.Left, item)
+            else if (cmpValue > 0)
+                TryFind(root.Right, item)
+            else
+                root
+
+    TryFind(item: T): BinarySearchNode<T> =
+        TryFind(this, item)
+
+    ForEach(kind: BinarySearchTreeTraversalKind, f: T -> ()): () =
+        match (kind)
+        | BinarySearchTreeTraversalKind.InOrder =>
+            if (this.Left !== null)
+                this.Left.ForEach(kind, f)
+            f(this.Item)
+            if (this.Right !== null)
+                this.Right.ForEach(kind, f)       
+        | BinarySearchTreeTraversalKind.PreOrder =>
+            f(this.Item)
+            if (this.Left !== null)
+                this.Left.ForEach(kind, f)
+            if (this.Right !== null)
+                this.Right.ForEach(kind, f)
+        | BinarySearchTreeTraversalKind.PostOrder =>
+            if (this.Left !== null)
+                this.Left.ForEach(kind, f)
+            if (this.Right !== null)
+                this.Right.ForEach(kind, f)
+            f(this.Item)
+        | _ =>
+            throw UnreachableException()
+
+class BinarySearchTree<T> where T: IComparable<T> =
+
+    Root: BinarySearchNode<T> get, private set = null
+
+    // Complexity:
+    //     Average case: O(log n) - Logarithmic Time: The execution time grows logarithmically with the input size.
+    //     Worse case:   O(n)     - Linear time:      The execution time grows linearly with the input size.
+    Add(item: T): BinarySearchNode<T> =
+        if (this.Root === null)
+            this.Root <- BinarySearchNode(item)
+            this.Root
+        else
+            this.Root.Add(item)
+
+    // Complexity:
+    //     Average case: O(log n) - Logarithmic Time: The execution time grows logarithmically with the input size.
+    //     Worse case:   O(n)     - Linear time:      The execution time grows linearly with the input size.
+    Remove(item: T): () =
+        if (this.Root !== null)
+            this.Root <- this.Root.Remove(item)
+
+    // Complexity:
+    //     Average case: O(log n) - Logarithmic Time: The execution time grows logarithmically with the input size.
+    //     Worse case:   O(n)     - Linear time:      The execution time grows linearly with the input size.
+    TryFind(item: T): BinarySearchNode<T> =
+        if (this.Root === null)
+            null
+        else
+            this.Root.TryFind(item)
+
+    // Complexity:
+    //     O(n) - Linear time: The execution time grows linearly with the input size.
+    ForEach(kind: BinarySearchTreeTraversalKind, f: T -> ()): () =
+        if (this.Root !== null)
+            this.Root.ForEach(kind, f)
+
+            

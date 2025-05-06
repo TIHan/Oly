@@ -25,5 +25,8 @@ private QuickSort(arr: mutable int32[], low: int32, high: int32): () =
         QuickSort(arr, low, result - 1)
         QuickSort(arr, result + 1, high)
 
+// Complexity:
+//     Average case: O(n log n) - Linearithmic Time: A combination of linear and logarithmic time, commonly seen in efficient sorting algorithms.
+//     Worst case:   O(n^2)     - Quadratic Time:    The execution time grows proportionally to the square of the input size.
 QuickSort(arr: mutable int32[]): () =
     QuickSort(arr, 0, arr.Length - 1)

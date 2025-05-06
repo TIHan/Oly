@@ -5,6 +5,8 @@ private Swap(arr: mutable int32[], i: int32, j: int32): () =
     arr[i] <- arr[j]
     arr[j] <- tmp
 
+// Complexity:
+//     O(n^2) - Quadratic Time: The execution time grows proportionally to the square of the input size.
 InsertionSort(arr: mutable int32[]): () =
     let mutable i = 0
     while (i < arr.Length - 1)

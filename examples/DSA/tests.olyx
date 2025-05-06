@@ -2,7 +2,9 @@
 
 #load "*.oly"
 
+open System.Text
 open DSA
+open static DSA.BinarySearchTree
 
 SortTest(sort: mutable int32[] -> ()): () =
     let xs = mutable [500; 2; 1; 1000; 3; 7; 99; 3000; 4]
@@ -36,8 +38,177 @@ SortTest(sort: mutable int32[] -> ()): () =
     if (xs[8] != 3000)
         fail("fail")
 
+GetTraversalString(kind: BinarySearchTreeTraversalKind, tree: BinarySearchTree<int32>): string =
+    let strBuilder = StringBuilder()
+    tree.ForEach(kind,
+        (mutable item) ->
+            let _ = strBuilder.Append(item.ToString())
+    )
+    strBuilder.ToString()
+
+BinarySearchTreeTest(): () =
+    let tree = BinarySearchTree<int32>()
+
+    let node = tree.Add(3)
+    if (node.Item != 3 || !node.IsLeaf)
+        fail("fail")
+
+    let node = tree.Add(1)
+    if (node.Item != 1)
+        fail("fail")
+
+    let node = tree.Add(2)
+    if (node.Item != 2)
+        fail("fail")
+
+    let node = tree.Add(4)
+    if (node.Item != 4)
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1234")
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.PreOrder, tree)
+    if (actual != "3124")
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.PostOrder, tree)
+    if (actual != "2143")
+        fail("fail")
+
+BinarySearchTreeTest2(): () =
+    let tree = BinarySearchTree<int32>()
+
+    let node = tree.Add(1)
+    if (node.Item != 1)
+        fail("fail")
+
+    let node = tree.Add(2)
+    if (node.Item != 2)
+        fail("fail")
+
+    let node = tree.Add(4)
+    if (node.Item != 4)
+        fail("fail")
+
+    let node = tree.Add(3)
+    if (node.Item != 3)
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1234")
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.PreOrder, tree)
+    if (actual != "1243")
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.PostOrder, tree)
+    if (actual != "3421")
+        fail("fail")
+
+BinarySearchTreeTest3(): () =
+    let tree = BinarySearchTree<int32>()
+
+    let node = tree.Add(4)
+    if (node.Item != 4)
+        fail("fail")
+
+    let node = tree.Add(1)
+    if (node.Item != 1)
+        fail("fail")
+
+    let node = tree.Add(3)
+    if (node.Item != 3)
+        fail("fail")
+
+    let node = tree.Add(2)
+    if (node.Item != 2)
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1234")
+        fail("fail")
+
+    tree.Remove(9)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1234")
+        fail("fail")
+
+    tree.Remove(3)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "124")
+        fail("fail")
+
+    tree.Remove(2)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "14")
+        fail("fail")
+
+    tree.Remove(4)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1")
+        fail("fail")
+
+    tree.Remove(1)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "")
+        fail("fail")
+
+    let node = tree.Add(2)
+    if (node.Item != 2)
+        fail("fail")
+
+    let node2 = tree.Add(2)
+    if (node2.Item != 2 && node2 !== node)
+        fail("fail")  
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "22")
+        fail("fail")
+
+    let node = tree.Add(3)
+    if (node.Item != 3)
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "223")
+        fail("fail")
+
+    let node = tree.Add(1)
+    if (node.Item != 1)
+        fail("fail")
+
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "1223")
+        fail("fail")
+
+    tree.Remove(2)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "123")
+        fail("fail")
+
+    tree.Remove(2)
+    let actual = GetTraversalString(BinarySearchTreeTraversalKind.InOrder, tree)
+    if (actual != "13")
+        fail("fail")
+
+BinarySearchTreeTest4(): () =
+    let tree = BinarySearchTree<int32>()
+
+    For(9, x -> let _ = tree.Add(-x))
+
+    let node = tree.TryFind(-5)
+    if (node === null || node.Item != -5)
+        fail("fail")
+
 main(): () =
     SortTest(QuickSort.QuickSort)
     SortTest(BubbleSort.BubbleSort)
     SortTest(InsertionSort.InsertionSort)
+    BinarySearchTreeTest()
+    BinarySearchTreeTest2()
+    BinarySearchTreeTest3()
+    BinarySearchTreeTest4()
     printLine("Passed")
