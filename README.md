@@ -3,30 +3,32 @@ Oly Language Compiler and Runtime
 
 A side project to understand programming languages and compilers in all stages.
 
-**Note: At the moment, documentation is in progress on building the project and language specification. It will come eventually.**
+**Note: At the moment, documentation is in progress.**
 
 ## Building
 
 Requirements:
+- Visual Studio 2022 Community 17.13.6 or later - [Download](https://visualstudio.microsoft.com/vs/community/)
+    - Must use this to build Oly with the appropriate F# version.
 - .NET 8 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
 
 This will build everything except for the VSCode extension.
 
-In the command-line at the root of the repository, run command:
-
-1. ```dotnet build```
-
-You can also open `Oly.sln` in Visual Studio and build it there.
+Open `Oly.sln` in Visual Studio and build it there.
 
 ## Running Tests
 
-**Note: Some tests are expected to fail.**
+**Note: Some tests are expected to fail as this project is in active development.**
 
-In the command-line at the root of the repository, run command:
+Use Visual Studio's Test Explorer to run the tests.
 
-1. ```dotnet test```
+SPIR-V: Currently experimental. Requires the [Evergreen](https://github.com/tihan/evergreen) repository to be located in the same directory next to the Oly repository. You must also build `Evergreen\src\managed\Engine\gpu_test.olyx` before running the SPIR-V tests.
 
-You can also run the tests in Visual Studio's Test Explorer.
+## Benchmarks
+
+Requires the [Evergreen](https://github.com/tihan/evergreen) repository to be located in the same directory next to the Oly repository
+
+Use Visual Studio to launch the `Oly.Benchmarks` project.
 
 ## Building VSCode Extension
 

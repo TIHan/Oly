@@ -28,7 +28,7 @@ type DotNetCompile() =
         workspace.UpdateDocument(rs, benchmarkPath, OlySourceText.FromFile(benchmarkPath.ToString()), System.Threading.CancellationToken.None)
 
     let text =
-        OlySourceText.FromFile("""C:\work\Evergreen\src\managed\Collections\EntityDatabase.oly""")
+        OlySourceText.FromFile("""..\..\..\..\..\..\..\..\..\..\..\Evergreen\src\managed\Database\EntityDatabase.oly""")
 
     let test (text: IOlySourceText) =
         let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)

@@ -205,6 +205,13 @@ module rec SpirvLowering =
         let loweredOp =
             let env = env.NotReturnable
 
+            let lowerBinaryToStdFunc name arg1Expr arg2Expr resultTy =
+                let builtInFunc =
+                    match BuiltInFunctions.TryGetBuiltInFunction(ImArray.createOne "std", name) with
+                    | Some func -> func
+                    | _ -> raise(InvalidOperationException())
+                O.Call(OlyIRFunction(builtInFunc), ImArray.createTwo arg1Expr arg2Expr, resultTy)
+
             let op =
                 match origOp with
                 | O.New(irFunc, argExprs, resultTy) ->
@@ -213,6 +220,8 @@ module rec SpirvLowering =
                         O.Call(irFunc, argExprs, resultTy)
                     | _ ->
                         origOp
+                | O.Add(arg1Expr, arg2Expr, resultTy) ->
+                    lowerBinaryToStdFunc "add" arg1Expr arg2Expr resultTy
                 | _ ->
                     origOp
 

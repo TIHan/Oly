@@ -586,6 +586,30 @@ module BuiltInFunctions =
             ),
             SpirvBuiltInFunctionFlags.None
         )
+        Add("add",
+            SpirvBuiltInFunctionData.Intrinsic(
+                fun spvModule args returnTy ->
+                    match args.Length with
+                    | 2 ->
+                        let idRefs =
+                            args
+                            |> ImArray.map snd
+                        let idResult = spvModule.NewIdResult()
+
+                        match returnTy with
+                        | SpirvType.Float32 _
+                        | SpirvType.Float64 _
+                        | SpirvType.Vec(elementTy=SpirvType.Float32 _)
+                        | SpirvType.Vec(elementTy=SpirvType.Float64 _) ->
+                            idResult,
+                            [OpFAdd(returnTy.IdResult, idResult, idRefs[0], idRefs[1])]
+                        | _ ->
+                            invalidOp "Bad return type."
+                    | _ ->
+                        invalidOp "Bad arguments."
+            ),
+            SpirvBuiltInFunctionFlags.AutoDereferenceArguments
+        )
 
     let TryGetBuiltInFunction(path: string imarray, name: string) : SpirvFunction option =
         // Extended Instruction Sets
@@ -599,7 +623,7 @@ module BuiltInFunctions =
             match Lookup.TryGetValue(name) with
             | true, func ->
                 match func.TryGetBuiltIn() with
-                | ValueSome(builtInFunc) ->
+                | ValueSome _ ->
                     Some func
                 | _ ->
                     None

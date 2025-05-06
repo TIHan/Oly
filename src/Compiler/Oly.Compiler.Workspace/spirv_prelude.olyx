@@ -163,11 +163,8 @@ int(uint): int
 uint(int): uint
 */
 
-#[intrinsic("address_of")]
-(&)<T>(T): inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
+#[intrinsic("add")]
+(+)(float, float): float
 
 #[intrinsic("equal")]
 (==)(bool, bool): bool
@@ -224,5 +221,17 @@ roundEven(vec2): vec2
 #[import("spirv", "GLSL.std.450", "2")]
 roundEven(vec3): vec3
 
-#[import("spirv", "GLSL.std.450", "3")]
+#[import("spirv", "GLSL.std.450", "2")]
 roundEven(vec4): vec4
+
+#[import("spirv", "GLSL.std.450", "8")]
+floor(float): float
+
+#[import("spirv", "GLSL.std.450", "8")]
+floor(vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "8")]
+floor(vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "8")]
+floor(vec4): vec4
