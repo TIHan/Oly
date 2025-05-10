@@ -1,0 +1,131 @@
+#[open]
+module OlyNumerics
+
+open System
+open System.Numerics
+
+/*
+#[import("CLR:System.Numerics", "System.Numerics", "Vector2")]
+struct vec2 =
+    #[import("REMOVE_THIS", "", "X")]
+    public field mutable x: float32
+    #[import("REMOVE_THIS", "", "Y")]
+    public field mutable y: float32
+    new(float32)
+    new(float32, float32)
+
+#[import("CLR:System.Numerics", "System.Numerics", "Vector3")]
+struct vec3 =
+    #[import("REMOVE_THIS", "", "X")]
+    public field mutable x: float32
+    #[import("REMOVE_THIS", "", "Y")]
+    public field mutable y: float32
+    #[import("REMOVE_THIS", "", "Z")]
+    public field mutable z: float32
+    new(float32)
+    new(vec2, float32)
+    new(float32, float32, float32)
+
+#[import("CLR:System.Numerics", "System.Numerics", "Vector4")]
+struct vec4 =
+    #[import("REMOVE_THIS", "", "X")]
+    public field mutable x: float32
+    #[import("REMOVE_THIS", "", "Y")]
+    public field mutable y: float32
+    #[import("REMOVE_THIS", "", "Z")]
+    public field mutable z: float32
+    #[import("REMOVE_THIS", "", "W")]
+    public field mutable w: float32
+    new(float32)
+    new(vec3, float32)
+    new(vec2, float32, float32)
+    new(float32, float32, float32, float32)
+*/
+
+alias vec2 = Vector2
+alias vec3 = Vector3
+alias vec4 = Vector4
+
+#[open]
+extension vec2Extensions =
+    inherits Vector2
+
+    x: float32
+        get() = this.X
+        set(value) = this.X <- value
+
+    y: float32
+        get() = this.Y
+        set(value) = this.Y <- value
+
+#[open]
+extension vec3Extensions =
+    inherits Vector3
+
+    x: float32
+        get() = this.X
+        set(value) = this.X <- value
+
+    y: float32
+        get() = this.Y
+        set(value) = this.Y <- value
+
+    z: float32
+        get() = this.Z
+        set(value) = this.Z <- value
+
+#[open]
+extension vec4Extensions =
+    inherits Vector4
+
+    x: float32
+        get() = this.X
+        set(value) = this.X <- value
+
+    y: float32
+        get() = this.Y
+        set(value) = this.Y <- value
+
+    z: float32
+        get() = this.Z
+        set(value) = this.Z <- value
+
+    w: float32
+        get() = this.W
+        set(value) = this.W <- value
+
+round(x: float32): float32 =
+    MathF.Round(x)
+
+round(v: vec2): vec2 =
+    vec2(round(v.x), round(v.y))
+
+round(v: vec3): vec3 =
+    vec3(round(v.x), round(v.y), round(v.z))
+
+round(v: vec4): vec4 =
+    vec4(round(v.x), round(v.y), round(v.z), round(v.w))
+
+roundEven(x: float32): float32 =
+    MathF.Round(x)
+
+roundEven(v: vec2): vec2 =
+    vec2(roundEven(v.x), roundEven(v.y))
+
+roundEven(v: vec3): vec3 =
+    vec3(roundEven(v.x), roundEven(v.y), roundEven(v.z))
+
+roundEven(v: vec4): vec4 =
+    vec4(roundEven(v.x), roundEven(v.y), roundEven(v.z), roundEven(v.w))
+
+floor(x: float32): float32 =
+    MathF.Floor(x)
+
+floor(v: vec2): vec2 =
+    vec2(floor(v.x), floor(v.y))
+
+floor(v: vec3): vec3 =
+    vec3(floor(v.x), floor(v.y), floor(v.z))
+
+floor(v: vec4): vec4 =
+    vec4(floor(v.x), floor(v.y), floor(v.z), floor(v.w))
