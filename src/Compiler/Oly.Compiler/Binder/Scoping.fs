@@ -24,11 +24,15 @@ let private scopeInValue canOverride (env: BinderEnvironment) (value: IValueSymb
         env.TryAddUnqualifiedValue(value)
 
 let scopeInInstanceConstructors canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
-    let instanceCtors = ent.InstanceConstructors
+    let instanceCtors = 
+        if ent.IsAlias then
+            match (stripTypeEquations ent.AsType).TryEntity with
+            | ValueSome(ent) -> ent.InstanceConstructors
+            | _ -> ImArray.empty
+        else
+            ent.InstanceConstructors
     if instanceCtors.IsEmpty then
         env
-    elif instanceCtors.Length = 1 then
-        scopeInValue canOverride env instanceCtors[0]
     else
         scopeInValue canOverride env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
 
