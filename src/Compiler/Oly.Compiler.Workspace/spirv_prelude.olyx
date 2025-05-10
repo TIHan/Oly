@@ -1,6 +1,8 @@
 ﻿#target "spirv: lib"
 #library
 
+#load "spirv_numerics.oly"
+
 #[open]
 module OlyPrelude
 
@@ -29,87 +31,6 @@ alias inref<T>
 
 #[intrinsic("by_ref_write_only")]
 alias outref<T>
-
-#[import("spirv", "std", "vec2")]
-struct vec2 =
-    public field mutable x: float
-    public field mutable y: float
-    new(float)
-    new(float, float)
-
-#[import("spirv", "std", "vec3")]
-struct vec3 =
-    public field mutable x: float
-    public field mutable y: float
-    public field mutable z: float
-    new(float)
-    new(vec2, float)
-    new(float, float, float)
-
-#[import("spirv", "std", "vec4")]
-struct vec4 =
-    public field mutable x: float
-    public field mutable y: float
-    public field mutable z: float
-    public field mutable w: float
-    new(float)
-    new(vec3, float)
-    new(vec2, float, float)
-    new(float, float, float, float)
-
-#[import("spirv", "std", "dvec2")]
-struct dvec2 =
-    public field mutable x: double
-    public field mutable y: double
-    new(double)
-    new(double, double)
-
-#[import("spirv", "std", "dvec3")]
-struct dvec3 =
-    public field mutable x: double
-    public field mutable y: double
-    public field mutable z: double
-    new(double)
-    new(vec2, double)
-    new(double, double, double)
-
-#[import("spirv", "std", "dvec4")]
-struct dvec4 =
-    public field mutable x: double
-    public field mutable y: double
-    public field mutable z: double
-    public field mutable w: double
-    new(double)
-    new(vec3, double)
-    new(vec2, double, double)
-    new(double, double, double, double)
-
-#[import("spirv", "std", "uvec2")]
-struct uvec2 =
-    public field mutable x: uint
-    public field mutable y: uint
-    new(uint)
-    new(uint, uint)
-
-#[import("spirv", "std", "uvec3")]
-struct uvec3 =
-    public field mutable x: uint
-    public field mutable y: uint
-    public field mutable z: uint
-    new(uint)
-    new(uvec2, uint)
-    new(uint, uint, uint)
-
-#[import("spirv", "std", "uvec4")]
-struct uvec4 =
-    public field mutable x: uint
-    public field mutable y: uint
-    public field mutable z: uint
-    public field mutable w: uint
-    new(uint)
-    new(uvec3, uint)
-    new(uvec2, uint, uint)
-    new(uint, uint, uint, uint)
 
 // Attributes
 
@@ -196,42 +117,3 @@ Position: vec4
 GlobalInvocationId: uvec3
     #[global_invocation_id]
     get
-
-// GLSL.std.450
-// https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(float): float
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(vec2): vec2
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(vec3): vec3
-
-#[import("spirv", "GLSL.std.450", "1")]
-round(vec4): vec4
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(float): float
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec2): vec2
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec3): vec3
-
-#[import("spirv", "GLSL.std.450", "2")]
-roundEven(vec4): vec4
-
-#[import("spirv", "GLSL.std.450", "8")]
-floor(float): float
-
-#[import("spirv", "GLSL.std.450", "8")]
-floor(vec2): vec2
-
-#[import("spirv", "GLSL.std.450", "8")]
-floor(vec3): vec3
-
-#[import("spirv", "GLSL.std.450", "8")]
-floor(vec4): vec4

@@ -645,15 +645,14 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
             else
                 OlyILFieldFlags.None
 
-        let ilAttrs =
-            field.Attributes
-            |> (GenAttributes cenv env)
-
         let ilFieldDef = 
             match field.Constant with
             | ValueSome(constValue) ->
                 OlyILFieldConstant(GenString cenv field.Name, emitILType cenv env field.Type, GenConstant cenv env constValue, memberFlags)
             | _ ->
+                let ilAttrs =
+                    field.Attributes
+                    |> (GenAttributes cenv env)
                 OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 

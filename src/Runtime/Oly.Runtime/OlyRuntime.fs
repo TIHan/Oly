@@ -2187,10 +2187,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     OlyAssert.Fail($"Struct type '{enclosingTy.Name}' recursively contains itself.")
 
                 if field.IsFormal || enclosingTy.CanGenericsBeErased then
+                    let name =
+                        // REVIEW: Should we actually be emitting a FieldReference for an import?
+                        match field.TryGetImportInfo() with
+                        | Some(name) -> name
+                        | _ -> field.Name
                     this.Emitter.EmitFieldDefinition(
                         emittedEnclosingTy,
                         field.Flags, 
-                        field.Name,
+                        name,
                         fieldTy,
                         field.Index,
                         irAttrs,

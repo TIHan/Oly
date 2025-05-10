@@ -28,6 +28,8 @@
     <Compile Include="ClrSpecificTests.fs" />
     <Compile Include="DotNet\Conformance\ConstraintTests.fs" />
     <Compile Include="DotNet\Conformance\IsSubtypeOfTests.fs" />
+    <Compile Include="OlySpirvTestHelpers.fs" />
+    <Compile Include="..\..\Spirv\Oly.Runtime.Target.Spirv.Tests\GLSL_std_450_Tests.fs" Link="GLSL_std_450_Tests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

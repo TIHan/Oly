@@ -1725,6 +1725,19 @@ type RuntimeField =
                 Type = this.Type.Substitute(genericContext)
             }
 
+    member this.TryGetImportInfo() =
+        let resultOpt =
+            let fieldDef = this.ILAssembly.GetFieldDefinition(this.ILFieldDefinitionHandle)
+            fieldDef.Attributes
+            |> ImArray.tryPick (function OlyILAttribute.Import(platform, path, name) -> Some(platform, path, name) | _ -> None)
+        match resultOpt with
+        | Some(platform, path, name) ->
+            let ilAsm = this.ILAssembly
+            let name = ilAsm.GetStringOrEmpty(name)
+            Some(name)
+        | _ ->
+            None
+
     override this.GetHashCode() = this.Index
 
     override this.Equals(o) =

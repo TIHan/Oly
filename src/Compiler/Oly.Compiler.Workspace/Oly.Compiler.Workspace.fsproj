@@ -6,6 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="dotnet_numerics.oly">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="spirv_numerics.oly">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="interpreter_prelude.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -24,6 +30,8 @@
     <Compile Include="OlyWorkspaceExtensions.fs" />
     <Compile Include="OlyWorkspaceService.fs" />
   </ItemGroup>
+
+  <ItemGroup />
 
   <ItemGroup>
     <ProjectReference Include="..\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj" />

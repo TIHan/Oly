@@ -73,7 +73,7 @@ let ilverify (ms: MemoryStream) =
 
 let private runILVerify = false
 
-let run (ms: MemoryStream, expectedOutput: string) =
+let runAndReturnOutput(ms: MemoryStream, input: string[]): string =
     if runILVerify then
         ilverify ms
 
@@ -89,13 +89,22 @@ let run (ms: MemoryStream, expectedOutput: string) =
                 Console.SetOut(writer)
                 if rasm.EntryPoint = null then
                     failwith "Entry point not found."
-                rasm.EntryPoint.Invoke(null, [||]) |> ignore
+                let args: obj array =
+                    if input.Length = 0 then
+                        [||]
+                    else
+                        [|input|]
+                rasm.EntryPoint.Invoke(null, args) |> ignore
                 actualOutput <- builder.ToString()
                 writer.Dispose()
             )
         with
         | ex ->
             failwith $"Execution failed:\n{ex.Message}\n\n{ex.StackTrace}"
-        Assert.Equal(expectedOutput, actualOutput)
+        actualOutput
     finally
         context.Unload()
+
+let run (ms: MemoryStream, expectedOutput: string) =
+    let actualOutput = runAndReturnOutput(ms, [||])
+    Assert.Equal(expectedOutput, actualOutput)
