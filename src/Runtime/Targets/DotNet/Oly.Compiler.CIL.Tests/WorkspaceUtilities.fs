@@ -44,6 +44,7 @@ let private createWorkspace target isDebug =
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "spirv_numerics.oly"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics_extensions.oly"))
 
     (resourceSnapshot, workspace, documentPath)
 
@@ -111,6 +112,7 @@ let private buildWithAux target isDebug src =
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "spirv_numerics.oly"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics_extensions.oly"))
 
     let _doc = workspace.UpdateDocumentAsync(resourceSnapshot, documentPath, srcText, Threading.CancellationToken.None).Result[0]
 

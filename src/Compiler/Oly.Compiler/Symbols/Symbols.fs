@@ -5337,6 +5337,10 @@ module SymbolExtensions =
             member this.IsNamespace =
                 this.Kind = EntityKind.Namespace
 
+            member this.IsNonNamespaceRootInScope(asmIdent: OlyILAssemblyIdentity) =
+                not this.IsNamespace && this.Enclosing.IsRootNamespace && this.IsAutoOpenable &&
+                (match this.ContainingAssembly with None -> false | Some(containingAsm) -> containingAsm.Identity.Name = asmIdent.Name && containingAsm.Identity.Key = asmIdent.Key)
+
             member this.IsNamespaceOrModule =
                 this.IsNamespace || this.IsModule
 

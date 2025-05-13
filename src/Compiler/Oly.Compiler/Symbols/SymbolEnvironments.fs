@@ -151,6 +151,7 @@ module private BoundEnvironment =
         {
             senv = senv
             openedEnts = ImmutableHashSet.Empty
+            partialAutoOpenedRootEnts = ImmutableHashSet.Empty
             openDecls = ImArray.empty
             ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity> }
             implicitExtendsForStruct = None
@@ -162,6 +163,7 @@ type BoundEnvironment =
     {
         senv: ScopeEnvironment
         openedEnts: ImmutableHashSet<EntitySymbol>
+        partialAutoOpenedRootEnts: ImmutableHashSet<EntitySymbol>
         openDecls: EntitySymbol imarray
         ac: AccessorContext
         implicitExtendsForStruct: TypeSymbol option

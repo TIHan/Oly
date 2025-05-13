@@ -3,5 +3,6 @@
 
 #load "prelude.oly"
 #load "dotnet_numerics.oly"
+#load "dotnet_numerics_extensions.oly"
 
 namespace Oly

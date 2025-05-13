@@ -675,7 +675,18 @@ type BinderEnvironment =
             benv = 
                 { this.benv with
                     openedEnts = this.benv.openedEnts.Add(ent)
+                    partialAutoOpenedRootEnts = this.benv.partialAutoOpenedRootEnts.Remove(ent)
                 }
+        }
+
+    member this.AddPartialOpenedRootEntity(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNonNamespaceRootInScope(this.benv.ac.AssemblyIdentity))
+        { this with
+            benv =
+                { this.benv with
+                    partialAutoOpenedRootEnts = this.benv.partialAutoOpenedRootEnts.Add(ent)
+                }
+            
         }
 
 let checkSyntaxHigherTypeArguments cenv (syntaxTyArgs: OlySyntaxType imarray) =

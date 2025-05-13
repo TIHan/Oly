@@ -297,11 +297,13 @@ type BinderPass4(state: PassState) =
     let compute ct =
         let diagLogger = OlyDiagnosticLogger.Create()
 
+        let asm = state.asm
+
         let cenv =
             {
                 bindAnonymousShapeTypeHole = Pass2.bindAnonymousShapeType
                 declTable = ref state.declTable
-                asm = state.asm
+                asm = asm
                 syntaxTree = state.syntaxTree
                 diagnostics = diagLogger
                 pass = Pass4
@@ -310,14 +312,28 @@ type BinderPass4(state: PassState) =
                 entityDefIndex = 0
                 memberDefIndex = 0
             }
-        let boundTree = bindSyntaxTreePass4 cenv state.env state.entBuilder state.syntaxTree
+
+        let autoOpenedRoot =
+            state.env.benv.partialAutoOpenedRootEnts
+            |> ImArray.ofSeq
+
+        let env =
+            if autoOpenedRoot.IsEmpty then
+                state.env
+            else
+                (state.env, autoOpenedRoot)
+                ||> ImArray.fold (fun env ent ->
+                    openContentsOfEntityAndOverride state.declTable env OpenContent.Values ent
+                )           
+
+        let boundTree = bindSyntaxTreePass4 cenv env state.entBuilder state.syntaxTree
 
         if diagLogger.HasAnyErrors then
             // Suppress errors from post-inference analysis if we already have errors.
-            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+            PostInferenceAnalysis.analyzeBoundTree cenv env boundTree
             boundTree
         else
-            PostInferenceAnalysis.analyzeBoundTree cenv state.env boundTree
+            PostInferenceAnalysis.analyzeBoundTree cenv env boundTree
             boundTree.AppendDiagnostics(diagLogger.GetDiagnostics())
 
     let cachedValue = CacheValue(compute)
@@ -566,7 +582,8 @@ let createInitialBoundEnvironment asmIdent =
 
     {
         senv = senv
-        openedEnts = ImmutableHashSet.Empty    
+        openedEnts = ImmutableHashSet.Empty
+        partialAutoOpenedRootEnts = ImmutableHashSet.Empty
         openDecls = ImArray.empty
         ac = { Entity = None; AssemblyIdentity = asmIdent }
         implicitExtendsForStruct = None

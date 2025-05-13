@@ -8,6 +8,11 @@ struct vec2 =
     new(float)
     new(float, float)
 
+    static Zero: vec2 get() = vec2(0)
+    static One: vec2 get() = vec2(1)
+    static UnitX: vec2 get() = vec2(1, 0)
+    static UnitY: vec2 get() = vec2(0, 1)
+
 #[import("spirv", "std", "vec3")]
 struct vec3 =
     public field mutable x: float
@@ -16,6 +21,24 @@ struct vec3 =
     new(float)
     new(vec2, float)
     new(float, float, float)
+
+    static Zero: vec3 get() = vec3(0)
+    static One: vec3 get() = vec3(1)
+    static UnitX: vec3 get() = vec3(1, 0, 0)
+    static UnitY: vec3 get() = vec3(0, 1, 0)
+    static UnitZ: vec3 get() = vec3(0, 0, 1)
+
+#[intrinsic("add")]
+(+)(vec3, vec3): vec3
+
+#[intrinsic("subtract")]
+(-)(vec3, vec3): vec3
+
+#[intrinsic("multiply")]
+(*)(vec3, vec3): vec3
+
+#[intrinsic("negate")]
+(-)(vec3): vec3
 
 #[import("spirv", "std", "vec4")]
 struct vec4 =
@@ -27,6 +50,13 @@ struct vec4 =
     new(vec3, float)
     new(vec2, float, float)
     new(float, float, float, float)
+
+    static Zero: vec4 get() = vec4(0)
+    static One: vec4 get() = vec4(1)
+    static UnitX: vec4 get() = vec4(1, 0, 0, 0)
+    static UnitY: vec4 get() = vec4(0, 1, 0, 0)
+    static UnitZ: vec4 get() = vec4(0, 0, 1, 0)
+    static UnitW: vec4 get() = vec4(0, 0, 0, 1)
 
 #[import("spirv", "std", "dvec2")]
 struct dvec2 =
@@ -120,3 +150,12 @@ floor(vec3): vec3
 
 #[import("spirv", "GLSL.std.450", "8")]
 floor(vec4): vec4
+
+#[import("spirv", "GLSL.std.450", "69")]
+normalize(v: vec2): vec2
+
+#[import("spirv", "GLSL.std.450", "69")]
+normalize(v: vec3): vec3
+
+#[import("spirv", "GLSL.std.450", "69")]
+normalize(v: vec4): vec4
