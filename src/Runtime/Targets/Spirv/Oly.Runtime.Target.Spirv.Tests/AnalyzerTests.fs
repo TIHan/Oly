@@ -34,13 +34,13 @@ let ``Should error with incorrect use of GlobalInvocationId``() =
 #target "spirv: vertex, 1.0"
 
 main(): () =
-    let x = GlobalInvocationId.x
+    let x = GlobalInvocationId.X
     """
     |> buildHasErrors
         [
             ("SPIR-V: Only available in execution model(s) 'compute'.",
                 """
-    let x = GlobalInvocationId.x
+    let x = GlobalInvocationId.X
             ^^^^^^^^^^^^^^^^^^
 """
             )

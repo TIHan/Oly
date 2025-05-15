@@ -1411,7 +1411,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
 
             let olyxReferenceInfos =
-                let preludeProjectPath = OlyPath.Combine(state.preludeDirectory, $"{platformName}_prelude.olyx")
+                let preludeProjectPath = OlyPath.Combine(state.preludeDirectory, $"prelude_{platformName}.olyx")
                 if OlyPath.Equals(projPath, preludeProjectPath) then
                     olyxReferenceInfos
                 else

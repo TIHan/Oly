@@ -1962,10 +1962,10 @@ type InterpreterRuntimeEmitter(stdout) =
             InterpreterType.Void
 
         member this.EmitTypeNativeInt() =
-            raise(System.NotImplementedException())
+            InterpreterType.Int64
 
         member this.EmitTypeNativeUInt() =
-            raise(System.NotImplementedException())
+            InterpreterType.UInt64
 
         member this.EmitTypeNativePtr(elementTy) =
             raise(System.NotImplementedException())

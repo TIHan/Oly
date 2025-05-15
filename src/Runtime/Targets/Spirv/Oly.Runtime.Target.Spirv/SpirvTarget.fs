@@ -177,19 +177,22 @@ type SpirvTarget() =
 
         let checkAlignment (ty: OlyTypeSymbol) (useSyntax: OlySyntaxNode) =
             let is16byteAligned =
-                match ty.TryGetPackedSizeInBytes() with
-                | ValueSome sizeInBytes ->
-                    let rm = sizeInBytes % 16
-                    if rm <> 0 && 
-                        sizeInBytes <> 1 && 
-                        sizeInBytes <> 2 && 
-                        sizeInBytes <> 4 && 
-                        sizeInBytes <> 8 then
+                if ty.IsTypeExtension then
+                    true
+                else
+                    match ty.TryGetPackedSizeInBytes() with
+                    | ValueSome sizeInBytes ->
+                        let rm = sizeInBytes % 16
+                        if rm <> 0 && 
+                            sizeInBytes <> 1 && 
+                            sizeInBytes <> 2 && 
+                            sizeInBytes <> 4 && 
+                            sizeInBytes <> 8 then
+                            false
+                        else
+                            true
+                    | _ ->
                         false
-                    else
-                        true
-                | _ ->
-                    false
 
             if not is16byteAligned then
                 diagnostics.Error($"'{ty.Name}' must be 16-byte aligned.", 10, useSyntax)

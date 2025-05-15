@@ -6,22 +6,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="dotnet_numerics.oly">
+    <Content Include="numerics_dotnet.oly">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="dotnet_numerics_extensions.oly">
+    <Content Include="numerics_spirv.oly">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="spirv_numerics.oly">
+    <Content Include="prelude_interpreter.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="interpreter_prelude.olyx">
+    <Content Include="prelude_dotnet.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="dotnet_prelude.olyx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="spirv_prelude.olyx">
+    <Content Include="prelude_spirv.olyx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="prelude.oly">

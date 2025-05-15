@@ -18,6 +18,8 @@ open Oly.Compiler.Internal.SymbolQuery.Extensions
 [<Sealed>]
 type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, func: IFunctionSymbol) =
 
+    do OlyAssert.False(func.IsFunctionGroup)
+
     let id = newId()
 
     let lazyTyPars =
@@ -104,6 +106,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         member this.IsBase = false
         member this.IsField = false
         member this.IsFunction = true
+        member this.IsFunctionGroup = false
         member this.IsPattern = false
         member this.IsProperty = false
         member this.IsThis = false
@@ -149,6 +152,7 @@ type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Imp
         member this.IsBase = false
         member this.IsField = true
         member this.IsFunction = false
+        member this.IsFunctionGroup = false
         member this.IsPattern = false
         member this.IsProperty = false
         member this.IsThis = false
@@ -210,6 +214,7 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         member this.IsBase = false
         member this.IsField = false
         member this.IsFunction = false
+        member this.IsFunctionGroup = false
         member this.IsPattern = false
         member this.IsProperty = true
         member this.IsThis = false
@@ -258,6 +263,7 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
         member this.IsBase = false
         member this.IsField = false
         member this.IsFunction = false
+        member this.IsFunctionGroup = false
         member this.IsPattern = true
         member this.IsProperty = false
         member this.IsThis = false
@@ -1555,6 +1561,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         member _.FunctionFlags = funcFlags
         member _.MemberFlags = memberFlags
         member _.IsFunction = true
+        member _.IsFunctionGroup = false
         member _.ValueFlags = evalValueFlags()
 
         member this.Type = evalTy()
@@ -1679,6 +1686,8 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
         member this.IsField: bool = true
 
         member this.IsFunction: bool = false
+
+        member this.IsFunctionGroup: bool = false
 
         member this.IsThis: bool = false
 
@@ -1871,6 +1880,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                       member this.IsBase = false
                                       member this.IsField = false
                                       member this.IsFunction = false
+                                      member this.IsFunctionGroup = false
                                       member this.IsPattern = false
                                       member this.IsProperty = true
                                       member this.IsThis = false

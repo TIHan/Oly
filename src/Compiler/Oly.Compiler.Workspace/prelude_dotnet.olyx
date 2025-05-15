@@ -2,7 +2,6 @@
 #library
 
 #load "prelude.oly"
-#load "dotnet_numerics.oly"
-#load "dotnet_numerics_extensions.oly"
+#load "numerics_dotnet.oly"
 
 namespace Oly

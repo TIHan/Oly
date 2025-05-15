@@ -904,6 +904,8 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
         member _.IsPattern = false
         
         member _.IsFunction = true
+
+        member _.IsFunctionGroup = func.IsFunctionGroup
         
         member _.IsField = false
         
@@ -945,6 +947,7 @@ let actualField enclosing (tyArgs: TypeArgumentSymbol imarray) (field: IFieldSym
         member _.IsProperty = false
         member _.IsPattern = false
         member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.TypeParameters = field.TypeParameters
         member _.TypeArguments = field.TypeArguments
         member _.ValueFlags = field.ValueFlags
@@ -977,7 +980,8 @@ let tryActualProperty enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (p
         member _.FunctionOverrides = prop.FunctionOverrides
         member _.IsProperty = prop.IsProperty
         member _.IsPattern = false
-        member _.IsFunction = prop.IsFunction
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.TypeParameters = prop.TypeParameters
         member _.TypeArguments = prop.TypeArguments
         member _.ValueFlags = prop.ValueFlags
@@ -1045,7 +1049,8 @@ let actualProperty enclosing (tyArgs: TypeArgumentSymbol imarray) (prop: IProper
         member _.FunctionFlags = prop.FunctionFlags
         member _.FunctionOverrides = prop.FunctionOverrides
         member _.IsProperty = prop.IsProperty
-        member _.IsFunction = prop.IsFunction
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.IsPattern = false
         member _.TypeParameters = prop.TypeParameters
         member _.TypeArguments = prop.TypeArguments
@@ -1113,6 +1118,7 @@ let actualPattern enclosing (tyArgs: TypeArgumentSymbol imarray) (pat: IPatternS
         member _.FunctionOverrides = pat.FunctionOverrides
         member _.IsProperty = pat.IsProperty
         member _.IsFunction = pat.IsFunction
+        member _.IsFunctionGroup = pat.IsFunctionGroup
         member _.IsPattern = true
         member _.TypeParameters = pat.TypeParameters
         member _.TypeArguments = pat.TypeArguments
@@ -1280,6 +1286,8 @@ let tryActualFunction (enclosing: EnclosingSymbol) tys (func: IFunctionSymbol) =
 
         member _.IsFunction = true
 
+        member _.IsFunctionGroup = func.IsFunctionGroup
+
         member _.IsField = false
 
         member _.Formal = func.Formal
@@ -1330,7 +1338,8 @@ let tryActualField enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (fiel
         member _.FunctionOverrides = field.FunctionOverrides
         member _.IsProperty = field.IsProperty
         member _.IsPattern = false
-        member _.IsFunction = field.IsFunction
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.TypeParameters = field.TypeParameters
         member _.TypeArguments = field.TypeArguments
         member _.ValueFlags = field.ValueFlags
@@ -2317,8 +2326,8 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         member _.FunctionOverrides = overrides
         member _.IsProperty = false
         member _.IsPattern = false
-
         member _.IsFunction = true
+        member _.IsFunctionGroup = false
         member _.IsField = false
         member this.Formal = this :> IValueSymbol
         member _.ValueFlags = valueFlags
@@ -2366,6 +2375,7 @@ type InvalidFunctionSymbol(enclosing, name) =
         member _.IsProperty = false
         member _.IsPattern = false
         member _.IsFunction = true
+        member _.IsFunctionGroup = false
         member _.IsField = false
         member this.Formal = this :> IValueSymbol
         member _.ValueFlags = func.ValueFlags
@@ -2404,6 +2414,7 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
                 member this.Id = id
                 member this.IsField = false
                 member this.IsFunction = false
+                member this.IsFunctionGroup = false
                 member this.IsPattern = false
                 member this.MemberFlags = MemberFlags.None
                 member this.Name = ""
@@ -2446,6 +2457,8 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
         member this.IsField: bool = false
 
         member this.IsFunction: bool = true
+
+        member this.IsFunctionGroup: bool = true
 
         member this.Name: string = name
 
@@ -2511,6 +2524,7 @@ type FieldSymbol(attrs, enclosing, memberFlags, name, ty, valueFlags, associated
         member this.IsBase: bool = false
         member this.IsField: bool = true
         member this.IsFunction: bool = false
+        member this.IsFunctionGroup: bool = false
         member this.IsThis: bool = false
         member this.MemberFlags: MemberFlags = memberFlags
         member this.Name: string = name
@@ -2568,6 +2582,10 @@ type PolymorphicFieldSymbol(enclosing, field: IFieldSymbol, ty: TypeSymbol, tyAr
 
         member _.IsFunction = 
             OlyAssert.Equal(false, field.IsFunction)
+            false
+
+        member this.IsFunctionGroup = 
+            OlyAssert.Equal(false, field.IsFunctionGroup)
             false
 
         member _.MemberFlags = field.MemberFlags
@@ -2643,6 +2661,7 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         member this.IsBase: bool = false
         member this.IsField: bool = false
         member this.IsFunction: bool = false
+        member this.IsFunctionGroup: bool = false
         member this.IsThis: bool = false
         member this.MemberFlags: MemberFlags = memberFlags
         member this.Name: string = name
@@ -2699,6 +2718,7 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
         member this.IsBase: bool = false
         member this.IsField: bool = false
         member this.IsFunction: bool = false
+        member this.IsFunctionGroup: bool = false
         member this.IsThis: bool = false
         member this.MemberFlags: MemberFlags = func.MemberFlags
         member this.Name: string = name
@@ -2805,6 +2825,8 @@ type IValueSymbol =
 
     abstract IsFunction : bool
 
+    abstract IsFunctionGroup : bool
+
     abstract IsField : bool
 
     abstract IsProperty : bool
@@ -2894,6 +2916,8 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
 
         member _.IsFunction = false
 
+        member _.IsFunctionGroup = false
+
         member _.MemberFlags = MemberFlags.None
 
         member _.FunctionFlags = FunctionFlags.None
@@ -2980,6 +3004,8 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
 
         member _.IsFunction = false
 
+        member _.IsFunctionGroup = false
+
         member _.MemberFlags = MemberFlags.None
 
         member _.FunctionFlags = FunctionFlags.None
@@ -3043,6 +3069,8 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
         member _.IsField = false
 
         member _.IsFunction = false
+
+        member _.IsFunctionGroup = false
 
         member _.MemberFlags = MemberFlags.None
 
@@ -4436,12 +4464,12 @@ type TypeSymbol =
         | Bool
         | Char16 
         | Utf16 -> true
-        | ByRef(elementTy, _) ->
-            match elementTy with
-            | TypeSymbol.Variable(tyPar) ->
-                obj.ReferenceEquals(tyPar, ByReferenceTypeParameters[0])
-            | _ ->
-                false
+        | ByRef(_, ByRefKind.ReadOnly) as ty ->
+            obj.ReferenceEquals(ty, FormalReadOnlyByRef)
+        | ByRef(_, ByRefKind.WriteOnly) as ty ->
+            obj.ReferenceEquals(ty, FormalWriteOnlyByRef)
+        | ByRef(_, ByRefKind.ReadWrite) as ty ->
+            obj.ReferenceEquals(ty, FormalReadWriteByRef)
         | Function(kind=FunctionKind.Normal) as ty ->
             obj.ReferenceEquals(FormalNormalFunctionType, ty)
         | Function(kind=FunctionKind.Scoped) as ty ->
@@ -4960,6 +4988,8 @@ module SymbolExtensions =
                         member _.TypeArguments = func.TypeArguments
     
                         member _.IsFunction = func.IsFunction
+
+                        member _.IsFunctionGroup = func.IsFunctionGroup
     
                         member _.IsField = func.IsField
     
@@ -5018,6 +5048,8 @@ module SymbolExtensions =
                         member _.TypeArguments = func.TypeArguments
     
                         member _.IsFunction = func.IsFunction
+
+                        member _.IsFunctionGroup = false
     
                         member _.IsField = func.IsField
     
@@ -5067,7 +5099,9 @@ module SymbolExtensions =
     
                         member _.TypeArguments = field.TypeArguments
     
-                        member _.IsFunction = field.IsFunction
+                        member _.IsFunction = false
+
+                        member _.IsFunctionGroup = false
     
                         member _.IsField = field.IsField
     
@@ -5113,7 +5147,9 @@ module SymbolExtensions =
     
                         member _.TypeArguments = prop.TypeArguments
     
-                        member _.IsFunction = prop.IsFunction
+                        member _.IsFunction = false
+
+                        member _.IsFunctionGroup = false
     
                         member _.IsField = prop.IsField
     
@@ -5161,6 +5197,8 @@ module SymbolExtensions =
                         member _.TypeArguments = pat.TypeArguments
     
                         member _.IsFunction = pat.IsFunction
+
+                        member _.IsFunctionGroup = pat.IsFunctionGroup
     
                         member _.IsField = pat.IsField
     
@@ -5206,6 +5244,8 @@ module SymbolExtensions =
                         member _.TypeArguments = value.TypeArguments
     
                         member _.IsFunction = value.IsFunction
+
+                        member _.IsFunctionGroup = value.IsFunctionGroup
     
                         member _.IsField = value.IsField
     
@@ -5337,9 +5377,9 @@ module SymbolExtensions =
             member this.IsNamespace =
                 this.Kind = EntityKind.Namespace
 
-            member this.IsNonNamespaceRootInScope(asmIdent: OlyILAssemblyIdentity) =
+            member this.IsNonNamespaceRootInScope(scopeAsmIdent: OlyILAssemblyIdentity) =
                 not this.IsNamespace && this.Enclosing.IsRootNamespace && this.IsAutoOpenable &&
-                (match this.ContainingAssembly with None -> false | Some(containingAsm) -> containingAsm.Identity.Name = asmIdent.Name && containingAsm.Identity.Key = asmIdent.Key)
+                (match this.ContainingAssembly with None -> false | Some(containingAsm) -> containingAsm.Identity.Name = scopeAsmIdent.Name && containingAsm.Identity.Key = scopeAsmIdent.Key)
 
             member this.IsNamespaceOrModule =
                 this.IsNamespace || this.IsModule

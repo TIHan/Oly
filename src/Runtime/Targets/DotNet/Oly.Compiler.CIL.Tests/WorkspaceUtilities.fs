@@ -40,11 +40,9 @@ let private createWorkspace target isDebug =
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"{target.PlatformName}_prelude.olyx"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "spirv_numerics.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics_extensions.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
 
     (resourceSnapshot, workspace, documentPath)
 
@@ -108,11 +106,9 @@ let private buildWithAux target isDebug src =
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"{target.PlatformName}_prelude.olyx"))
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "spirv_numerics.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "dotnet_numerics_extensions.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
+    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
 
     let _doc = workspace.UpdateDocumentAsync(resourceSnapshot, documentPath, srcText, Threading.CancellationToken.None).Result[0]
 

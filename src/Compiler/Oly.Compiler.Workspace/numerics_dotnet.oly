@@ -1,0 +1,65 @@
+#[open]
+module OlyNumerics
+
+open System
+open System.Numerics
+
+alias vec2 = Vector2
+alias vec3 = Vector3
+alias vec4 = Vector4
+alias quat = Quaternion
+
+(+)(v1: vec3, v2: vec3): vec3 = Vector3.Add(v1, v2)
+(-)(v1: vec3, v2: vec3): vec3 = Vector3.Subtract(v1, v2)
+(*)(v1: vec3, v2: vec3): vec3 = Vector3.Multiply(v1, v2)
+(*)(v: vec3, s: float32): vec3 = Vector3.Multiply(v, s)
+
+transform(v: vec3, rotation: quat): vec3 =
+    Vector3.Transform(v, rotation)
+
+//
+
+round(x: float32): float32 =
+    MathF.Round(x)
+
+round(v: vec2): vec2 =
+    vec2(round(v.X), round(v.Y))
+
+round(v: vec3): vec3 =
+    vec3(round(v.X), round(v.Y), round(v.Z))
+
+round(v: vec4): vec4 =
+    vec4(round(v.X), round(v.Y), round(v.Z), round(v.W))
+
+roundEven(x: float32): float32 =
+    MathF.Round(x)
+
+roundEven(v: vec2): vec2 =
+    vec2(roundEven(v.X), roundEven(v.Y))
+
+roundEven(v: vec3): vec3 =
+    vec3(roundEven(v.X), roundEven(v.Y), roundEven(v.Z))
+
+roundEven(v: vec4): vec4 =
+    vec4(roundEven(v.X), roundEven(v.Y), roundEven(v.Z), roundEven(v.W))
+
+floor(x: float32): float32 =
+    MathF.Floor(x)
+
+floor(v: vec2): vec2 =
+    vec2(floor(v.X), floor(v.Y))
+
+floor(v: vec3): vec3 =
+    vec3(floor(v.X), floor(v.Y), floor(v.Z))
+
+floor(v: vec4): vec4 =
+    vec4(floor(v.X), floor(v.Y), floor(v.Z), floor(v.W))
+
+normalize(v: vec2): vec2 =
+    Vector2.Normalize(v)
+
+normalize(v: vec3): vec3 =
+    Vector3.Normalize(v)
+
+normalize(v: vec4): vec4 =
+    Vector4.Normalize(v)

@@ -1,7 +1,7 @@
 ﻿#target "spirv: lib"
 #library
 
-#load "spirv_numerics.oly"
+#load "numerics_spirv.oly"
 
 #[open]
 module OlyPrelude

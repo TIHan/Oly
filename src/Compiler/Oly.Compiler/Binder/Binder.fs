@@ -313,18 +313,7 @@ type BinderPass4(state: PassState) =
                 memberDefIndex = 0
             }
 
-        let autoOpenedRoot =
-            state.env.benv.partialAutoOpenedRootEnts
-            |> ImArray.ofSeq
-
-        let env =
-            if autoOpenedRoot.IsEmpty then
-                state.env
-            else
-                (state.env, autoOpenedRoot)
-                ||> ImArray.fold (fun env ent ->
-                    openContentsOfEntityAndOverride state.declTable env OpenContent.Values ent
-                )           
+        let env = state.env     
 
         let boundTree = bindSyntaxTreePass4 cenv env state.entBuilder state.syntaxTree
 
@@ -368,7 +357,19 @@ type BinderPass3(state: PassState) =
                 memberDefIndex = 0
             }
 
-        let env = state.env
+        // TODO: We need a test that covers this.
+        let autoOpenedRoot =
+            state.env.benv.partialAutoOpenedRootEnts
+            |> ImArray.ofSeq
+
+        let env =
+            if autoOpenedRoot.IsEmpty then
+                state.env
+            else
+                (state.env, autoOpenedRoot)
+                ||> ImArray.fold (fun env ent ->
+                    openContentsOfEntity state.declTable env OpenContent.Values ent
+                )      
 
         let env1 = bindSyntaxTreePass3 cenv env state.entBuilder state.syntaxTree
         let diags = state.diags.AddRange(diagLogger.GetDiagnostics())

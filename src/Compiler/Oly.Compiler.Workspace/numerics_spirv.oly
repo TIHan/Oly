@@ -3,10 +3,14 @@ module OlyNumerics
 
 #[import("spirv", "std", "vec2")]
 struct vec2 =
-    public field mutable x: float
-    public field mutable y: float
+    public field mutable X: float
+    public field mutable Y: float
     new(float)
     new(float, float)
+
+#[open]
+extension vec2Extensions =
+    inherits vec2
 
     static Zero: vec2 get() = vec2(0)
     static One: vec2 get() = vec2(1)
@@ -15,12 +19,16 @@ struct vec2 =
 
 #[import("spirv", "std", "vec3")]
 struct vec3 =
-    public field mutable x: float
-    public field mutable y: float
-    public field mutable z: float
+    public field mutable X: float
+    public field mutable Y: float
+    public field mutable Z: float
     new(float)
     new(vec2, float)
     new(float, float, float)
+
+#[open]
+extension vec3Extensions =
+    inherits vec3
 
     static Zero: vec3 get() = vec3(0)
     static One: vec3 get() = vec3(1)
@@ -42,14 +50,18 @@ struct vec3 =
 
 #[import("spirv", "std", "vec4")]
 struct vec4 =
-    public field mutable x: float
-    public field mutable y: float
-    public field mutable z: float
-    public field mutable w: float
+    public field mutable X: float
+    public field mutable Y: float
+    public field mutable Z: float
+    public field mutable W: float
     new(float)
     new(vec3, float)
     new(vec2, float, float)
     new(float, float, float, float)
+
+#[open]
+extension vec4Extensions =
+    inherits vec4
 
     static Zero: vec4 get() = vec4(0)
     static One: vec4 get() = vec4(1)
@@ -60,26 +72,26 @@ struct vec4 =
 
 #[import("spirv", "std", "dvec2")]
 struct dvec2 =
-    public field mutable x: double
-    public field mutable y: double
+    public field mutable X: double
+    public field mutable Y: double
     new(double)
     new(double, double)
 
 #[import("spirv", "std", "dvec3")]
 struct dvec3 =
-    public field mutable x: double
-    public field mutable y: double
-    public field mutable z: double
+    public field mutable X: double
+    public field mutable Y: double
+    public field mutable Z: double
     new(double)
     new(vec2, double)
     new(double, double, double)
 
 #[import("spirv", "std", "dvec4")]
 struct dvec4 =
-    public field mutable x: double
-    public field mutable y: double
-    public field mutable z: double
-    public field mutable w: double
+    public field mutable X: double
+    public field mutable Y: double
+    public field mutable Z: double
+    public field mutable W: double
     new(double)
     new(vec3, double)
     new(vec2, double, double)
@@ -87,26 +99,26 @@ struct dvec4 =
 
 #[import("spirv", "std", "uvec2")]
 struct uvec2 =
-    public field mutable x: uint
-    public field mutable y: uint
+    public field mutable X: uint
+    public field mutable Y: uint
     new(uint)
     new(uint, uint)
 
 #[import("spirv", "std", "uvec3")]
 struct uvec3 =
-    public field mutable x: uint
-    public field mutable y: uint
-    public field mutable z: uint
+    public field mutable X: uint
+    public field mutable Y: uint
+    public field mutable Z: uint
     new(uint)
     new(uvec2, uint)
     new(uint, uint, uint)
 
 #[import("spirv", "std", "uvec4")]
 struct uvec4 =
-    public field mutable x: uint
-    public field mutable y: uint
-    public field mutable z: uint
-    public field mutable w: uint
+    public field mutable X: uint
+    public field mutable Y: uint
+    public field mutable Z: uint
+    public field mutable W: uint
     new(uint)
     new(uvec3, uint)
     new(uvec2, uint, uint)

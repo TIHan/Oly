@@ -20895,3 +20895,53 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Able to have constructor overloads when combined from other files``() =
+    let src1 =
+        """
+namespace Oly.Test
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias string
+
+class C<T1> =
+    new(x: T1) = { }
+
+    static Create(): C<T1> = C(unchecked default)
+
+module Helpers =
+
+    #[intrinsic("print")]
+    print(__oly_object): ()
+        """
+
+    let src2 =
+        """
+namespace Oly.Test
+
+class C<T1, T2> =
+    new(x: T1) = { }
+    new(x: T1, y: T2) = { }
+
+    static Create(): C<T1, T2> = C(unchecked default)
+        """
+
+    let src =
+        """
+open Oly.Test
+open static Oly.Test.Helpers
+
+module M =
+    main(): () =
+        let c = C<int32>(1)
+        let c2 = C(1, "hello")
+        print(123)
+        """
+
+    OlyThree src src1 src2
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"

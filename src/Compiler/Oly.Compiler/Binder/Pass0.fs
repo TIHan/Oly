@@ -110,7 +110,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
     let env1, envWithEnclosing =
         match intrinsicTyOpt with
         | Some intrinsicTy when kind = EntityKind.Alias ->
-            entBuilder.SetExtends(cenv.pass, ImArray.createOne intrinsicTy)
+            entBuilder.SetExtends(cenv.pass, ImArray.createOne (applyType intrinsicTy ent.TypeArguments))
         | _ ->
             ()
             

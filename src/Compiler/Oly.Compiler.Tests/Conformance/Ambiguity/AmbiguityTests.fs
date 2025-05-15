@@ -2166,6 +2166,44 @@ main(): () =
     Assert.Equal("C", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
+let ``Should error with ambiguity for TestM``() =
+    let src3 =
+        """
+module Test.A
+
+TestM(): () = ()
+        """
+
+    let src2 =
+        """
+module Test.B
+
+TestM(): () = ()
+        """
+
+    let src1 =
+        """
+module Test.C
+
+open static Test.A
+open static Test.B
+
+main(): () =
+    TestM()
+        """
+
+    OlyThree src1 src2 src3
+    |> withErrorHelperTextDiagnostics [
+        ("'TestM' has ambiguous functions.",
+            """
+    TestM()
+    ^^^^^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
 let ``Should properly infer lambda argument against overloads``() =
     let src =
         """

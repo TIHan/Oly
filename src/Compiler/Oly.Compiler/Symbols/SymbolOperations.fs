@@ -778,7 +778,10 @@ let areGeneralizedTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
 
 /// Type variable checks are indexable
 let areLogicalConstructorSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
-    if not func1.IsConstructor || not func2.IsConstructor then false
+    // IMPORTANT: If either function is a group, then return false. No such thing as equality for function groups.
+    if func1.IsFunctionGroup || func2.IsFunctionGroup then
+        false
+    elif not func1.IsConstructor || not func2.IsConstructor then false
     elif obj.ReferenceEquals(func1, func2) then true
     else
         func1.LogicalParameterCount = func2.LogicalParameterCount &&
@@ -792,11 +795,14 @@ let areLogicalConstructorSignaturesEqual (func1: IFunctionSymbol) (func2: IFunct
             ||> ROMem.forall2 (fun par1 par2 ->
                 UnifyTypes TypeVariableRigidity.Indexable par1.Type par2.Type
             )
-        )
+        ) && not func1.IsFunctionGroup && not func2.IsFunctionGroup
 
 /// Type variable checks are indexable
 let inline areLogicalFunctionSignaturesParameterOnlyEqualAux (func1: IFunctionSymbol) (func2: IFunctionSymbol) ([<InlineIfLambda>] f) : bool =
-    if obj.ReferenceEquals(func1, func2) then true
+    // IMPORTANT: If either function is a group, then return false. No such thing as equality for function groups.
+    if func1.IsFunctionGroup || func2.IsFunctionGroup then
+        false
+    elif obj.ReferenceEquals(func1, func2) then true
     elif func1.IsConstructor || func2.IsConstructor then
         areLogicalConstructorSignaturesEqual func1 func2
     else
@@ -836,7 +842,10 @@ let areFieldsEqual (field1: IFieldSymbol) (field2: IFieldSymbol) =
     areEnclosingsEqual field1.Enclosing field2.Enclosing
 
 let areValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
-    if obj.ReferenceEquals(value1, value2) then true
+    // IMPORTANT: If either value is a function group, then return false. No such thing as equality for function groups.
+    if value1.IsFunctionGroup || value2.IsFunctionGroup then
+        false
+    elif obj.ReferenceEquals(value1, value2) then true
     else
         match value1, value2 with
         | (:? IFunctionSymbol as func1), (:? IFunctionSymbol as func2) ->
@@ -2365,6 +2374,7 @@ let createBaseInstanceConstructors (ent: EntitySymbol) =
             member _.Attributes = x.Attributes
             member this.Formal = this
             member _.IsFunction = x.IsFunction
+            member _.IsFunctionGroup = x.IsFunctionGroup
             member _.IsField = x.IsField
             member _.IsThis = true
             member _.IsBase = true
@@ -2397,6 +2407,7 @@ let createThisInstanceConstructors name (ent: EntitySymbol) =
             member _.Attributes = x.Attributes
             member _.Formal = x.Formal
             member _.IsFunction = x.IsFunction
+            member _.IsFunctionGroup = x.IsFunctionGroup
             member _.IsField = x.IsField
             member _.IsThis = true
             member _.IsBase = false
@@ -2432,6 +2443,7 @@ let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFl
         member _.Type = fieldTy
         member _.IsField = true
         member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.IsProperty = false
         member _.IsPattern = false
         member _.FunctionFlags = FunctionFlags.None
@@ -2520,6 +2532,7 @@ let invalidValue (enclosingTyOpt: TypeSymbol option) =
         member _.IsField = false
 
         member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.FunctionOverrides = None
         member _.IsProperty = false
         member _.IsPattern = false
@@ -2551,6 +2564,7 @@ let invalidLocal () =
         member _.IsField = false
 
         member _.IsFunction = false
+        member _.IsFunctionGroup = false
         member _.FunctionOverrides = None
         member _.IsProperty = false
         member _.IsPattern = false

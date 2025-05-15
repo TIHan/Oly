@@ -428,13 +428,16 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeConstantInt32(n)
 
     | TypeSymbol.ByRef(innerTy, kind) ->
-        match kind with
-        | ByRefKind.ReadWrite ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadWrite)
-        | ByRefKind.ReadOnly ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadOnly)
-        | ByRefKind.WriteOnly ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.WriteOnly)
+        OlyAssert.False(ty.IsTypeConstructor)
+        let ilTy =
+            match kind with
+            | ByRefKind.ReadWrite ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadWrite)
+            | ByRefKind.ReadOnly ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadOnly)
+            | ByRefKind.WriteOnly ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.WriteOnly)
+        ilTy
 
     | TypeSymbol.NativeInt -> OlyILTypeNativeInt
     | TypeSymbol.NativeUInt -> OlyILTypeNativeUInt

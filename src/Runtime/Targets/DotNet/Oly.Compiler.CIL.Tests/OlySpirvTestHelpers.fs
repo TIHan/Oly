@@ -64,7 +64,6 @@ module OlyNumericsTest
 open System
 open System.Numerics
 open System.Text.Json
-open static OlyNumerics
 
 #[export]
 class InputDataKind =

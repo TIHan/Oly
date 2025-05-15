@@ -500,13 +500,6 @@ type TypeSymbol with
                 this
             else
                 applyType this.Formal tyArgs
-        
-type IValueSymbol with
-
-    member this.IsFunctionGroup =
-        match this with
-        | :? FunctionGroupSymbol -> true
-        | _ -> false
 
 type BoundTree with
 

@@ -996,6 +996,7 @@ let invalidLocalBinding name =
               member this.IsBase = false
               member this.IsField = false
               member this.IsFunction = false
+              member this.IsFunctionGroup = false
               member this.IsPattern = false
               member this.IsProperty = false
               member this.IsThis = false

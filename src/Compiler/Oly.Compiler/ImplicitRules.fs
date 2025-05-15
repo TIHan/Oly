@@ -91,6 +91,8 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
                 member _.TypeArguments = func.TypeArguments
     
                 member _.IsFunction = func.IsFunction
+
+                member _.IsFunctionGroup = func.IsFunctionGroup
     
                 member _.IsField = func.IsField
     

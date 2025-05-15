@@ -105,7 +105,8 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
     let env =
         if (openContent = OpenContent.Values || openContent = OpenContent.All) then
             env.AddOpenedEntity(ent)
-        elif ent.IsNonNamespaceRootInScope(env.benv.ac.AssemblyIdentity) then
+        elif ent.IsNonNamespaceRootInScope(env.benv.ac.AssemblyIdentity) && 
+             (match env.benv.ac.Entity with Some scopeEnt -> not(areEntitiesEqual scopeEnt.Formal ent.Formal) | _ -> true) then
             env.AddPartialOpenedRootEntity(ent)
         else
             env

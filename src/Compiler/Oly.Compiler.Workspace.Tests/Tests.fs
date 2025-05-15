@@ -14,7 +14,7 @@ let rs =
     let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
     let fileInfo = System.IO.FileInfo("prelude.oly")
     let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
-    let fileInfo = System.IO.FileInfo("interpreter_prelude.olyx")
+    let fileInfo = System.IO.FileInfo("prelude_interpreter.olyx")
     rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
 
 let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceSnapshot) =

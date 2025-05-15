@@ -426,18 +426,20 @@ let filterFunctionsForOverloadingPart2 (resArgs: ResolutionArguments) (returnTyO
 /// Overloading Part 3:
 ///     Handles ambiguity for generics by using scores.
 let filterFunctionsForOverloadingPart3 skipEager (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
-    let funcs = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
+    let filteredFuncs = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
 
-    if returnTyOpt.IsSome then
-        let funcs =
-            filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt funcs
-            |> filterFunctionsForOverloadingFinalPhase
-        if funcs.IsEmpty then
-            candidates
+    let funcs =
+        if returnTyOpt.IsSome then
+            let funcs =
+                filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt filteredFuncs
+                |> filterFunctionsForOverloadingFinalPhase
+            if funcs.IsEmpty then
+                candidates
+            else
+                funcs
         else
-            funcs
-    else
-        if funcs.IsEmpty then
-            candidates
-        else
-            funcs
+            if filteredFuncs.IsEmpty then
+                candidates
+            else
+                filteredFuncs
+    funcs

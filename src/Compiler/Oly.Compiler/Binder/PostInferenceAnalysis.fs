@@ -174,7 +174,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
     | TypeSymbol.ForAll(tyPars, innerTy) ->
         tyPars 
         |> ImArray.iter (fun tyPar -> analyzeType acenv aenv syntaxNode tyPar.AsType)
-        analyzeType acenv aenv syntaxNode innerTy
+        analyzeTypeAux acenv aenv flags syntaxNode innerTy
 
     | TypeSymbol.Tuple(tyArgs, _) ->
         analyzeTypeTuple acenv aenv syntaxNode tyArgs
