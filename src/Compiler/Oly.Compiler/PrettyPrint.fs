@@ -119,7 +119,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | ArrayKind.Mutable ->
                 "mutable " + elementText + $"[{rowRank}]"
 
-        if rowRank > 1 then
+        if columnRank > 1 then
             $"{text}[{columnRank}]"
         else
             text

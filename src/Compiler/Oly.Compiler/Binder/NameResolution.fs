@@ -1535,6 +1535,18 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             else
                 TypeSymbol.CreateMutableArray(elementTy)
 
+        | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+            bindFixedArrayType cenv env resTyArity bind (*isMutable:*)false
+                syntaxElementTy
+                syntaxRowRankBrackets
+                syntaxColumnRankBracketsOptional
+
+        | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+            bindFixedArrayType cenv env resTyArity bind (*isMutable:*)true
+                syntaxElementTy
+                syntaxRowRankBrackets
+                syntaxColumnRankBracketsOptional
+
         | OlySyntaxType.Shape(syntaxCurlyBrackets) ->
             cenv.bindAnonymousShapeTypeHole cenv env ImArray.empty syntaxCurlyBrackets.Element
 
@@ -1609,6 +1621,36 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             raise(InternalCompilerUnreachedException())
 
     bind cenv env resTyArity false syntaxTy
+
+let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRowRankBrackets: OlySyntaxBrackets<_>) syntaxColumnRankBracketsOptional =
+    let bindExpressionAsRank syntaxExpr =
+        match syntaxExpr with
+        | OlySyntaxExpression.Literal(syntaxLiteral) ->
+            match stripLiteral (bindLiteralAndCheck cenv env (Some TypeSymbol.Int32) syntaxLiteral) with
+            | BoundLiteral.Constant(ConstantSymbol.Int32(rank)) -> 
+                if rank <= 0 then
+                    cenv.diagnostics.Error("Rank must be greater than zero.", 10, syntaxLiteral)
+                    1
+                else
+                    rank
+            | _ -> 
+                // No need to report an error; means the literal check failed with Int32.
+                1
+        | _ ->
+            cenv.diagnostics.Error("Expected an integer.", 10, syntaxExpr)
+            1
+
+    let rowRank = bindExpressionAsRank syntaxRowRankBrackets.Element
+
+    let columnRank =
+        match syntaxColumnRankBracketsOptional with
+        | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
+            bindExpressionAsRank syntaxColumnRankBrackets.Element
+        | _ ->
+            1
+
+    let elementTy = bind cenv env resTyArity false syntaxElementTy
+    TypeSymbol.CreateFixedArray(elementTy, rowRank, columnRank)
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
     if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then

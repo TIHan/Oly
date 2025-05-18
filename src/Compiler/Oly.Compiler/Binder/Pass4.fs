@@ -1210,7 +1210,24 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
         | _ ->
             mkInferenceVariableType None
 
+    let isFixed =
+        match expectedTyOpt with
+        | Some(expectedTy) ->
+            match stripTypeEquations expectedTy with
+            | TypeSymbol.FixedArray _ -> true
+            | _ -> false
+        | _ ->
+            false
+
     let arrayTy =
+        match expectedTyOpt with
+        | Some(StrippedType(TypeSymbol.FixedArray(_, rowRank, columnRank, _))) ->
+            if isMutable then
+                TypeSymbol.CreateMutableFixedArray(elementTy, rowRank, columnRank)
+            else
+                TypeSymbol.CreateFixedArray(elementTy, rowRank, columnRank)
+        | _ ->
+            
         if isMutable then
             TypeSymbol.CreateMutableArray(elementTy)
         else

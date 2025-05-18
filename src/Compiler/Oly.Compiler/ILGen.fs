@@ -1457,12 +1457,19 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         let ilKind =
             match stripTypeEquationsAndBuiltIn exprTy with
-            | TypeSymbol.Array(kind=ArrayKind.Immutable) ->
+            | TypeSymbol.Array(kind=ArrayKind.Immutable)
+            | TypeSymbol.FixedArray(kind=ArrayKind.Immutable) ->
                 OlyILArrayKind.Immutable
             | _ ->
                 OlyILArrayKind.Mutable
 
-        let ilOp = OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs)
+        let ilOp = 
+            match stripTypeEquations exprTy with
+            | TypeSymbol.FixedArray(_, rowRank, columnRank, _) ->
+                OlyILOperation.NewFixedArray(ilElementTy, rowRank, columnRank, ilKind, ilArgExprs)
+            | _ ->
+                OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs)
+
         OlyILExpression.Operation(ilTextRange, ilOp)
 
     | E.Unit _ ->

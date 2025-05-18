@@ -4598,6 +4598,16 @@ type TypeSymbol =
     static member CreateMutableArray(elementTy: TypeSymbol) =
         TypeSymbol.CreateMutableArray(elementTy, 1)
 
+    static member CreateFixedArray(elementTy: TypeSymbol, rowRank, columnRank) =
+        if rowRank < 1 then failwith "Invalid row rank."
+        if columnRank < 1 then failwith "Invalid column rank."
+        TypeSymbol.FixedArray(elementTy, rowRank, columnRank, ArrayKind.Immutable)
+
+    static member CreateMutableFixedArray(elementTy: TypeSymbol, rowRank, columnRank) =
+        if rowRank < 1 then failwith "Invalid row rank."
+        if columnRank < 1 then failwith "Invalid column rank."
+        TypeSymbol.FixedArray(elementTy, rowRank, columnRank, ArrayKind.Mutable)
+
     static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
         TypeSymbol.Function(inputTy, outputTy, kind)
 
@@ -5986,3 +5996,6 @@ let assertNoForAllTypes (func: IFunctionSymbol) =
     elif func.ReturnType.IsTypeConstructor && enclosingTy.FormalId <> func.ReturnType.FormalId then OlyAssert.Fail("Return types cannot be a non-variable type constructor.")
 #endif
     ()
+
+let (|StrippedType|) (ty: TypeSymbol) =
+    stripTypeEquations ty
