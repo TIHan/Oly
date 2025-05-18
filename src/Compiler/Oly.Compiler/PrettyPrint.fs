@@ -104,7 +104,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | ArrayKind.Mutable ->
                 "mutable " + elementText + $"[{commas}]"
 
-    | TypeSymbol.FixedArray(elementTy, rowRank, columnRank, kind) -> 
+    | TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, kind) -> 
         let elementText = printTypeAux benv isDefinition false elementTy
         let elementText =
             if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction then
@@ -115,14 +115,15 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         let text =
             match kind with
             | ArrayKind.Immutable ->
-                elementText + $"[{rowRank}]"
+                elementText + $"[{printType benv rowRankTy}]"
             | ArrayKind.Mutable ->
-                "mutable " + elementText + $"[{rowRank}]"
+                "mutable " + elementText + $"[{printType benv rowRankTy}]"
 
-        if columnRank > 1 then
-            $"{text}[{columnRank}]"
-        else
+        match stripTypeEquations columnRankTy with
+        | TypeSymbol.ConstantInt32(columnRank) when columnRank = 1 ->
             text
+        | _ ->
+            $"{text}[{printType benv columnRankTy}]"
 
     | TypeSymbol.Variable(tyPar) ->
         let name =

@@ -1630,27 +1630,47 @@ let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (synta
             | BoundLiteral.Constant(ConstantSymbol.Int32(rank)) -> 
                 if rank <= 0 then
                     cenv.diagnostics.Error("Rank must be greater than zero.", 10, syntaxLiteral)
-                    1
+                    TypeSymbol.ConstantInt32 1
                 else
-                    rank
+                    TypeSymbol.ConstantInt32 rank
             | _ -> 
                 // No need to report an error; means the literal check failed with Int32.
-                1
+                TypeSymbol.ConstantInt32 1
+        | OlySyntaxExpression.Name(OlySyntaxName.Identifier(syntaxIdent)) ->
+            let ty = bindIdentifierAsTypeVariable cenv env syntaxIdent
+            match stripTypeEquations ty with
+            | TypeSymbol.Variable(tyPar) 
+                    when 
+                        tyPar.Constraints 
+                        |> ImArray.exists (function 
+                            | ConstraintSymbol.ConstantType(lazyTy) 
+                                    when (stripTypeEquations lazyTy.Value).IsInt32 -> 
+                                true 
+                            | _ -> 
+                                false
+                        ) -> ()
+            | _ ->
+                // TODO: Error message should include that it is specifically an 'int32'.
+                cenv.diagnostics.Error("Type variable missing a constant integer constraint.", 10, syntaxExpr)
+            ty
         | _ ->
             cenv.diagnostics.Error("Expected an integer.", 10, syntaxExpr)
-            1
+            TypeSymbol.ConstantInt32 1
 
-    let rowRank = bindExpressionAsRank syntaxRowRankBrackets.Element
+    let rowRankTy = bindExpressionAsRank syntaxRowRankBrackets.Element
 
-    let columnRank =
+    let columnRankTy =
         match syntaxColumnRankBracketsOptional with
         | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
             bindExpressionAsRank syntaxColumnRankBrackets.Element
         | _ ->
-            1
+            TypeSymbol.ConstantInt32 1
 
     let elementTy = bind cenv env resTyArity false syntaxElementTy
-    TypeSymbol.CreateFixedArray(elementTy, rowRank, columnRank)
+    if isMutable then
+        TypeSymbol.CreateMutableFixedArray(elementTy, rowRankTy, columnRankTy)
+    else
+        TypeSymbol.CreateFixedArray(elementTy, rowRankTy, columnRankTy)
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
     if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then

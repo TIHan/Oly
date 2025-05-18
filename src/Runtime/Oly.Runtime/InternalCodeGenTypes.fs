@@ -686,7 +686,7 @@ type RuntimeType =
     | Tuple of tyArgs: RuntimeType imarray * string imarray
     | ReferenceCell of elementTy: RuntimeType
     | Array of elementTy: RuntimeType * rank: int * isMutable: bool
-    | FixedArray of elementTy: RuntimeType * rowRank: int * columnRank: int * isMutable: bool
+    | FixedArray of elementTy: RuntimeType * rowRankTy: RuntimeType * columnRankTy: RuntimeType * isMutable: bool
     | Function of argTys: RuntimeType imarray * returnTy: RuntimeType * kind: OlyIRFunctionKind
     | NativeFunctionPtr of OlyILCallingConvention * argTys: RuntimeType imarray * returnTy: RuntimeType
     | Entity of RuntimeEntity
@@ -937,9 +937,9 @@ type RuntimeType =
         | Tuple(tyArgs, _) -> tyArgs
         | ReferenceCell(elementTy)
         | ByRef(elementTy, _)
-        | NativePtr(elementTy) -> ImArray.createOne elementTy
-        | Array(elementTy, _, _) 
-        | FixedArray(elementTy, _, _, _) -> ImArray.createOne elementTy
+        | NativePtr(elementTy) 
+        | Array(elementTy, _, _) -> ImArray.createOne elementTy
+        | FixedArray(elementTy, rowRankTy, columnRankTy, _) -> ImArray.createThree elementTy rowRankTy columnRankTy
         | Function(argTys, returnTy, _) 
         | NativeFunctionPtr(_, argTys, returnTy) ->
             argTys.Add(returnTy)
@@ -1040,13 +1040,19 @@ type RuntimeType =
         | Entity(ent) -> ent.TypeParameters
         | ReferenceCell _
         | Array _
-        | FixedArray _
         | ByRef _ 
         | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | Function _ 
         | NativeFunctionPtr _ ->
             ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | FixedArray _ ->
+            (
+                ({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
+                ({ Name = "RowRank"; Arity = 0; IsVariadic = false; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
+                ({ Name = "ColumnRank"; Arity = 0; IsVariadic = false; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter)
+            )
+            |||> ImArray.createThree
         | _ -> 
             ImArray.empty
 

@@ -452,12 +452,12 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             | ArrayKind.Immutable -> OlyILArrayKind.Immutable
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
         OlyILTypeArray(emitILType cenv env elementTy, rank, ilKind)
-    | TypeSymbol.FixedArray(elementTy, columnRank, rowRank, kind) -> 
+    | TypeSymbol.FixedArray(elementTy, columnRankTy, rowRankTy, kind) -> 
         let ilKind =
             match kind with
             | ArrayKind.Immutable -> OlyILArrayKind.Immutable
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
-        OlyILTypeFixedArray(emitILType cenv env elementTy, columnRank, rowRank, ilKind)
+        OlyILTypeFixedArray(emitILType cenv env elementTy, emitILType cenv env columnRankTy, emitILType cenv env rowRankTy, ilKind)
 
     | TypeSymbol.EagerInferenceVariable _ ->
         OlyAssert.Fail("Unable to code-gen an eager inference variable type.")
@@ -1465,8 +1465,8 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         let ilOp = 
             match stripTypeEquations exprTy with
-            | TypeSymbol.FixedArray(_, rowRank, columnRank, _) ->
-                OlyILOperation.NewFixedArray(ilElementTy, rowRank, columnRank, ilKind, ilArgExprs)
+            | TypeSymbol.FixedArray(_, rowRankTy, columnRankTy, _) ->
+                OlyILOperation.NewFixedArray(ilElementTy, emitILType cenv env rowRankTy, emitILType cenv env columnRankTy, ilKind, ilArgExprs)
             | _ ->
                 OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs)
 

@@ -481,8 +481,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             rank1 = rank2 &&
             kind1 = kind2
 
-        | TypeSymbol.FixedArray(elementTy1, rowRank1, columnRank1, kind1), TypeSymbol.FixedArray(elementTy2, rowRank2, columnRank2, kind2) ->
-            rowRank1 = rowRank2 && columnRank1 = columnRank2 &&
+        | TypeSymbol.FixedArray(elementTy1, rowRankTy1, columnRankTy1, kind1), TypeSymbol.FixedArray(elementTy2, rowRankTy2, columnRankTy2, kind2) ->
+            UnifyTypes rigidity rowRankTy1 rowRankTy2 &&
+            UnifyTypes rigidity columnRankTy1 columnRankTy2 &&
             UnifyTypes rigidity elementTy1 elementTy2 &&
             kind1 = kind2
 
@@ -2749,8 +2750,8 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(freshen tys explicitTyArgs elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(elementTy, rowRank, columnRank, kind) ->
-            TypeSymbol.FixedArray(freshen tys explicitTyArgs elementTy, rowRank, columnRank, kind)
+        | TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, kind) ->
+            TypeSymbol.FixedArray(freshen tys explicitTyArgs elementTy, freshen tys explicitTyArgs rowRankTy, freshen tys explicitTyArgs columnRankTy, kind)
 
         | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
             let enclosingTyInst =

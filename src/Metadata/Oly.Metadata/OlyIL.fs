@@ -687,7 +687,7 @@ type OlyILType =
     | OlyILTypeNativePtr of elementTy: OlyILType
     | OlyILTypeNativeFunctionPtr of cc: OlyILCallingConvention * argTys: OlyILType imarray * returnTy: OlyILType
     | OlyILTypeArray of elementTy: OlyILType * rank: int * kind: OlyILArrayKind
-    | OlyILTypeFixedArray of elementTy: OlyILType * rowRank: int * columnRank: int * kind: OlyILArrayKind
+    | OlyILTypeFixedArray of elementTy: OlyILType * rowRankTy: OlyILType * columnRankTy: OlyILType * kind: OlyILArrayKind
     | OlyILTypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | OlyILTypeHigherVariable of index: int32 * tyInst: OlyILType imarray * kind: OlyILTypeVariableKind
     | OlyILTypeConstantInt32 of value: int32
@@ -888,7 +888,7 @@ type OlyILOperation =
     | NewTuple of tyInst: OlyILType imarray * args: OlyILExpression imarray * names: OlyILStringHandle imarray
     | NewArray of elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
-    | NewFixedArray of elementTy: OlyILType * rowRank: int * columnRank: int * kind: OlyILArrayKind * args: OlyILExpression imarray
+    | NewFixedArray of elementTy: OlyILType * rowRankTy: OlyILType * columnRankTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
     | Cast of arg: OlyILExpression * castToTy: OlyILType

@@ -910,12 +910,12 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
             | OlyILArrayKind.Immutable -> ArrayKind.Immutable
             | OlyILArrayKind.Mutable -> ArrayKind.Mutable
         TypeSymbol.Array(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, rank, kind)
-    | OlyILType.OlyILTypeFixedArray(ilElementTy, columnRank, rowRank, ilKind) ->
+    | OlyILType.OlyILTypeFixedArray(ilElementTy, columnRankTy, rowRankTy, ilKind) ->
         let kind =
             match ilKind with
             | OlyILArrayKind.Immutable -> ArrayKind.Immutable
             | OlyILArrayKind.Mutable -> ArrayKind.Mutable
-        TypeSymbol.FixedArray(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, columnRank, rowRank, kind)
+        TypeSymbol.FixedArray(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, importTypeSymbol cenv enclosingTyPars funcTyPars columnRankTy, importTypeSymbol cenv enclosingTyPars funcTyPars rowRankTy, kind)
     | OlyILType.OlyILTypeInt8 -> TypeSymbol.Int8
     | OlyILType.OlyILTypeUInt8 -> TypeSymbol.UInt8
     | OlyILType.OlyILTypeInt16 -> TypeSymbol.Int16

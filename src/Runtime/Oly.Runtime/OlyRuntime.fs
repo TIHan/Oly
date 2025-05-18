@@ -1431,8 +1431,11 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let resultTy = RuntimeType.Array(elementTy, 1, isMutable)
             O.NewArray(emittedElementTy, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
-        | OlyILOperation.NewFixedArray(ilElementTy, rowRank, columnRank, ilKind, ilArgExprs) ->
+        | OlyILOperation.NewFixedArray(ilElementTy, rowRankTy, columnRankTy, ilKind, ilArgExprs) ->
             let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
+            let rowRankTy = cenv.ResolveType(env.ILAssembly, rowRankTy, env.GenericContext)
+            let columnRankTy = cenv.ResolveType(env.ILAssembly, columnRankTy, env.GenericContext)
+
             let irArgExprs =
                 ilArgExprs
                 |> ImArray.map (fun ilArgExpr -> importArgumentExpression cenv env elementTy ilArgExpr)
@@ -1453,8 +1456,18 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     false
                 
             let emittedElementTy = cenv.EmitType(elementTy)
-            let resultTy = RuntimeType.FixedArray(elementTy, rowRank, columnRank, isMutable)
-            O.NewFixedArray(emittedElementTy, rowRank, columnRank, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
+
+            match rowRankTy, columnRankTy with
+            | RuntimeType.ConstantInt32(rowRank), RuntimeType.ConstantInt32(columnRank) ->
+                let resultTy = RuntimeType.FixedArray(elementTy, rowRankTy, columnRankTy, isMutable)
+                O.NewFixedArray(emittedElementTy, rowRank, columnRank, kind, irArgExprs, cenv.EmitType(resultTy)) |> asExpr, resultTy
+            | RuntimeType.ConstantInt32 _, RuntimeType.Variable _
+            | RuntimeType.Variable _, RuntimeType.ConstantInt32 _
+            | RuntimeType.Variable _, RuntimeType.Variable _ ->
+                raise(NotImplementedException("Variables for fixed array ranks"))
+                
+            | _ ->
+                invalidOp "Invalid row rank or column rank type."
 
         | OlyILOperation.NewRefCell(ilElementTy, ilArg) ->
             let elementTy = cenv.ResolveType(env.ILAssembly, ilElementTy, env.GenericContext)
@@ -2627,7 +2640,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
-            | RuntimeType.FixedArray(elementTy, rowRank, columnRank, isMutable) ->
+
+            | RuntimeType.FixedArray(elementTy, RuntimeType.ConstantInt32 rowRank, RuntimeType.ConstantInt32 columnRank, isMutable) ->
                 // TODO: Cache this.
                 let kind =
                     if isMutable then
@@ -2635,6 +2649,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     else
                         OlyIRArrayKind.Immutable
                 this.Emitter.EmitTypeFixedArray(emitType false elementTy, rowRank, columnRank, kind)
+
+            | RuntimeType.FixedArray(_, RuntimeType.ConstantInt32 _, RuntimeType.Variable _, _)
+            | RuntimeType.FixedArray(_, RuntimeType.Variable _, RuntimeType.ConstantInt32 _, _)
+            | RuntimeType.FixedArray(_, RuntimeType.Variable _, RuntimeType.Variable _, _) ->
+                raise(NotImplementedException("Variables for fixed array ranks"))
+            | RuntimeType.FixedArray _ ->
+                invalidOp "Invalid row rank or column rank type."
+
             | RuntimeType.Function(argTys, returnTy, kind) ->
                 let cache =
                     match kind with
@@ -3729,9 +3751,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeArray(ilElementTy, rank, ilKind) ->
                 let isMutable = ilKind = OlyILArrayKind.Mutable
                 RuntimeType.Array(this.ResolveType(ilAsm, ilElementTy, genericContext), rank, isMutable)
-            | OlyILTypeFixedArray(ilElementTy, columnRank, rowRank, ilKind) ->
+            | OlyILTypeFixedArray(ilElementTy, ilRowRankTy, ilColumnRankTy, ilKind) ->
                 let isMutable = ilKind = OlyILArrayKind.Mutable
-                RuntimeType.FixedArray(this.ResolveType(ilAsm, ilElementTy, genericContext), columnRank, rowRank, isMutable)
+                RuntimeType.FixedArray(
+                    this.ResolveType(ilAsm, ilElementTy, genericContext), 
+                    this.ResolveType(ilAsm, ilRowRankTy, genericContext), 
+                    this.ResolveType(ilAsm, ilColumnRankTy, genericContext), 
+                    isMutable
+                )
             | OlyILTypeFunction(ilArgTys, ilReturnTy, ilKind) ->
                 let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
                 let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)

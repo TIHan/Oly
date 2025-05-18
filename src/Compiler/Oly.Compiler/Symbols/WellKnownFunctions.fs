@@ -135,25 +135,37 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.GetArrayLength ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
+                    func.Parameters[0].Type.IsAnyNonFixedArray &&
                     func.ReturnType.IsInteger
 
             | WellKnownFunction.GetArrayElement ->
-                // TODO: Handle multi-dimensional arrays.
-                if func.Parameters.Length < 2 then false
+                if func.Parameters.Length > 0 then
+                    let par1Ty = func.Parameters[0].Type
+                    if par1Ty.IsByRef_t then
+                        par1Ty.FirstTypeArgument.IsAnyFixedArray &&
+                        func.Parameters[1].Type.IsInteger &&
+                        (
+                            areTypesEqual func.ReturnType par1Ty.FirstTypeArgument.FirstTypeArgument ||
+                            (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument.FirstTypeArgument)
+                        )
+                    else                  
+                        // TODO: Handle multi-dimensional arrays.
+                        if func.Parameters.Length < 2 then false
+                        else
+                            par1Ty.IsAnyNonFixedArray &&
+                            func.Parameters[1].Type.IsInteger &&
+                            (
+                                areTypesEqual func.ReturnType par1Ty.FirstTypeArgument ||
+                                (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument)
+                            )
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
-                    func.Parameters[1].Type.IsInteger &&
-                    (
-                        areTypesEqual func.ReturnType func.Parameters[0].Type.TypeArguments[0] ||
-                        (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.TypeArguments[0] func.Parameters[0].Type.TypeArguments[0])
-                    )
+                    false
 
             | WellKnownFunction.SetArrayElement ->
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length < 3 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
+                    func.Parameters[0].Type.IsAnyNonFixedArray &&
                     func.Parameters[1].Type.IsInteger &&
                     (areTypesEqual func.ReturnType TypeSymbol.Unit)
 
