@@ -199,6 +199,13 @@
 	</Case>
   </Node>
 
+  <Node name="SyntaxFixedArrayBracketsOptional">
+	<Case name="Some">
+	  <Field name="brackets">SyntaxExpression SyntaxBrackets</Field>
+	</Case>
+	<Case name="None"/>
+  </Node>
+
   <Node name="SyntaxType">
     <Case name="Name">
       <Field name="name">SyntaxName</Field>
@@ -227,6 +234,17 @@
       <Field name="mutableToken">SyntaxToken</Field>
 	  <Field name="elementTy">SyntaxType</Field>
 	  <Field name="brackets">SyntaxToken SyntaxList SyntaxBrackets</Field>
+    </Case>
+    <Case name="FixedArray">
+	  <Field name="elementTy">SyntaxType</Field>
+      <Field name="rowRankBrackets">SyntaxExpression SyntaxBrackets</Field>
+	  <Field name="columnRankBracketsOptional">SyntaxFixedArrayBracketsOptional</Field>
+    </Case>
+    <Case name="MutableFixedArray">
+      <Field name="mutableToken">SyntaxToken</Field>
+	  <Field name="elementTy">SyntaxType</Field>
+	  <Field name="rowRankBrackets">SyntaxExpression SyntaxBrackets</Field>
+	  <Field name="columnRankBracketsOptional">SyntaxFixedArrayBracketsOptional</Field>
     </Case>
     <Case name="Shape">
       <Field name="curlyBrackets">SyntaxExpression SyntaxSeparatorList SyntaxCurlyBrackets</Field>

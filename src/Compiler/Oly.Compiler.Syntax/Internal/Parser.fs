@@ -1547,6 +1547,36 @@ let tryParseInputOrOutput state =
                 
     None
 
+let tryParseArrayTypeBrackets state =
+    if isNextToken (function LeftBracket -> true | _ -> false) state then
+        match tryParseBracketsList COMMA state with
+        | Some(brackets) ->
+            match brackets with
+            | SyntaxBrackets.Brackets(_, _, rightBracketToken, _) when rightBracketToken.RawToken.IsRightBracket ->
+                Some(brackets)
+            | _ ->
+                None
+        | _ ->
+            None
+    else
+        None
+
+let tryParseFixedArrayTypeBrackets state =
+    if isNextToken (function LeftBracket -> true | _ -> false) state then
+        tryParseBrackets "expression" SyntaxExpression.Error (tryParseOffsideExpression SyntaxTreeContextLocal) state
+    else
+        None
+
+let parseFixedArrayTypeBracketsOptional state =
+    if isNextToken (function LeftBracket -> true | _ -> false) state then
+        match bt tryParseFixedArrayTypeBrackets state with
+        | Some(brackets) ->
+            SyntaxFixedArrayBracketsOptional.Some(brackets)
+        | _ ->
+            SyntaxFixedArrayBracketsOptional.None()
+    else
+        SyntaxFixedArrayBracketsOptional.None()
+
 let errorMutableArrayType s mutableToken input state =
     let emptyBrackets = SyntaxBrackets.Brackets(dummyToken(), SyntaxList.Empty(), dummyToken(), 0)
     let result = SyntaxType.MutableArray(mutableToken, input, emptyBrackets, ep s state)
@@ -1556,9 +1586,17 @@ let errorMutableArrayType s mutableToken input state =
 let parseInputType s (mutableTokenOpt: SyntaxToken option) input state =
     match mutableTokenOpt with
     | Some(mutableToken) ->
-        match bt (tryParseBracketsList COMMA) state with
-        | Some(brackets) -> SyntaxType.MutableArray(mutableToken, input, brackets, ep s state)
-        | _ -> errorMutableArrayType s mutableToken input state
+        match bt tryParseArrayTypeBrackets state with
+        | Some(brackets) -> 
+            SyntaxType.MutableArray(mutableToken, input, brackets, ep s state)
+        | _ -> 
+
+        match bt tryParseFixedArrayTypeBrackets state with
+        | Some(rowRankBrackets) ->
+            let columnRankBracketsOptional = parseFixedArrayTypeBracketsOptional state
+            SyntaxType.MutableFixedArray(mutableToken, input, rowRankBrackets, columnRankBracketsOptional, ep s state)
+        | _ ->
+            errorMutableArrayType s mutableToken input state
     | _ ->
 
     match bt tryParseTypeOperator state with
@@ -1566,9 +1604,15 @@ let parseInputType s (mutableTokenOpt: SyntaxToken option) input state =
         SyntaxType.Postfix(input, operator, ep s state)
     | _ ->
 
-    match bt (tryParseBracketsList COMMA) state with
+    match bt tryParseArrayTypeBrackets state with
     | Some(brackets) ->
         SyntaxType.Array(input, brackets, ep s state)
+    | _ ->
+
+    match bt tryParseFixedArrayTypeBrackets state with
+    | Some(rowRankBrackets) ->
+        let columnRankBracketsOptional = parseFixedArrayTypeBracketsOptional state
+        SyntaxType.FixedArray(input, rowRankBrackets, columnRankBracketsOptional, ep s state)
     | _ ->
 
     input
@@ -1792,6 +1836,9 @@ let tryParseParameter state : SyntaxParameter option =
             match ty with
             | SyntaxType.Array(elementTy, brackets, _) ->
                 SyntaxParameter.Type(attrs, SyntaxType.MutableArray(mutableToken, elementTy, brackets, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
+                |> Some
+            | SyntaxType.FixedArray(elementTy, rowRankBrackets, columnRankBracketsOpt, _) ->
+                SyntaxParameter.Type(attrs, SyntaxType.MutableFixedArray(mutableToken, elementTy, rowRankBrackets, columnRankBracketsOpt, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
                 |> Some
             | _ ->
                 let par = SyntaxParameter.Pattern(attrs, mutability, SyntaxPattern.Error(dummyToken()), dummyToken(), ty, ep s state)

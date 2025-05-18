@@ -541,6 +541,9 @@ let computeConversionTree cenv (tree: XmlElement) =
     $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
+    $"        | :? SyntaxBrackets<SyntaxExpression> as internalNode -> OlySyntaxBrackets<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
+    |> add cenv
+
     // END HACKY
 
     $"        | _ -> failwith \"Invalid Internal Syntax Node\"\n"
