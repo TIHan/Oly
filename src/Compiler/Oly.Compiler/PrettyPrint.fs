@@ -104,10 +104,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | ArrayKind.Mutable ->
                 "mutable " + elementText + $"[{commas}]"
 
-    | TypeSymbol.FixedArray(length, elementTy, kind) -> 
-        if length <= 0 then
-            failwith "Expected length to be greater than zero."
-
+    | TypeSymbol.FixedArray(elementTy, rowRank, columnRank, kind) -> 
         let elementText = printTypeAux benv isDefinition false elementTy
         let elementText =
             if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction then
@@ -115,11 +112,17 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             else
                 elementText
 
-        match kind with
-        | ArrayKind.Immutable ->
-            elementText + $"[{length}]"
-        | ArrayKind.Mutable ->
-            "mutable " + elementText + $"[{length}]"
+        let text =
+            match kind with
+            | ArrayKind.Immutable ->
+                elementText + $"[{rowRank}]"
+            | ArrayKind.Mutable ->
+                "mutable " + elementText + $"[{rowRank}]"
+
+        if rowRank > 1 then
+            $"{text}[{columnRank}]"
+        else
+            text
 
     | TypeSymbol.Variable(tyPar) ->
         let name =

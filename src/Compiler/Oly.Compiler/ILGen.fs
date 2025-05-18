@@ -452,12 +452,12 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             | ArrayKind.Immutable -> OlyILArrayKind.Immutable
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
         OlyILTypeArray(emitILType cenv env elementTy, rank, ilKind)
-    | TypeSymbol.FixedArray(length, elementTy, kind) -> 
+    | TypeSymbol.FixedArray(elementTy, columnRank, rowRank, kind) -> 
         let ilKind =
             match kind with
             | ArrayKind.Immutable -> OlyILArrayKind.Immutable
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
-        OlyILTypeFixedArray(length, emitILType cenv env elementTy, ilKind)
+        OlyILTypeFixedArray(emitILType cenv env elementTy, columnRank, rowRank, ilKind)
 
     | TypeSymbol.EagerInferenceVariable _ ->
         OlyAssert.Fail("Unable to code-gen an eager inference variable type.")

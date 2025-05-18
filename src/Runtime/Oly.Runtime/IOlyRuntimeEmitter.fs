@@ -38,7 +38,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeNativePtr      : elementTy: 'Type -> 'Type
     abstract EmitTypeNativeFunctionPtr    : OlyILCallingConvention * argTys: 'Type imarray * returnTy: 'Type -> 'Type
     abstract EmitTypeArray          : elementTy: 'Type * rank: int * kind: OlyIRArrayKind -> 'Type
-    abstract EmitTypeFixedArray     : length: int * elementTy: 'Type * kind: OlyIRArrayKind -> 'Type
+    abstract EmitTypeFixedArray     : elementTy: 'Type * rowRank: int * columnRank: int * kind: OlyIRArrayKind -> 'Type
     abstract EmitTypeByRef          : elementTy: 'Type * kind: OlyIRByRefKind -> 'Type
     abstract EmitTypeBaseObject     : unit -> 'Type
     abstract EmitTypeVoid           : unit -> 'Type

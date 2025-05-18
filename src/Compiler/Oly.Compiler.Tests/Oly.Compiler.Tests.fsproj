@@ -29,6 +29,7 @@
     <Compile Include="Conformance\Expressions\ExpressionTests.fs" />
     <Compile Include="Conformance\Expressions\TryCatchFinallyTests.fs" />
     <Compile Include="Conformance\Constraints\ConstraintTests.fs" />
+    <Compile Include="Conformance\Types\ArrayTests.fs" />
     <Compile Include="Conformance\Types\EnumTests.fs" />
     <Compile Include="Conformance\Types\ClassTests.fs" />
     <Compile Include="Conformance\Types\NewtypeTests.fs" />

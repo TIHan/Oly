@@ -309,7 +309,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | NewRefCell of                 elementTy: 'Type * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewMutableArray of            elementTy: 'Type * sizeArg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewArray of                   elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
-    | NewFixedArray of              length: int * elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
+    | NewFixedArray of              elementTy: 'Type * rowRank: int * columnRank: int * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
 
     /// This is specialized in that this operation will only exist if the result type is a type variable.
     /// Rules:
@@ -714,8 +714,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             NewTuple(elementTys, newArgs, this.ResultType)
         | NewArray(elementTy, kind, _, _) ->
             NewArray(elementTy, kind, newArgs, this.ResultType)
-        | NewFixedArray(length, elementTy, kind, _, _) ->
-            NewFixedArray(length, elementTy, kind, newArgs, this.ResultType)
+        | NewFixedArray(elementTy, rowRank, columnRank, kind, _, _) ->
+            NewFixedArray(elementTy, rowRank, columnRank, kind, newArgs, this.ResultType)
 
         | CallIndirect(argTys,  _, _, _) ->
             CallIndirect(argTys, newArgs[0], newArgs.RemoveAt(0), this.ResultType)
@@ -797,8 +797,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
         | CallStaticConstructor(func, _) -> CallStaticConstructor(func, resultTy)
 
-        | NewFixedArray(length, elementTy, kind, args, resultTy) ->
-            NewFixedArray(length, elementTy, kind, args, resultTy)
+        | NewFixedArray(elementTy, rowRank, columnRank, kind, args, resultTy) ->
+            NewFixedArray(elementTy, rowRank, columnRank, kind, args, resultTy)
 
         | NewOrDefaultOfTypeVariable(_) -> NewOrDefaultOfTypeVariable(resultTy)
 
