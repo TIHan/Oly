@@ -26,6 +26,7 @@
     <Compile Include="ReferenceTests.fs" />
     <Compile Include="PatternMatchStressTests.fs" />
     <Compile Include="ClrSpecificTests.fs" />
+    <Compile Include="DotNet\Conformance\ArrayTests.fs" />
     <Compile Include="DotNet\Conformance\ConstraintTests.fs" />
     <Compile Include="DotNet\Conformance\IsSubtypeOfTests.fs" />
     <Compile Include="Conformance\ArrayTests.fs" />

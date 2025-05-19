@@ -1210,22 +1210,23 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
         | _ ->
             mkInferenceVariableType None
 
-    let isFixed =
-        match expectedTyOpt with
-        | Some(expectedTy) ->
-            match stripTypeEquations expectedTy with
-            | TypeSymbol.FixedArray _ -> true
-            | _ -> false
-        | _ ->
-            false
-
     let arrayTy =
         match expectedTyOpt with
-        | Some(StrippedType(TypeSymbol.FixedArray(_, rowRank, columnRank, _))) ->
+        | Some(StrippedType(TypeSymbol.FixedArray(_, rowRankTy, columnRankTy, _))) ->
+            match stripTypeEquations rowRankTy, stripTypeEquations columnRankTy with
+            | TypeSymbol.ConstantInt32(rowRank), TypeSymbol.ConstantInt32(columnRank) ->
+                if syntaxElements.Length <> (rowRank * columnRank) then
+                    // TODO: Be more specific with this error message.
+                    cenv.diagnostics.Error("Invalid argument count for fixed array initialization.", 10, syntaxToCapture)
+            | _ ->
+                // TODO: Be more specific with this error message.
+                cenv.diagnostics.Error("Invalid fixed array initialization.", 10, syntaxToCapture)
+
+
             if isMutable then
-                TypeSymbol.CreateMutableFixedArray(elementTy, rowRank, columnRank)
+                TypeSymbol.CreateMutableFixedArray(elementTy, rowRankTy, columnRankTy)
             else
-                TypeSymbol.CreateFixedArray(elementTy, rowRank, columnRank)
+                TypeSymbol.CreateFixedArray(elementTy, rowRankTy, columnRankTy)
         | _ ->
             
         if isMutable then

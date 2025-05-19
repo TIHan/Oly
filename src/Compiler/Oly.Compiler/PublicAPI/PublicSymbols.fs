@@ -1461,6 +1461,38 @@ let private getTypeArgumentSymbolsWithTypes bm (addSymbol: OlySymbolUseInfo -> u
         getTypeSymbol bm addSymbol benv predicate syntaxTyArg ty
     )
 
+let private getTypeSymbolByExpression bm (addSymbol: OlySymbolUseInfo -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxExpr: OlySyntaxExpression) (ty: TypeSymbol) : unit =
+    match syntaxExpr with
+    | OlySyntaxExpression.Literal(syntaxLiteral) ->
+        match syntaxLiteral with
+        | OlySyntaxLiteral.Default(syntaxToken)
+        | OlySyntaxLiteral.UInt8(syntaxToken)
+        | OlySyntaxLiteral.Int8(syntaxToken)
+        | OlySyntaxLiteral.UInt16(syntaxToken)
+        | OlySyntaxLiteral.Int16(syntaxToken)
+        | OlySyntaxLiteral.UInt32(syntaxToken)
+        | OlySyntaxLiteral.Int32(syntaxToken)
+        | OlySyntaxLiteral.UInt64(syntaxToken)
+        | OlySyntaxLiteral.Int64(syntaxToken)
+        | OlySyntaxLiteral.Float32(syntaxToken)
+        | OlySyntaxLiteral.Float64(syntaxToken)
+        | OlySyntaxLiteral.Bool(syntaxToken)
+        | OlySyntaxLiteral.Null(syntaxToken)
+        | OlySyntaxLiteral.Integer(syntaxToken)
+        | OlySyntaxLiteral.Real(syntaxToken)
+        | OlySyntaxLiteral.Char16(syntaxToken)
+        | OlySyntaxLiteral.Utf16(syntaxToken) ->
+            if predicate syntaxToken then
+                addSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(bm, benv, syntaxToken)))
+        | _ ->
+            ()
+
+    | OlySyntaxExpression.Name(syntaxName) ->
+        getTypeSymbolByName bm addSymbol benv predicate syntaxName ty
+
+    | _ ->
+        ()
+
 let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbolUseInfo -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTy: OlySyntaxType) (ty: TypeSymbol) =
 
     let handleTupleElementList (syntaxElementList: OlySyntaxSeparatorList<OlySyntaxTupleElement>) =
@@ -1541,11 +1573,31 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbolUseInfo -> un
 
     | OlySyntaxType.Array(syntaxElementTy, _) ->
         if ty.TypeArguments.Length > 0 then
-            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
+            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
 
     | OlySyntaxType.MutableArray(_, syntaxElementTy, _) ->
         if ty.TypeArguments.Length > 0 then
-            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
+            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
+
+    | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+        if ty.TypeArguments.Length >= 3 then
+            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
+            getTypeSymbolByExpression bm addSymbol benv predicate syntaxRowRankBrackets.Element ty.TypeArguments[1]
+            match syntaxColumnRankBracketsOptional with
+            | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
+                getTypeSymbolByExpression bm addSymbol benv predicate syntaxColumnRankBrackets.Element ty.TypeArguments[2]
+            | _ ->
+                ()
+
+    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+        if ty.TypeArguments.Length >= 3 then
+            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
+            getTypeSymbolByExpression bm addSymbol benv predicate syntaxRowRankBrackets.Element ty.TypeArguments[1]
+            match syntaxColumnRankBracketsOptional with
+            | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
+                getTypeSymbolByExpression bm addSymbol benv predicate syntaxColumnRankBrackets.Element ty.TypeArguments[2]
+            | _ ->
+                ()
 
     | OlySyntaxType.Shape(syntaxCurlyBrackets) ->
         // TODO: Finish the rest of this for fields and properties.
@@ -1689,6 +1741,38 @@ type OlyBoundModel internal (
         ||> Seq.iter2 (fun syntaxTy ty ->
             getTypeSymbol this addSymbol benv predicate syntaxTy ty
         )
+
+    and getTypeSymbolByExpression bm (addSymbol: OlySymbolUseInfo -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxExpr: OlySyntaxExpression) (ty: TypeSymbol) : unit =
+        match syntaxExpr with
+        | OlySyntaxExpression.Literal(syntaxLiteral) ->
+            match syntaxLiteral with
+            | OlySyntaxLiteral.Default(syntaxToken)
+            | OlySyntaxLiteral.UInt8(syntaxToken)
+            | OlySyntaxLiteral.Int8(syntaxToken)
+            | OlySyntaxLiteral.UInt16(syntaxToken)
+            | OlySyntaxLiteral.Int16(syntaxToken)
+            | OlySyntaxLiteral.UInt32(syntaxToken)
+            | OlySyntaxLiteral.Int32(syntaxToken)
+            | OlySyntaxLiteral.UInt64(syntaxToken)
+            | OlySyntaxLiteral.Int64(syntaxToken)
+            | OlySyntaxLiteral.Float32(syntaxToken)
+            | OlySyntaxLiteral.Float64(syntaxToken)
+            | OlySyntaxLiteral.Bool(syntaxToken)
+            | OlySyntaxLiteral.Null(syntaxToken)
+            | OlySyntaxLiteral.Integer(syntaxToken)
+            | OlySyntaxLiteral.Real(syntaxToken)
+            | OlySyntaxLiteral.Char16(syntaxToken)
+            | OlySyntaxLiteral.Utf16(syntaxToken) ->
+                if predicate syntaxToken then
+                    addSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(this, benv, syntaxToken)))
+            | _ ->
+                ()
+
+        | OlySyntaxExpression.Name(syntaxName) ->
+            getTypeSymbolByName bm addSymbol benv predicate syntaxName ty
+
+        | _ ->
+            ()
 
     and getAttributeSymbol (addSymbol: OlySymbolUseInfo -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxAttr: OlySyntaxAttribute) (attr: AttributeSymbol) : unit =
         match syntaxAttr with

@@ -36,12 +36,14 @@ type ClrTypeDefinitionInfo =
     {
         mutable enumBaseTyOpt: ClrTypeInfo option
         mutable typeExtensionInfo: (ClrTypeInfo * ClrTypeInfo * ClrFieldHandle) voption
+        mutable isFixedArray: bool
     }
 
-    static member Default =
+    static member Create() =
         {
             enumBaseTyOpt = None
             typeExtensionInfo = ValueNone
+            isFixedArray = false
         }
 
 and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.DebuggerDisplay("{FullyQualifiedName}")>] ClrTypeInfo = 
@@ -50,6 +52,11 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
     | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
     | ByRef of ClrTypeInfo * kind: OlyIRByRefKind * appliedTyHandle: ClrTypeHandle
     | Shape // only for { new() } on constraints
+
+    member this.IsFixedArray =
+        match this with
+        | TypeDefinition(info=info) -> info.isFixedArray
+        | _ -> false
 
     member this.IsShape_t =
         match this with
@@ -429,6 +436,8 @@ module rec ClrCodeGen =
 
             ``Activator_CreateInstance`1``: ClrMethodHandle
 
+            ``IndexOutOfRangeExceptionCtor``: ClrMethodHandle
+
             // Caches
             ActivatorCreateInstanceCacheLock: obj
             ActivatorCreateInstanceCache: ConcurrentDictionary<ClrTypeHandle, ClrMethodHandle>
@@ -676,6 +685,60 @@ module rec ClrCodeGen =
         let handle, _ = asmBuilder.AddAnonymousFunctionType(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
         handle
 
+    let createFixedArrayType g (asmBuilder: ClrAssemblyBuilder) name elementTyHandle rowRank columnRank =
+        let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true, g.ValueType.Handle)
+        tyDef.Attributes <- TypeAttributes.Sealed
+
+        let fields =
+            ImArray.init 
+                (rowRank * columnRank)
+                (fun i ->
+                    tyDef.AddFieldDefinition(FieldAttributes.Public, "I" + i.ToString(), elementTyHandle, None)
+                )
+
+        // .ctor
+        let ctorParTys = ImArray.init (rowRank * columnRank) (fun i -> ("i" + i.ToString(), elementTyHandle))
+        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, ctorParTys, asmBuilder.TypeReferenceVoid, true)
+        ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
+        ctor.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
+
+        let instrs = ImArray.builder()
+        for i = 0 to (rowRank * columnRank) - 1 do
+            instrs.Add(I.Ldarg 0)
+            instrs.Add(I.Ldarg (i + 1))
+            instrs.Add(I.Stfld fields[i])
+        instrs.Add(I.Ret)
+        ctor.BodyInstructions <- instrs.ToImmutable()
+
+        // get_Item
+        let getItemMethReturnTy = ClrTypeHandle.ByRef(elementTyHandle)
+        let getItemMethParTys = ImArray.createOne ("", asmBuilder.TypeReferenceInt32)
+        let getItemMeth = tyDef.CreateMethodDefinitionBuilder("get_Item", ImArray.empty, getItemMethParTys, getItemMethReturnTy, true)
+
+        getItemMeth.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
+        getItemMeth.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
+
+        let instrs = ImArray.builder()
+        for i = 0 to (rowRank * columnRank) - 1 do
+            let labelId = i
+            instrs.Add(I.Ldarg 1)
+            instrs.Add(I.LdcI4 i)
+            instrs.Add(I.Ceq)
+            instrs.Add(I.Brfalse labelId)
+  
+            instrs.Add(I.Ldarg 0)
+            instrs.Add(I.Ldflda fields[i])
+            instrs.Add(I.Ret)
+
+            instrs.Add(I.Label labelId)
+
+        instrs.Add(I.Newobj(g.``IndexOutOfRangeExceptionCtor``, 0))
+        instrs.Add(I.Throw)
+        instrs.Add(I.Ret)
+        getItemMeth.BodyInstructions <- instrs.ToImmutable()
+
+        tyDef
+
     let handleTypeArgument (asmBuilder: ClrAssemblyBuilder) (tyArgHandle: ClrTypeHandle) =
         if tyArgHandle.IsNativePointer_t then
             asmBuilder.TypeReferenceIntPtr
@@ -893,8 +956,15 @@ module rec ClrCodeGen =
     let GenOperation (cenv: cenv) prevEnv (irOp: O<ClrTypeInfo, _, _>) =
         let env = { prevEnv with isReturnable = false }
         match irOp with
-        | O.NewFixedArray _ ->
-            raise(NotImplementedException())
+        | O.NewFixedArray(args=argExprs;resultTy=resultTy) ->
+            match resultTy with
+            | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
+                argExprs
+                |> ImArray.iter (GenArgumentExpression cenv env)
+                I.Newobj((tyDefBuilder.MethodDefinitionBuilders |> Seq.item 0).Handle, argExprs.Length)
+                |> emitInstruction cenv
+            | _ ->
+                invalidOp "Invalid new fixed array op."
 
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             OlyAssert.False(receiverExpr.ResultType.IsStruct)
@@ -931,23 +1001,44 @@ module rec ClrCodeGen =
 
         | O.LoadArrayElement(irReceiver, irIndexArgs, resultTy) ->
             GenArgumentExpression cenv env irReceiver
-            if irIndexArgs.Length > 1 then
-                failwith "clr emit rank greater than zero not yet supported."
-            else
-                GenArgumentExpression cenv env irIndexArgs[0]
-                emitInstruction cenv (I.Ldelem resultTy.Handle)
+            match irReceiver.ResultType with
+            | ClrTypeInfo.ByRef(fixedArrayTy, _, _) when fixedArrayTy.IsFixedArray ->
+                irIndexArgs
+                |> ImArray.iter (GenArgumentExpression cenv env)
+                match irIndexArgs.Length with
+                | 1 -> ()
+                | 2 -> I.Mul |> emitInstruction cenv
+                | _ -> invalidOp "Too many arguments"
+                I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
+                I.Ldobj(resultTy.Handle) |> emitInstruction cenv
+            | _ ->
+                if irIndexArgs.Length > 1 then
+                    failwith "clr emit rank greater than zero not yet supported."
+                else
+                    GenArgumentExpression cenv env irIndexArgs[0]
+                    emitInstruction cenv (I.Ldelem resultTy.Handle)
 
         | O.LoadArrayElementAddress(irReceiver, irIndexArgs, _, resultTy) ->
             GenArgumentExpression cenv env irReceiver
-            if irIndexArgs.Length > 1 then
-                failwith "clr emit rank greater than zero not yet supported."
-            else
-                GenArgumentExpression cenv env irIndexArgs[0]
-                match resultTy.TryByRefElementType with
-                | ValueSome resultTy ->
-                    emitInstruction cenv (I.Ldelema resultTy.Handle)
-                | _ ->
-                    OlyAssert.Fail("Expected ByRef type.")
+            match irReceiver.ResultType with
+            | ClrTypeInfo.ByRef(fixedArrayTy, _, _) when fixedArrayTy.IsFixedArray ->
+                irIndexArgs
+                |> ImArray.iter (GenArgumentExpression cenv env)
+                match irIndexArgs.Length with
+                | 1 -> ()
+                | 2 -> I.Mul |> emitInstruction cenv
+                | _ -> invalidOp "Too many arguments"
+                I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
+            | _ ->
+                if irIndexArgs.Length > 1 then
+                    failwith "clr emit rank greater than zero not yet supported."
+                else
+                    GenArgumentExpression cenv env irIndexArgs[0]
+                    match resultTy.TryByRefElementType with
+                    | ValueSome resultTy ->
+                        emitInstruction cenv (I.Ldelema resultTy.Handle)
+                    | _ ->
+                        OlyAssert.Fail("Expected ByRef type.")
 
         | O.StoreArrayElement(irReceiver, irIndexArgs, irRhsArg, _) ->
             let tyHandle =
@@ -2281,7 +2372,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         lazy
             let name = "__oly_scoped_func"
             let tyDef = ClrCodeGen.createScopedFunctionTypeDefinition g asmBuilder name
-            ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.ScopedFunction, false, ClrTypeDefinitionInfo.Create())
     
     let createTypeGenericInstance (formalTy: ClrTypeInfo) (tyArgs: ClrTypeInfo imarray) =
         let formalTyHandle = formalTy.Handle
@@ -2380,6 +2471,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let ``Activator_CreateInstance`1`` =
                 vm.TryFindFunction(("System.Activator", 0), "CreateInstance", 1, 0, OlyFunctionKind.Static).Value.AsDefinition.handle
 
+            let ``IndexOutOfRangeExceptionCtor`` =
+                vm.TryFindFunction(("System.IndexOutOfRangeException", 0), ".ctor", 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
+
             g <-
                 {
                     ``Attribute`` = ``Attribute``
@@ -2410,6 +2504,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
                     ``Activator_CreateInstance`1`` = ``Activator_CreateInstance`1``
 
+                    ``IndexOutOfRangeExceptionCtor`` = ``IndexOutOfRangeExceptionCtor``
+
                     ActivatorCreateInstanceCacheLock = obj()
                     ActivatorCreateInstanceCache = ConcurrentDictionary()
                 } : ClrCodeGen.g
@@ -2421,7 +2517,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeFixedArray(elementTy: ClrTypeInfo, rowRank: int, columnRank: int, kind: OlyIRArrayKind): ClrTypeInfo = 
             if rowRank <= 0 || columnRank <= 0 then
                 raise(InvalidOperationException())
-            raise(NotImplementedException())
+
+            let tyDefBuilder =
+                match kind with
+                | OlyIRArrayKind.Immutable ->
+                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_fixed_array" + newUniqueId().ToString()) elementTy.Handle rowRank columnRank
+                | OlyIRArrayKind.Mutable ->
+                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_mutable_fixed_array" + newUniqueId().ToString()) elementTy.Handle rowRank columnRank
+
+            let tyDefInfo = ClrTypeDefinitionInfo.Create()
+            tyDefInfo.isFixedArray <- true
+            ClrTypeInfo.TypeDefinition(tyDefBuilder, false, false, ClrTypeFlags.Struct, false, tyDefInfo)
 
         member this.EmitTypeNativeInt(): ClrTypeInfo = 
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceIntPtr, false, true)
@@ -2574,7 +2680,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         argTyHandles
                         |> ImArray.map (fun x -> ("", x))
                     let tyDef = ClrCodeGen.createMulticastDelegateTypeDefinition asmBuilder name parTys outputTy.Handle
-                    ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(tyDef, false, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Create())
                 else
                     let handle = ClrCodeGen.createAnonymousFunctionType asmBuilder argTyHandles outputTy.Handle
                     ClrTypeInfo.TypeReference(handle, true, false)
@@ -2840,7 +2946,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         |> ImArray.ofSeq
 
                 let instanceTyInfo =
-                    ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, isReadOnly, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Default)
+                    ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, isReadOnly, false, ClrTypeFlags.None, false, ClrTypeDefinitionInfo.Create())
 
                 tyDef.TypeDefinitionInfo.typeExtensionInfo <- ValueSome(extendedTy, instanceTyInfo, instanceFieldHandle)
 
@@ -2896,7 +3002,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 else
                     tyFlags
 
-            ClrTypeInfo.TypeDefinition(tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Default)
+            ClrTypeInfo.TypeDefinition(tyDefBuilder, isReadOnly, isInterface, tyFlags, isClosure, ClrTypeDefinitionInfo.Create())
 
         member this.OnTypeDefinitionEmitted(_) =
             ()

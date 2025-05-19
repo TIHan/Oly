@@ -1032,7 +1032,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let resultTy =
                 match resultTy with
                 | RuntimeType.Array(elementTy, _, _) 
-                | RuntimeType.FixedArray(elementTy, _, _, _) -> elementTy
+                | RuntimeType.ByRef(RuntimeType.FixedArray(elementTy, _, _, _), _) -> elementTy
                 | _ -> failwith "Invalid type for LoadArrayElement."
             O.LoadArrayElement(irReceiver, irIndexArgs, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
@@ -1054,7 +1054,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let resultTy =
                 match resultTy with
                 | RuntimeType.Array(elementTy, _, _) 
-                | RuntimeType.FixedArray(elementTy, _, _, _) -> 
+                | RuntimeType.ByRef(RuntimeType.FixedArray(elementTy, _, _, _), _) -> 
                     createByReferenceRuntimeType irByRefKind elementTy
                 | _ -> failwith "Invalid type for LoadArrayElementAddress."
             O.LoadArrayElementAddress(irReceiver, irIndexArgs, irByRefKind, cenv.EmitType(resultTy)) |> asExpr, resultTy
@@ -1791,6 +1791,11 @@ type TypeCache<'Type, 'Function, 'Field> =
     {
         Functions: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
         ScopedFunctions: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+
+        Arrays: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+        MutableArrays: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+        FixedArrays: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
+        MutableFixedArrays: RuntimeTypeArgumentListTable<'Type, 'Function, 'Field, 'Type>
     }
 
 [<Sealed>]
@@ -1817,6 +1822,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         {
             Functions = RuntimeTypeArgumentListTable()
             ScopedFunctions = RuntimeTypeArgumentListTable()
+
+            Arrays = RuntimeTypeArgumentListTable()
+            MutableArrays = RuntimeTypeArgumentListTable()
+            FixedArrays = RuntimeTypeArgumentListTable()
+            MutableFixedArrays = RuntimeTypeArgumentListTable()
         }
 
     let resolveFunctionDefinition (enclosingTy: RuntimeType) ilFuncDefHandle =
@@ -2608,6 +2618,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 raise(NotSupportedException("Emitting 'ForAll' type."))
 
             | RuntimeType.ConstantInt32(value) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeConstantInt32(value)
             | RuntimeType.UInt8 -> this.TypeUInt8.Value
             | RuntimeType.Int8 -> this.TypeInt8.Value
@@ -2628,27 +2639,51 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | RuntimeType.Unit -> this.TypeUnit.Value
             | RuntimeType.BaseObject -> this.TypeBaseObject.Value
             | RuntimeType.Tuple(tyArgs, names) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeTuple(tyArgs |> ImArray.map (emitType false), names)
             | RuntimeType.NativePtr(elementTy) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeNativePtr(emitType false elementTy)
             | RuntimeType.ReferenceCell(elementTy) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeRefCell(emitType false elementTy)
             | RuntimeType.Array(elementTy, rank, isMutable) ->
-                let kind =
+                let cache =
                     if isMutable then
-                        OlyIRArrayKind.Mutable
+                        typeCache.MutableArrays
                     else
-                        OlyIRArrayKind.Immutable
-                this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
+                        typeCache.Arrays
+                let key = ImArray.createOne elementTy
+                match cache.TryGetValue key with
+                | ValueSome result -> result
+                | _ ->              
+                    let kind =
+                        if isMutable then
+                            OlyIRArrayKind.Mutable
+                        else
+                            OlyIRArrayKind.Immutable
+                    let result = this.Emitter.EmitTypeArray(emitType false elementTy, rank, kind)
+                    cache[key] <- result
+                    result
 
-            | RuntimeType.FixedArray(elementTy, RuntimeType.ConstantInt32 rowRank, RuntimeType.ConstantInt32 columnRank, isMutable) ->
-                // TODO: Cache this.
-                let kind =
+            | RuntimeType.FixedArray(elementTy, ((RuntimeType.ConstantInt32 rowRank) as rowRankTy), ((RuntimeType.ConstantInt32 columnRank) as columnRankTy), isMutable) ->
+                let cache =
                     if isMutable then
-                        OlyIRArrayKind.Mutable
+                        typeCache.MutableFixedArrays
                     else
-                        OlyIRArrayKind.Immutable
-                this.Emitter.EmitTypeFixedArray(emitType false elementTy, rowRank, columnRank, kind)
+                        typeCache.FixedArrays
+                let key = ImArray.createThree elementTy rowRankTy columnRankTy
+                match cache.TryGetValue key with
+                | ValueSome result -> result
+                | _ ->              
+                    let kind =
+                        if isMutable then
+                            OlyIRArrayKind.Mutable
+                        else
+                            OlyIRArrayKind.Immutable
+                    let result = this.Emitter.EmitTypeFixedArray(emitType false elementTy, rowRank, columnRank, kind)
+                    cache[key] <- result
+                    result
 
             | RuntimeType.FixedArray(_, RuntimeType.ConstantInt32 _, RuntimeType.Variable _, _)
             | RuntimeType.FixedArray(_, RuntimeType.Variable _, RuntimeType.ConstantInt32 _, _)
@@ -2671,10 +2706,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     result
 
             | RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeNativeFunctionPtr(ilCc, argTys |> ImArray.map (emitType false), emitType false returnTy)
             | RuntimeType.ByRef(elementTy, kind) ->
+                // TODO: Cache this.
                 this.Emitter.EmitTypeByRef(emitType false elementTy, kind)
             | RuntimeType.Variable(index, ilKind) ->
+                // TODO: Cache this.
                 let irKind =
                     match ilKind with
                     | OlyILTypeVariableKind.Type -> OlyIRTypeVariableKind.Type
@@ -2682,6 +2720,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ -> OlyAssert.Fail("Invalid type variable kind.")
                 this.Emitter.EmitTypeVariable(index, irKind)
             | RuntimeType.HigherVariable(index, tyArgs, ilKind) ->
+                // TODO: Cache this.
                 let emittedTyArgs =
                     tyArgs
                     |> ImArray.map (fun x -> emitType false x)

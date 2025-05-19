@@ -685,8 +685,8 @@ type RuntimeType =
     | NativePtr of elementTy: RuntimeType
     | Tuple of tyArgs: RuntimeType imarray * string imarray
     | ReferenceCell of elementTy: RuntimeType
-    | Array of elementTy: RuntimeType * rank: int * isMutable: bool
-    | FixedArray of elementTy: RuntimeType * rowRankTy: RuntimeType * columnRankTy: RuntimeType * isMutable: bool
+    | Array of elementTy: RuntimeType * rank: int * isMutable: bool // TODO: Instead of 'isMutable', use 'kind: OlyIRArrayKind'
+    | FixedArray of elementTy: RuntimeType * rowRankTy: RuntimeType * columnRankTy: RuntimeType * isMutable: bool // TODO: Instead of 'isMutable', use 'kind: OlyIRArrayKind'
     | Function of argTys: RuntimeType imarray * returnTy: RuntimeType * kind: OlyIRFunctionKind
     | NativeFunctionPtr of OlyILCallingConvention * argTys: RuntimeType imarray * returnTy: RuntimeType
     | Entity of RuntimeEntity
