@@ -436,7 +436,7 @@ module rec ClrCodeGen =
 
             ``Activator_CreateInstance`1``: ClrMethodHandle
 
-            ``IndexOutOfRangeExceptionCtor``: ClrMethodHandle
+            ``ArgumentOutOfRangeExceptionCtor``: ClrMethodHandle
 
             // Caches
             ActivatorCreateInstanceCacheLock: obj
@@ -737,14 +737,17 @@ module rec ClrCodeGen =
 
             if columnRank > 1 then
                 for column = 0 to columnRank - 1 do
+                    let labelId = newLabelId()
                     instrs.Add(I.Ldarg 2)
                     instrs.Add(I.LdcI4 column)
                     instrs.Add(I.Ceq)
                     instrs.Add(I.Brfalse labelId)
 
                     instrs.Add(I.Ldarg 0)
-                    instrs.Add(I.Ldflda fields[(row * column)])
+                    instrs.Add(I.Ldflda fields[(column * rowRank) + row])
                     instrs.Add(I.Ret)
+
+                    instrs.Add(I.Label labelId)
             else
                 instrs.Add(I.Ldarg 0)
                 instrs.Add(I.Ldflda fields[row])
@@ -752,12 +755,18 @@ module rec ClrCodeGen =
 
             instrs.Add(I.Label labelId)
 
-        instrs.Add(I.Newobj(g.``IndexOutOfRangeExceptionCtor``, 0))
+        instrs.Add(I.Newobj(g.``ArgumentOutOfRangeExceptionCtor``, 0))
         instrs.Add(I.Throw)
         instrs.Add(I.Ret)
         getItemMeth.BodyInstructions <- instrs.ToImmutable()
 
         tyDef
+
+    let getFixedArrayConstructorHandle (fixedArrayTy: ClrTypeInfo) =
+        (fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 0).Handle
+
+    let getFixedArrayGetItemMethodHandle (fixedArrayTy: ClrTypeInfo) =
+        (fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle
 
     let handleTypeArgument (asmBuilder: ClrAssemblyBuilder) (tyArgHandle: ClrTypeHandle) =
         if tyArgHandle.IsNativePointer_t then
@@ -977,14 +986,12 @@ module rec ClrCodeGen =
         let env = { prevEnv with isReturnable = false }
         match irOp with
         | O.NewFixedArray(args=argExprs;resultTy=resultTy) ->
-            match resultTy with
-            | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
-                argExprs
-                |> ImArray.iter (GenArgumentExpression cenv env)
-                I.Newobj((tyDefBuilder.MethodDefinitionBuilders |> Seq.item 0).Handle, argExprs.Length)
-                |> emitInstruction cenv
-            | _ ->
+            if not resultTy.IsFixedArray then
                 invalidOp "Invalid new fixed array op."
+            argExprs
+            |> ImArray.iter (GenArgumentExpression cenv env)
+            I.Newobj(getFixedArrayConstructorHandle resultTy, argExprs.Length)
+            |> emitInstruction cenv
 
         | O.LoadFunction(irFunc: OlyIRFunction<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, receiverExpr, funcTy) ->
             OlyAssert.False(receiverExpr.ResultType.IsStruct)
@@ -1029,7 +1036,7 @@ module rec ClrCodeGen =
                 | 1 -> I.LdcI4(1) |> emitInstruction cenv
                 | 2 -> ()
                 | _ -> invalidOp "Too many arguments"
-                I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
+                I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, 2) |> emitInstruction cenv
                 I.Ldobj(resultTy.Handle) |> emitInstruction cenv
             | _ ->
                 if irIndexArgs.Length > 1 then
@@ -1048,7 +1055,7 @@ module rec ClrCodeGen =
                 | 1 -> I.LdcI4(1) |> emitInstruction cenv
                 | 2 -> ()
                 | _ -> invalidOp "Too many arguments"
-                I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
+                I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, 2) |> emitInstruction cenv
             | _ ->
                 if irIndexArgs.Length > 1 then
                     failwith "clr emit rank greater than zero not yet supported."
@@ -2491,8 +2498,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let ``Activator_CreateInstance`1`` =
                 vm.TryFindFunction(("System.Activator", 0), "CreateInstance", 1, 0, OlyFunctionKind.Static).Value.AsDefinition.handle
 
-            let ``IndexOutOfRangeExceptionCtor`` =
-                vm.TryFindFunction(("System.IndexOutOfRangeException", 0), ".ctor", 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
+            let ``ArgumentOutOfRangeExceptionCtor`` =
+                vm.TryFindFunction(("System.ArgumentOutOfRangeException", 0), ".ctor", 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
 
             g <-
                 {
@@ -2524,7 +2531,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``DebuggerBrowsable.ctor`` = debuggerBrowsableCtor
                     ``Activator_CreateInstance`1`` = ``Activator_CreateInstance`1``
 
-                    ``IndexOutOfRangeExceptionCtor`` = ``IndexOutOfRangeExceptionCtor``
+                    ``ArgumentOutOfRangeExceptionCtor`` = ``ArgumentOutOfRangeExceptionCtor``
 
                     ActivatorCreateInstanceCacheLock = obj()
                     ActivatorCreateInstanceCache = ConcurrentDictionary()

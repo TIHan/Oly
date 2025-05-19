@@ -56,9 +56,12 @@ main(): () =
     print(xs[0,0])
     print(xs[1,0])
     print(xs[2,0])
+    print(xs[0,1])
+    print(xs[1,1])
+    print(xs[2,1])
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "456"
+    |> shouldRunWithExpectedOutput "456789"
     |> ignore
 
