@@ -1579,23 +1579,31 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbolUseInfo -> un
         if ty.TypeArguments.Length > 0 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
 
-    | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+    | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRankBrackets) ->
         if ty.TypeArguments.Length >= 3 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
-            getTypeSymbolByExpression bm addSymbol benv predicate syntaxRowRankBrackets.Element ty.TypeArguments[1]
-            match syntaxColumnRankBracketsOptional with
-            | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
-                getTypeSymbolByExpression bm addSymbol benv predicate syntaxColumnRankBrackets.Element ty.TypeArguments[2]
+            match syntaxRankBrackets.Element with
+            | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
+                getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[1]
+                match syntaxRankOptional with
+                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
+                    getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[2]
+                | _ ->
+                    ()
             | _ ->
                 ()
 
-    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRankBrackets) ->
         if ty.TypeArguments.Length >= 3 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
-            getTypeSymbolByExpression bm addSymbol benv predicate syntaxRowRankBrackets.Element ty.TypeArguments[1]
-            match syntaxColumnRankBracketsOptional with
-            | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
-                getTypeSymbolByExpression bm addSymbol benv predicate syntaxColumnRankBrackets.Element ty.TypeArguments[2]
+            match syntaxRankBrackets.Element with
+            | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
+                getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[1]
+                match syntaxRankOptional with
+                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
+                    getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[2]
+                | _ ->
+                    ()
             | _ ->
                 ()
 

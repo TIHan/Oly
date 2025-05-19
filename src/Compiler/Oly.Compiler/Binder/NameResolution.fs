@@ -1535,17 +1535,15 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             else
                 TypeSymbol.CreateMutableArray(elementTy)
 
-        | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+        | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRankBrackets) ->
             bindFixedArrayType cenv env resTyArity bind (*isMutable:*)false
                 syntaxElementTy
-                syntaxRowRankBrackets
-                syntaxColumnRankBracketsOptional
+                syntaxRankBrackets
 
-        | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRowRankBrackets, syntaxColumnRankBracketsOptional) ->
+        | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRankBrackets) ->
             bindFixedArrayType cenv env resTyArity bind (*isMutable:*)true
                 syntaxElementTy
-                syntaxRowRankBrackets
-                syntaxColumnRankBracketsOptional
+                syntaxRankBrackets
 
         | OlySyntaxType.Shape(syntaxCurlyBrackets) ->
             cenv.bindAnonymousShapeTypeHole cenv env ImArray.empty syntaxCurlyBrackets.Element
@@ -1622,7 +1620,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
     bind cenv env resTyArity false syntaxTy
 
-let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRowRankBrackets: OlySyntaxBrackets<_>) syntaxColumnRankBracketsOptional =
+let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRankBrackets: OlySyntaxBrackets<OlySyntaxFixedArrayRank>) =
     let bindExpressionAsRank syntaxExpr =
         match syntaxExpr with
         | OlySyntaxExpression.Literal(syntaxLiteral) ->
@@ -1657,14 +1655,19 @@ let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (synta
             cenv.diagnostics.Error("Expected an integer.", 10, syntaxExpr)
             TypeSymbol.ConstantInt32 1
 
-    let rowRankTy = bindExpressionAsRank syntaxRowRankBrackets.Element
-
-    let columnRankTy =
-        match syntaxColumnRankBracketsOptional with
-        | OlySyntaxFixedArrayBracketsOptional.Some(syntaxColumnRankBrackets) ->
-            bindExpressionAsRank syntaxColumnRankBrackets.Element
+    let rowRankTy, columnRankTy = 
+        match syntaxRankBrackets.Element with
+        | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
+            let rowRankTy = bindExpressionAsRank syntaxExpr
+            let columnRankTy =
+                match syntaxRankOptional with
+                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
+                    bindExpressionAsRank syntaxExpr
+                | _ ->
+                    TypeSymbol.ConstantInt32 1
+            (rowRankTy, columnRankTy)
         | _ ->
-            TypeSymbol.ConstantInt32 1
+            unreached()
 
     let elementTy = bind cenv env resTyArity false syntaxElementTy
     if isMutable then

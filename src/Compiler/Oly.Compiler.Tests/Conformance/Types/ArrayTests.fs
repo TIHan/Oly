@@ -23,7 +23,7 @@ let ``Fixed array type should compile 2``() =
 #[intrinsic("float32")]
 alias float32
 
-Test(x: float32[4][4]): () = ()
+Test(x: float32[4,4]): () = ()
         """
     Oly src
     |> shouldCompile
@@ -47,7 +47,7 @@ let ``Fixed mutable array type should compile 2``() =
 #[intrinsic("float32")]
 alias float32
 
-Test(x: mutable float32[4][4]): () = ()
+Test(x: mutable float32[4,4]): () = ()
         """
     Oly src
     |> shouldCompile

@@ -686,6 +686,9 @@ module rec ClrCodeGen =
         handle
 
     let createFixedArrayType g (asmBuilder: ClrAssemblyBuilder) name elementTyHandle rowRank columnRank =
+        OlyAssert.True(rowRank >= 1)
+        OlyAssert.True(columnRank >= 1)
+
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true, g.ValueType.Handle)
         tyDef.Attributes <- TypeAttributes.Sealed
 
@@ -712,23 +715,40 @@ module rec ClrCodeGen =
 
         // get_Item
         let getItemMethReturnTy = ClrTypeHandle.ByRef(elementTyHandle)
-        let getItemMethParTys = ImArray.createOne ("", asmBuilder.TypeReferenceInt32)
+        let getItemMethParTys = ImArray.createTwo ("row", asmBuilder.TypeReferenceInt32) ("column", asmBuilder.TypeReferenceInt32)
         let getItemMeth = tyDef.CreateMethodDefinitionBuilder("get_Item", ImArray.empty, getItemMethParTys, getItemMethReturnTy, true)
 
         getItemMeth.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
         getItemMeth.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
 
+        let mutable nextLabelId = 0
+        let newLabelId() =
+            let result = nextLabelId
+            nextLabelId <- nextLabelId + 1
+            result
+
         let instrs = ImArray.builder()
-        for i = 0 to (rowRank * columnRank) - 1 do
-            let labelId = i
+        for row = 0 to rowRank - 1 do
+            let labelId = newLabelId()
             instrs.Add(I.Ldarg 1)
-            instrs.Add(I.LdcI4 i)
+            instrs.Add(I.LdcI4 row)
             instrs.Add(I.Ceq)
             instrs.Add(I.Brfalse labelId)
-  
-            instrs.Add(I.Ldarg 0)
-            instrs.Add(I.Ldflda fields[i])
-            instrs.Add(I.Ret)
+
+            if columnRank > 1 then
+                for column = 0 to columnRank - 1 do
+                    instrs.Add(I.Ldarg 2)
+                    instrs.Add(I.LdcI4 column)
+                    instrs.Add(I.Ceq)
+                    instrs.Add(I.Brfalse labelId)
+
+                    instrs.Add(I.Ldarg 0)
+                    instrs.Add(I.Ldflda fields[(row * column)])
+                    instrs.Add(I.Ret)
+            else
+                instrs.Add(I.Ldarg 0)
+                instrs.Add(I.Ldflda fields[row])
+                instrs.Add(I.Ret)
 
             instrs.Add(I.Label labelId)
 
@@ -1006,8 +1026,8 @@ module rec ClrCodeGen =
                 irIndexArgs
                 |> ImArray.iter (GenArgumentExpression cenv env)
                 match irIndexArgs.Length with
-                | 1 -> ()
-                | 2 -> I.Mul |> emitInstruction cenv
+                | 1 -> I.LdcI4(1) |> emitInstruction cenv
+                | 2 -> ()
                 | _ -> invalidOp "Too many arguments"
                 I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
                 I.Ldobj(resultTy.Handle) |> emitInstruction cenv
@@ -1025,8 +1045,8 @@ module rec ClrCodeGen =
                 irIndexArgs
                 |> ImArray.iter (GenArgumentExpression cenv env)
                 match irIndexArgs.Length with
-                | 1 -> ()
-                | 2 -> I.Mul |> emitInstruction cenv
+                | 1 -> I.LdcI4(1) |> emitInstruction cenv
+                | 2 -> ()
                 | _ -> invalidOp "Too many arguments"
                 I.Call((fixedArrayTy.TypeDefinitionBuilder.MethodDefinitionBuilders |> Seq.item 1).Handle, 1) |> emitInstruction cenv
             | _ ->

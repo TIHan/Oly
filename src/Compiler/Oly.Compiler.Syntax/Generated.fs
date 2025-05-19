@@ -1070,7 +1070,7 @@ module OlySyntaxTupleElement =
             Option.None
 
 [<Sealed;NoComparison>]
-type OlySyntaxFixedArrayBracketsOptional internal (tree, start: int, parent, internalNode: SyntaxFixedArrayBracketsOptional) as this =
+type OlySyntaxFixedArrayRankOptional internal (tree, start: int, parent, internalNode: SyntaxFixedArrayRankOptional) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
     
@@ -1115,21 +1115,74 @@ type OlySyntaxFixedArrayBracketsOptional internal (tree, start: int, parent, int
     member internal _.Internal = internalNode
 
 [<RequireQualifiedAccess>]
-module OlySyntaxFixedArrayBracketsOptional =
+module OlySyntaxFixedArrayRankOptional =
 
-    let (|Some|_|) (node: OlySyntaxFixedArrayBracketsOptional) : ( OlySyntaxExpression OlySyntaxBrackets ) option =
+    let (|Some|_|) (node: OlySyntaxFixedArrayRankOptional) : ( OlySyntaxToken * OlySyntaxExpression ) option =
         match node.Internal with
-        | SyntaxFixedArrayBracketsOptional.Some _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
+        | SyntaxFixedArrayRankOptional.Some _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
         | _ ->
             Option.None
 
-    let (|None|_|) (node: OlySyntaxFixedArrayBracketsOptional) : unit option =
+    let (|None|_|) (node: OlySyntaxFixedArrayRankOptional) : unit option =
         match node.Internal with
-        | SyntaxFixedArrayBracketsOptional.None _ ->
+        | SyntaxFixedArrayRankOptional.None _ ->
             Option.Some()
         | _ ->
             Option.None
+
+[<Sealed;NoComparison>]
+type OlySyntaxFixedArrayRank internal (tree, start: int, parent, internalNode: SyntaxFixedArrayRank) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    
+    let mutable children: OlySyntaxNode imarray = ImArray.empty
+    let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
+
+    member private this.FullWidth =
+#if DEBUG || CHECKED
+        let fullWidth = (internalNode :> ISyntaxNode).FullWidth
+        this.Children
+        |> ImArray.iteri (fun i x ->
+            OlyAssert.Equal(x.FullTextSpan.Width, (internalNode :> ISyntaxNode).GetSlot(i).FullWidth)
+        )
+        fullWidth
+#else
+        (internalNode :> ISyntaxNode).FullWidth
+#endif
+
+    override this.TextSpan =
+        if textSpan.Start = 0 && textSpan.Width = 0 then
+            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
+        textSpan
+
+    override this.FullTextSpan =
+        OlyTextSpan.Create(start, this.FullWidth)
+
+    override _.Children =
+        if children.IsEmpty && (internalNode :> ISyntaxNode).SlotCount > 0 then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    (internalNode :> ISyntaxNode).SlotCount 
+                    (fun i -> 
+                        let slot = (internalNode :> ISyntaxNode).GetSlot(i)
+                        let t = Convert.From(tree, p, this, slot)
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        children
+    
+    member internal _.Internal = internalNode
+
+[<RequireQualifiedAccess>]
+module OlySyntaxFixedArrayRank =
+
+    let (|Expression|_|) (node: OlySyntaxFixedArrayRank) : ( OlySyntaxExpression * OlySyntaxFixedArrayRankOptional ) option =
+        match node.Internal with
+        | SyntaxFixedArrayRank.Expression _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
 
 [<Sealed;NoComparison>]
 type OlySyntaxType internal (tree, start: int, parent, internalNode: SyntaxType) as this =
@@ -1221,17 +1274,17 @@ module OlySyntaxType =
         | _ ->
             Option.None
 
-    let (|FixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxType * OlySyntaxExpression OlySyntaxBrackets * OlySyntaxFixedArrayBracketsOptional ) option =
+    let (|FixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxType * OlySyntaxFixedArrayRank OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxType.FixedArray _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
         | _ ->
             Option.None
 
-    let (|MutableFixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxExpression OlySyntaxBrackets * OlySyntaxFixedArrayBracketsOptional ) option =
+    let (|MutableFixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxFixedArrayRank OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxType.MutableFixedArray _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
         | _ ->
             Option.None
 
@@ -3921,7 +3974,8 @@ module private Convert =
         | SyntaxTypeParameters.Tag -> OlySyntaxTypeParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxTypeConstructor.Tag -> OlySyntaxTypeConstructor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxTupleElement.Tag -> OlySyntaxTupleElement(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxFixedArrayBracketsOptional.Tag -> OlySyntaxFixedArrayBracketsOptional(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxFixedArrayRankOptional.Tag -> OlySyntaxFixedArrayRankOptional(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxFixedArrayRank.Tag -> OlySyntaxFixedArrayRank(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxType.Tag -> OlySyntaxType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxMutability.Tag -> OlySyntaxMutability(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxParameter.Tag -> OlySyntaxParameter(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
@@ -4002,5 +4056,5 @@ module private Convert =
         | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
         | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxExpression> as internalNode -> OlySyntaxBrackets<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxFixedArrayRank> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayRank>(tree, start, parent, internalNode) :> OlySyntaxNode
         | _ -> failwith "Invalid Internal Syntax Node"
