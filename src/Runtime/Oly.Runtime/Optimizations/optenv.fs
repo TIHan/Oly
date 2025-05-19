@@ -461,3 +461,10 @@ module internal Helpers =
                 false
         | _ ->
             false
+
+    let isProtectedCall op =
+        match op with
+        | O.Call(irFunc, _, _) ->
+            irFunc.RuntimeFunction.Flags.IsProtected
+        | _ ->
+            false

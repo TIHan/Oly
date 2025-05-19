@@ -40,56 +40,34 @@ type SsaUsage =
         { this with argUsed = this.argUsed.SetItem(argIndex, ssaIndex) }
 
 let internal ToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) =
-    StackGuard.Do(fun () -> ToSSAAux optenv used expr)
-let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) =
+    StackGuard.Do(fun () -> ToSSAAux optenv used expr id)
+let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
     | E.Let _
     | E.Sequential _ ->
-        handleLinearToSSA optenv used expr
+        handleLinearToSSA optenv used expr cont
 
     | E.None _ 
-    | E.Phi _ -> expr, used
+    | E.Phi _ -> cont(expr, used)
 
     | E.Value(textRange, v) ->
-        match v with
-        | V.Local(localIndex, resultTy) ->
-            match optenv.ssaenv.TryGetSsaIndexFromLocal(localIndex) with
-            | ValueSome ssaIndex ->
-                E.Value(textRange, V.Local(ssaIndex, resultTy)), used
-            | _ ->
-                expr, used
-        | V.LocalAddress(localIndex, kind, resultTy) ->
-            match optenv.ssaenv.TryGetSsaIndexFromLocal(localIndex) with
-            | ValueSome ssaIndex ->
-                E.Value(textRange, V.LocalAddress(ssaIndex, kind, resultTy)), used
-            | _ ->
-                expr, used
-        | V.Argument(argIndex, resultTy) ->
-            match optenv.ssaenv.TryGetSsaIndexFromArgument(argIndex) with
-            | ValueSome ssaIndex ->
-                E.Value(textRange, V.Local(ssaIndex, resultTy)), used
-            | _ ->
-                expr, used
-        | V.ArgumentAddress(argIndex, kind, resultTy) ->
-            match optenv.ssaenv.TryGetSsaIndexFromArgument(argIndex) with
-            | ValueSome ssaIndex ->
-                E.Value(textRange, V.LocalAddress(ssaIndex, kind, resultTy)), used
-            | _ ->
-                expr, used
-        | _ ->
-            expr, used
+        cont(handleValue optenv used expr textRange v)
 
     | E.Operation(_, O.Store(localIndex, rhsExpr, resultTy)) ->
-        let rhsExpr2, used = ToSSA optenv used rhsExpr
-        let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, rhsExpr2.ResultType)
-        let used = used.SetLocal(localIndex, newLocalIndex)
-        E.Let("ssa_local", newLocalIndex, rhsExpr2, E.None(OlyIRDebugSourceTextRange.Empty, resultTy)), used
+        ToSSAAux optenv used rhsExpr (
+            fun (rhsExpr2, used) ->
+                let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, rhsExpr2.ResultType)
+                let used = used.SetLocal(localIndex, newLocalIndex)
+                cont(E.Let("ssa_local", newLocalIndex, rhsExpr2, E.None(OlyIRDebugSourceTextRange.Empty, resultTy)), used)
+        )
 
     | E.Operation(_, O.StoreArgument(argIndex, rhsExpr, resultTy)) ->
-        let rhsExpr2, used = ToSSA optenv used rhsExpr
-        let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, rhsExpr2.ResultType)
-        let used = used.SetArgument(argIndex, newLocalIndex)
-        E.Let("ssa_arg", newLocalIndex, rhsExpr2, E.None(OlyIRDebugSourceTextRange.Empty, resultTy)), used
+        ToSSAAux optenv used rhsExpr (
+            fun (rhsExpr2, used) ->
+                let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, rhsExpr2.ResultType)
+                let used = used.SetArgument(argIndex, newLocalIndex)
+                cont(E.Let("ssa_arg", newLocalIndex, rhsExpr2, E.None(OlyIRDebugSourceTextRange.Empty, resultTy)), used)
+        )
 
     | E.Operation(textRange, op) ->
         let mutable used = used
@@ -104,6 +82,7 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _
             expr, used
         else
             E.Operation(textRange, op), used
+        |> cont
     
     | E.While(conditionExpr, bodyExpr, resultTy) ->
         let newConditionExpr, used = ToSSA optenv used conditionExpr
@@ -113,6 +92,7 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _
             expr, used
         else
             E.While(newConditionExpr, newBodyExpr, resultTy), used
+        |> cont
 
     | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
         let newConditionExpr, used = ToSSA optenv used conditionExpr
@@ -123,6 +103,7 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _
             expr, used
         else
             E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy), used
+        |> cont
 
     | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy) ->
         let newBodyExpr, used = ToSSA optenv used bodyExpr
@@ -143,79 +124,112 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _
                 used <- newUsed
                 newFinallyBodyExpr
             )
-        E.Try(newBodyExpr, newCatchCases, newFinallyBodyExprOpt, resultTy), used
+        (E.Try(newBodyExpr, newCatchCases, newFinallyBodyExprOpt, resultTy), used)
+        |> cont
 
-let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) =
+let private handleValue (optenv: optenv<_, _, _>) (used: SsaUsage) (origExpr: E<_, _, _>) textRange v =
+    match v with
+    | V.Local(localIndex, resultTy) ->
+        match optenv.ssaenv.TryGetSsaIndexFromLocal(localIndex) with
+        | ValueSome ssaIndex ->
+            E.Value(textRange, V.Local(ssaIndex, resultTy)), used
+        | _ ->
+            origExpr, used
+    | V.LocalAddress(localIndex, kind, resultTy) ->
+        match optenv.ssaenv.TryGetSsaIndexFromLocal(localIndex) with
+        | ValueSome ssaIndex ->
+            E.Value(textRange, V.LocalAddress(ssaIndex, kind, resultTy)), used
+        | _ ->
+            origExpr, used
+    | V.Argument(argIndex, resultTy) ->
+        match optenv.ssaenv.TryGetSsaIndexFromArgument(argIndex) with
+        | ValueSome ssaIndex ->
+            E.Value(textRange, V.Local(ssaIndex, resultTy)), used
+        | _ ->
+            origExpr, used
+    | V.ArgumentAddress(argIndex, kind, resultTy) ->
+        match optenv.ssaenv.TryGetSsaIndexFromArgument(argIndex) with
+        | ValueSome ssaIndex ->
+            E.Value(textRange, V.LocalAddress(ssaIndex, kind, resultTy)), used
+        | _ ->
+            origExpr, used
+    | _ ->
+        origExpr, used
+
+let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (origExpr: E<_, _, _>) resultTy expr2 conditionExpr trueTargetExpr falseTargetExpr =
+    let newConditionExpr, used = ToSSA optenv used conditionExpr
+    let newTrueTargetExpr, usedBranch = ToSSA optenv used trueTargetExpr
+    let newFalseTargetExpr, used = ToSSA optenv usedBranch falseTargetExpr
+
+    if newConditionExpr = conditionExpr && newTrueTargetExpr = trueTargetExpr && newFalseTargetExpr = falseTargetExpr then
+        origExpr, used
+    else
+        let newExpr = E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
+            
+        let phiExprs, used =
+            (expr2, Seq.append used.argUsed.Values used.localUsed.Values)
+            ||> Seq.fold (fun expr ssaIndex ->
+                match optenv.ssaenv.GetValue(ssaIndex) with
+                | SsaValue.UseLocal(localIndex, resultTy) ->
+                    let values =
+                        seq {
+                            usedBranch.GetSsaLocal(localIndex)
+                            used.GetSsaLocal(localIndex)
+                        }
+                        |> Seq.distinct
+                        |> ImArray.ofSeq
+                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
+                | SsaValue.UseArgument(argIndex, resultTy) ->
+                    let values =
+                        seq {
+                            usedBranch.GetSsaArgument(argIndex)
+                            used.GetSsaArgument(argIndex)
+                        }
+                        |> Seq.distinct
+                        |> ImArray.ofSeq
+                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
+                | SsaValue.Definition ->
+                    expr
+            )
+            |> ToSSA optenv used
+        E.Sequential(newExpr, phiExprs), used
+
+let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
-        let newRhsExpr, used = ToSSA optenv used rhsExpr
+        ToSSAAux optenv used rhsExpr (
+            fun (newRhsExpr, used) ->
+                let used = 
+                    match optenv.ssaenv.GetValue(localIndex) with
+                    | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
+                        used.SetLocal(nonSsaLocalIndex, localIndex)
+                    | SsaValue.UseArgument(argIndex, _) ->
+                        used.SetArgument(argIndex, localIndex)
+                    | SsaValue.Definition ->
+                        used.SetLocal(localIndex, localIndex)
+                let newBodyExpr, used = ToSSA optenv used bodyExpr
 
-        let used = 
-            match optenv.ssaenv.GetValue(localIndex) with
-            | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
-                used.SetLocal(nonSsaLocalIndex, localIndex)
-            | SsaValue.UseArgument(argIndex, _) ->
-                used.SetArgument(argIndex, localIndex)
-            | SsaValue.Definition ->
-                used.SetLocal(localIndex, localIndex)
-        let newBodyExpr, used = ToSSA optenv used bodyExpr
-
-        E.Let(name, localIndex, newRhsExpr, newBodyExpr), used
+                cont(E.Let(name, localIndex, newRhsExpr, newBodyExpr), used)
+        )
 
     | E.Sequential(E.Operation(_, O.Store(localIndex, rhsExpr, _)), expr2) ->
         let rhsExpr2, used = ToSSA optenv used rhsExpr
         let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, rhsExpr2.ResultType)
         let used = used.SetLocal(localIndex, newLocalIndex)
         let newExpr2, used = ToSSA optenv used expr2
-        E.Let("ssa_local", newLocalIndex, rhsExpr2, newExpr2), used
+        (E.Let("ssa_local", newLocalIndex, rhsExpr2, newExpr2), used)
+        |> cont
 
     | E.Sequential(E.Operation(_, O.StoreArgument(argIndex, rhsExpr, _)), expr2) ->
         let rhsExpr2, used = ToSSA optenv used rhsExpr
         let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, rhsExpr2.ResultType)
         let used = used.SetArgument(argIndex, newLocalIndex)
         let newExpr2, used = ToSSA optenv used expr2
-        E.Let("ssa_arg", newLocalIndex, rhsExpr2, newExpr2), used
+        (E.Let("ssa_arg", newLocalIndex, rhsExpr2, newExpr2), used)
+        |> cont
 
     | E.Sequential(E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy), expr2) ->
-        let newConditionExpr, used = ToSSA optenv used conditionExpr
-        let newTrueTargetExpr, usedBranch = ToSSA optenv used trueTargetExpr
-        let newFalseTargetExpr, used = ToSSA optenv usedBranch falseTargetExpr
-
-        if newConditionExpr = conditionExpr && newTrueTargetExpr = trueTargetExpr && newFalseTargetExpr = falseTargetExpr then
-            expr, used
-        else
-            let newExpr = E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
-            
-            let phiExprs, used =
-                (expr2, Seq.append used.argUsed.Values used.localUsed.Values)
-                ||> Seq.fold (fun expr ssaIndex ->
-                    match optenv.ssaenv.GetValue(ssaIndex) with
-                    | SsaValue.UseLocal(localIndex, resultTy) ->
-                        let values =
-                            seq {
-                                usedBranch.GetSsaLocal(localIndex)
-                                used.GetSsaLocal(localIndex)
-                            }
-                            |> Seq.distinct
-                            |> ImArray.ofSeq
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
-                    | SsaValue.UseArgument(argIndex, resultTy) ->
-                        let values =
-                            seq {
-                                usedBranch.GetSsaArgument(argIndex)
-                                used.GetSsaArgument(argIndex)
-                            }
-                            |> Seq.distinct
-                            |> ImArray.ofSeq
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
-                    | SsaValue.Definition ->
-                        expr
-                )
-                |> ToSSA optenv used
-            E.Sequential(
-                newExpr,
-                phiExprs
-            ), used
+        cont(handleSequentialIfElse optenv used expr resultTy expr2 conditionExpr trueTargetExpr falseTargetExpr)
 
     | E.Sequential(E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy), expr2) ->
         let newBodyExpr, used = ToSSA optenv used bodyExpr
@@ -267,10 +281,8 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
                 | SsaValue.Definition ->
                     expr
             ) |> ToSSA optenv used
-        E.Sequential(
-            newExpr,
-            phiExprs
-        ), used
+        (E.Sequential(newExpr, phiExprs), used)
+        |> cont
 
     | E.Sequential(E.While(conditionExpr, bodyExpr, resultTy), expr2) ->
         let newConditionExpr, used = ToSSA optenv used conditionExpr
@@ -306,10 +318,8 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
                     | SsaValue.Definition ->
                         expr
                 ) |> ToSSA optenv used
-            E.Sequential(
-                newExpr,
-                phiExprs
-            ), used
+            E.Sequential(newExpr, phiExprs), used
+        |> cont
 
     | E.Sequential(expr1, expr2) ->
         let newExpr1, used = ToSSA optenv used expr1
@@ -319,6 +329,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
             expr, used
         else
             E.Sequential(newExpr1, newExpr2), used
+        |> cont
 
     | _ ->
         failwith "Invalid linear expression"
@@ -327,15 +338,15 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
 // ------------------------------------------------------
 
 let internal FromSSA (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) =
-    StackGuard.Do(fun () -> FromSSAAux optenv localDefs expr)
-let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) =
+    StackGuard.Do(fun () -> FromSSAAux optenv localDefs expr id)
+let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) (cont: E<_, _, _> -> E<_, _, _>) =
     match expr with
     | E.Let _
     | E.Sequential _ ->
-        handleLinearFromSSA optenv localDefs expr
+        handleLinearFromSSA optenv localDefs expr cont
 
     | E.None _ 
-    | E.Phi _ -> expr
+    | E.Phi _ -> cont(expr)
     | E.Value(textRange, v) ->
         match v with
         | V.Local(localIndex, resultTy) ->
@@ -364,6 +375,7 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
                 expr
         | _ ->
             expr
+        |> cont
 
     | E.Operation(textRange, op) ->
         let newOp = op.MapAndReplaceArguments(fun _ expr -> FromSSA optenv localDefs expr)
@@ -372,6 +384,7 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
             expr
         else
             E.Operation(textRange, newOp)
+        |> cont
     
     | E.While(conditionExpr, bodyExpr, resultTy) ->
         let newConditionExpr = FromSSA optenv localDefs conditionExpr
@@ -381,6 +394,7 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
             expr
         else
             E.While(newConditionExpr, newBodyExpr, resultTy)
+        |> cont
 
     | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
         let newConditionExpr = FromSSA optenv localDefs conditionExpr
@@ -391,6 +405,7 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
             expr
         else
             E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
+        |> cont
 
     | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy) ->
         let newBodyExpr = FromSSA optenv localDefs bodyExpr
@@ -403,52 +418,61 @@ let private FromSSAAux (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<in
             )
         let newFinallyBodyExprOpt = finallyBodyExprOpt |> Option.map (FromSSA optenv localDefs)
         E.Try(newBodyExpr, newCatchCases, newFinallyBodyExprOpt, resultTy)
+        |> cont
 
-let private handleLinearFromSSA (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) =
+let private handleLinearFromSSA (optenv: optenv<_, _, _>) (localDefs: ImmutableHashSet<int>) (expr: E<_, _, _>) (cont: E<_, _, _> -> E<_, _, _>) =
     match expr with
     | E.Let(_, localIndex, E.Phi _, bodyExpr) ->
         OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
-        FromSSA optenv localDefs bodyExpr
+        FromSSAAux optenv localDefs bodyExpr cont
 
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
-        let newRhsExpr = FromSSA optenv localDefs rhsExpr
-        match optenv.ssaenv.GetValue(localIndex) with
-        | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
-            OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
-            OlyAssert.True(localDefs.Contains(nonSsaLocalIndex))
-            let newBodyExpr = FromSSA optenv localDefs bodyExpr
-            if localDefs.Contains nonSsaLocalIndex then
-                let storeExpr = E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.Store(nonSsaLocalIndex, newRhsExpr, optenv.emitType(RuntimeType.Void)))
-                match newBodyExpr with
-                | E.None _ ->
-                    storeExpr
-                | _ ->
-                    E.Sequential(
-                        storeExpr,
-                        newBodyExpr
+        FromSSAAux optenv localDefs rhsExpr (
+            fun newRhsExpr ->
+                match optenv.ssaenv.GetValue(localIndex) with
+                | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
+                    OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
+                    OlyAssert.True(localDefs.Contains(nonSsaLocalIndex))
+                    FromSSAAux optenv localDefs bodyExpr (
+                        fun newBodyExpr ->
+                            if localDefs.Contains nonSsaLocalIndex then
+                                let storeExpr = E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.Store(nonSsaLocalIndex, newRhsExpr, optenv.emitType(RuntimeType.Void)))
+                                match newBodyExpr with
+                                | E.None _ ->
+                                    storeExpr
+                                | _ ->
+                                    E.Sequential(
+                                        storeExpr,
+                                        newBodyExpr
+                                    )
+                            else
+                                E.Let("tmp_from_ssa", optenv.argLocalManager.CreateLocal(optenv.argLocalManager.GetLocalFlags(nonSsaLocalIndex)), newRhsExpr, newBodyExpr)
+                            |> cont
                     )
-            else
-                E.Let("tmp_from_ssa", optenv.argLocalManager.CreateLocal(optenv.argLocalManager.GetLocalFlags(nonSsaLocalIndex)), newRhsExpr, newBodyExpr)
-        | SsaValue.UseArgument(argIndex, _) ->
-            OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
-            let newBodyExpr = FromSSA optenv localDefs bodyExpr
-            let storeExpr = E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.StoreArgument(argIndex, newRhsExpr, optenv.emitType(RuntimeType.Void)))
-            match newBodyExpr with
-            | E.None _ ->
-                storeExpr
-            | _ ->
-                E.Sequential(
-                    storeExpr,
-                    newBodyExpr
-                )
-        | SsaValue.Definition ->
-            OlyAssert.False(optenv.ssaenv.IsSsaLocal(localIndex))
-            OlyAssert.False(localDefs.Contains(localIndex))
-            let newBodyExpr = FromSSA optenv (localDefs.Add(localIndex)) bodyExpr
-            if newRhsExpr = rhsExpr && newBodyExpr = bodyExpr then
-                expr
-            else
-                E.Let(name, localIndex, newRhsExpr, newBodyExpr)
+                | SsaValue.UseArgument(argIndex, _) ->
+                    OlyAssert.True(optenv.ssaenv.IsSsaLocal(localIndex))
+                    FromSSAAux optenv localDefs bodyExpr (
+                        fun newBodyExpr ->
+                            let storeExpr = E.Operation((* TODO: bad range *) OlyIRDebugSourceTextRange.Empty, O.StoreArgument(argIndex, newRhsExpr, optenv.emitType(RuntimeType.Void)))
+                            match newBodyExpr with
+                            | E.None _ ->
+                                storeExpr
+                            | _ ->
+                                E.Sequential(storeExpr, newBodyExpr)
+                            |> cont
+                    )
+                | SsaValue.Definition ->
+                    OlyAssert.False(optenv.ssaenv.IsSsaLocal(localIndex))
+                    OlyAssert.False(localDefs.Contains(localIndex))
+                    FromSSAAux optenv (localDefs.Add(localIndex)) bodyExpr (
+                        fun newBodyExpr ->
+                            if newRhsExpr = rhsExpr && newBodyExpr = bodyExpr then
+                                expr
+                            else
+                                E.Let(name, localIndex, newRhsExpr, newBodyExpr)
+                            |> cont
+                    )               
+        )
 
     | E.Sequential(expr1, expr2) ->
         let newExpr1 = FromSSA optenv localDefs expr1
@@ -458,6 +482,7 @@ let private handleLinearFromSSA (optenv: optenv<_, _, _>) (localDefs: ImmutableH
             expr
         else
             E.Sequential(newExpr1, newExpr2)
+        |> cont
 
     | _ ->
         failwith "Invalid linear expression"

@@ -825,7 +825,9 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 irNewExpr2
 
         | E.Operation(origTextRange, origOp) ->
-            if isBaseCall origOp then
+            // TODO: We should expose this check to the runtime target should make the decision.
+            //       Notes: DotNet will emit 'private' members as 'internal', but 'protected' will be emitted as 'protected'.
+            if isBaseCall origOp || isProtectedCall origOp then
                 didFailInline <- true
 
             match origOp with
