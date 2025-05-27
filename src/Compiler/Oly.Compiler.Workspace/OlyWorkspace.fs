@@ -629,6 +629,10 @@ type OlySolution (state: SolutionState) =
         | None -> failwith $"Unable to find project '{projectPath}'. Check if the project is updated in the workspace."
         | Some project -> project
 
+    member this.TryGetProjectByName(projectName: string) =
+        state.projects.Values
+        |> Seq.tryFind (fun x -> x.Name = projectName)
+
     member this.GetProjects() =
         state.projects.Values |> ImArray.ofSeq
 
@@ -945,6 +949,8 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             this
         else
             OlyWorkspaceResourceSnapshot({ state with textEditors = textEditors }, activeConfigPath)
+
+    member _.ActiveConfigurationPath = activeConfigPath
 
     static member Create(activeConfigPath: OlyPath) =
         OlyWorkspaceResourceSnapshot({ files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = DateTime(); textEditors = OlySourceTextManager.Empty }, activeConfigPath)
@@ -1760,18 +1766,14 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     member this.BuildProjectAsync(rs, projectPath: OlyPath, ct: CancellationToken) =
         backgroundTask {          
-            do! onBeginWork ct
             let! solution = this.GetSolutionAsync(rs, ct)
             let proj = solution.GetProject(projectPath)
             let target = proj.SharedBuild
 
             try
-                let! result = target.BuildProjectAsync(proj, ct)
-                do! onEndWork ct
-                return result
+                return! target.BuildProjectAsync(proj, ct)
             with
             | ex ->
-                do! onEndWork ct
                 return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
         }
 

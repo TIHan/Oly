@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { parseJsonText } from 'typescript';
 import { workspace, ExtensionContext } from 'vscode';
 import * as vscode from 'vscode';
 import {
@@ -333,42 +334,38 @@ module OlyClientCommands {
 		error: string
 	}
 
-	export const compileCurrentDocument = async (ch: vscode.OutputChannel) => {
+	export const compile = async (olyProjectStatusBarItem: vscode.StatusBarItem, ch: vscode.OutputChannel) => {
 		let document = getActiveDocument()
 		if (document != null && document.languageId == 'oly')
 		{
 			await document.save();
-			let name = document.fileName;
-			ch.appendLine("Compiling " + "'" + name + "'");
-			let timeStart = new Date().getTime();
-			let result: OlyLspCompilationResult = await client.sendRequest("oly/compile", { documentPath: document.uri.path });
-			let assemblyPath = result.resultPath;
-			if (assemblyPath != null)
-			{
-				let timeEnd = new Date().getTime();
-				let time = timeEnd - timeStart
-				ch.appendLine("Compiled '" + name + "' successfully - " + time + "ms");
-				return result;
-			}
-			else
-			{
-				let timeEnd = new Date().getTime();
-				let time = timeEnd - timeStart
-				ch.appendLine("Compilation failed for '" + name + "' - " + time + "ms");
-				return result;
-			}
+		}
+
+		ch.appendLine("Compiling");
+		let timeStart = new Date().getTime();
+		let result: OlyLspCompilationResult = await client.sendRequest("oly/compile", { documentPath: "" });
+		let assemblyPath = result.resultPath;
+		if (assemblyPath != null)
+		{
+			let timeEnd = new Date().getTime();
+			let time = timeEnd - timeStart
+			ch.appendLine("Compiled successfully - " + time + "ms: " + assemblyPath);
+			olyProjectStatusBarItem.color = undefined;
+			olyProjectStatusBarItem.backgroundColor = undefined;
+			return result;
 		}
 		else
 		{
-			return null;
+			let timeEnd = new Date().getTime();
+			let time = timeEnd - timeStart
+			ch.appendLine("Compilation failed - " + time + "ms: " + assemblyPath);
+			olyProjectStatusBarItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
+			olyProjectStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+			return result;
 		}
 	};
 
-	export const buildOutputChannel = vscode.window.createOutputChannel("Oly Build");
-	export const compileCommand = 'workbench.action.tasks.build';
-	export const compileCommandHandler = async (token: vscode.CancellationToken) => {
-		await compileCurrentDocument(buildOutputChannel);
-	};
+	export const compileOutputChannel = vscode.window.createOutputChannel("Oly Compile");
 }
 
 class OlyLanguageClient extends LanguageClient {
@@ -395,7 +392,7 @@ export function activate(context: ExtensionContext) {
 		// Register the server for plain text documents
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
-			fileEvents: workspace.createFileSystemWatcher('**/*.oly')
+			fileEvents: [workspace.createFileSystemWatcher('**/*.oly'), workspace.createFileSystemWatcher('**/*.olyx')]
 		}
 	};
 
@@ -481,14 +478,55 @@ export function activate(context: ExtensionContext) {
 		}
 	});
 
-	let statusBarItemDefaultText = "Oly Workspace: $(check)";
-	let statusBarItemSyncingText = "Oly Workspace: $(sync~spin)"
-	let statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	statusBarItem.text = statusBarItemDefaultText;
-	statusBarItem.show()
+	let olyWorkspaceStatusDefaultText = "Oly Workspace: $(check)";
+	let olyWorkspaceStatusSyncText = "Oly Workspace: $(sync~spin)"
+	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
+	olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+	olyWorkspaceStatusBarItem.show();
+
+	let olyProjectStatusDefaultText = "Oly Project";
+	let olyProjectStatusBuildText = "Oly Project $(loading~spin)"
+	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+	olyProjectStatusBarItem.text = olyProjectStatusDefaultText;
+	olyProjectStatusBarItem.show();
+
+	function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
+		switch (params.kind) {
+			case 'begin':
+				if (params.message == "building")
+				{
+					olyProjectStatusBarItem.text = olyProjectStatusBuildText;
+				}
+				else
+				{
+					olyWorkspaceStatusBarItem.text = olyWorkspaceStatusSyncText;
+					olyWorkspaceStatusBarItem.tooltip = "Analyzing";
+					olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("testing.iconQueued");
+				}
+				break;
+			case 'end':
+				if (params.message == "building")
+				{
+					olyProjectStatusBarItem.text = olyProjectStatusDefaultText;
+				}
+				else
+				{
+					olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
+					olyWorkspaceStatusBarItem.tooltip = "";
+					olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+				}
+				break;
+		}
+	}
+
+	function registerStatusBarItems() {
+		client.onProgress(WorkDoneProgress.type, 'oly/analysis', handleProgressNotification);
+	}
 
 	client.onReady().then(async () => {
 		isClientReady = true;
+		registerStatusBarItems();
 		let config = vscode.workspace.getConfiguration("olyLanguageServer");
 		await client.sendRequest("workspace/didChangeConfiguration", { settings: config });
 		vscode.workspace.onDidChangeConfiguration(async (e) => {
@@ -511,16 +549,14 @@ export function activate(context: ExtensionContext) {
 		});
 
 		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), legend));
-		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compileCommand, OlyClientCommands.compileCommandHandler));
-
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.getSyntaxTreeCommand, OlyClientCommands.getSyntaxTreeCommandHandler));
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.navigateToSyntaxNodeCommand, OlyClientCommands.navigateToSyntaxNodeCommandHandler));
 
 		context.subscriptions.push(vscode.commands.registerCommand('oly.compile', async () => {
-			let ch = OlyClientCommands.buildOutputChannel;
+			let ch = OlyClientCommands.compileOutputChannel;
 			
 			ch.show(true);
-			let result = await OlyClientCommands.compileCurrentDocument(ch);
+			let result = await OlyClientCommands.compile(olyProjectStatusBarItem, ch);
 			if (result == null)
 			{
 				throw new Error("Oly Compilation Failed");
@@ -533,24 +569,75 @@ export function activate(context: ExtensionContext) {
 			}
 		}));
 
+		// Oly Workspace Vscode Settings
+		let olyWorkspaceVscodePath = '.olyworkspace/settings.json';
+		let olyWorkspaceVscodeUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceVscodePath));
+		async function readOlyWorkspaceVscode() {
+			// TODO: How do we handle a blank active project?
+			try
+			{
+				let fileContents: Uint8Array = await vscode.workspace.fs.readFile(olyWorkspaceVscodeUri);
+				let stringContents = new TextDecoder().decode(fileContents);
+				return JSON.parse(stringContents);
+			}
+			catch
+			{
+				let workspaceVscode: any = {};
+				workspaceVscode.activeProject = "";
+				var projectNames: string[] = await client.sendRequest("oly/getProjectList", { documentPath: "" });
+				if (projectNames.length > 0)
+				{
+					workspaceVscode.activeProject = projectNames[0];
+				}
+
+				await saveOlyWorkspaceVscode(workspaceVscode);
+				return await readOlyWorkspaceVscode();
+			}
+		}
+		async function saveOlyWorkspaceVscode(workspaceVscode) {
+			await vscode.workspace.fs.writeFile(olyWorkspaceVscodeUri, new TextEncoder().encode(JSON.stringify(workspaceVscode)));
+		}
+
+		async function refreshProjectStatusBarItemTooltip() {
+			var workspaceVscode = await readOlyWorkspaceVscode();
+			olyProjectStatusBarItem.tooltip = new vscode.MarkdownString("", true);
+			olyProjectStatusBarItem.tooltip.isTrusted = true;
+			olyProjectStatusBarItem.tooltip.appendMarkdown("Active Project: " + workspaceVscode.activeProject + "\n\n");
+			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Compile](command:oly.compile "Compile active project")\n\n`);
+			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:workbench.action.debug.start "Debug active project")\n\n`);
+			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-start) Run](command:workbench.action.debug.run "Run active project")\n\n`);
+			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Project](command:oly.changeActiveProject "Change active project")\n\n`);
+		}
+		refreshProjectStatusBarItemTooltip();
+
+		let stateWatcher = workspace.createFileSystemWatcher('**/*.json');
+		stateWatcher.onDidChange(function(event) {
+			if (event.path.endsWith(olyWorkspaceVscodePath))
+			{
+				refreshProjectStatusBarItemTooltip();
+			}
+		});
+		stateWatcher.onDidCreate(function(event) {
+			if (event.path.endsWith(olyWorkspaceVscodePath))
+			{
+				refreshProjectStatusBarItemTooltip();
+			}
+		});
+		// End - Oly Workspace Vscode Settings
+
+		context.subscriptions.push(vscode.commands.registerCommand('oly.changeActiveProject', async () => {
+			let projectNames: string[] = await client.sendRequest("oly/getProjectList", { documentPath: "" });
+			let result = await vscode.window.showQuickPick(projectNames);
+
+			let workspaceVscode = await readOlyWorkspaceVscode();
+			workspaceVscode.activeProject = result;
+			await saveOlyWorkspaceVscode(workspaceVscode);
+		}));
+
 		let active = getActiveDocument();
 		if (active?.languageId === 'oly') {
 			await refreshSyntaxTree(active, null);
 		}
-		
-		function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
-			switch (params.kind) {
-				case 'begin':
-					statusBarItem.text = statusBarItemSyncingText;
-					statusBarItem.tooltip = params.title;
-					break;
-				case 'end':
-					statusBarItem.text = statusBarItemDefaultText;
-					statusBarItem.tooltip = ""
-					break;
-			}
-		}
-		client.onProgress(WorkDoneProgress.type, 'oly/analysis', handleProgressNotification);
 	});
 
 	// Start the client. This will also launch the server

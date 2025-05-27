@@ -59,17 +59,32 @@
 					"command": "oly.getSyntaxTree",
 					"when": "resourceLangId == oly"
 				}
+			],
+			"commandPalette": [
+				{
+					"command": "oly.compile",
+					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.changeActiveProject",
+					"when": "resourceLangId == oly"
+				}
 			]
 		},
 		"commands": [
 			{
 				"command": "oly.getSyntaxTree",
-				"title": "Go to Syntax Node",
+				"title": "Go to Oly Syntax Node",
 				"when": "resourceLangId == oly"
 			},
 			{
 				"command": "oly.compile",
-				"title": "Compile Project",
+				"title": "Compile Active Oly Project",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.changeActiveProject",
+				"title": "Change Active Oly Project",
 				"when": "resourceLangId == oly"
 			}
 		],

@@ -205,6 +205,8 @@ type OlySolution =
 
     member TryGetProject : projectPath: OlyPath -> OlyProject option
 
+    member TryGetProjectByName : projectName: string -> OlyProject option
+
     member GetProjects : unit -> OlyProject imarray
 
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
@@ -245,6 +247,8 @@ type OlyWorkspaceResourceSnapshot =
     member GetActiveConfigurationName: unit -> string
 
     member WithTextEditors: OlySourceTextManager -> OlyWorkspaceResourceSnapshot
+
+    member ActiveConfigurationPath: OlyPath
 
     static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 

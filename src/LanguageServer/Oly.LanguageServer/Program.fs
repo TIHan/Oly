@@ -159,44 +159,20 @@ type ILanguageServerFacade with
             )
         this.TextDocument.PublishDiagnostics(diagnosticParams)
 
+    member this.ClearDiagnostics(uri) =
+        let diagnosticParams = 
+            PublishDiagnosticsParams(
+                Uri = uri,
+                Diagnostics = Container([||]),
+                Version = Nullable()
+            )
+        this.TextDocument.PublishDiagnostics(diagnosticParams)
+
     member this.RefreshClientAsync(ct) =
         backgroundTask {
             let result = this.Client.SendRequest("workspace/semanticTokens/refresh")
             do! result.ReturningVoid(ct)
         }
-
-// TODO: Create a record that holds this state and use a ConditionWeakTable to hold onto the values per ILanguageServerFacade.
-let mutable analysisCount = 0
-let analysisLock = obj()
-let mutable analysisObserver: Protocol.Progress.IProgressObserver<obj> = Unchecked.defaultof<_>
-type ILanguageServerFacade with
-
-    member this.GetAnalysisProgressObserver() = 
-        if isNull analysisObserver then
-            lock analysisLock <| fun _ ->
-                if isNull analysisObserver then
-                    analysisObserver <- this.ProgressManager.For(ProgressToken("oly/analysis"), CancellationToken.None)
-        analysisObserver
-
-    member this.OnBeginAnalysisProgress() =
-        if Interlocked.Increment(&analysisCount) = 1 then
-            let observer = this.GetAnalysisProgressObserver()
-            observer.OnNext({| kind = "begin"; title = "Analyzing" |}: obj)
-
-    member this.OnEndAnalysisProgress() =
-        if Interlocked.Decrement(&analysisCount) = 0 then
-            let observer = this.GetAnalysisProgressObserver()
-            observer.OnNext({| kind = "end" |}: obj)
-
-    member this.ForAnalyzingProgress(ct: CancellationToken, f) = backgroundTask {
-        ct.ThrowIfCancellationRequested()
-        this.OnBeginAnalysisProgress()
-        try
-            return! f(ct)
-        finally
-            this.OnEndAnalysisProgress()
-    }
-        
 
 type OlyCompilation with
 
@@ -241,9 +217,20 @@ type OlyGetSyntaxTreeRequest() =
 
     interface IOlyRequest<OlySyntaxTreeViewModel> with
 
-           member this.DocumentPath
-               with get() = this.DocumentPath
-               and set value = this.DocumentPath <- value
+        member this.DocumentPath
+            with get() = this.DocumentPath
+            and set value = this.DocumentPath <- value
+
+[<Method("oly/getProjectList", Direction.ClientToServer)>]
+type OlyGetProjectListRequest() =
+
+    member val DocumentPath: string = null with get, set
+
+    interface IOlyRequest<string[]> with
+
+        member this.DocumentPath
+            with get() = this.DocumentPath
+            and set value = this.DocumentPath <- value
 
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
@@ -632,9 +619,65 @@ let getLocationsBySymbol symbol doc ct =
         x.ToLspLocation(ct)
     )
 
+[<Sealed>]
+type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
+
+    let analysisLock = obj()
+    let mutable observer: Protocol.Progress.IProgressObserver<obj> = Unchecked.defaultof<_>
+
+    let mutable analysisCount = 0
+    let mutable buildCount = 0
+
+    member private this.GetObserver() = 
+        if isNull observer then
+            lock analysisLock <| fun _ ->
+                if isNull observer then
+                    observer <- server.ProgressManager.For(ProgressToken("oly/analysis"), CancellationToken.None)
+        observer
+
+    member private this.OnBeginAnalysisProgress() =
+        if Interlocked.Increment(&analysisCount) = 1 then
+            let observer = this.GetObserver()
+            observer.OnNext({| kind = "begin"; title = "Analyzing" |}: obj)
+
+    member private this.OnEndAnalysisProgress() =
+        if Interlocked.Decrement(&analysisCount) = 0 then
+            let observer = this.GetObserver()
+            observer.OnNext({| kind = "end" |}: obj)
+
+    member this.ForAnalyzingProgress(ct: CancellationToken, f) = backgroundTask {
+        ct.ThrowIfCancellationRequested()
+        this.OnBeginAnalysisProgress()
+        try
+            return! f(ct)
+        finally
+            this.OnEndAnalysisProgress()
+    }
+
+    member private this.OnBeginBuildProgress() =
+        if Interlocked.Increment(&buildCount) = 1 then
+            let observer = this.GetObserver()
+            observer.OnNext({| kind = "begin"; title = "Building"; message = "building" |}: obj)
+
+    member private this.OnEndBuildProgress() =
+        if Interlocked.Decrement(&buildCount) = 0 then
+            let observer = this.GetObserver()
+            observer.OnNext({| kind = "end"; message = "building" |}: obj)
+
+    member this.CreateBuildProgress() =
+        this.OnBeginBuildProgress()
+        { new IDisposable with member _.Dispose() = this.OnEndBuildProgress() }
+
+    interface IOlyWorkspaceProgress with
+        member this.OnBeginWork() = 
+            this.OnBeginAnalysisProgress()
+
+        member this.OnEndWork() = 
+            this.OnEndAnalysisProgress()
+
 type ITextDocumentIdentifierParams with
 
-    member this.HandleOlyDocument(server: ILanguageServerFacade, rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
+    member this.HandleOlyDocument(progress: OlyLspWorkspaceProgress, rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
         let documentPath = this.TextDocument.Uri.Path |> normalizeFilePath
         
         try
@@ -647,7 +690,7 @@ type ITextDocumentIdentifierParams with
             ct.ThrowIfCancellationRequested()
             let ct = handleCts.Token
 
-            server.ForAnalyzingProgress(ct,
+            progress.ForAnalyzingProgress(ct,
                 fun ct ->
                     backgroundTask {
                         match rs.TextEditors.TryGet(documentPath) with
@@ -799,10 +842,24 @@ module ExtensionHelpers =
                 }
             |]
 
+    let tryGetActiveProject (snapshot: OlyWorkspaceResourceSnapshot) (workspace: OlyWorkspace) ct = backgroundTask {
+        let activeConfigPath = snapshot.ActiveConfigurationPath
+        let settingsPath = OlyPath.Combine(OlyPath.GetDirectory(activeConfigPath), "settings.json")
+        try
+            let jsonOptions = Json.JsonSerializerOptions()
+            jsonOptions.PropertyNameCaseInsensitive <- true
+            let vscode = Json.JsonSerializer.Deserialize<{| activeProject: string |}>(File.ReadAllText(settingsPath.ToString()), jsonOptions)
+            let! solution = workspace.GetSolutionAsync(snapshot, ct)            
+            return solution.TryGetProjectByName(vscode.activeProject)
+        with
+        | _ ->
+            return None
+    }
+
     type IOlyRequest<'T> with
 
-        member this.HandleOlyDocument(server: ILanguageServerFacade, rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
-            server.ForAnalyzingProgress(ct,
+        member this.HandleOlyDocument(progress: OlyLspWorkspaceProgress, rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
+            progress.ForAnalyzingProgress(ct,
                 fun ct ->
                     backgroundTask {
                         let documentPath = this.DocumentPath |> normalizeFilePath
@@ -842,16 +899,9 @@ type WorkspaceSettings =
             editedDocumentDependentDiagnosticDelay = 1000
         }
 
-[<Sealed>]
-type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
-    interface IOlyWorkspaceProgress with
-        member this.OnBeginWork() = 
-            server.OnBeginAnalysisProgress()
-
-        member this.OnEndWork() = 
-            server.OnEndAnalysisProgress()
-
 type TextDocumentSyncHandler(server: ILanguageServerFacade) =
+
+    let progress = OlyLspWorkspaceProgress(server)
 
     do
         OlyTrace.Log <-
@@ -868,7 +918,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             DotNetTarget()
             Oly.Runtime.Target.Spirv.SpirvTarget()
         ] |> ImArray.ofSeq
-    let workspace = OlyWorkspace.Create(targets, OlyLspWorkspaceProgress(server))
+    let workspace = OlyWorkspace.Create(targets, progress)
     let workspaceListener = OlyWorkspaceListener(workspace, lazyGetRootPath)
 
     let getSnapshot() =
@@ -908,7 +958,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     let emptyCodeActionContainer = CommandOrCodeActionContainer([])
 
     let publishDiagnostics (documentPath: OlyPath, version, ct) = backgroundTask {
-            let! docs = server.ForAnalyzingProgress(ct,
+            let! docs = progress.ForAnalyzingProgress(ct,
                 fun ct -> backgroundTask {
                     let! docs = workspace.GetDocumentsAsync(getSnapshot(), documentPath, ct)
 
@@ -929,7 +979,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             // Start diagnostic crawling
             do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
-            let! _ = server.ForAnalyzingProgress(ct,
+            let! _ = progress.ForAnalyzingProgress(ct,
                 fun ct -> backgroundTask {
                     for doc in docs do
                         doc.Project.GetDocumentsExcept(doc.Path)
@@ -941,7 +991,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
             do! Task.Delay(int settings.editedDocumentDependentDiagnosticDelay, ct).ConfigureAwait(false)
 
-            let! _ = server.ForAnalyzingProgress(ct,
+            let! _ = progress.ForAnalyzingProgress(ct,
                 fun ct -> backgroundTask {
                     for doc in docs do
                         let depsOn = doc.Project.Solution.GetProjectsDependentOnReference(doc.Project.Path)
@@ -999,7 +1049,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentRangeFormattingParams, ct: CancellationToken): Task<TextEditContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let textRange = request.Range.ToOlyTextRange()
                 // TODO:
                 return null
@@ -1015,7 +1065,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentOnTypeFormattingParams, ct: CancellationToken): Task<TextEditContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 match doc.SyntaxTree.GetRoot(ct).TryFindToken(request.Position.ToOlyTextPosition(), ct = ct) with
                 | None -> return TextEditContainer()
                 | Some token ->
@@ -1146,7 +1196,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: CodeActionParams, ct: CancellationToken): Task<CommandOrCodeActionContainer> = 
             match request.Context.Diagnostics |> Seq.tryFind (fun x -> x.Code.Value.Long = 100L) with
             | Some lspDiag ->
-                request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+                request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                     let diags = doc.GetDiagnostics(ct)
                     let diagOpt =
                         let r2 = lspDiag.Range
@@ -1215,7 +1265,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: SignatureHelpParams, ct: CancellationToken): Task<SignatureHelp> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 if request.Context.TriggerKind = SignatureHelpTriggerKind.Invoked || request.Context.TriggerKind = SignatureHelpTriggerKind.TriggerCharacter then
                     match doc.TryFindFunctionCallInfo(request.Position.Line, request.Position.Character, ct) with
                     | Some info ->
@@ -1285,7 +1335,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentSymbolParams, ct: CancellationToken): Task<SymbolInformationOrDocumentSymbolContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbols = doc.GetAllSymbols(ct)
                 let result =
                     let sortedSymbols =
@@ -1377,7 +1427,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DocumentHighlightParams, ct: CancellationToken): Task<DocumentHighlightContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolOpt with
                 | Some symbolInfo ->
@@ -1435,7 +1485,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: ReferenceParams, ct: CancellationToken): Task<LocationContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
                 return LocationContainer.From(allSymbols)                   
             })
@@ -1448,7 +1498,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: DefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolInfoOpt with
                 | Some symbolInfo ->
@@ -1465,7 +1515,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: TypeDefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolInfoOpt with
                 | Some symbolInfo ->
@@ -1494,7 +1544,12 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             options
 
         member this.Handle(request: CodeLensParams, ct: CancellationToken): Task<CodeLensContainer> = 
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+                match! tryGetActiveProject (getSnapshot()) workspace ct with
+                | None -> return CodeLensContainer.From([||])
+                | Some(proj) when not(OlyPath.Equals(proj.Path, doc.Path)) -> return CodeLensContainer.From([||])
+                | _ ->
+
                 let syntaxRoot = doc.SyntaxTree.GetRoot(ct)
                 let entryPointOpt = 
                     syntaxRoot.ChooseDescendants(function 
@@ -1553,7 +1608,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
             backgroundTask {
-                return! request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+                return! request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                     let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                     
                     match symbolInfoOpt with
@@ -1699,7 +1754,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             RenameRegistrationOptions()
 
         member this.Handle(request, ct): Task<WorkspaceEdit> =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
                 let! allSymbols = this.FindAllReferences(doc, request.Position.Line, request.Position.Character, ct)
                 if allSymbols.Count > 0 then    
                     let edit = WorkspaceEdit(Changes = Dictionary())
@@ -1732,16 +1787,21 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyCompileRequest, OlyLspCompilationResult> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct ->
-                backgroundTask {
-                    match! workspace.BuildProjectAsync(getSnapshot(), doc.Project.Path, ct) with
+            backgroundTask {
+                use _ = progress.CreateBuildProgress()
+
+                let snapshot = getSnapshot()
+                match! tryGetActiveProject snapshot workspace ct with
+                | Some proj ->
+                    server.ClearDiagnostics(Protocol.DocumentUri.From(proj.Path.ToString()))
+                    match! workspace.BuildProjectAsync(snapshot, proj.Path, ct) with
                     | Ok prog -> 
                         prog.Run()
                         return { resultPath = prog.Path.ToString(); error = null }
                     | Error error -> 
                         let diags =
                             error
-                            |> Seq.groupBy (fun x -> match x.SyntaxTree with Some syntaxTree -> syntaxTree.Path | _ -> OlyPath.Create(request.DocumentPath))
+                            |> Seq.groupBy (fun x -> match x.SyntaxTree with Some syntaxTree -> syntaxTree.Path | _ -> proj.Path)
 
                         diags
                         |> Seq.iter (fun (docPath, diags) ->
@@ -1749,13 +1809,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             server.PublishDiagnostics(Protocol.DocumentUri.From(docPath.ToString()), Nullable(), diags)
                         )
                         return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
-                }
-            )
+                | _ ->
+                    return { resultPath = null; error = "Active project not set" }
+            }
 
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct ->
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct ->
                 backgroundTask {
                     match doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct) with
                     | None ->
@@ -1816,7 +1877,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     interface IJsonRpcRequestHandler<OlyGetSyntaxTreeRequest, OlySyntaxTreeViewModel> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun doc ct ->
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct ->
                 backgroundTask {
                     let mutable nextId = ref 1               
                     let nodes = doc.SyntaxTree.GetRoot(ct) |> getViewModel ct nextId
@@ -1824,10 +1885,24 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 }
             )
 
+    interface IJsonRpcRequestHandler<OlyGetProjectListRequest, string[]> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
+                return 
+                    solution.GetProjects() 
+                    |> Seq.filter (fun x -> x.TargetInfo.IsExecutable) 
+                    |> Seq.map (fun x -> x.Name) 
+                    |> Seq.distinct 
+                    |> Array.ofSeq
+            }
+
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
 
         member _.Handle(request, ct) =
-            request.HandleOlyDocument(server, getSnapshot(), ct, getCts, workspace, fun (doc: OlyDocument) ct -> backgroundTask {
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun (doc: OlyDocument) ct -> backgroundTask {
                 let classify line column width tokenType tokenModifiers =
                     {
                         line = line

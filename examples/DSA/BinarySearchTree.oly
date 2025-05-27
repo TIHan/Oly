@@ -150,5 +150,3 @@ class BinarySearchTree<T> where T: IComparable<T> =
     ForEach(kind: BinarySearchTreeTraversalKind, f: T -> ()): () =
         if (this.Root !== null)
             this.Root.ForEach(kind, f)
-
-            
