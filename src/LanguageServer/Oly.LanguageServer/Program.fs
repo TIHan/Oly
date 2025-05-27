@@ -165,6 +165,7 @@ type ILanguageServerFacade with
             do! result.ReturningVoid(ct)
         }
 
+// TODO: Create a record that holds this state and use a ConditionWeakTable to hold onto the values per ILanguageServerFacade.
 let mutable analysisCount = 0
 let analysisLock = obj()
 let mutable analysisObserver: Protocol.Progress.IProgressObserver<obj> = Unchecked.defaultof<_>
