@@ -955,6 +955,7 @@ type private WorkspaceState =
         defaultTargetPlatform: OlyBuild
         targetPlatforms: ImmutableDictionary<string, OlyBuild>
         preludeDirectory: OlyPath
+        progress: IOlyWorkspaceProgress
     }
 
 [<NoComparison;NoEquality>]
@@ -967,6 +968,12 @@ type WorkspaceMessage =
     | RemoveProject of OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken
     | GetSolution of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken
+
+type IOlyWorkspaceProgress =
+
+    abstract OnBeginWork: unit -> unit
+
+    abstract OnEndWork: unit -> unit
 
 [<Sealed>]
 type OlyWorkspace private (state: WorkspaceState) as this =
@@ -1130,11 +1137,22 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     return prevRs
         }
 
+    let onBeginWork _ct = 
+        async {
+            state.progress.OnBeginWork()
+        }
+    let onEndWork _ct = 
+        async {
+            state.progress.OnEndWork()
+        }
+
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
                 match! mbp.Receive() with
                 | GetSolution(rs, ct, reply) ->
+                    do! onBeginWork ct
+
                     let! _ = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
@@ -1150,7 +1168,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
 
+                    do! onEndWork ct
+
                 | RemoveProject(rs, projectPath, ct) ->
+                    do! onBeginWork ct
+
                     let! _ = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
@@ -1165,7 +1187,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
 
+                    do! onEndWork ct
+
                 | ClearSolution(ct) ->
+                    do! onBeginWork ct
+
                     currentRs <- Unchecked.defaultof<_>
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - ClearSolution")
@@ -1180,7 +1206,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
 
+                    do! onEndWork ct
+
                 | UpdateDocumentNoReply(rs, documentPath, sourceText, ct) ->
+                    do! onBeginWork ct
+
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
@@ -1196,7 +1226,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
 
+                    do! onEndWork ct
+
                 | UpdateDocumentsNoReplyNoText(rs, documentPaths, ct) ->
+                    do! onBeginWork ct
+
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
@@ -1213,7 +1247,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         | _ ->
                             solution <- prevSolution
 
+                    do! onEndWork ct
+
                 | UpdateDocument(rs, documentPath, sourceText, ct, reply) ->
+                    do! onBeginWork ct
+
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
@@ -1232,7 +1270,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
                         reply.Reply(ImArray.empty)
 
+                    do! onEndWork ct
+
                 | GetDocuments(rs, documentPath, ct, reply) ->
+                    do! onBeginWork ct
+
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
@@ -1250,7 +1292,11 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         solution <- prevSolution
                         reply.Reply(ImArray.empty)
 
+                    do! onEndWork ct
+
                 | GetAllDocuments(rs, ct, reply) ->
+                    do! onBeginWork ct
+
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
@@ -1267,6 +1313,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ ->
                         solution <- prevSolution
                         reply.Reply(ImArray.empty)
+
+                    do! onEndWork ct
 
                 return! loop()
             }
@@ -1712,17 +1760,22 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     member this.BuildProjectAsync(rs, projectPath: OlyPath, ct: CancellationToken) =
         backgroundTask {          
+            do! onBeginWork ct
             let! solution = this.GetSolutionAsync(rs, ct)
             let proj = solution.GetProject(projectPath)
             let target = proj.SharedBuild
+
             try
-                return! target.BuildProjectAsync(proj, ct)
+                let! result = target.BuildProjectAsync(proj, ct)
+                do! onEndWork ct
+                return result
             with
             | ex ->
+                do! onEndWork ct
                 return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
         }
 
-    static member CreateCore(targetPlatforms: OlyBuild seq) =
+    static member CreateCore(targetPlatforms: OlyBuild seq, progress) =
         let targetPlatforms =
             targetPlatforms
             |> ImArray.ofSeq
@@ -1751,6 +1804,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 defaultTargetPlatform = defaultTargetPlatform
                 targetPlatforms = targets
                 preludeDirectory = preludeDir
+                progress = progress
             })
         workspace
 
@@ -1758,4 +1812,22 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         mbp.Post(WorkspaceMessage.ClearSolution(ct))
 
     static member Create(targets) =
-        OlyWorkspace.CreateCore(targets)
+        let progress =
+            { new IOlyWorkspaceProgress with
+                member _.OnBeginWork () = 
+                    ()
+                member _.OnEndWork () = 
+                    ()
+            }
+        OlyWorkspace.Create(targets, progress)
+
+    static member Create(targets, progress: IOlyWorkspaceProgress) =
+        let progress =
+            { new IOlyWorkspaceProgress with
+                member _.OnBeginWork () = 
+                    try progress.OnBeginWork() with | _ -> ()
+
+                member _.OnEndWork () =  
+                    try progress.OnEndWork() with | _ -> ()
+            }
+        OlyWorkspace.CreateCore(targets, progress)

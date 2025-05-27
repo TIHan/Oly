@@ -7,8 +7,10 @@ import {
 	LanguageClient,
 	LanguageClientOptions,
 	ServerOptions,
+	StateChangeEvent,
 	Trace
 } from 'vscode-languageclient/node';
+import { WorkDoneProgressBegin, WorkDoneProgressEnd, WorkDoneProgressReport, WorkDoneProgress, ProgressToken, InitializeParams } from 'vscode-languageserver-protocol';
 
 let client: LanguageClient;
 let isClientReady: boolean = false;
@@ -369,6 +371,13 @@ module OlyClientCommands {
 	};
 }
 
+class OlyLanguageClient extends LanguageClient {
+	protected fillInitializeParams(params: InitializeParams): void {
+		super.fillInitializeParams(params);
+		params.workDoneToken = "oly/analysis";
+	}
+}
+
 export function activate(context: ExtensionContext) {
 	let serverModule = context.asAbsolutePath(
 		path.join('out', 'net8', 'Oly.LanguageServer.dll')
@@ -391,7 +400,7 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	client = new LanguageClient(
+	client = new OlyLanguageClient(
 		'olyLanguageServer',
 		'Oly Language Server',
 		serverOptions,
@@ -472,6 +481,12 @@ export function activate(context: ExtensionContext) {
 		}
 	});
 
+	let statusBarItemDefaultText = "Oly Workspace: $(check)";
+	let statusBarItemSyncingText = "Oly Workspace: $(sync~spin)"
+	let statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	statusBarItem.text = statusBarItemDefaultText;
+	statusBarItem.show()
+
 	client.onReady().then(async () => {
 		isClientReady = true;
 		let config = vscode.workspace.getConfiguration("olyLanguageServer");
@@ -522,6 +537,20 @@ export function activate(context: ExtensionContext) {
 		if (active?.languageId === 'oly') {
 			await refreshSyntaxTree(active, null);
 		}
+		
+		function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
+			switch (params.kind) {
+				case 'begin':
+					statusBarItem.text = statusBarItemSyncingText;
+					statusBarItem.tooltip = params.title;
+					break;
+				case 'end':
+					statusBarItem.text = statusBarItemDefaultText;
+					statusBarItem.tooltip = ""
+					break;
+			}
+		}
+		client.onProgress(WorkDoneProgress.type, 'oly/analysis', handleProgressNotification);
 	});
 
 	// Start the client. This will also launch the server

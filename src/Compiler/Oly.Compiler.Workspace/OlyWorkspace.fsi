@@ -248,6 +248,12 @@ type OlyWorkspaceResourceSnapshot =
 
     static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 
+type IOlyWorkspaceProgress =
+
+    abstract OnBeginWork: unit -> unit
+
+    abstract OnEndWork: unit -> unit
+
 [<Sealed>]
 type OlyWorkspace =
 
@@ -284,3 +290,4 @@ type OlyWorkspace =
     member ClearSolution : ct: CancellationToken -> unit
 
     static member Create : targets: OlyBuild seq -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress -> OlyWorkspace
