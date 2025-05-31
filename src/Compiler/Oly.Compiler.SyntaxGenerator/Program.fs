@@ -541,7 +541,7 @@ let computeConversionTree cenv (tree: XmlElement) =
     $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxFixedArrayRank> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayRank>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode) :> OlySyntaxNode\n"
     |> add cenv
 
     // END HACKY

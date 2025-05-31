@@ -887,12 +887,6 @@ print(object): ()
 #[intrinsic("get_element")]
 (`[]`)<T, N>(inref<mutable T[N]>, index: int32): T where N: constant int32
 
-#[intrinsic("get_element")]
-(`[,]`)<T, Row, Column>(inref<T[Row,Column]>, rowIndex: int32, columnIndex: int32): T where Row: constant int32 where Column: constant int32
-
-#[intrinsic("get_element")]
-(`[,]`)<T, Row, Column>(inref<mutable T[Row,Column]>, rowIndex: int32, columnIndex: int32): T where Row: constant int32 where Column: constant int32
-
 #[unmanaged(allocation_only)]
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct

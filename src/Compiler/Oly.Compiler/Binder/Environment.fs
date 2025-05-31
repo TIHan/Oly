@@ -416,6 +416,9 @@ type BinderEnvironment =
                                     funcsToSet
                                     |> ImArray.exists (fun y ->
                                         areEnclosingsEqual x.Enclosing y.Enclosing
+
+                                        // It is possible to add the same constructor more than once because of aliases. So we ignore it for this assertion.
+                                        && not x.IsInstanceConstructor && not y.IsInstanceNotConstructor 
                                     )
                                 )
                             OlyAssert.False(exists)

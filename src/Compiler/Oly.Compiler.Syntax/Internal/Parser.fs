@@ -1561,25 +1561,10 @@ let tryParseArrayTypeBrackets state =
     else
         None
 
-let parseFixedArrayRankOptional state : SyntaxFixedArrayRankOptional =
-    let s = sp state
-
-    match bt2 COMMA (tryParseOffsideExpression SyntaxTreeContextLocal) state with
-    | Some(commaToken), Some(expr) ->
-        SyntaxFixedArrayRankOptional.Some(commaToken, expr, ep s state)
-    | Some(commaToken), _ ->
-        errorDo(ExpectedSyntaxAfterToken("expression", commaToken.RawToken), commaToken) state
-        SyntaxFixedArrayRankOptional.Some(commaToken, SyntaxExpression.Error(dummyToken()), ep s state)
-    | _ ->
-        SyntaxFixedArrayRankOptional.None()
-
-let tryParseFixedArrayRank state : SyntaxFixedArrayRank option =
-    let s = sp state
-
+let tryParseFixedArrayLength state : SyntaxFixedArrayLength option =
     match bt (tryParseOffsideExpression SyntaxTreeContextLocal) state with
     | Some(expr) ->
-        let rankOptional = parseFixedArrayRankOptional state
-        SyntaxFixedArrayRank.Expression(expr, rankOptional, ep s state)
+        SyntaxFixedArrayLength.Expression(expr)
         |> Some
     | _ ->
         None
@@ -1587,8 +1572,8 @@ let tryParseFixedArrayRank state : SyntaxFixedArrayRank option =
 let tryParseFixedArrayBrackets state =
     tryParseBrackets 
         "expression" 
-        (fun token -> SyntaxFixedArrayRank.Expression(SyntaxExpression.Error(token), SyntaxFixedArrayRankOptional.None(), token.FullWidth))
-        tryParseFixedArrayRank 
+        (fun token -> SyntaxFixedArrayLength.Expression(SyntaxExpression.Error(token)))
+        tryParseFixedArrayLength
         state
 
 let errorMutableArrayType s mutableToken input state =

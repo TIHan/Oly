@@ -1212,10 +1212,10 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
 
     let arrayTy =
         match expectedTyOpt with
-        | Some(StrippedType(TypeSymbol.FixedArray(_, rowRankTy, columnRankTy, _))) ->
-            match stripTypeEquations rowRankTy, stripTypeEquations columnRankTy with
-            | TypeSymbol.ConstantInt32(rowRank), TypeSymbol.ConstantInt32(columnRank) ->
-                if syntaxElements.Length <> (rowRank * columnRank) then
+        | Some(StrippedType(TypeSymbol.FixedArray(_, lengthTy, _))) ->
+            match stripTypeEquations lengthTy with
+            | TypeSymbol.ConstantInt32(length) ->
+                if syntaxElements.Length <> length then
                     // TODO: Be more specific with this error message.
                     cenv.diagnostics.Error("Invalid argument count for fixed array initialization.", 10, syntaxToCapture)
             | _ ->
@@ -1224,9 +1224,9 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
 
 
             if isMutable then
-                TypeSymbol.CreateMutableFixedArray(elementTy, rowRankTy, columnRankTy)
+                TypeSymbol.CreateMutableFixedArray(elementTy, lengthTy)
             else
-                TypeSymbol.CreateFixedArray(elementTy, rowRankTy, columnRankTy)
+                TypeSymbol.CreateFixedArray(elementTy, lengthTy)
         | _ ->
             
         if isMutable then

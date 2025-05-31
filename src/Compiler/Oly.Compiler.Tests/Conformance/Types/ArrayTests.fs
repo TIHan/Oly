@@ -17,18 +17,6 @@ Test(x: float32[3]): () = ()
     |> shouldCompile
 
 [<Fact>]
-let ``Fixed array type should compile 2``() =
-    let src =
-        """
-#[intrinsic("float32")]
-alias float32
-
-Test(x: float32[4,4]): () = ()
-        """
-    Oly src
-    |> shouldCompile
-
-[<Fact>]
 let ``Fixed mutable array type should compile``() =
     let src =
         """
@@ -36,18 +24,6 @@ let ``Fixed mutable array type should compile``() =
 alias float32
 
 Test(x: mutable float32[3]): () = ()
-        """
-    Oly src
-    |> shouldCompile
-
-[<Fact>]
-let ``Fixed mutable array type should compile 2``() =
-    let src =
-        """
-#[intrinsic("float32")]
-alias float32
-
-Test(x: mutable float32[4,4]): () = ()
         """
     Oly src
     |> shouldCompile

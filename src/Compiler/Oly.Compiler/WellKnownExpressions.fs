@@ -347,7 +347,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
             let expr1Ty = expr1.Type
             match stripTypeEquations expr1Ty with
             | TypeSymbol.Array(_, _, kind)
-            | TypeSymbol.FixedArray( _, _, _, kind) ->
+            | TypeSymbol.FixedArray( _, _, kind) ->
                 match kind with
                 | ArrayKind.Immutable ->
                     AddressOf expr

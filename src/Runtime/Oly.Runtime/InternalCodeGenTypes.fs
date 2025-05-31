@@ -686,7 +686,7 @@ type RuntimeType =
     | Tuple of tyArgs: RuntimeType imarray * string imarray
     | ReferenceCell of elementTy: RuntimeType
     | Array of elementTy: RuntimeType * rank: int * isMutable: bool // TODO: Instead of 'isMutable', use 'kind: OlyIRArrayKind'
-    | FixedArray of elementTy: RuntimeType * rowRankTy: RuntimeType * columnRankTy: RuntimeType * isMutable: bool // TODO: Instead of 'isMutable', use 'kind: OlyIRArrayKind'
+    | FixedArray of elementTy: RuntimeType * lengthTy: RuntimeType * isMutable: bool // TODO: Instead of 'isMutable', use 'kind: OlyIRArrayKind'
     | Function of argTys: RuntimeType imarray * returnTy: RuntimeType * kind: OlyIRFunctionKind
     | NativeFunctionPtr of OlyILCallingConvention * argTys: RuntimeType imarray * returnTy: RuntimeType
     | Entity of RuntimeEntity
@@ -939,7 +939,7 @@ type RuntimeType =
         | ByRef(elementTy, _)
         | NativePtr(elementTy) 
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
-        | FixedArray(elementTy, rowRankTy, columnRankTy, _) -> ImArray.createThree elementTy rowRankTy columnRankTy
+        | FixedArray(elementTy, lengthTy, _) -> ImArray.createTwo elementTy lengthTy
         | Function(argTys, returnTy, _) 
         | NativeFunctionPtr(_, argTys, returnTy) ->
             argTys.Add(returnTy)
@@ -1097,8 +1097,8 @@ type RuntimeType =
             ReferenceCell(elementTy.Substitute(genericContext))
         | Array(elementTy, rank, isMutable) ->
             Array(elementTy.Substitute(genericContext), rank, isMutable)
-        | FixedArray(elementTy, rowRank, columnRank, isMutable) ->
-            FixedArray(elementTy.Substitute(genericContext), rowRank, columnRank, isMutable)
+        | FixedArray(elementTy, lengthTy, isMutable) ->
+            FixedArray(elementTy.Substitute(genericContext), lengthTy, isMutable)
         | Entity(ent) ->
             if ent.IsTypeConstructor then
                 this
@@ -1260,7 +1260,7 @@ type RuntimeType =
             | NativePtr(elementTy1), NativePtr(elementTy2) -> elementTy1 = elementTy2
             | ReferenceCell(elementTy1), ReferenceCell(elementTy2) -> elementTy1 = elementTy2
             | Array(elementTy1, rank1, isMutable1), Array(elementTy2, rank2, isMutable2) -> elementTy1 = elementTy2 && rank1 = rank2 && isMutable1 = isMutable2
-            | FixedArray(elementTy1, rowRank1, columnRank1, isMutable1), FixedArray(elementTy2, rowRank2, columnRank2, isMutable2) -> rowRank1 = rowRank2 && columnRank1 = columnRank2 && elementTy1 = elementTy2 && isMutable1 = isMutable2
+            | FixedArray(elementTy1, lengthTy1, isMutable1), FixedArray(elementTy2, lengthTy2, isMutable2) -> lengthTy1 = lengthTy2 && elementTy1 = elementTy2 && isMutable1 = isMutable2
             | Tuple(tyArgs1, _), Tuple(tyArgs2, _) when tyArgs1.Length = tyArgs2.Length ->
                 (tyArgs1, tyArgs2)
                 ||> ImArray.forall2 (=)

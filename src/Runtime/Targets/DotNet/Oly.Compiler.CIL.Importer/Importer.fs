@@ -231,8 +231,8 @@ module internal rec Helpers =
                     OlyILTypeRefCell(olyTyArgs.[0])
                 | OlyILTypeArray(_, rank, kind) ->
                     OlyILTypeArray(olyTyArgs.[0], rank, kind)
-                | OlyILTypeFixedArray(_, columnRank, rowRank, kind) ->
-                    OlyILTypeFixedArray(olyTyArgs.[0], columnRank, rowRank, kind)
+                | OlyILTypeFixedArray(_, length, kind) ->
+                    OlyILTypeFixedArray(olyTyArgs.[0], length, kind)
                 | OlyILTypeNativePtr _ ->
                     OlyILTypeNativePtr(olyTyArgs.[0])
                 | OlyILTypeByRef(_, kind) ->

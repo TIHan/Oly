@@ -1583,13 +1583,8 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbolUseInfo -> un
         if ty.TypeArguments.Length >= 3 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
             match syntaxRankBrackets.Element with
-            | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
+            | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
                 getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[1]
-                match syntaxRankOptional with
-                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
-                    getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[2]
-                | _ ->
-                    ()
             | _ ->
                 ()
 
@@ -1597,13 +1592,8 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbolUseInfo -> un
         if ty.TypeArguments.Length >= 3 then
             getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments[0]
             match syntaxRankBrackets.Element with
-            | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
+            | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
                 getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[1]
-                match syntaxRankOptional with
-                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
-                    getTypeSymbolByExpression bm addSymbol benv predicate syntaxExpr ty.TypeArguments[2]
-                | _ ->
-                    ()
             | _ ->
                 ()
 

@@ -490,8 +490,8 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
 
-    | TypeSymbol.FixedArray(_, _, _, kind) ->
-        TypeSymbol.FixedArray(tyArgs[0], tyArgs[1], tyArgs[2], kind)
+    | TypeSymbol.FixedArray(_, _, kind) ->
+        TypeSymbol.FixedArray(tyArgs[0], tyArgs[1], kind)
         
     | _ ->
         failwith "Unexpected type application"
@@ -554,8 +554,8 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, kind) ->
-            TypeSymbol.FixedArray(instTy elementTy, instTy rowRankTy, instTy columnRankTy, kind)
+        | TypeSymbol.FixedArray(elementTy, lengthTy, kind) ->
+            TypeSymbol.FixedArray(instTy elementTy, instTy lengthTy, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -1212,8 +1212,8 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(instTy elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, kind) ->
-            TypeSymbol.FixedArray(instTy elementTy, instTy rowRankTy, instTy columnRankTy, kind)
+        | TypeSymbol.FixedArray(elementTy, lengthTy, kind) ->
+            TypeSymbol.FixedArray(instTy elementTy, instTy lengthTy, kind)
 
         | TypeSymbol.ByRef(innerTy, kind) ->
             TypeSymbol.CreateByRef(instTy innerTy, kind)
@@ -3381,10 +3381,9 @@ module private FormalFixedArray =
     let TypeParameters =
         (
             TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty),
-            TypeParameterSymbol("RowRank", 1, 0, TypeParameterKind.Type, ref (ImArray.createOne (ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(TypeSymbol.Int32))))),
-            TypeParameterSymbol("ColumnRank", 2, 0, TypeParameterKind.Type, ref (ImArray.createOne (ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(TypeSymbol.Int32)))))
+            TypeParameterSymbol("N", 1, 0, TypeParameterKind.Type, ref (ImArray.createOne (ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(TypeSymbol.Int32)))))
         )
-        |||> ImArray.createThree
+        ||> ImArray.createTwo
 
     let private comparer =
         { new IEqualityComparer<ArrayKind> with
@@ -3408,7 +3407,7 @@ module private FormalFixedArray =
                 match cache.TryGetValue key with
                 | true, formalTy -> formalTy
                 | _ ->
-                    let formalTy = TypeSymbol.FixedArray(TypeParameters[0].AsType, TypeParameters[1].AsType, TypeParameters[2].AsType, kind)
+                    let formalTy = TypeSymbol.FixedArray(TypeParameters[0].AsType, TypeParameters[1].AsType, kind)
                     cache[key] <- formalTy
                     formalTy
             )
@@ -3504,7 +3503,7 @@ type TypeSymbol =
     | NativePtr of elementTy: TypeSymbol
     | NativeFunctionPtr of OlyILCallingConvention * inputTy: TypeSymbol * returnTy: TypeSymbol
     | Array of elementTy: TypeSymbol * rank: int * kind: ArrayKind
-    | FixedArray of elementTy: TypeSymbol * rowRankTy: TypeSymbol * columnRankTy: TypeSymbol * kind: ArrayKind
+    | FixedArray of elementTy: TypeSymbol * lengthTy: TypeSymbol * kind: ArrayKind
     | Entity of ent: EntitySymbol
     | Tuple of elementTys: TypeArgumentSymbol imarray * elementNames: string imarray
     | RefCell of contentTy: TypeSymbol
@@ -3628,7 +3627,7 @@ type TypeSymbol =
         | TypeSymbol.RefCell _ -> FormalRefCellType
         | TypeSymbol.NativePtr _ -> FormalNativePtrType
         | TypeSymbol.Array(_, rank, kind) -> FormalArray.Get(rank, kind)
-        | TypeSymbol.FixedArray(_, _, _, kind) -> FormalFixedArray.Get(kind)
+        | TypeSymbol.FixedArray(_, _, kind) -> FormalFixedArray.Get(kind)
         | TypeSymbol.Tuple _ -> FormalTupleType
         | TypeSymbol.DependentIndexer _ -> FormalDependentIndexerType
         | TypeSymbol.HigherVariable(tyPar, _) ->
@@ -3772,7 +3771,7 @@ type TypeSymbol =
         | ByRef _ 
         | NativePtr _ -> 1
         | Array _ -> 1
-        | FixedArray _ -> 3
+        | FixedArray _ -> FormalFixedArray.TypeParameters.Length
         | _ -> 0
 
     member this.LogicalArity =
@@ -3888,7 +3887,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeArguments
         | Tuple(tyArgs, _) -> tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
-        | FixedArray(elementTy, rowRankTy, columnRankTy, _) -> ImArray.createThree elementTy rowRankTy columnRankTy
+        | FixedArray(elementTy, lengthTy, _) -> ImArray.createTwo elementTy lengthTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
         | DependentIndexer(inputValueTy, innerTy) -> ImArray.createTwo inputValueTy innerTy
 
@@ -4330,7 +4329,7 @@ type TypeSymbol =
 
     member this.TryGetFixedArrayElementType() =
         match stripTypeEquations this with
-        | TypeSymbol.FixedArray(elementTy, _, _, _) -> elementTy |> ValueSome
+        | TypeSymbol.FixedArray(elementTy, _, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
     member this.TryGetTupleItemTypes() =
@@ -4446,7 +4445,7 @@ type TypeSymbol =
         | ConstantInt32 _ -> true
         | ByRef(_, ByRefKind.ReadOnly) 
         | Array(_, _, ArrayKind.Immutable) 
-        | FixedArray(_, _, _, ArrayKind.Immutable) -> true
+        | FixedArray(_, _, ArrayKind.Immutable) -> true
         | _ -> false
         
     member this.IsSolved =
@@ -4497,7 +4496,7 @@ type TypeSymbol =
             obj.ReferenceEquals(FormalRefCellType, ty)
         | Array(_, rank, kind) as ty ->
             obj.ReferenceEquals(FormalArray.Get(rank, kind), ty)
-        | FixedArray(_, _, _, kind) as ty ->
+        | FixedArray(_, _, kind) as ty ->
             obj.ReferenceEquals(FormalFixedArray.Get(kind), ty)
         | DependentIndexer _ as ty ->
             obj.ReferenceEquals(FormalDependentIndexerType, ty)
@@ -4615,21 +4614,11 @@ type TypeSymbol =
     static member CreateMutableArray(elementTy: TypeSymbol) =
         TypeSymbol.CreateMutableArray(elementTy, 1)
 
-    static member CreateFixedArray(elementTy: TypeSymbol, rowRankTy, columnRankTy) =
-        TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, ArrayKind.Immutable)
+    static member CreateFixedArray(elementTy: TypeSymbol, lengthTy) =
+        TypeSymbol.FixedArray(elementTy, lengthTy, ArrayKind.Immutable)
 
-    static member CreateMutableFixedArray(elementTy: TypeSymbol, rowRankTy, columnRankTy) =
-        TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, ArrayKind.Mutable)
-
-    static member CreateFixedArray(elementTy: TypeSymbol, rowRank, columnRank) =
-        if rowRank < 1 then failwith "Invalid row rank."
-        if columnRank < 1 then failwith "Invalid column rank."
-        TypeSymbol.CreateFixedArray(elementTy, TypeSymbol.ConstantInt32 rowRank, TypeSymbol.ConstantInt32 columnRank)
-
-    static member CreateMutableFixedArray(elementTy: TypeSymbol, rowRank, columnRank) =
-        if rowRank < 1 then failwith "Invalid row rank."
-        if columnRank < 1 then failwith "Invalid column rank."
-        TypeSymbol.CreateMutableFixedArray(elementTy, TypeSymbol.ConstantInt32 rowRank, TypeSymbol.ConstantInt32 columnRank)
+    static member CreateMutableFixedArray(elementTy: TypeSymbol, lengthTy) =
+        TypeSymbol.FixedArray(elementTy, lengthTy, ArrayKind.Mutable)
 
     static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
         TypeSymbol.Function(inputTy, outputTy, kind)

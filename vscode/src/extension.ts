@@ -478,15 +478,15 @@ export function activate(context: ExtensionContext) {
 		}
 	});
 
-	let olyWorkspaceStatusDefaultText = "Oly Workspace: $(check)";
-	let olyWorkspaceStatusSyncText = "Oly Workspace: $(sync~spin)"
+	let olyWorkspaceStatusDefaultText = "Oly Workspace";
+	let olyWorkspaceStatusSyncText = "$(sync~spin) Oly Workspace"
 	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 	olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
 	olyWorkspaceStatusBarItem.show();
 
 	let olyProjectStatusDefaultText = "Oly Project";
-	let olyProjectStatusBuildText = "Oly Project $(loading~spin)"
+	let olyProjectStatusBuildText = "$(loading~spin) Oly Project"
 	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
 	olyProjectStatusBarItem.text = olyProjectStatusDefaultText;
 	olyProjectStatusBarItem.show();

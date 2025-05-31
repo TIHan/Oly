@@ -481,9 +481,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             rank1 = rank2 &&
             kind1 = kind2
 
-        | TypeSymbol.FixedArray(elementTy1, rowRankTy1, columnRankTy1, kind1), TypeSymbol.FixedArray(elementTy2, rowRankTy2, columnRankTy2, kind2) ->
-            UnifyTypes rigidity rowRankTy1 rowRankTy2 &&
-            UnifyTypes rigidity columnRankTy1 columnRankTy2 &&
+        | TypeSymbol.FixedArray(elementTy1, lengthTy1, kind1), TypeSymbol.FixedArray(elementTy2, lengthTy2, kind2) ->
+            UnifyTypes rigidity lengthTy1 lengthTy2 &&
             UnifyTypes rigidity elementTy1 elementTy2 &&
             kind1 = kind2
 
@@ -2750,8 +2749,8 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
         | TypeSymbol.Array(elementTy, rank, kind) ->
             TypeSymbol.Array(freshen tys explicitTyArgs elementTy, rank, kind)
 
-        | TypeSymbol.FixedArray(elementTy, rowRankTy, columnRankTy, kind) ->
-            TypeSymbol.FixedArray(freshen tys explicitTyArgs elementTy, freshen tys explicitTyArgs rowRankTy, freshen tys explicitTyArgs columnRankTy, kind)
+        | TypeSymbol.FixedArray(elementTy, lengthTy, kind) ->
+            TypeSymbol.FixedArray(freshen tys explicitTyArgs elementTy, freshen tys explicitTyArgs lengthTy, kind)
 
         | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
             let enclosingTyInst =

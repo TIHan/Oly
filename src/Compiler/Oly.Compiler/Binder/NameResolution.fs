@@ -1620,7 +1620,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
     bind cenv env resTyArity false syntaxTy
 
-let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRankBrackets: OlySyntaxBrackets<OlySyntaxFixedArrayRank>) =
+let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRankBrackets: OlySyntaxBrackets<OlySyntaxFixedArrayLength>) =
     let bindExpressionAsRank syntaxExpr =
         match syntaxExpr with
         | OlySyntaxExpression.Literal(syntaxLiteral) ->
@@ -1655,25 +1655,18 @@ let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (synta
             cenv.diagnostics.Error("Expected an integer.", 10, syntaxExpr)
             TypeSymbol.ConstantInt32 1
 
-    let rowRankTy, columnRankTy = 
+    let lengthTy = 
         match syntaxRankBrackets.Element with
-        | OlySyntaxFixedArrayRank.Expression(syntaxExpr, syntaxRankOptional) ->
-            let rowRankTy = bindExpressionAsRank syntaxExpr
-            let columnRankTy =
-                match syntaxRankOptional with
-                | OlySyntaxFixedArrayRankOptional.Some(_, syntaxExpr) ->
-                    bindExpressionAsRank syntaxExpr
-                | _ ->
-                    TypeSymbol.ConstantInt32 1
-            (rowRankTy, columnRankTy)
+        | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
+            bindExpressionAsRank syntaxExpr
         | _ ->
             unreached()
 
     let elementTy = bind cenv env resTyArity false syntaxElementTy
     if isMutable then
-        TypeSymbol.CreateMutableFixedArray(elementTy, rowRankTy, columnRankTy)
+        TypeSymbol.CreateMutableFixedArray(elementTy, lengthTy)
     else
-        TypeSymbol.CreateFixedArray(elementTy, rowRankTy, columnRankTy)
+        TypeSymbol.CreateFixedArray(elementTy, lengthTy)
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
     if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then

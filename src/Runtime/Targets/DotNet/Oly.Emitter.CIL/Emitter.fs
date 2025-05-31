@@ -685,28 +685,27 @@ module rec ClrCodeGen =
         let handle, _ = asmBuilder.AddAnonymousFunctionType(handleTypeArguments asmBuilder parTys, handleTypeArgument asmBuilder returnTy)
         handle
 
-    let createFixedArrayType g (asmBuilder: ClrAssemblyBuilder) name elementTyHandle rowRank columnRank =
-        OlyAssert.True(rowRank >= 1)
-        OlyAssert.True(columnRank >= 1)
+    let createFixedArrayType g (asmBuilder: ClrAssemblyBuilder) name elementTyHandle length =
+        OlyAssert.True(length >= 1)
 
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(ClrTypeHandle.Empty, "", name, 0, true, g.ValueType.Handle)
         tyDef.Attributes <- TypeAttributes.Sealed
 
         let fields =
             ImArray.init 
-                (rowRank * columnRank)
+                length
                 (fun i ->
                     tyDef.AddFieldDefinition(FieldAttributes.Public, "I" + i.ToString(), elementTyHandle, None)
                 )
 
         // .ctor
-        let ctorParTys = ImArray.init (rowRank * columnRank) (fun i -> ("i" + i.ToString(), elementTyHandle))
+        let ctorParTys = ImArray.init length (fun i -> ("i" + i.ToString(), elementTyHandle))
         let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, ctorParTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
         ctor.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
 
         let instrs = ImArray.builder()
-        for i = 0 to (rowRank * columnRank) - 1 do
+        for i = 0 to length - 1 do
             instrs.Add(I.Ldarg 0)
             instrs.Add(I.Ldarg (i + 1))
             instrs.Add(I.Stfld fields[i])
@@ -715,7 +714,7 @@ module rec ClrCodeGen =
 
         // get_Item
         let getItemMethReturnTy = ClrTypeHandle.ByRef(elementTyHandle)
-        let getItemMethParTys = ImArray.createTwo ("row", asmBuilder.TypeReferenceInt32) ("column", asmBuilder.TypeReferenceInt32)
+        let getItemMethParTys = ImArray.createOne ("index", asmBuilder.TypeReferenceInt32)
         let getItemMeth = tyDef.CreateMethodDefinitionBuilder("get_Item", ImArray.empty, getItemMethParTys, getItemMethReturnTy, true)
 
         getItemMeth.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
@@ -728,30 +727,15 @@ module rec ClrCodeGen =
             result
 
         let instrs = ImArray.builder()
-        for row = 0 to rowRank - 1 do
+        for index = 0 to length - 1 do
             let labelId = newLabelId()
             instrs.Add(I.Ldarg 1)
-            instrs.Add(I.LdcI4 row)
+            instrs.Add(I.LdcI4 index)
             instrs.Add(I.Ceq)
             instrs.Add(I.Brfalse labelId)
-
-            if columnRank > 1 then
-                for column = 0 to columnRank - 1 do
-                    let labelId = newLabelId()
-                    instrs.Add(I.Ldarg 2)
-                    instrs.Add(I.LdcI4 column)
-                    instrs.Add(I.Ceq)
-                    instrs.Add(I.Brfalse labelId)
-
-                    instrs.Add(I.Ldarg 0)
-                    instrs.Add(I.Ldflda fields[(column * rowRank) + row])
-                    instrs.Add(I.Ret)
-
-                    instrs.Add(I.Label labelId)
-            else
-                instrs.Add(I.Ldarg 0)
-                instrs.Add(I.Ldflda fields[row])
-                instrs.Add(I.Ret)
+            instrs.Add(I.Ldarg 0)
+            instrs.Add(I.Ldflda fields[index])
+            instrs.Add(I.Ret)
 
             instrs.Add(I.Label labelId)
 
@@ -1030,13 +1014,11 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irReceiver
             match irReceiver.ResultType with
             | ClrTypeInfo.ByRef(fixedArrayTy, _, _) when fixedArrayTy.IsFixedArray ->
+                if irIndexArgs.Length <> 1 then
+                    invalidOp "Invalid number of arguments"
                 irIndexArgs
                 |> ImArray.iter (GenArgumentExpression cenv env)
-                match irIndexArgs.Length with
-                | 1 -> I.LdcI4(1) |> emitInstruction cenv
-                | 2 -> ()
-                | _ -> invalidOp "Too many arguments"
-                I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, 2) |> emitInstruction cenv
+                I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, irIndexArgs.Length) |> emitInstruction cenv
                 I.Ldobj(resultTy.Handle) |> emitInstruction cenv
             | _ ->
                 if irIndexArgs.Length > 1 then
@@ -2541,16 +2523,16 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             // Immutable and Mutable arrays are the exact same type.
             ClrTypeInfo.TypeReference(asmBuilder.AddArrayType(elementTy.Handle, rank), false, false)
 
-        member this.EmitTypeFixedArray(elementTy: ClrTypeInfo, rowRank: int, columnRank: int, kind: OlyIRArrayKind): ClrTypeInfo = 
-            if rowRank <= 0 || columnRank <= 0 then
+        member this.EmitTypeFixedArray(elementTy: ClrTypeInfo, length: int, kind: OlyIRArrayKind): ClrTypeInfo = 
+            if length <= 0 then
                 raise(InvalidOperationException())
 
             let tyDefBuilder =
                 match kind with
                 | OlyIRArrayKind.Immutable ->
-                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_fixed_array" + newUniqueId().ToString()) elementTy.Handle rowRank columnRank
+                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_fixed_array" + newUniqueId().ToString()) elementTy.Handle length
                 | OlyIRArrayKind.Mutable ->
-                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_mutable_fixed_array" + newUniqueId().ToString()) elementTy.Handle rowRank columnRank
+                    ClrCodeGen.createFixedArrayType g asmBuilder ("__oly_mutable_fixed_array" + newUniqueId().ToString()) elementTy.Handle length
 
             let tyDefInfo = ClrTypeDefinitionInfo.Create()
             tyDefInfo.isFixedArray <- true
