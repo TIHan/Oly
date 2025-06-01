@@ -46,6 +46,8 @@ module private Helpers2 =
 type ProjectBuildInfo =
     {
         ProjectPath: OlyPath
+        ConfigurationPath: OlyPath
+        ConfigurationTimestamp: DateTime
         OutputPath: string
 
         References: OlyPath imarray
@@ -114,7 +116,7 @@ type MSBuild() =
 </Project>
         """
     
-    let getInfo (outputPath: OlyPath) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
+    let getInfo (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
@@ -207,6 +209,8 @@ type MSBuild() =
                     return 
                         { 
                             ProjectPath = OlyPath.Create(projectPath)
+                            ConfigurationPath = OlyPath.Create(configPath)
+                            ConfigurationTimestamp = try File.GetLastWriteTimeUtc(configPath) with | _ -> DateTime()
                             OutputPath = outputPath.ToString()
                             References = refs
                             ReferenceNames = refNames
@@ -221,8 +225,8 @@ type MSBuild() =
                 () // TODO: ??
         }
 
-    member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, configName: string, isExe: bool, targetName, references, projectReferences, packages, ct) =
-        getInfo outputPath configName isExe targetName references projectReferences packages projectName ct
+    member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, configPath: string, configName: string, isExe: bool, targetName, references, projectReferences, packages, ct) =
+        getInfo outputPath configPath configName isExe targetName references projectReferences packages projectName ct
 
     member this.DeleteProjectObjDirectory(info: ProjectBuildInfo) =
         try Directory.Delete(Path.Combine(info.ProjectPath.ToString(), "obj"), true) with | _ -> ()

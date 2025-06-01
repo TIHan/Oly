@@ -91,38 +91,43 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    setResourceAsCopy filePath
-                    if filePath.HasExtension(".olyx") then
-                        workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
+                    lock rsObj <| fun _ ->
+                        setResourceAsCopy filePath
+                        if filePath.HasExtension(".olyx") then
+                            workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
         )
 
         dirWatch.FileChanged.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    setResourceAsCopy filePath
-                    if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
-                        rsOpt <- Some(lock rsObj (refresh))
+                    lock rsObj <| fun _ ->
+                        setResourceAsCopy filePath
+                        if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
+                            rsOpt <- Some(refresh())
         )
 
         dirWatch.FileDeleted.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
                 if not (filePath.ToString().Contains(".olycache")) then
-                    setResourceAsCopy filePath
+                    lock rsObj <| fun _ ->
+                        let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                        rsOpt <-Some(rs.RemoveResource(filePath))
         )
 
         dirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
                 if not (filePath.ToString().Contains(".olycache")) then
-                    let oldFilePath = OlyPath.CreateAbsolute(oldFilePath)
-                    let filePath = OlyPath.CreateAbsolute(filePath)
-                    let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                    rsOpt <-Some(rs.RemoveResource(oldFilePath))
-                    setResourceAsCopy filePath
-                    if filePath.HasExtension(".olyx") then
-                        workspace.RemoveProject(rsOpt.Value, oldFilePath, CancellationToken.None)
-                        workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
+                    lock rsObj <| fun _ ->
+                        let oldFilePath = OlyPath.CreateAbsolute(oldFilePath)
+                        let filePath = OlyPath.CreateAbsolute(filePath)
+                        let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                        rsOpt <- Some(rs.RemoveResource(oldFilePath))
+                        setResourceAsCopy filePath
+                        if filePath.HasExtension(".olyx") then
+                            workspace.RemoveProject(rsOpt.Value, oldFilePath, CancellationToken.None)
+                            workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
         )
 
     member this.ResourceSnapshot = 

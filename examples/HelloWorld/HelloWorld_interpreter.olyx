@@ -1,4 +1,0 @@
-#target "interpreter: default"
-
-main(): () =
-    print("Hello World!")

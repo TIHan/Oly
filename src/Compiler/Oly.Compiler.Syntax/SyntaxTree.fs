@@ -39,6 +39,7 @@ type OlyDiagnostic internal () =
 
     abstract Message : string
 
+    /// TODO: Instead of IsError, IsWarning, we should use an union kind.
     abstract IsError : bool
 
     abstract IsWarning : bool
@@ -63,11 +64,26 @@ type OlyDiagnostic internal () =
         if String.IsNullOrWhiteSpace helperText then
             this.Message
         else
+            match this.SyntaxTree with
+            | Some(syntaxTree) ->
+                ct.ThrowIfCancellationRequested()
+                let textSpan = this.TextSpan
+                let sourceText = syntaxTree.GetSourceText(ct)
+                let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
+                let line = sourceLine.LineIndex + 1
+                let column = textSpan.Start - sourceLine.TextSpan.Start + 1
 
-        $"{this.Message}
------------------------------
-{helperText}
-        "
+                let kindText =
+                    if this.IsWarning then
+                        "warning"
+                    elif this.IsInformational then
+                        "informational"
+                    else
+                        "error"
+
+                $"{syntaxTree.Path}({line},{column}): {kindText} OLY{this.Code}:\n{helperText}"
+            | _ ->
+                helperText
 
     member this.GetHelperText(?ct: CancellationToken) =
         match this.SyntaxTree with

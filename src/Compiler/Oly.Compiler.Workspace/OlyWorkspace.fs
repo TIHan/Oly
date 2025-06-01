@@ -97,26 +97,29 @@ type OlyImportedReference(compRef: OlyCompilationReference, isTransitive: bool) 
 [<AbstractClass>]
 type OlyBuild(platformName: string) =
 
-    let relativeCacheDir = OlyPath.Create($"{CacheDirectoryName}/{platformName}/")
-    let relativeBinDir = OlyPath.Create($"{BinDirectoryName}/{platformName}/")
-
     member _.PlatformName = platformName
 
-    member _.GetAbsoluteCacheDirectory(absolutePath: OlyPath) =
-        if absolutePath.IsFile then
-            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(absolutePath))
-            let dir = OlyPath.GetDirectory(absolutePath)
-            OlyPath.Combine(dir, OlyPath.Combine(relativeCacheDir, fileName + "/"))
+    member _.GetProjectCacheDirectory(configName: string, projectPath: OlyPath) =
+        if projectPath.IsFile then
+            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
+            let dir = OlyPath.GetDirectory(projectPath)
+            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{configName}/"))
         else
-            OlyPath.Combine(absolutePath, relativeCacheDir)
+            invalidOp "Expected file"
 
-    member _.GetAbsoluteBinDirectory(absolutePath: OlyPath) =
-        if absolutePath.IsFile then
-            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(absolutePath))
-            let dir = OlyPath.GetDirectory(absolutePath)
-            OlyPath.Combine(dir, OlyPath.Combine(relativeBinDir, fileName + "/"))
+    member _.GetProjectBinDirectory(configName: string, projectPath: OlyPath) =
+        if projectPath.IsFile then
+            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
+            let dir = OlyPath.GetDirectory(projectPath)
+            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{configName}/"))
         else
-            OlyPath.Combine(absolutePath, relativeBinDir)
+            invalidOp "Expected file"
+
+    member _.GetProjectConfigurationPath(projectPath: OlyPath) =
+        if projectPath.IsFile then
+            OlyPath.ChangeExtension(projectPath, ".json")
+        else
+            invalidOp "Expected file"
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 

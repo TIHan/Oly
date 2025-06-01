@@ -914,8 +914,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     let mutable textManager = OlySourceTextManager.Empty
     let targets = 
         [
-            InterpreterTarget() :> OlyBuild
-            DotNetTarget()
+            DotNetTarget() :> OlyBuild
             Oly.Runtime.Target.Spirv.SpirvTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets, progress)
@@ -1805,9 +1804,15 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                         diags
                         |> Seq.iter (fun (docPath, diags) ->
-                            let diags = diags |> Seq.map (fun x -> createDiagnostic x ct)
+                            let diags = 
+                                diags 
+                                |> Seq.map (fun x -> 
+                                    let lspDiag = createDiagnostic x ct
+                                    lspDiag
+                                 )
                             server.PublishDiagnostics(Protocol.DocumentUri.From(docPath.ToString()), Nullable(), diags)
                         )
+
                         return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
                 | _ ->
                     return { resultPath = null; error = "Active project not set" }

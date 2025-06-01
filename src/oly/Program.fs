@@ -42,7 +42,7 @@ else
             printfn "Building '%s' failed.\n" (projectPath.ToString())
             diags
             |> ImArray.iter (fun diag ->
-                printfn "%s\n" (diag.GetHelperText(ct))
+                printfn "%s\n" (diag.ToString())
             )
             Environment.ExitCode <- 1
 

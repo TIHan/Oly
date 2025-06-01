@@ -57,9 +57,11 @@ module private Helpers2 =
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
-        (projectPath: string, outputPath: string, references: string array, runtimeconfigJson: string, depsJson: string, filesToCopy: string array) =
+        (projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, runtimeconfigJson: string, depsJson: string, filesToCopy: string array) =
 
     member _.ProjectPath = projectPath
+    member _.ConfigurationPath = configurationPath
+    member _.ConfigurationTimestamp = configurationTimestamp
     member _.OutputPath = outputPath
     member _.References = references
     member _.RuntimeconfigJson = runtimeconfigJson
@@ -68,18 +70,21 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
 
 module private DotNetReferences =
 
-    let getDotNetInfo (cachePrefix: string) (cacheDir: OlyPath) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
+    let getDotNetInfo (cachePrefix: string) (cacheDir: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
         backgroundTask {
             let dotnetBuildJson = OlyPath.Combine(cacheDir, $"{cachePrefix}_dotnet_build.json")
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, configName, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, configPath, configName, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
 
-                // TODO: Handle 'isExe' and 'configName'.
+                let configTimestamp = try File.GetLastWriteTimeUtc(configPath) with | _ -> DateTime()
+                // TODO: Handle 'isExe'.
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
                         result.ProjectPath.ToString(),
+                        configPath,
+                        configTimestamp,
                         result.OutputPath,
                         result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
                         (match result.RuntimeconfigJson with Some x -> x | _ -> null),
@@ -91,35 +96,43 @@ module private DotNetReferences =
                 return result
             }
 
-            return! build()
+            if File.Exists(dotnetBuildJson.ToString()) then
+                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
 
-            //if File.Exists(dotnetBuildJson.ToString()) then
-            //    let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
+                let isValid =
+                    resultJsonFriendly.References
+                    |> Array.forall File.Exists
 
-            //    let isValid =
-            //        resultJsonFriendly.References
-            //        |> Array.forall File.Exists
+                if isValid then
+                    let configTimestamp = try File.GetLastWriteTimeUtc(configPath.ToString()) with | _ -> DateTime()
+                    // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
+                    if 
+                        (resultJsonFriendly.ConfigurationTimestamp <> configTimestamp) ||
+                        (not <| OlyPath.Equals(OlyPath.Create(resultJsonFriendly.ConfigurationPath), OlyPath.Create(configPath)))
+                        then
+                            return! build()
+                    else
+                        return 
+                            {
+                                ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+                                ConfigurationPath = OlyPath.Create(resultJsonFriendly.ConfigurationPath)
+                                ConfigurationTimestamp = resultJsonFriendly.ConfigurationTimestamp
+                                OutputPath = resultJsonFriendly.OutputPath
+                                DepsJson = resultJsonFriendly.DepsJson
+                                RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
+                                References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                                FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
 
-            //    if isValid then
-            //        return 
-            //            {
-            //                ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
-            //                OutputPath = resultJsonFriendly.OutputPath
-            //                DepsJson = resultJsonFriendly.DepsJson
-            //                RuntimeconfigJson = if resultJsonFriendly.RuntimeconfigJson = null then None else Some(resultJsonFriendly.RuntimeconfigJson)
-            //                References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-            //                FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-
-            //                ReferenceNames =
-            //                    (ImmutableHashSet.Empty, resultJsonFriendly.References)
-            //                    ||> Array.fold (fun s r ->
-            //                        s.Add(Path.GetFileName(r))
-            //                    )
-            //            }
-            //    else
-            //        return! build()
-            //else
-            //    return! build()
+                                ReferenceNames =
+                                    (ImmutableHashSet.Empty, resultJsonFriendly.References)
+                                    ||> Array.fold (fun s r ->
+                                        s.Add(Path.GetFileName(r))
+                                    )
+                            }
+                else
+                    return! build()
+            else
+                return! build()
         }
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
@@ -269,8 +282,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 | _ ->
                     if ext.Equals(".cs") then
                         // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
-                        let cacheDir = this.GetAbsoluteCacheDirectory(path)
-                        let! netInfo = DotNetReferences.getDotNetInfo "cs" cacheDir targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
+                        let cacheDir = this.GetProjectCacheDirectory(targetInfo.ProjectConfiguration.Name, path)
+                        let configPath = this.GetProjectConfigurationPath(path)
+                        let! netInfo = DotNetReferences.getDotNetInfo "cs" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -333,8 +347,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 let packageInfos =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
-                let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir targetInfo.ProjectConfiguration.Name targetInfo.ProjectConfiguration.Debuggable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let cacheDir = this.GetProjectCacheDirectory(targetInfo.ProjectConfiguration.Name, projPath)
+                let configPath = this.GetProjectConfigurationPath(projPath)
+                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.ProjectConfiguration.Debuggable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -487,7 +502,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         else
             runtime.EmitAheadOfTime()
         
-        let outputPath = this.GetAbsoluteBinDirectory(proj.Path)
+        let outputPath = this.GetProjectBinDirectory(proj.Configuration.Name, proj.Path)
         let dirInfo = outputPath.ToDirectoryInfo()
         dirInfo.Create()
         let outputPath = outputPath.ToString()

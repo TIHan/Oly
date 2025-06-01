@@ -624,8 +624,8 @@ let ``Project reference another project``() =
 
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
@@ -637,7 +637,7 @@ print(__oly_object): ()
 open static Test
 
 main(): () =
-    print("Hello World!")
+    printHelloWorld()
         """
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
@@ -664,8 +664,8 @@ let ``Project reference another project 2``() =
 
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
@@ -675,7 +675,7 @@ print(__oly_object): ()
 #reference "fakepath/Test.olyx"
 
 main(): () =
-    Test.print("Hello World!")
+    Test.printHelloWorld()
         """
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
@@ -703,8 +703,8 @@ let ``Project reference another project 3``() =
 #[open]
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
@@ -714,7 +714,7 @@ print(__oly_object): ()
 #reference "fakepath/Test.olyx"
 
 main(): () =
-    print("Hello World!")
+    printHelloWorld()
         """
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
@@ -746,9 +746,6 @@ module Test
 class TestClass =
 
     X: __oly_int32 get = 123
-    
-#[intrinsic("print")]
-print(__oly_object): ()
         """
 
     let src2 =
@@ -792,9 +789,6 @@ class TestClass =
     X: __oly_int32 get = 123
 
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
-    
-#[intrinsic("print")]
-print(__oly_object): ()
 
 testShape<T>(x: T): () where T: { X: __oly_int32 get } =
     ()
