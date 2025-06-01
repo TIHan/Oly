@@ -936,10 +936,12 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     let lazyGetRootPath = lazy OlyPath.Create(server.ClientSettings.RootPath)
 
     let mutable textManager = OlySourceTextManager.Empty
+    // NOTE: Removing any of these targets may result in exceptions when modifying prelude.
     let targets = 
         [
             DotNetTarget() :> OlyBuild
             Oly.Runtime.Target.Spirv.SpirvTarget()
+            InterpreterTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets, progress)
     let workspaceListener = OlyWorkspaceListener(workspace, lazyGetRootPath)
