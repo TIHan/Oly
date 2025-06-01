@@ -156,7 +156,8 @@
                 "rules": {
                     "conditionalDirectiveBody": "#9B9B9B"
                 }
-            }
+            },
+			"debug.allowBreakpointsEverywhere": true
         }
 	}
 }
