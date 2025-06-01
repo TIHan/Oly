@@ -2,8 +2,8 @@
 
 open System
 open System.IO
-open System.Linq
 open FSharp.NativeInterop
+open Oly.Core
 
 #nowarn "9"
 
@@ -364,6 +364,9 @@ type OlySourceText private () =
 
     static member FromFile(filePath: string) =
         StringText(File.ReadAllText(filePath)) :> IOlySourceText
+
+    static member FromFile(filePath: OlyPath) =
+        OlySourceText.FromFile(filePath.ToString())
 
     static member FromStream(stream: Stream) =
         let reader = new System.IO.StreamReader(stream, leaveOpen = true)

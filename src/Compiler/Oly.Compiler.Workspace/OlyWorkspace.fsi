@@ -278,9 +278,13 @@ type OlyWorkspace =
     /// Non-blocking.
     member UpdateDocuments : OlyWorkspaceResourceSnapshot * documentPaths: OlyPath imarray * ct: CancellationToken -> unit
 
-    /// Updates documents by path with the given source text.
+    /// Update a document by path with the given source text.
     /// Non-blocking.
     member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
+
+    /// Update a documents by path.
+    /// Non-blocking.
+    member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken -> unit
 
     member RemoveProject : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> unit
 

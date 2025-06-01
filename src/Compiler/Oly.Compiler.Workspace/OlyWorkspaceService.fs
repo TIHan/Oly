@@ -94,7 +94,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                     lock rsObj <| fun _ ->
                         setResourceAsCopy filePath
                         if filePath.HasExtension(".olyx") then
-                            workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
+                            workspace.UpdateDocument(rsOpt.Value, filePath, CancellationToken.None)
         )
 
         dirWatch.FileChanged.Add(
@@ -127,7 +127,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
                         setResourceAsCopy filePath
                         if filePath.HasExtension(".olyx") then
                             workspace.RemoveProject(rsOpt.Value, oldFilePath, CancellationToken.None)
-                            workspace.UpdateDocuments(rsOpt.Value, ImArray.createOne filePath, CancellationToken.None)
+                            workspace.UpdateDocument(rsOpt.Value, filePath, CancellationToken.None)
         )
 
     member this.ResourceSnapshot = 

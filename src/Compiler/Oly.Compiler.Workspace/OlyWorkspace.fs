@@ -989,6 +989,7 @@ type private WorkspaceState =
 [<NoComparison;NoEquality>]
 type WorkspaceMessage =
     | UpdateDocumentNoReply of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
+    | UpdateDocumentNoReplyNoText of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken
     | UpdateDocumentsNoReplyNoText of OlyWorkspaceResourceSnapshot * documentPaths: OlyPath imarray * ct: CancellationToken
     | UpdateDocument of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | GetDocuments of OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
@@ -1033,21 +1034,22 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     static let getSortedReferencesFromConfig rs absoluteDir (config: OlyCompilationUnitConfiguration) =
         getStortedPaths rs absoluteDir config.References
 
-    let mutable solution = 
+    let mutable solutionRef = 
         {
             workspace = this
             projects = ImmutableDictionary.Empty
             version = 0UL
         }
         |> OlySolution
+        |> ref
 
     let checkProject rs (proj: OlyProject) ct =
         async {
             let syntaxTree = proj.DocumentLookup[proj.Path].SyntaxTree
-            let! newSolutionOpt = OlyWorkspace.UpdateProjectAsync(rs, state, solution, syntaxTree, proj.Path, proj.Configuration, ct) |> Async.AwaitTask
+            let! newSolutionOpt = OlyWorkspace.UpdateProjectAsync(solutionRef, rs, state, solutionRef.contents, syntaxTree, proj.Path, proj.Configuration, ct) |> Async.AwaitTask
             match newSolutionOpt with
             | Some(newSolution) ->
-                solution <- newSolution
+                solutionRef.contents <- newSolution
             | _ ->
                 ()
         }
@@ -1055,20 +1057,24 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     let checkProjectsByDocuments rs (docs: OlyDocument imarray) ct =
         async {
             let projs =
-                docs |> ImArray.map (fun x -> x.Project)
+                docs 
+                |> ImArray.map (fun x -> x.Project)
+                |> ImArray.distinctBy (fun x -> x.Name)
+                // Sort projects by number of references that are projects to provide results faster for the workspace solution.
+                |> ImArray.sortBy (fun x -> (x.References |> ImArray.filter (fun y -> y.IsProject)).Length)
             for proj in projs do
                 do! checkProject rs proj ct
         }
 
     let checkProjectsThatContainDocument rs (documentPath: OlyPath) ct =
         async {
-            let docs = solution.GetDocuments(documentPath)
+            let docs = solutionRef.contents.GetDocuments(documentPath)
             do! checkProjectsByDocuments rs docs ct
         }
 
     let checkAllProjects rs ct =
         async {
-            let docs = solution.GetAllDocuments()
+            let docs = solutionRef.contents.GetAllDocuments()
             do! checkProjectsByDocuments rs docs ct
         }
 
@@ -1097,18 +1103,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         }
 
     let clearSolution() =
-        solution <- 
+        solutionRef.contents <- 
             {
                 workspace = this
                 projects = ImmutableDictionary.Empty
-                version = solution.Version
+                version = solutionRef.contents.Version
             }
             |> OlySolution
 
     let mutable currentRs = Unchecked.defaultof<OlyWorkspaceResourceSnapshot>
     let getRs (rs: OlyWorkspaceResourceSnapshot) (ct: CancellationToken) =
         async {
-            let prevSolution = solution
+            let prevSolution = solutionRef.contents
             let prevRs = currentRs
             try
                 if isNull(currentRs: obj) then
@@ -1120,7 +1126,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     for deltaEvent in deltaEvents do
                         match deltaEvent with
                         | OlyWorkspaceResourceEvent.Added filePath ->
-                            solution.GetProjects()
+                            solutionRef.contents.GetProjects()
                             |> ImArray.iter (fun project ->
                                 let projConfig = project.Configuration
                                 let platformName = project.PlatformName
@@ -1137,18 +1143,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                             let sourceText = rs.GetSourceText(filePath)
                                             let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
                                             let syntaxTree = OlySyntaxTree.Parse(filePath, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
-                                            let (newSolution, _, _) = solution.UpdateDocument(project.Path, filePath, syntaxTree, ImArray.empty)
-                                            solution <- newSolution
+                                            let (newSolution, _, _) = solutionRef.contents.UpdateDocument(project.Path, filePath, syntaxTree, ImArray.empty)
+                                            solutionRef.contents <- newSolution
                                     )
                             )
                         | OlyWorkspaceResourceEvent.Deleted filePath ->
                             if filePath.HasExtension(ProjectExtension) then
-                                solution <- solution.RemoveProject(filePath)
+                                solutionRef.contents <- solutionRef.contents.RemoveProject(filePath)
                             else
-                                let docs = solution.GetDocuments(filePath)
+                                let docs = solutionRef.contents.GetDocuments(filePath)
                                 docs
                                 |> ImArray.iter (fun doc ->
-                                    solution <- solution.RemoveDocument(doc.Project.Path, doc.Path)
+                                    solutionRef.contents <- solutionRef.contents.RemoveDocument(doc.Project.Path, doc.Path)
                                 )
                         | OlyWorkspaceResourceEvent.Changed filePath ->
                             do! checkProjectsThatContainDocument rs filePath ct
@@ -1157,7 +1163,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return currentRs
             with
             | :? OperationCanceledException ->
-                solution <- prevSolution
+                solutionRef.contents <- prevSolution
                 if isNull(currentRs: obj) then
                     clearSolution()
                     currentRs <- rs
@@ -1166,6 +1172,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     return prevRs
         }
 
+    let mutable rsCheckForUpToDate = Unchecked.defaultof<OlyWorkspaceResourceSnapshot>
+
     let onBeginWork _ct = 
         async {
             state.progress.OnBeginWork()
@@ -1173,6 +1181,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     let onEndWork _ct = 
         async {
             state.progress.OnEndWork()
+            rsCheckForUpToDate <- currentRs
         }
 
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
@@ -1186,16 +1195,16 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetSolution()")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
-                        reply.Reply(solution)
+                        reply.Reply(solutionRef.contents)
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
 
@@ -1206,15 +1215,15 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
-                        solution <- solution.RemoveProject(projectPath)
+                        solutionRef.contents <- solutionRef.contents.RemoveProject(projectPath)
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
 
@@ -1225,7 +1234,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - ClearSolution")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
@@ -1233,7 +1242,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         clearSolution()
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
 
@@ -1244,7 +1253,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
@@ -1253,7 +1262,27 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
+
+                    do! onEndWork ct
+
+                | UpdateDocumentNoReplyNoText(rs, documentPath, ct) ->
+                    do! onBeginWork ct
+
+                    let! rs = getRs rs ct
+#if DEBUG || CHECKED
+                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReplyNoText")
+#endif                    
+                    let prevSolution = solutionRef.contents
+                    try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
+                        ct.ThrowIfCancellationRequested()
+                        do! checkProjectsThatContainDocument rs documentPath ct
+                        do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
+                    with
+                    | _ ->
+                        solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
 
@@ -1265,7 +1294,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
 #endif                    
                     for documentPath in documentPaths do
-                        let prevSolution = solution
+                        let prevSolution = solutionRef.contents
                         try
                             let! ctr, ct = mapCtToCtr ct
                             use _ = ctr
@@ -1274,7 +1303,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
                         with
                         | _ ->
-                            solution <- prevSolution
+                            solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
 
@@ -1285,18 +1314,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
-                        let docs = solution.GetDocuments(documentPath)
+                        let docs = solutionRef.contents.GetDocuments(documentPath)
                         reply.Reply(docs)
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
                     do! onEndWork ct
@@ -1308,17 +1337,17 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkProjectsThatContainDocument rs documentPath ct
-                        let docs = solution.GetDocuments(documentPath)
+                        let docs = solutionRef.contents.GetDocuments(documentPath)
                         reply.Reply(docs)
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
                     do! onEndWork ct
@@ -1330,17 +1359,17 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
 #endif
-                    let prevSolution = solution
+                    let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! checkAllProjects rs ct
-                        let docs = solution.GetAllDocuments()
+                        let docs = solutionRef.contents.GetAllDocuments()
                         reply.Reply(docs)
                     with
                     | _ ->
-                        solution <- prevSolution
+                        solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
                     do! onEndWork ct
@@ -1349,7 +1378,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     // Clean cannot be canceled
                     do! onBeginWork CancellationToken.None
 
-                    solution.GetProjects()
+                    solutionRef.contents.GetProjects()
                     |> ImArray.iter (fun proj ->
                         let projDir = OlyPath.GetDirectory(proj.Path)
                         try Directory.Delete(OlyPath.Combine(projDir, CacheDirectoryName).ToString(), true) with | _ -> ()
@@ -1378,7 +1407,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             ()
 
     member this.GetBuild(projPath: OlyPath) =   
-        let solution = solution
+        let solution = solutionRef.contents
         let project = solution.GetProject(projPath)
         state.targetPlatforms.[project.PlatformName]
 
@@ -1386,7 +1415,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         let projConfigPath = OlyPath.ChangeExtension(projPath, ProjectConfigurationExtension)
         rs.GetProjectConfiguration(projConfigPath)
 
-    static member private ReloadProjectAsync(rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
+    static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
         backgroundTask {
             if syntaxTree.ParsingOptions.CompilationUnitConfigurationEnabled |> not then
                 failwith "Unable to load project: Compilation unit configuration must be enabled."
@@ -1396,10 +1425,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 failwithf "Invalid project file path '%A'" filePath
 
             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
-            return! OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, config, filePath, projConfig, ct)
+            return! OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, config, filePath, projConfig, ct)
         }
 
-    static member private ReloadProjectAsync(rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, config: OlyCompilationUnitConfiguration, filePath, projConfig, ct: CancellationToken) =
+    static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, config: OlyCompilationUnitConfiguration, filePath, projConfig, ct: CancellationToken) =
         backgroundTask {
             let diags = ImArray.builder ()
 
@@ -1511,21 +1540,33 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 else
                     olyxReferenceInfos.Add(OlyReferenceInfo(preludeProjectPath, OlyTextSpan.Create(0, 0)))
 
+            let olyxReferenceInfosToUpdate =
+                olyxReferenceInfos
+                |> ImArray.map (fun x ->
+                    OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
+                )
+
             let projectReferencesInWorkspace = ImArray.builder()
             let mutable solution = solution
-            for info in olyxReferenceInfos do
+            for (syntaxTree: OlySyntaxTree, projConfig), projTextSpan in olyxReferenceInfosToUpdate do
+                let projPath = syntaxTree.Path
                 try
-                    let! result = OlyWorkspace.UpdateDocumentAsyncCore(rs, state, solution, info.Path, rs.GetSourceText(info.Path), ct)
-                    solution <- result
-                    match solution.TryGetProject(info.Path) with
+                    let! resultOpt = OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                    match resultOpt with
+                    | Some result ->
+                        solution <- result
+                        workspaceSolutionRef.contents <- result // Update the main workspace solution as to provide faster results as multiple projects are being built.
+                    | _ ->
+                        ()
+                    match solution.TryGetProject(projPath) with
                     | Some proj ->
                         projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
                     | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}' as it does not exist in the current workspace.", OlySourceLocation.Create(projTextSpan, syntaxTree)))
                 with
                 | ex ->
                     System.Diagnostics.Debug.WriteLine(ex.Message)
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}'. Internal Error: {ex.Message}", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}'. Internal Error: {ex.Message}", OlySourceLocation.Create(projTextSpan, syntaxTree)))
             let projectReferencesInWorkspace = projectReferencesInWorkspace.ToImmutable()
 
             let transitivePackageInfos =
@@ -1633,7 +1674,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             return solution
         }
 
-    static member private UpdateProjectAsync(rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct) : Task<OlySolution option> =
+    static member private UpdateProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct) : Task<OlySolution option> =
         backgroundTask {
             let filePath = syntaxTree.Path
             match solution.TryGetProject(filePath) with
@@ -1664,7 +1705,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                     OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
 #endif
-                    let! result = OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                    let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result
                 else
                     let loadsAreSame =
@@ -1689,34 +1730,37 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 #if DEBUG || CHECKED
                         OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
 #endif                            
-                        let! result = OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                        let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                         return Some result
             | _ -> 
 #if DEBUG || CHECKED
                 OlyTrace.Log($"OlyWorkspace - Creating Project - {projPath.ToString()}")
 #endif
-                let! result = OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                 return Some result
         }
 
-    static member private UpdateDocumentAsyncCore(rs: OlyWorkspaceResourceSnapshot, state, solution: OlySolution, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken) =
+    static member private ParseProject(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath, sourceText: IOlySourceText) =
+        OlyAssert.True(projPath.HasExtension(ProjectExtension))
+
+        // Handle project config for syntax tree
+        let projConfig = OlyWorkspace.GetProjectConfiguration(rs, projPath)
+        let parsingOptions = 
+            { OlyParsingOptions.CompilationUnitConfigurationEnabled = true
+              OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
+              OlyParsingOptions.ConditionalDefines = projConfig.Defines }
+
+        OlySyntaxTree.Parse(projPath, sourceText, parsingOptions), projConfig
+
+    static member private UpdateDocumentAsyncCore(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state, solution: OlySolution, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             let docs = solution.GetDocuments(documentPath)
 
             if docs.IsEmpty then
                 if documentPath.HasExtension(ProjectExtension) then
-
-                    // Handle project config for syntax tree
-                    let projPath = documentPath
-                    let projConfig = OlyWorkspace.GetProjectConfiguration(rs, projPath)
-                    let parsingOptions = 
-                        { OlyParsingOptions.CompilationUnitConfigurationEnabled = true
-                          OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
-                          OlyParsingOptions.ConditionalDefines = projConfig.Defines }
-
-                    let syntaxTree = OlySyntaxTree.Parse(projPath, sourceText, parsingOptions)
-                    match! OlyWorkspace.UpdateProjectAsync(rs, state, solution, syntaxTree, documentPath, projConfig, ct) with
+                    let syntaxTree, projConfig = OlyWorkspace.ParseProject(rs, documentPath, sourceText)
+                    match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, documentPath, projConfig, ct) with
                     | Some solution -> return solution
                     | _ -> return solution
                 else
@@ -1745,7 +1789,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                 else
                                     OlySyntaxTree.Parse(projPath, sourceText, parsingOptions)
 
-                            match! OlyWorkspace.UpdateProjectAsync(rs, state, solutionResult, syntaxTree, projPath, projConfig, ct) with
+                            match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solutionResult, syntaxTree, projPath, projConfig, ct) with
                             | Some solution -> solutionResult <- solution
                             | _ ->
                                 let solution, _, _ = solutionResult.UpdateDocument(doc.Project.Path, doc.Path, syntaxTree, doc.ExtraDiagnostics)
@@ -1758,7 +1802,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return solutionResult
         }
 
-    member _.StaleSolution = solution
+    member _.StaleSolution = solutionRef.contents
 
     member this.GetSolutionAsync(rs, ct) =
         backgroundTask {
@@ -1767,19 +1811,22 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     member this.UpdateDocumentAsyncCore(rs: OlyWorkspaceResourceSnapshot, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<unit> =
         backgroundTask {
-            let prevSolution = solution
+            let prevSolution = solutionRef.contents
             try
                 ct.ThrowIfCancellationRequested()
-                let! newSolution = OlyWorkspace.UpdateDocumentAsyncCore(rs, state, prevSolution, documentPath, sourceText, ct)
-                solution <- newSolution
+                let! newSolution = OlyWorkspace.UpdateDocumentAsyncCore(solutionRef, rs, state, prevSolution, documentPath, sourceText, ct)
+                solutionRef.contents <- newSolution
             with
             | ex ->
-                solution <- prevSolution
+                solutionRef.contents <- prevSolution
                 raise ex
         }
 
     member this.UpdateDocument(rs, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.UpdateDocumentNoReply(rs, documentPath, sourceText, ct))
+
+    member this.UpdateDocument(rs, documentPath: OlyPath, ct: CancellationToken): unit =
+        mbp.Post(WorkspaceMessage.UpdateDocumentNoReplyNoText(rs, documentPath, ct))
 
     member this.UpdateDocuments(rs, documentPaths: OlyPath imarray, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.UpdateDocumentsNoReplyNoText(rs, documentPaths, ct))
@@ -1787,9 +1834,23 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     member this.RemoveProject(rs, projectPath: OlyPath, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.RemoveProject(rs, projectPath, ct))
 
-    member this.UpdateDocumentAsync(rs, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlyDocument imarray> =
+    member this.UpdateDocumentAsync(rs: OlyWorkspaceResourceSnapshot, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.UpdateDocument(rs, documentPath, sourceText, ct, reply))
+            if not(isNull(rsCheckForUpToDate: obj)) && rsCheckForUpToDate.Version = rs.Version then
+                let staleSolution = this.StaleSolution
+                let docs = staleSolution.GetDocuments(documentPath)
+                let isDocUpToDate = 
+                    if docs.IsEmpty then false
+                    else
+                        docs
+                        |> ImArray.forall (fun doc -> doc.GetSourceText(ct).GetHashCode() = sourceText.GetHashCode())
+                if isDocUpToDate then
+                    OlyTrace.Log($"{nameof(this.UpdateDocumentAsync)} - Using stale results for: {documentPath.ToString()}")
+                    return docs
+                else
+                    return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.UpdateDocument(rs, documentPath, sourceText, ct, reply))
+            else
+                return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.UpdateDocument(rs, documentPath, sourceText, ct, reply))
         }
 
     member this.GetDocumentsAsync(rs, documentPath: OlyPath, ct: CancellationToken): Task<OlyDocument imarray> =
