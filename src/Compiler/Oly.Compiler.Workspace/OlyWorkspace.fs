@@ -211,10 +211,17 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
     static let defaultConfig =
         ProjectConfigurations(
             [|
-                ProjectConfiguration("Release", [|"RELEASE"|], false)
                 ProjectConfiguration("Debug", [|"DEBUG"|], true)
+                ProjectConfiguration("Release", [|"RELEASE"|], false)
             |]
         )
+
+    let configurations =
+        if configurations.Length = 0 then
+            defaultConfig.Configurations // If configurations are empty, use default configurations.
+        else
+            configurations
+
     static member Default = defaultConfig
 
     member _.Configurations = configurations
@@ -223,11 +230,6 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
         let jsonOptions = JsonSerializerOptions()
         jsonOptions.PropertyNameCaseInsensitive <- true
         JsonSerializer.Deserialize<ProjectConfigurations>(stream, jsonOptions)
-
-    member this.Serialize(stream: System.IO.Stream): unit =
-        let jsonOptions = JsonSerializerOptions()
-        jsonOptions.PropertyNameCaseInsensitive <- true
-        JsonSerializer.Serialize<ProjectConfigurations>(stream, this, jsonOptions)
 
     member _.GetConfiguration(configName: string): OlyProjectConfiguration =
         let configOpt =
@@ -239,7 +241,7 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
             | None ->
                 match configurations |> Array.tryHead with
                 | Some config -> config
-                | _ -> ProjectConfigurations.Default.Configurations[0] // Default to Release config
+                | _ -> defaultConfig.Configurations[1] // Default to Release config
             | Some config ->
                 config
 

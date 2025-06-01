@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
-import { getActiveDocument, isClientReady, client } from './extension';
+import { client, isClientReady } from './extension';
 import { IOlySyntaxNodeViewModel, IOlySyntaxTreeViewModel, OlyTextPosition, OlyTextRange } from './IOlySyntaxTreeViewModel';
 import { CancellationToken } from 'vscode-languageclient';
 import { OlyClientCommands } from './OlyClientCommands';
+import { getActiveDocument } from './Helpers';
 
 export class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNodeViewModel> {
 
@@ -44,8 +45,8 @@ export class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySy
 		return element.parent;
 	}
 
+	// TODO: This has a dependency on 'extension.ts', we should try to fix this.
 	async refresh(document: vscode.TextDocument, token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
-
 		if (isClientReady && document?.languageId === 'oly') {
 			return client.getSyntaxTree(document, token).then(viewModel => {
 				if (!token.isCancellationRequested) {

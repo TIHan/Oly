@@ -232,6 +232,24 @@ type OlyGetActiveProjectConfigurationListRequest() =
 
     interface IRequest<string[]>
 
+[<Method("oly/tryGetActiveProjectConfiguration", Direction.ClientToServer)>]
+type OlyTryGetActiveProjectConfigurationRequest() =
+
+    interface IRequest<string>
+
+[<Method("oly/doesProjectExist", Direction.ClientToServer)>]
+type OlyDoesProjectExistRequest() =
+
+    member val ProjectName: string = null with get, set
+    
+    interface IRequest<bool>
+
+[<Method("oly/doesActiveProjectConfigurationExist", Direction.ClientToServer)>]
+type OlyDoesActiveProjectConfigurationExistRequest() =
+
+    member val ConfigurationName: string = null with get, set
+    
+    interface IRequest<bool>
 
 [<Method("oly/cleanWorkspace", Direction.ClientToServer)>]
 type OlyCleanWorkspaceRequest() =
@@ -1600,10 +1618,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         let cmd = Command(Title = "Run", Name = "workbench.action.debug.run")
                         let clRun = CodeLens(Command = cmd, Range = location.GetTextRange(ct).ToLspRange())
 
-                        let cmd = Command(Title = "Debug", Name = "workbench.action.debug.start")
-                        let clDebug = CodeLens(Command = cmd, Range = location.GetTextRange(ct).ToLspRange())
+                        if doc.Project.Configuration.Debuggable then
+                            let cmd = Command(Title = "Debug", Name = "workbench.action.debug.start")
+                            let clDebug = CodeLens(Command = cmd, Range = location.GetTextRange(ct).ToLspRange())
 
-                        return CodeLensContainer.From([|clRun;clDebug|])
+                            return CodeLensContainer.From([|clRun;clDebug|])
+                        else
+                            return CodeLensContainer.From([|clRun|])
             })
 
     interface IHoverHandler with
@@ -1929,6 +1950,44 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         |> Array.ofSeq
                 | _ ->
                     return [||]
+            }
+
+    interface IJsonRpcRequestHandler<OlyTryGetActiveProjectConfigurationRequest, string> with
+
+        member _.Handle(_request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let snapshot = getSnapshot()
+                match! tryGetActiveProject snapshot workspace ct with
+                | Some (proj) ->
+                    return proj.Configuration.Name
+                | _ ->
+                    return null
+            }
+
+    interface IJsonRpcRequestHandler<OlyDoesProjectExistRequest, bool> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
+                return solution.GetProjects() |> ImArray.exists (fun x -> x.Name = request.ProjectName)
+            }
+
+    interface IJsonRpcRequestHandler<OlyDoesActiveProjectConfigurationExistRequest, bool> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let snapshot = getSnapshot()
+                match! tryGetActiveProject snapshot workspace ct with
+                | Some (proj) ->
+                    let projConfigs = snapshot.GetAllProjectConfigurations(proj.Path)
+                    return
+                        projConfigs
+                        |> ImArray.exists (fun x -> x.Name = request.ConfigurationName)
+                | _ ->
+                    return false
             }
 
     interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest> with

@@ -44,6 +44,18 @@ export class OlyLanguageClient extends LanguageClient {
 		return await this.sendRequest("oly/getActiveProjectConfigurationList");
 	}
 
+	public async doesProjectExist(projectName: string): Promise<boolean> {
+		return await this.sendRequest("oly/doesProjectExist", { ProjectName: projectName });
+	}
+
+	public async tryGetActiveProjectConfiguration(): Promise<string> {
+		return await this.sendRequest("oly/tryGetActiveProjectConfiguration");
+	}
+
+	public async doesActiveProjectConfigurationExist(configName: string): Promise<boolean> {
+		return await this.sendRequest("oly/doesActiveProjectConfigurationExist", { ConfigurationName: configName });
+	}
+
 	public async compileActiveProject(): Promise<OlyCompilationResult> {
 		return await this.sendRequest("oly/compileActiveProject");
 	}

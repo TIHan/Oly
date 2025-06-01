@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { CancellationToken, CancellationTokenSource } from 'vscode-languageclient';
 import { IOlySyntaxNodeViewModel, OlyTextPosition, OlyTextRange } from './IOlySyntaxTreeViewModel';
 import { OlySyntaxTreeDataProvider, findOlySyntaxNodeTokenViewModelByPosition } from './OlySyntaxTreeDataProvider';
-import { sleep } from './sleep';
+import { getActiveDocument, getActiveDocumentAndCursorPosition, sleep } from './Helpers';
 import { OlyClientCommands } from './OlyClientCommands';
 
 
@@ -64,22 +64,11 @@ export class OlySyntaxTreeView {
 		}
 	}
 
-	static getActiveDocumentAndCursorPosition() {
-		let textEditor = vscode.window.activeTextEditor;
-		let document = textEditor?.document;
-		let cursorPosition = textEditor?.selection.start;
-		return { document, cursorPosition };
-	}
-
-	static getActiveDocument() {
-		return vscode.window.activeTextEditor?.document;
-	}
-
 	public static register(context: vscode.ExtensionContext, syntaxTreeView: OlySyntaxTreeView) {
 		syntaxTreeView.view.onDidChangeVisibility(async e => {
 			if (e?.visible)
 			{
-				let doc = OlySyntaxTreeView.getActiveDocument();
+				let doc = getActiveDocument();
 				if (doc != null)
 				{
 					await syntaxTreeView.refresh(doc, null);
@@ -97,7 +86,7 @@ export class OlySyntaxTreeView {
 
 		let getSyntaxTreeCommandHandler = async () => {
 			if (syntaxTreeView != null) {
-				let active = OlySyntaxTreeView.getActiveDocumentAndCursorPosition();
+				let active = getActiveDocumentAndCursorPosition();
 				if (active?.document?.languageId === 'oly') {
 					let ct = CancellationToken.None;
 					let pos = OlyTextPosition.fromVscodePosition(active.cursorPosition);
