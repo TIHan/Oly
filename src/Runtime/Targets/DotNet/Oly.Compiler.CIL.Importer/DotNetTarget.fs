@@ -349,7 +349,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo.ProjectConfiguration.Name, projPath)
                 let configPath = this.GetProjectConfigurationPath(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.ProjectConfiguration.Debuggable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let! netInfo = DotNetReferences.getDotNetInfo "project" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with

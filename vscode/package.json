@@ -69,6 +69,14 @@
 				{
 					"command": "oly.changeActiveProject",
 					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.changeActiveConfiguration",
+					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.cleanWorkspace",
+					"when": "resourceLangId == oly"
 				}
 			]
 		},
@@ -86,6 +94,16 @@
 			{
 				"command": "oly.changeActiveProject",
 				"title": "Change Active Oly Project",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.changeActiveConfiguration",
+				"title": "Change Active Oly Configuration",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.cleanWorkspace",
+				"title": "Clean Workspace",
 				"when": "resourceLangId == oly"
 			}
 		],

@@ -244,6 +244,8 @@ type OlyWorkspaceResourceSnapshot =
 
     member FindSubPaths: dirPath: OlyPath -> OlyPath imarray
 
+    member GetAllProjectConfigurations: projectFilePath: OlyPath -> OlyProjectConfiguration imarray
+
     member GetProjectConfiguration: projectFilePath: OlyPath -> OlyProjectConfiguration
 
     member GetActiveConfigurationName: unit -> string

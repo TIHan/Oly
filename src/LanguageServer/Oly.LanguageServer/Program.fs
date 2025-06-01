@@ -232,6 +232,30 @@ type OlyGetProjectListRequest() =
             with get() = this.DocumentPath
             and set value = this.DocumentPath <- value
 
+
+[<Method("oly/getConfigurationList", Direction.ClientToServer)>]
+type OlyGetConfigurationListRequest() =
+
+    member val DocumentPath: string = null with get, set
+
+    interface IOlyRequest<string[]> with
+
+        member this.DocumentPath
+            with get() = this.DocumentPath
+            and set value = this.DocumentPath <- value
+
+
+[<Method("oly/cleanWorkspace", Direction.ClientToServer)>]
+type OlyCleanWorkspaceRequest() =
+
+    member val DocumentPath: string = null with get, set
+
+    interface IOlyRequest<bool> with
+
+        member this.DocumentPath
+            with get() = this.DocumentPath
+            and set value = this.DocumentPath <- value
+
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
 
@@ -1901,7 +1925,44 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     |> Seq.filter (fun x -> x.TargetInfo.IsExecutable) 
                     |> Seq.map (fun x -> x.Name) 
                     |> Seq.distinct 
+                    |> Seq.sort
                     |> Array.ofSeq
+            }
+
+    interface IJsonRpcRequestHandler<OlyGetConfigurationListRequest, string[]> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let snapshot = getSnapshot()
+                match! tryGetActiveProject snapshot workspace ct with
+                | Some (proj) ->
+                    let projConfigs = snapshot.GetAllProjectConfigurations(proj.Path)
+                    return
+                        projConfigs
+                        |> Seq.map (fun x -> x.Name)
+                        |> Seq.sort
+                        |> Array.ofSeq
+                | _ ->
+                    return [||]
+            }
+
+    interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest, bool> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let cacheDirs = System.IO.Directory.EnumerateDirectories(lazyGetRootPath.Value.ToString(), ".olycache", System.IO.SearchOption.AllDirectories) |> ImArray.ofSeq
+                let binDirs = System.IO.Directory.EnumerateDirectories(lazyGetRootPath.Value.ToString(), "bin", System.IO.SearchOption.AllDirectories) |> ImArray.ofSeq
+
+                cacheDirs
+                |> ImArray.Parallel.iter (fun x -> Directory.Delete(x, true))
+                binDirs
+                |> ImArray.Parallel.iter (fun x -> Directory.Delete(x, true))
+
+                workspace.ClearSolution(CancellationToken.None)
+                
+                return true
             }
 
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with

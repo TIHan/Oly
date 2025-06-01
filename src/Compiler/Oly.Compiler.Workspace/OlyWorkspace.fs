@@ -919,6 +919,23 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
         builder.ToImmutable()
 
+    member this.GetAllProjectConfigurations(projectFilePath: OlyPath) =
+        match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
+        | true, (length, mmap, _) ->
+            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+            try    
+                let configs = ProjectConfigurations.Deserialize(view)
+                configs.Configurations
+                |> Array.map (fun x -> configs.GetConfiguration(x.Name))
+                |> ImArray.ofSeq
+            finally
+                view.Dispose()
+        | _ -> 
+            let configs = ProjectConfigurations.Default
+            configs.Configurations
+            |> Array.map (fun x -> configs.GetConfiguration(x.Name))
+            |> ImArray.ofSeq
+
     member this.GetProjectConfiguration(projectFilePath: OlyPath) =
         let configName = this.GetActiveConfigurationName()
 
@@ -1651,7 +1668,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     else
 #if DEBUG || CHECKED
                         OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
-#endif
+#endif                            
                         let! result = OlyWorkspace.ReloadProjectAsync(rs, state, solution, syntaxTree, projPath, projConfig, ct)
                         return Some result
             | _ -> 
