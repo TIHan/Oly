@@ -994,6 +994,7 @@ type WorkspaceMessage =
     | RemoveProject of OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken
     | GetSolution of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken
+    | Clean of AsyncReplyChannel<unit>
 
 type IOlyWorkspaceProgress =
 
@@ -1341,6 +1342,23 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(ImArray.empty)
 
                     do! onEndWork ct
+
+                | Clean(reply) ->
+                    // Clean cannot be canceled
+                    do! onBeginWork CancellationToken.None
+
+                    solution.GetProjects()
+                    |> ImArray.iter (fun proj ->
+                        let projDir = OlyPath.GetDirectory(proj.Path)
+                        try Directory.Delete(OlyPath.Combine(projDir, CacheDirectoryName).ToString(), true) with | _ -> ()
+                        try Directory.Delete(OlyPath.Combine(projDir, BinDirectoryName).ToString(), true) with | _ -> ()
+                    )
+
+                    clearSolution()
+
+                    reply.Reply(())
+
+                    do! onEndWork CancellationToken.None
 
                 return! loop()
             }
@@ -1832,6 +1850,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     member this.ClearSolution(ct) =
         mbp.Post(WorkspaceMessage.ClearSolution(ct))
+
+    member _.CleanAsync() = backgroundTask {
+        do! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.Clean(reply))
+    }      
 
     static member Create(targets) =
         let progress =

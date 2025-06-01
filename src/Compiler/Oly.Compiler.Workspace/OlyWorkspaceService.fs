@@ -154,3 +154,12 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             rsOpt.Value
         | Some rs ->
             rs
+
+    member _.CleanWorkspace() = backgroundTask {
+        Monitor.Enter(rsObj)
+        try
+            do! workspace.CleanAsync()
+            rsOpt <- Some(refresh())
+        finally
+            Monitor.Exit(rsObj)
+    }

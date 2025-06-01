@@ -187,24 +187,24 @@ type ParsedToken =
         tokenModifiers: string []
     }
 
-type IOlyRequest<'T> =
+type IOlyDocumentRequest<'T> =
     inherit IRequest<'T>
 
     abstract DocumentPath: string with get, set
 
 [<NoEquality;NoComparison>]
-type OlyLspCompilationResult =
+type OlyCompilationResult =
     {
         mutable resultPath: string
         mutable error: string
     }
 
-[<Method("oly/compile", Direction.ClientToServer)>]
-type OlyCompileRequest() =
+[<Method("oly/compileActiveProject", Direction.ClientToServer)>]
+type OlyCompileActiveProjectRequest() =
 
     member val DocumentPath: string = null with get, set
 
-    interface IOlyRequest<OlyLspCompilationResult> with
+    interface IOlyDocumentRequest<OlyCompilationResult> with
 
         member this.DocumentPath
             with get() = this.DocumentPath
@@ -215,7 +215,7 @@ type OlyGetSyntaxTreeRequest() =
 
     member val DocumentPath: string = null with get, set
 
-    interface IOlyRequest<OlySyntaxTreeViewModel> with
+    interface IOlyDocumentRequest<OlySyntaxTreeViewModel> with
 
         member this.DocumentPath
             with get() = this.DocumentPath
@@ -224,37 +224,19 @@ type OlyGetSyntaxTreeRequest() =
 [<Method("oly/getProjectList", Direction.ClientToServer)>]
 type OlyGetProjectListRequest() =
 
-    member val DocumentPath: string = null with get, set
-
-    interface IOlyRequest<string[]> with
-
-        member this.DocumentPath
-            with get() = this.DocumentPath
-            and set value = this.DocumentPath <- value
+    interface IRequest<string[]>
 
 
-[<Method("oly/getConfigurationList", Direction.ClientToServer)>]
-type OlyGetConfigurationListRequest() =
+[<Method("oly/getActiveProjectConfigurationList", Direction.ClientToServer)>]
+type OlyGetActiveProjectConfigurationListRequest() =
 
-    member val DocumentPath: string = null with get, set
-
-    interface IOlyRequest<string[]> with
-
-        member this.DocumentPath
-            with get() = this.DocumentPath
-            and set value = this.DocumentPath <- value
+    interface IRequest<string[]>
 
 
 [<Method("oly/cleanWorkspace", Direction.ClientToServer)>]
 type OlyCleanWorkspaceRequest() =
 
-    member val DocumentPath: string = null with get, set
-
-    interface IOlyRequest<bool> with
-
-        member this.DocumentPath
-            with get() = this.DocumentPath
-            and set value = this.DocumentPath <- value
+    interface IRequest
 
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
@@ -263,7 +245,7 @@ type OlyGetIRRequest() =
     member val Position: Position = Unchecked.defaultof<_> with get, set
     member val Opts: bool = false with get, set
 
-    interface IOlyRequest<string> with
+    interface IOlyDocumentRequest<string> with
 
            member this.DocumentPath
                with get() = this.DocumentPath
@@ -276,7 +258,7 @@ type OlyGetSemanticClassificationRequest() =
     member val DocumentPath: string = null with get, set
     member val Version: Nullable<int> = Nullable() with get, set
 
-    interface IOlyRequest<ParsedToken[]> with
+    interface IOlyDocumentRequest<ParsedToken[]> with
 
            member this.DocumentPath
                with get() = this.DocumentPath
@@ -880,7 +862,7 @@ module ExtensionHelpers =
             return None
     }
 
-    type IOlyRequest<'T> with
+    type IOlyDocumentRequest<'T> with
 
         member this.HandleOlyDocument(progress: OlyLspWorkspaceProgress, rs: OlyWorkspaceResourceSnapshot, ct: CancellationToken, getCts: OlyPath -> CancellationTokenSource, workspace: OlyWorkspace, f: OlyDocument -> CancellationToken -> Task<'T>) =
             progress.ForAnalyzingProgress(ct,
@@ -1809,7 +1791,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return WorkspaceEdit()
             })
 
-    interface IJsonRpcRequestHandler<OlyCompileRequest, OlyLspCompilationResult> with
+    interface IJsonRpcRequestHandler<OlyCompileActiveProjectRequest, OlyCompilationResult> with
 
         member _.Handle(request, ct) =
             backgroundTask {
@@ -1918,7 +1900,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     interface IJsonRpcRequestHandler<OlyGetProjectListRequest, string[]> with
 
-        member _.Handle(request, ct) =
+        member _.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
                 let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
@@ -1931,9 +1913,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     |> Array.ofSeq
             }
 
-    interface IJsonRpcRequestHandler<OlyGetConfigurationListRequest, string[]> with
+    interface IJsonRpcRequestHandler<OlyGetActiveProjectConfigurationListRequest, string[]> with
 
-        member _.Handle(request, ct) =
+        member _.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
                 let snapshot = getSnapshot()
@@ -1949,22 +1931,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return [||]
             }
 
-    interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest, bool> with
+    interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest> with
 
-        member _.Handle(request, ct) =
+        member _.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
-                let cacheDirs = System.IO.Directory.EnumerateDirectories(lazyGetRootPath.Value.ToString(), ".olycache", System.IO.SearchOption.AllDirectories) |> ImArray.ofSeq
-                let binDirs = System.IO.Directory.EnumerateDirectories(lazyGetRootPath.Value.ToString(), "bin", System.IO.SearchOption.AllDirectories) |> ImArray.ofSeq
-
-                cacheDirs
-                |> ImArray.Parallel.iter (fun x -> Directory.Delete(x, true))
-                binDirs
-                |> ImArray.Parallel.iter (fun x -> Directory.Delete(x, true))
-
-                workspace.ClearSolution(CancellationToken.None)
-                
-                return true
+                do! workspaceListener.CleanWorkspace() 
+                return Unit()
             }
 
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with

@@ -297,5 +297,7 @@ type OlyWorkspace =
     /// Non-blocking.
     member ClearSolution : ct: CancellationToken -> unit
 
+    member CleanAsync : unit -> Task<unit>
+
     static member Create : targets: OlyBuild seq -> OlyWorkspace
     static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress -> OlyWorkspace
