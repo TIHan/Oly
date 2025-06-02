@@ -440,18 +440,18 @@ module WorkspaceHelpers =
                 |> ImArray.iter (fun r ->
                     ct.ThrowIfCancellationRequested()
                     if not(checkTransitive) || r.IsTransitive then
-                        match r with
-                        | OlyProjectReference.Project(projectId) ->
-                            if h.Add(projectId.ToString()) then
+                        if h.Add(r.Path.ToString()) then
+                            match r with
+                            | OlyProjectReference.Project(projectId) ->
                                 match solution.TryGetProject projectId with
                                 | Some refProj -> 
                                     let compRef = refProj.AsCompilationReference
                                     builder.Add(compRef)
+                                    compRef.TryGetCompilation(ct) |> ignore // force evaluate to get rid of project+solution inside the CacheValue
                                     loop true refProj.References
                                 | _ -> 
-                                    OlyAssert.Fail("Unable to find project.")
-                        | OlyProjectReference.Compilation(r, _) ->
-                            if h.Add(r.Path.ToString()) then
+                                    invalidOp "Unable to find project."
+                            | OlyProjectReference.Compilation(r, _) ->
                                 builder.Add(r)
                 )
             loop false references
@@ -543,10 +543,6 @@ module WorkspaceHelpers =
                 OlyAssert.True(newSolution.IsValueCreated)
                 let solution = newSolution.Value
                 let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
-                transitiveReferences
-                |> ImArray.iter (fun compRef ->
-                    compRef.TryGetCompilation(ct) |> ignore
-                )
                 OlyCompilation.Create(projectName, syntaxTrees, references = transitiveReferences, options = options)
             )
         let documents =
@@ -579,12 +575,6 @@ module WorkspaceHelpers =
                     let solution = newSolutionLazy.Value
                     let project = newProjectLazy.Value
                     let transitiveReferences = getTransitiveCompilationReferences solution project.References ct
-
-                    transitiveReferences
-                    |> ImArray.iter (fun compRef ->
-                        compRef.TryGetCompilation(ct) |> ignore
-                    )
-
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
