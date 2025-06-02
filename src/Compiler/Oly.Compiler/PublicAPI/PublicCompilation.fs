@@ -20,6 +20,21 @@ open Oly.Compiler.Internal.ILGen
 open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolEnvironments
+open System.Diagnostics.Tracing
+
+[<EventSource(Name = "OlyCompilation")>]
+type private OlyCompilationEventSource() =
+    inherit EventSource()
+
+    static member val Log = new OlyCompilationEventSource()
+
+    [<Event(1)>]
+    member this.BeginPass0(message: string) =
+        this.WriteEvent(1, message)
+
+    [<Event(2)>]
+    member this.EndPass0(message: string) =
+        this.WriteEvent(2, message)
 
 type OlyCompilationOptions =
     {
@@ -216,32 +231,32 @@ type internal CompilationState =
 [<NoEquality;NoComparison;RequireQualifiedAccess>] 
 type OlyCompilationReference =
     private 
-    | CompilationReference of refId: OlyPath * (unit -> OlyCompilation)
+    | CompilationReference of refId: OlyPath * CacheValue<OlyCompilation>
     | AssemblyReference of refId: OlyPath * version: uint64 * Lazy<Result<OlyILAssembly, OlyDiagnostic>>
 
     member this.IsCompilation =
         match this with
         | CompilationReference _ -> true
-        | _ -> false    
+        | _ -> false
         
-    member this.TryGetCompilation() =
+    member this.TryGetCompilation(ct) =
         match this with
-        | CompilationReference(_, compf) -> compf() |> Some
+        | CompilationReference(_, compf) -> compf.GetValue(ct) |> Some
         | _ -> None
 
     member this.GetILAssembly(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         match this with
         | CompilationReference(_, compilation) -> 
-            compilation().GetILAssembly(ct)
+            compilation.GetValue(ct).GetILAssembly(ct)
         | AssemblyReference(_, _, ilAsmLazy) -> 
             match ilAsmLazy.Value with
             | Result.Ok(ilAsm) -> Result.Ok(ilAsm)
             | Result.Error(diag) -> Result.Error(ImArray.createOne diag)
 
-    member this.Version =
+    member this.GetVersion(ct) =
         match this with
-        | CompilationReference(_, compf) -> compf().Version
+        | CompilationReference(_, compf) -> compf.GetValue(ct).Version
         | AssemblyReference(_, version, _) -> version
 
     member this.Path =
@@ -250,9 +265,9 @@ type OlyCompilationReference =
         | AssemblyReference(refId=refId) -> refId
 
     static member Create(referenceId, version, ilAsm: OlyILAssembly) = AssemblyReference(referenceId, version, Lazy<_>.CreateFromValue(Result.Ok ilAsm))
-    static member Create(referenceId, comp: OlyCompilation) = CompilationReference(referenceId, (fun () -> comp))
+    static member Create(referenceId, comp: OlyCompilation) = CompilationReference(referenceId, CacheValue.FromValue(comp))
     static member Create(referenceId, version, ilAsmLazy: Lazy<_>) = AssemblyReference(referenceId, version, ilAsmLazy)
-    static member Create(referenceId, compf: unit -> OlyCompilation) = CompilationReference(referenceId, compf)
+    static member Create(referenceId, compf: CacheValue<OlyCompilation>) = CompilationReference(referenceId, compf)
 
 type private BoundEnv = Oly.Compiler.Internal.Binder.Environment.BinderEnvironment
 
@@ -288,7 +303,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
             | Result.Error diag ->
                 importDiags.Add(diag)
         | OlyCompilationReference.CompilationReference(_, getComp) ->
-            let comp = getComp()          
+            let comp = getComp.GetValue(ct)          
             let isCyclic =
                 comp.GetTransitiveReferenceCompilations(ct)
                 |> ImArray.exists (fun x -> x.AssemblyIdentity = ilAsmIdent)
@@ -408,6 +423,9 @@ module private CompilationPhases =
         let imports = CompilerImports(state.assembly.Identity, SharedImportCache.Create())
         let importer = imports.Importer
 
+        let s = System.Diagnostics.Stopwatch.StartNew()
+        OlyCompilationEventSource.Log.BeginPass0(state.assembly.Name)
+
         let binders1 =
             let passes =
                 seq {
@@ -421,6 +439,10 @@ module private CompilationPhases =
                 pass.GetValue(ct).Bind(ct)
             )
 
+        OlyCompilationEventSource.Log.EndPass0(state.assembly.Name)
+        OlyTrace.Log($"Compilation Pass0: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        s.Restart()
+
         binders1
         |> ImArray.iter (fun x ->
             importer.ImportEntity(x.Entity)
@@ -432,13 +454,22 @@ module private CompilationPhases =
                 x.Bind(imports, ct)
             )
 
+        OlyTrace.Log($"Compilation Pass1: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        s.Restart()
+
         let binders3 =
             binders2
             |> map (fun x -> x.Bind(ct))
 
+        OlyTrace.Log($"Compilation Pass2: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        s.Restart()
+
         let binders4 =
             binders3
             |> map (fun x -> x.Bind(ct))
+
+        OlyTrace.Log($"Compilation Pass3: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        s.Stop()
 
         checkDuplications state binders4
 
@@ -561,7 +592,7 @@ type OlyCompilation private (state: CompilationState) =
         |> ImArray.choose (function
             | OlyCompilationReference.CompilationReference(_, compf) -> 
                 ct.ThrowIfCancellationRequested()
-                compf() |> Some
+                compf.GetValue(ct) |> Some
             | _ -> 
                 ct.ThrowIfCancellationRequested()
                 None

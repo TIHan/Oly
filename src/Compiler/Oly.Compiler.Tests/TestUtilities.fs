@@ -47,17 +47,17 @@ type TestCompilation =
     static member CreateWithReference(src: string, refSrc: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
-        let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", (fun () -> refc))
+        let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", refc)
         TestCompilation.CreateWithCRef(src, refcRef)
 
     static member CreateWithTwoReferences(src: string, refSrc1: string, refSrc2: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
 
         let refc2 = OlyCompilation.Create("olytestref2", [OlySyntaxTree.Parse(OlyPath.Create("olytestref2"), refSrc2, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
-        let refcRef2 = OlyCompilationReference.Create(OlyPath.Create "olytestref2", (fun () -> refc2))
+        let refcRef2 = OlyCompilationReference.Create(OlyPath.Create "olytestref2", refc2)
 
         let refc1 = OlyCompilation.Create("olytestref1", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc1, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences.Add(refcRef2), options = options)
-        let refcRef1 = OlyCompilationReference.Create(OlyPath.Create "olytestref1", (fun () -> refc1))
+        let refcRef1 = OlyCompilationReference.Create(OlyPath.Create "olytestref1", refc1)
 
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef1).Add(refcRef2), options = options)

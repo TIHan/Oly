@@ -304,7 +304,7 @@ type OlyProject (
 #endif
         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None)
 
-    member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation.GetValue(CancellationToken.None)))
+    member val AsCompilationReference = OlyCompilationReference.Create(projPath, CacheValue(fun ct -> compilation.GetValue(ct)))
 
     member this.TryGetDocument(documentPath: OlyPath) =
         match documents.TryGetValue documentPath with
@@ -325,9 +325,12 @@ type OlyProject (
         let newProjectLazy = lazy newProject
         let newDocument = OlyDocument(newProjectLazy, documentPath, syntaxTree, extraDiagnostics)
         let newCompilation = 
-            CacheValue(fun ct ->
-                compilation.GetValue(ct).SetSyntaxTree(newDocument.SyntaxTree)
-            )
+            if compilation.HasValue then
+                CacheValue.FromValue(compilation.GetValue(CancellationToken.None).SetSyntaxTree(newDocument.SyntaxTree))
+            else
+                CacheValue(fun ct ->
+                    compilation.GetValue(ct).SetSyntaxTree(newDocument.SyntaxTree)
+                )
 
         let newDocuments = 
             documents.SetItem(documentPath, newDocument).Values
@@ -492,8 +495,7 @@ module WorkspaceHelpers =
                     | OlyProjectReference.Project(projectId) ->
                         if h.Add(projectId.ToString()) then
                             match solution.TryGetProject projectId with
-                            | Some refProj -> 
-                                let compRef = refProj.AsCompilationReference
+                            | Some refProj ->
                                 builder.AddRange(refProj.Packages)
                                 loop refProj.References
                             | _ -> 
@@ -541,6 +543,10 @@ module WorkspaceHelpers =
                 OlyAssert.True(newSolution.IsValueCreated)
                 let solution = newSolution.Value
                 let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
+                transitiveReferences
+                |> ImArray.iter (fun compRef ->
+                    compRef.TryGetCompilation(ct) |> ignore
+                )
                 OlyCompilation.Create(projectName, syntaxTrees, references = transitiveReferences, options = options)
             )
         let documents =
@@ -551,6 +557,7 @@ module WorkspaceHelpers =
         OlyProject(newSolution, projectId, projectName, projectConfig, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
+        OlyAssert.False(newSolutionLazy.IsValueCreated)
         let mutable project = project
         let newProjectLazy = lazy project
         let newDocuments = 
@@ -572,6 +579,12 @@ module WorkspaceHelpers =
                     let solution = newSolutionLazy.Value
                     let project = newProjectLazy.Value
                     let transitiveReferences = getTransitiveCompilationReferences solution project.References ct
+
+                    transitiveReferences
+                    |> ImArray.iter (fun compRef ->
+                        compRef.TryGetCompilation(ct) |> ignore
+                    )
+
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
@@ -579,7 +592,8 @@ module WorkspaceHelpers =
         newProjectLazy.Force() |> ignore
         project
 
-    let updateSolution (newSolution: OlySolution) newSolutionLazy =
+    let updateSolution (newSolution: OlySolution) (newSolutionLazy: Lazy<OlySolution>) =
+        OlyAssert.False(newSolutionLazy.IsValueCreated)
         let newProjects =
             newSolution.State.projects.Values
             |> Seq.map (fun x ->
