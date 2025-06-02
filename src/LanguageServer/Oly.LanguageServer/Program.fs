@@ -1033,7 +1033,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             ()
         }
 
-    member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
+    member this.OnDidOpenOrSaveDocumentAsync(documentPath: OlyPath, version) =
         backgroundTask {
             let cts = getCts documentPath
             let ct = cts.Token
@@ -1193,7 +1193,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             task {
                 let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
                 textManager <- textManager.OnOpen(documentPath, request.TextDocument.Version)
-                this.OnDidOpenDocumentAsync(documentPath, request.TextDocument.Version).Start()
+                this.OnDidOpenOrSaveDocumentAsync(documentPath, request.TextDocument.Version).Start()
                 return MediatR.Unit.Value
             }
 
@@ -1204,8 +1204,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 return MediatR.Unit.Value
             }
 
-        member this.Handle(_request: DidSaveTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> = 
+        member this.Handle(request: DidSaveTextDocumentParams, ct: CancellationToken): Task<MediatR.Unit> = 
             task {
+                let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
+                match textManager.TryGet(documentPath) with
+                | Some(_, version) ->
+                    this.OnDidOpenOrSaveDocumentAsync(documentPath, version).Start()
+                | _ ->
+                    ()
                 return MediatR.Unit.Value
             }
 

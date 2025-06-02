@@ -1546,6 +1546,41 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
                 )
 
+            let olyxReferenceInfosToUpdate =
+
+                // TODO: Theoretically, this could stack overflow. Make this tail recursive.
+                // REVIEW: This *may* have performance implications due to the following:
+                //     - We could be redundantly parsing for the unit configurations if caching is not happening
+                let visited = Dictionary<OlyPath, int>(OlyPathEqualityComparer.Instance)
+                let rec getProjectReferenceCount (absolutePath: OlyPath) =
+                    match visited.TryGetValue absolutePath with
+                    | true, count -> count
+                    | _ ->
+                        if absolutePath.HasExtension(ProjectExtension) then
+                            let (syntaxTree: OlySyntaxTree), _ = OlyWorkspace.ParseProject(rs, absolutePath, rs.GetSourceText(absolutePath))
+                            let config = syntaxTree.GetCompilationUnitConfiguration(ct)
+                            let absoluteDir = OlyPath.GetDirectory(absolutePath)
+                            let count = config.References.Length + (config.References |> ImArray.sumBy (fun (_, x) -> getProjectReferenceCount (OlyPath.Combine(absoluteDir, x))))
+                            visited.Add(absolutePath, count)
+                            count
+                        else
+                            let count = 0
+                            visited.Add(absolutePath, count)
+                            count
+                        
+                    
+                // This is a heuristic as we want to update projects that have the least amount of references to projects as to provide
+                // results faster for the workspace solution.
+                try
+                    olyxReferenceInfosToUpdate
+                    |> ImArray.sortBy (fun ((syntaxTree, _), _) ->
+                        getProjectReferenceCount syntaxTree.Path
+                    )
+                with
+                | ex ->
+                    OlyTrace.Log(ex.Message)
+                    ImArray.empty
+
             let projectReferencesInWorkspace = ImArray.builder()
             let mutable solution = solution
             for (syntaxTree: OlySyntaxTree, projConfig), projTextSpan in olyxReferenceInfosToUpdate do

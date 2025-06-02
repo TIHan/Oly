@@ -81,6 +81,8 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
     let rsObj = obj()
     let mutable rsOpt = None
 
+    let mutable isCleaning = 0
+
     let setResourceAsCopy filePath =
         let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
         rsOpt <- Some(rs.SetResourceAsCopy(filePath))
@@ -156,10 +158,8 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
             rs
 
     member _.CleanWorkspace() = backgroundTask {
-        Monitor.Enter(rsObj)
-        try
+        if Interlocked.CompareExchange(&isCleaning, 1, 0) = 0 then
             do! workspace.CleanAsync()
-            rsOpt <- Some(refresh())
-        finally
-            Monitor.Exit(rsObj)
+            rsOpt <- lock rsObj (fun () -> Some(refresh()))
+            isCleaning <- 0
     }

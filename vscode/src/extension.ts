@@ -86,7 +86,7 @@ export function activate(context: ExtensionContext) {
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
 
 	// Oly Workspace - status bar item
-	let olyWorkspaceStatusDefaultText = "Oly Workspace";
+	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
 	let olyWorkspaceStatusSyncText = "$(sync~spin) Oly Workspace"
 	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
@@ -354,6 +354,24 @@ export function activate(context: ExtensionContext) {
 			{
 				workspaceState.activeConfiguration = result;
 				await saveOlyWorkspaceState(workspaceState);
+
+				// HACK: This is a hack to refresh open editors to reflect the new configuration.
+				vscode.window.visibleTextEditors.forEach(async x => {
+					if (x.document.uri.path.toLowerCase().endsWith('.olyx')) {
+						let edit = new vscode.WorkspaceEdit();
+						var text = x.document.getText();
+						var endPos = x.document.positionAt(text.length);
+						edit.delete(x.document.uri, new vscode.Range(new vscode.Position(0, 0), endPos));
+						await vscode.workspace.applyEdit(edit);
+
+						let edit2 = new vscode.WorkspaceEdit();
+						edit2.insert(x.document.uri, new vscode.Position(0, 0), text);
+						await vscode.workspace.applyEdit(edit2);
+
+						await x.document.save();
+					}
+				});
+
 			}
 		}));
 
