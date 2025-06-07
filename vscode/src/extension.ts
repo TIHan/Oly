@@ -12,6 +12,7 @@ import { OlyLanguageClient } from './OlyLanguageClient';
 import { OlyClientCommands } from './OlyClientCommands';
 import { OlySyntaxTreeView } from './OlySyntaxTreeView';
 import { autoCreateLaunchJson, getActiveDocument } from './Helpers';
+import { OlySolutionExplorerView } from './OlySolutionExplorer';
 
 export let client: OlyLanguageClient;
 export let isClientReady: boolean = false;
@@ -84,6 +85,7 @@ export function activate(context: ExtensionContext) {
 
 	// View initializations
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
+	let solutionExplorerView = OlySolutionExplorerView.createFromVscodeWindow();
 
 	// Oly Workspace - status bar item
 	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
@@ -178,6 +180,7 @@ export function activate(context: ExtensionContext) {
 
 		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
+		OlySolutionExplorerView.register(context, solutionExplorerView);
 
 		async function compileCommandHandler() {
 			let ch = OlyClientCommands.compileOutputChannel;
@@ -383,6 +386,8 @@ export function activate(context: ExtensionContext) {
 		if (active?.languageId === 'oly') {
 			await syntaxTreeView.refresh(active, null);
 		}
+
+		await solutionExplorerView.refresh();
 	});
 
 	// Start the client. This will also launch the server

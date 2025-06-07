@@ -51,6 +51,12 @@
 					"name": "Oly Syntax Tree",
 					"when": "resourceLangId == oly",
 					"icon": "./icons/oly-dark.png"
+				},
+				{
+					"id": "oly.solutionExplorer",
+					"name": "Oly Solution Explorer",
+					"when": "resourceLangId == oly",
+					"icon": "./icons/oly-dark.png"
 				}
 			]
 		},

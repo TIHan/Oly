@@ -37,6 +37,8 @@ open System.Reflection.Metadata
 open System.Reflection.PortableExecutable
 open System.Collections.Immutable
 
+open Oly.LanguageServer
+
 [<AutoOpen>]
 module OlyViewModels =
 
@@ -255,6 +257,13 @@ type OlyDoesActiveProjectConfigurationExistRequest() =
 type OlyCleanWorkspaceRequest() =
 
     interface IRequest
+
+[<Method("oly/getSolutionTree", Direction.ClientToServer)>]
+type OlyGetSolutionTreeRequest() =
+
+    member val DocumentPath: string = null with get, set
+
+    interface IRequest<OlySolutionTreeViewModel>
 
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
@@ -2003,6 +2012,24 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 ct.ThrowIfCancellationRequested()
                 do! workspaceListener.CleanWorkspace() 
                 return Unit()
+            }
+
+    interface IJsonRpcRequestHandler<OlyGetSolutionTreeRequest, OlySolutionTreeViewModel> with
+
+        member _.Handle(_request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let solutionVm =
+                    {
+                        OlySolutionTreeViewModel.children = 
+                            [|
+                                {
+                                    label = "A child"
+                                    children = [||]
+                                }
+                            |]
+                    }
+                return solutionVm
             }
 
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
