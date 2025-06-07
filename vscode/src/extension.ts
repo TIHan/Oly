@@ -12,7 +12,7 @@ import { OlyLanguageClient } from './OlyLanguageClient';
 import { OlyClientCommands } from './OlyClientCommands';
 import { OlySyntaxTreeView } from './OlySyntaxTreeView';
 import { autoCreateLaunchJson, getActiveDocument } from './Helpers';
-import { OlySolutionExplorerView } from './OlySolutionExplorer';
+import { OlySolutionExplorerView } from './OlySolutionExplorerView';
 
 export let client: OlyLanguageClient;
 export let isClientReady: boolean = false;
@@ -385,9 +385,8 @@ export function activate(context: ExtensionContext) {
 		let active = getActiveDocument();
 		if (active?.languageId === 'oly') {
 			await syntaxTreeView.refresh(active, null);
+			await solutionExplorerView.refresh();
 		}
-
-		await solutionExplorerView.refresh();
 	});
 
 	// Start the client. This will also launch the server

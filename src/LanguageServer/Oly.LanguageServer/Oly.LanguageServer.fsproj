@@ -20,7 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="OlySolutionTree.fs" />
+    <Compile Include="OlySolutionExplorerViewModel.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

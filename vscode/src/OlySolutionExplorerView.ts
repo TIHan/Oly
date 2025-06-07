@@ -6,21 +6,32 @@ import { client, isClientReady } from './extension';
 interface IOlySolutionTreeNodeViewModel extends vscode.TreeItem {
     parent: IOlySolutionTreeNodeViewModel;
     children: IOlySolutionTreeNodeViewModel[];
+    icon: string
+    color: string
+    resourcePath: string
 }
 
-export interface IOlySolutionTreeViewModel {
+export interface IOlySolutionExplorerViewModel {
 	children: IOlySolutionTreeNodeViewModel[];
 }
 
 class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySolutionTreeNodeViewModel> {
-    private viewModel: IOlySolutionTreeViewModel = { children: [] };
+    private viewModel: IOlySolutionExplorerViewModel = { children: [] };
 
     private _onDidChangeTreeData: vscode.EventEmitter<IOlySolutionTreeNodeViewModel | undefined | null | void> = new vscode.EventEmitter<IOlySolutionTreeNodeViewModel | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<IOlySolutionTreeNodeViewModel | undefined | null | void> = this._onDidChangeTreeData.event;
         
     getTreeItem(element: IOlySolutionTreeNodeViewModel): vscode.TreeItem | Thenable<vscode.TreeItem> {
+        if (element.icon != null) {
+            element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
+
+            if (element.resourcePath != null) {
+                element.resourceUri = vscode.Uri.file(element.resourcePath);
+            }
+        }
         return element;
     }
+
     getChildren(element?: IOlySolutionTreeNodeViewModel): vscode.ProviderResult<IOlySolutionTreeNodeViewModel[]> {
 		if (element == null) {
 			// root
@@ -45,7 +56,7 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
     // TODO: This has a dependency on 'extension.ts', we should try to fix this.
     async refresh( token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
         if (isClientReady) {
-            return client.getSolutionTree(token).then(viewModel => {
+            return client.getSolutionExplorer(token).then(viewModel => {
                 if (!token.isCancellationRequested) {
                     onSucceed();
                     var callback = _viewModel => { };

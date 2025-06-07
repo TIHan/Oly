@@ -258,12 +258,12 @@ type OlyCleanWorkspaceRequest() =
 
     interface IRequest
 
-[<Method("oly/getSolutionTree", Direction.ClientToServer)>]
-type OlyGetSolutionTreeRequest() =
+[<Method("oly/getSolutionExplorer", Direction.ClientToServer)>]
+type OlyGetSolutionExplorerRequest() =
 
     member val DocumentPath: string = null with get, set
 
-    interface IRequest<OlySolutionTreeViewModel>
+    interface IRequest<OlySolutionExplorerViewModel>
 
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
@@ -2014,21 +2014,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 return Unit()
             }
 
-    interface IJsonRpcRequestHandler<OlyGetSolutionTreeRequest, OlySolutionTreeViewModel> with
+    interface IJsonRpcRequestHandler<OlyGetSolutionExplorerRequest, OlySolutionExplorerViewModel> with
 
         member _.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
-                let solutionVm =
-                    {
-                        OlySolutionTreeViewModel.children = 
-                            [|
-                                {
-                                    label = "A child"
-                                    children = [||]
-                                }
-                            |]
-                    }
+                let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
+                let solutionVm = OlySolutionExplorerViewModel.FromSolution(solution)
                 return solutionVm
             }
 

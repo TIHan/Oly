@@ -2,7 +2,7 @@ import { CancellationToken, InitializeParams } from 'vscode-languageclient';
 import { LanguageClient } from 'vscode-languageclient/node';
 import * as vscode from 'vscode';
 import { IOlyToken, OlyTextRange, IOlySyntaxTreeViewModel } from './IOlySyntaxTreeViewModel';
-import { IOlySolutionTreeViewModel as IOlySolutionTreeViewModel } from './OlySolutionExplorer';
+import { IOlySolutionExplorerViewModel as IOlySolutionExplorerViewModel } from './OlySolutionExplorerView';
 
 const tokenTypes = new Map<string, number>();
 const tokenModifiers = new Map<string, number>();
@@ -65,8 +65,8 @@ export class OlyLanguageClient extends LanguageClient {
 		return await this.sendRequest("oly/getSyntaxTree", { documentPath: document.uri.path }, ct);
 	}
 
-	public async getSolutionTree(ct: CancellationToken): Promise<IOlySolutionTreeViewModel> {
-		return await this.sendRequest("oly/getSolutionTree", ct);
+	public async getSolutionExplorer(ct: CancellationToken): Promise<IOlySolutionExplorerViewModel> {
+		return await this.sendRequest("oly/getSolutionExplorer", ct);
 	}
 
 	public async getSemanticClassification(document: vscode.TextDocument, range: vscode.Range, ct: CancellationToken): Promise<vscode.SemanticTokens> {
