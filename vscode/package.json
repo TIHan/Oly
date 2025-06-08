@@ -37,6 +37,15 @@
 	],
 	"main": "./out/extension",
 	"contributes": {
+		  "viewsContainers": {
+				"activitybar": [
+				{
+					"id": "oly-explorer",
+					"title": "Oly Explorer",
+					"icon": "./icons/oly-dark.png"
+				}
+			]
+		},
 		"snippets": [
 			{
 				"language": "oly",
@@ -45,18 +54,20 @@
 		],
 		"taskDefinitions": [],
 		"views": {
-			"explorer": [
-				{
-					"id": "oly.syntaxTree",
-					"name": "Oly Syntax Tree",
-					"when": "resourceLangId == oly",
-					"icon": "./icons/oly-dark.png"
-				},
+			"oly-explorer": [
 				{
 					"id": "oly.solutionExplorer",
-					"name": "Oly Solution Explorer",
+					"name": "Solution Explorer",
 					"when": "resourceLangId == oly",
-					"icon": "./icons/oly-dark.png"
+					"icon": "./icons/oly-dark.png",
+					"visibility": "visible"
+				},
+				{
+					"id": "oly.syntaxTree",
+					"name": "Syntax Tree",
+					"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled",
+					"icon": "./icons/oly-dark.png",
+					"visibility": "collapsed"
 				}
 			]
 		},
@@ -64,7 +75,7 @@
 			"editor/context": [
 				{
 					"command": "oly.getSyntaxTree",
-					"when": "resourceLangId == oly"
+					"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled"
 				}
 			],
 			"commandPalette": [
@@ -89,22 +100,22 @@
 		"commands": [
 			{
 				"command": "oly.getSyntaxTree",
-				"title": "Go to Oly Syntax Node",
-				"when": "resourceLangId == oly"
+				"title": "Go to Syntax Node",
+				"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled"
 			},
 			{
 				"command": "oly.compile",
-				"title": "Compile Active Oly Project",
+				"title": "Compile Active Project",
 				"when": "resourceLangId == oly"
 			},
 			{
 				"command": "oly.changeActiveProject",
-				"title": "Change Active Oly Project",
+				"title": "Change Active Project",
 				"when": "resourceLangId == oly"
 			},
 			{
 				"command": "oly.changeActiveConfiguration",
-				"title": "Change Active Oly Configuration",
+				"title": "Change Active Configuration",
 				"when": "resourceLangId == oly"
 			},
 			{
@@ -127,8 +138,8 @@
 				],
 				"configuration": "./language-configuration.json",
 				"icon": {
-					"light": "./icons/oly-light.png",
-					"dark": "./icons/oly-dark.png"
+					"light": "./icons/oly-file-light.png",
+					"dark": "./icons/oly-file-dark.png"
 				}
 			}
 		],
@@ -143,20 +154,20 @@
 			"type": "object",
 			"title": "Oly",
 			"properties": {
-				"olyLanguageServer.editedDocumentDiagnosticMaxDelay": {
-					"scope": "resource",
+				"oly.languageServer.editedDocumentDiagnosticMaxDelay": {
+					"scope": "application",
 					"type": "number",
 					"default": 500,
 					"description": "Controls the maximum delay (ms) to publish document diagnostics when the current document has been edited."
 				},
-				"olyLanguageServer.editedDocumentDependentDiagnosticDelay": {
-					"scope": "resource",
+				"oly.languageServer.editedDocumentDependentDiagnosticDelay": {
+					"scope": "application",
 					"type": "number",
 					"default": 1000,
 					"description": "Controls the delay (ms) to publish document diagnostics after the currently edited documents has its diagnostics published."
 				},
-				"olyLanguageServer.trace.server": {
-					"scope": "window",
+				"oly.languageServer.trace.server": {
+					"scope": "application",
 					"type": "string",
 					"enum": [
 						"off",
@@ -165,6 +176,12 @@
 					],
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
+				},
+				"oly.syntaxTree.explorer.enabled": {
+					"scope": "application",
+					"type": "boolean",
+					"default": false,
+					"description": "Shows the syntax tree of the active document in the explorer and allows navigation to a syntax node."				
 				}
 			}
 		},

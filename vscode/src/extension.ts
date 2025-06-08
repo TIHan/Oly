@@ -64,24 +64,25 @@ export function activate(context: ExtensionContext) {
         debug: { command: 'dotnet', args: [serverModule] }
 	};
 
+	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
+	let olyxFileWatcher = workspace.createFileSystemWatcher('**/*.olyx')
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for plain text documents
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
-			fileEvents: [workspace.createFileSystemWatcher('**/*.oly'), workspace.createFileSystemWatcher('**/*.olyx')]
+			fileEvents: [olyFileWatcher, olyxFileWatcher]
 		}
 	};
 
 	// Create the language client and start the client.
 	client = new OlyLanguageClient(
-		'olyLanguageServer',
+		'oly.languageServer',
 		'Oly Language Server',
 		serverOptions,
 		clientOptions
 	);
-
-	client.trace = Trace.Verbose;
 
 	// View initializations
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
@@ -157,10 +158,10 @@ export function activate(context: ExtensionContext) {
 
 		isClientReady = true;
 		registerStatusBarItems();
-		let config = vscode.workspace.getConfiguration("olyLanguageServer");
+		let config = vscode.workspace.getConfiguration("oly.languageServer");
 		await client.didChangeWorkspaceConfiguration(config);
 		vscode.workspace.onDidChangeConfiguration(async (_e) => {
-			let config = vscode.workspace.getConfiguration("olyLanguageServer");
+			let config = vscode.workspace.getConfiguration("oly.languageServer");
 			client.didChangeWorkspaceConfiguration(config);		
 		});
 
@@ -174,7 +175,6 @@ export function activate(context: ExtensionContext) {
 
 		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
-		OlySolutionExplorerView.register(context, solutionExplorerView);
 
 		async function compileCommandHandler() {
 			let ch = OlyClientCommands.compileOutputChannel;
@@ -354,7 +354,7 @@ export function activate(context: ExtensionContext) {
 
 				// HACK: This is a hack to refresh open editors to reflect the new configuration.
 				vscode.window.visibleTextEditors.forEach(async x => {
-					if (x.document.uri.path.toLowerCase().endsWith('.olyx')) {
+					if (x?.document?.languageId == "oly") {
 						let edit = new vscode.WorkspaceEdit();
 						var text = x.document.getText();
 						var endPos = x.document.positionAt(text.length);
@@ -376,6 +376,23 @@ export function activate(context: ExtensionContext) {
 			await client.cleanWorkspace();
 		}));
 
+		async function refreshActiveDocument() {
+			let active = getActiveDocument();
+			if (active?.languageId === 'oly') {
+				await syntaxTreeView.refresh(active, null);
+				await solutionExplorerView.refresh();
+				await solutionExplorerView.goTo(active.uri);
+			}
+		}
+
+		olyFileWatcher.onDidCreate(async _ => {
+			await refreshActiveDocument();
+		});
+
+		olyxFileWatcher.onDidCreate(async _ => {
+			await refreshActiveDocument();
+		});
+
 		vscode.window.onDidChangeActiveTextEditor(async e => {
 			if (e?.document?.languageId === 'oly') {
 				await syntaxTreeView.refresh(e.document, null);
@@ -383,12 +400,16 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		let active = getActiveDocument();
-		if (active?.languageId === 'oly') {
-			await syntaxTreeView.refresh(active, null);
-			await solutionExplorerView.refresh();
-			await solutionExplorerView.goTo(active.uri);
-		}
+		solutionExplorerView.onDidChangeVisibility(async e => {
+			if (e.visible) {
+				let active = getActiveDocument();
+				if (active?.languageId === 'oly') {
+					await solutionExplorerView.goTo(active.uri);
+				}
+			}
+		})
+
+		await refreshActiveDocument();
 	});
 
 	// Start the client. This will also launch the server

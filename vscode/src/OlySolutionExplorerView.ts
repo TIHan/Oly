@@ -17,6 +17,33 @@ export interface IOlySolutionExplorerViewModel {
 	children: IOlySolutionTreeNodeViewModel[];
 }
 
+function initializeViewModel(context: vscode.ExtensionContext, element: IOlySolutionTreeNodeViewModel) {
+    if (element.resourcePath != null) {
+        element.resourceUri = vscode.Uri.file(element.resourcePath);
+        element.command = { title: "", command: "vscode.open", arguments: [element.resourceUri] };
+    }
+    if (element.icon != null) {
+        if (element.icon == "symbol-file") {
+            element.iconPath = {
+                light: path.join(context.extensionPath, 'icons', 'oly-file-light.png'),
+                dark: path.join(context.extensionPath, 'icons', 'oly-file-dark.png')
+            };
+        } else if (element.icon == "project") {
+            element.iconPath = {
+                light: path.join(context.extensionPath, 'icons', 'oly-project-light.png'),
+                dark: path.join(context.extensionPath, 'icons', 'oly-project-dark.png')
+            };
+        } else {
+            element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
+        }
+    }
+    for (var i = 0; i < element.children.length; i++) {
+        let child = element.children[i];
+        child.parent = element;
+        initializeViewModel(context, child);
+    }
+}
+
 class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySolutionTreeNodeViewModel> {
     private viewModel: IOlySolutionExplorerViewModel = { children: [] };
     private context: vscode.ExtensionContext;
@@ -29,10 +56,6 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
     }
         
     getTreeItem(element: IOlySolutionTreeNodeViewModel): vscode.TreeItem | Thenable<vscode.TreeItem> {
-        if (element.resourcePath != null) {
-            element.resourceUri = vscode.Uri.file(element.resourcePath);
-            element.command = { title: "", command: "vscode.open", arguments: [element.resourceUri] };
-        }
         return element;
     }
 
@@ -58,24 +81,7 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
             let context = this.context;
             return client.getSolutionExplorer(token).then(viewModel => {
                 if (!token.isCancellationRequested) {
-                    function setupViewModel(element: IOlySolutionTreeNodeViewModel) {
-                        if (element.icon != null) {
-                            if (element.icon == "symbol-file") {
-                                element.iconPath = {
-                                    light: path.join(context.extensionPath, 'icons', 'oly-light.png'),
-                                    dark: path.join(context.extensionPath, 'icons', 'oly-dark.png')
-                                };
-                            } else {
-                                element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
-                            }
-                        }
-                        for (var i = 0; i < element.children.length; i++) {
-                            let child = element.children[i];
-                            child.parent = element;
-                            setupViewModel(child);
-                        }
-                    }
-                    viewModel.children.forEach(setupViewModel);
+                    viewModel.children.forEach(x => initializeViewModel(context, x));
                     
                     onSucceed();
                     var callback = _viewModel => { };
@@ -133,10 +139,6 @@ export class OlySolutionExplorerView {
             this.cts = new CancellationTokenSource();
         }
 
-        if (!this.view.visible) {
-            return;
-        }
-
         let token = this.cts.token;
         this.isRefreshing = true;
         await sleep(300);
@@ -148,33 +150,39 @@ export class OlySolutionExplorerView {
         }
     }
 
-    public async goTo(resourceUri: vscode.Uri) {
-        let vm = this.dataProvider.getViewModel();
-        let view = this.view;
-        async function goToChild (children: IOlySolutionTreeNodeViewModel[]) {
-            for (var i = 0; i < children.length; i++)
-            {
-                let x = children[i];
-                if (x.resourcePath != null && 
-                    vscode.Uri.file(x.resourcePath).path == resourceUri.path && 
-                    view.selection.findIndex(y => vscode.Uri.file(y.resourcePath).path == resourceUri.path) == -1) {
-                    await view.reveal(x, { focus: true, select: true });
-                    return true;
-                }
-                if (await goToChild(x.children))
-                    return true;
-            }
-            return false;
-        }
-        await goToChild(vm.children);
+    public get onDidChangeVisibility() {
+        return this.view.onDidChangeVisibility;
     }
 
-    public static register(context: vscode.ExtensionContext, view: OlySolutionExplorerView) {
-        view.view.onDidChangeVisibility(async e => {
-            if (e?.visible && view.dataProvider.getViewModel().children.length == 0)
-            {
-                await view.refresh();
+    static areResourcesEqual(resourceUri1: vscode.Uri, resourceUri2: vscode.Uri): boolean {
+        return resourceUri1 !== undefined && resourceUri1 !== null && 
+                resourceUri2 !== undefined && resourceUri2 !== null &&
+                resourceUri1.path == resourceUri2.path;
+    }
+
+    isResourceSelected(resourceUri: vscode.Uri) {
+        return this.view.selection.findIndex(x => OlySolutionExplorerView.areResourcesEqual(x.resourceUri, resourceUri)) != -1;
+    }
+
+    async goToChild (resourceUri: vscode.Uri, children: IOlySolutionTreeNodeViewModel[]) {
+        for (var i = 0; i < children.length; i++)
+        {
+            let x = children[i];
+            if (OlySolutionExplorerView.areResourcesEqual(x.resourceUri, resourceUri) && !this.isResourceSelected(resourceUri)) {
+                await this.view.reveal(x, { focus: true, select: true });
+                return true;
             }
-        });
+            if (await this.goToChild(resourceUri, x.children))
+                return true;
+        }
+        return false;
+    }
+
+    public async goTo(resourceUri: vscode.Uri) {
+        if (!this.view.visible)
+            return;
+
+        let vm = this.dataProvider.getViewModel();
+        await this.goToChild(resourceUri, vm.children);
     }
 }

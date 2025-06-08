@@ -69,6 +69,10 @@ export class OlyLanguageClient extends LanguageClient {
 		return await this.sendRequest("oly/getSolutionExplorer", ct);
 	}
 
+	public async getSolutionExplorerProject(projectUri: vscode.Uri, ct: CancellationToken): Promise<IOlySolutionExplorerViewModel> {
+		return await this.sendRequest("oly/getSolutionExplorerProject", { projectPath: projectUri.path }, ct);
+	}
+
 	public async getSemanticClassification(document: vscode.TextDocument, range: vscode.Range, ct: CancellationToken): Promise<vscode.SemanticTokens> {
 		return await 
 			this.sendRequest("oly/getSemanticClassification", { Range: OlyTextRange.fromVscodeRange(range), documentPath: document.uri.path, version: document.version }, ct)
