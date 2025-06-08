@@ -85,7 +85,7 @@ export function activate(context: ExtensionContext) {
 
 	// View initializations
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
-	let solutionExplorerView = OlySolutionExplorerView.createFromVscodeWindow();
+	let solutionExplorerView = OlySolutionExplorerView.createFromVscodeWindow(context);
 
 	// Oly Workspace - status bar item
 	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
@@ -162,12 +162,6 @@ export function activate(context: ExtensionContext) {
 		vscode.workspace.onDidChangeConfiguration(async (_e) => {
 			let config = vscode.workspace.getConfiguration("olyLanguageServer");
 			client.didChangeWorkspaceConfiguration(config);		
-		});
-
-		vscode.window.onDidChangeActiveTextEditor(async (e) => {
-			if (e?.document?.languageId === 'oly') {
-				await syntaxTreeView.refresh(e.document, null);
-			}
 		});
 
 		vscode.workspace.onDidChangeTextDocument(async (e) => {
@@ -382,10 +376,18 @@ export function activate(context: ExtensionContext) {
 			await client.cleanWorkspace();
 		}));
 
+		vscode.window.onDidChangeActiveTextEditor(async e => {
+			if (e?.document?.languageId === 'oly') {
+				await syntaxTreeView.refresh(e.document, null);
+				await solutionExplorerView.goTo(e.document.uri)
+			}
+		});
+
 		let active = getActiveDocument();
 		if (active?.languageId === 'oly') {
 			await syntaxTreeView.refresh(active, null);
 			await solutionExplorerView.refresh();
+			await solutionExplorerView.goTo(active.uri);
 		}
 	});
 

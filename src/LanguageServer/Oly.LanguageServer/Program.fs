@@ -261,9 +261,23 @@ type OlyCleanWorkspaceRequest() =
 [<Method("oly/getSolutionExplorer", Direction.ClientToServer)>]
 type OlyGetSolutionExplorerRequest() =
 
-    member val DocumentPath: string = null with get, set
-
     interface IRequest<OlySolutionExplorerViewModel>
+
+[<Method("oly/getSolutionExplorerProject", Direction.ClientToServer)>]
+type OlyGetSolutionExplorerProjectRequest() =
+
+    member val ProjectPath: string = null with get, set
+
+    interface IRequest<OlySolutionTreeNodeViewModel[]>
+
+[<Method("oly/getSolutionExplorerFolder", Direction.ClientToServer)>]
+type OlyGetSolutionExplorerFolderRequest() =
+
+    member val ProjectPath: string = null with get, set
+
+    member val FolderPath: string = null with get, set
+
+    interface IRequest<OlySolutionTreeNodeViewModel[]>
 
 [<Method("oly/getIR", Direction.ClientToServer)>]
 type OlyGetIRRequest() =
@@ -2022,6 +2036,25 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
                 let solutionVm = OlySolutionExplorerViewModel.FromSolution(solution)
                 return solutionVm
+            }
+
+    interface IJsonRpcRequestHandler<OlyGetSolutionExplorerProjectRequest, OlySolutionTreeNodeViewModel[]> with
+
+        member _.Handle(request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
+                let project = solution.GetProject(request.ProjectPath |> OlyPath.Create)
+                return OlySolutionTreeNodeViewModel.FromProject(project).children
+            }
+
+    interface IJsonRpcRequestHandler<OlyGetSolutionExplorerFolderRequest, OlySolutionTreeNodeViewModel[]> with
+
+        member _.Handle(_request, ct) =
+            backgroundTask {
+                ct.ThrowIfCancellationRequested()
+                // TODO
+                return [||]
             }
 
     interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
