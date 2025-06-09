@@ -76,7 +76,7 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
     // }
 
     // TODO: This has a dependency on 'extension.ts', we should try to fix this.
-    async refresh( token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
+    async refresh(token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
         if (isClientReady) {
             let context = this.context;
             return client.getSolutionExplorer(token).then(viewModel => {
@@ -184,5 +184,36 @@ export class OlySolutionExplorerView {
 
         let vm = this.dataProvider.getViewModel();
         await this.goToChild(resourceUri, vm.children);
+    }
+
+    public getSelectedFile(): vscode.Uri {
+         if (!this.view.visible || this.view.selection.length == 0)
+            return undefined;
+
+        var view = this.view.selection[0];
+
+        if (view.icon != "project" && view.icon != "symbol-file")
+            return undefined;
+
+        if (view.resourceUri === undefined || view.resourceUri === null)
+            return undefined;
+
+        return view.resourceUri;       
+    }
+
+    public getSelectedProject(): vscode.Uri {
+        if (!this.view.visible || this.view.selection.length == 0)
+            return undefined;
+
+        var view = this.view.selection[0];
+        while (view.icon != "project" && view.parent !== undefined && view.parent !== null)
+        {
+            view = view.parent;
+        }
+
+        if (view.resourceUri === undefined || view.resourceUri === null)
+            return undefined;
+
+        return view.resourceUri;
     }
 }

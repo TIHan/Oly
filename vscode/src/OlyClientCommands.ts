@@ -9,5 +9,7 @@ export namespace OlyClientCommands {
 	export const cleanWorkspace = `oly.cleanWorkspace`;
 	export const debug = `workbench.action.debug.start`;
 	export const run = `workbench.action.debug.run`;
+	export const createFile = 'oly.createFile';
+	export const deleteFile = `oly.deleteFile`;
 	export const compileOutputChannel = vscode.window.createOutputChannel("Oly Compilation");
 }

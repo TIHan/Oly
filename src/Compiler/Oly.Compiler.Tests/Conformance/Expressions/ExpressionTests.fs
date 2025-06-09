@@ -5,6 +5,13 @@ open TestUtilities
 open Oly.Compiler
 
 [<Fact>]
+let ``Fully blank``() =
+    let src = ""
+    Oly src
+    |> withCompile
+    |> ignore
+
+[<Fact>]
 let ``Shift right definition``() =
     let src =
         """

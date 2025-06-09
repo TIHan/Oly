@@ -159,6 +159,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 
     member _.CleanWorkspace() = backgroundTask {
         if Interlocked.CompareExchange(&isCleaning, 1, 0) = 0 then
+            workspace.CancelCurrentWork()
             do! workspace.CleanAsync()
             rsOpt <- lock rsObj (fun () -> Some(refresh()))
             isCleaning <- 0

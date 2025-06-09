@@ -11,7 +11,7 @@ import { OlyTextPosition } from './IOlySyntaxTreeViewModel';
 import { OlyLanguageClient } from './OlyLanguageClient';
 import { OlyClientCommands } from './OlyClientCommands';
 import { OlySyntaxTreeView } from './OlySyntaxTreeView';
-import { autoCreateLaunchJson, getActiveDocument } from './Helpers';
+import { autoCreateLaunchJson, getActiveDocument, sleep } from './Helpers';
 import { OlySolutionExplorerView } from './OlySolutionExplorerView';
 
 export let client: OlyLanguageClient;
@@ -92,11 +92,13 @@ export function activate(context: ExtensionContext) {
 	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
 	let olyWorkspaceStatusSyncText = "$(sync~spin) Oly Workspace"
 	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
+	olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
+	olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
 	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 
 	function beginOlyWorkspaceStatus() {
 		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusSyncText;
-		olyWorkspaceStatusBarItem.tooltip = "Analyzing";
 		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.warningForeground");
 		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
 	}
@@ -105,10 +107,6 @@ export function activate(context: ExtensionContext) {
 		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
 		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
-		
-		olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
-		olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
-		olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
 	}
 
 	endOlyWorkspaceStatus();
@@ -376,40 +374,146 @@ export function activate(context: ExtensionContext) {
 			await client.cleanWorkspace();
 		}));
 
-		async function refreshActiveDocument() {
-			let active = getActiveDocument();
-			if (active?.languageId === 'oly') {
-				await syntaxTreeView.refresh(active, null);
+		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.createFile, async () => {
+			var projectUri = solutionExplorerView.getSelectedProject();
+			if (projectUri !== undefined) {
+				async function validateInput(newFileName: string): Promise<string> {
+					if (newFileName.indexOf('\\') != -1 || newFileName.indexOf('/') != -1) {
+						return "Invalid file name";
+					}
+					if (!newFileName.toLocaleLowerCase().endsWith('.oly')) {
+						return "'.oly' extension required"
+					}
+					let fileUri = vscode.Uri.file(path.join(path.dirname(projectUri.path), newFileName));
+					try
+					{
+						let _ = await vscode.workspace.fs.stat(fileUri); // test if the file exists
+						return "File already exists";
+					}
+					catch
+					{
+						return undefined;
+					}
+				}
+				let newFileName = await vscode.window.showInputBox({ title: "File Name", validateInput: validateInput, value: ".oly", valueSelection: [0, 0] });
+				if (newFileName !== undefined && newFileName !== null) {
+					let projectTextDocument = await vscode.workspace.openTextDocument(projectUri);
+					let projectText = new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri));	
+					
+					let fileUri = vscode.Uri.file(path.join(path.dirname(projectUri.path), newFileName));
+
+					let r = new RegExp(`#target.*(\\n|\\r\\n)`);
+					let results = r.exec(projectTextDocument.getText());
+					if (results !== null) {
+						let result = results[0];
+						let posIndex = projectText.indexOf(result) + result.length;
+						let pos = projectTextDocument.positionAt(posIndex);
+
+						let encoder = new TextEncoder();
+
+						let namespaceText = path.basename(projectUri.path).replace(path.extname(projectUri.path), '');
+						let namespaceText2 = path.basename(fileUri.path).replace(path.extname(fileUri.path), '');
+						await vscode.workspace.fs.writeFile(fileUri, encoder.encode(`namespace ${namespaceText}.${namespaceText2}`));
+
+						let edit = new vscode.WorkspaceEdit();
+						edit.insert(projectUri, pos, `#load "${path.basename(fileUri.path)}"\n`);
+						await vscode.workspace.applyEdit(edit);
+						await vscode.workspace.saveAll();
+						vscode.commands.executeCommand("vscode.open", fileUri);
+					}
+					else {
+						await vscode.window.showErrorMessage(`Unable to create file: ${fileUri.path}`)
+					}
+				}
+			}
+		}));
+
+		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.deleteFile, async () => {
+			var fileUri = solutionExplorerView.getSelectedFile();
+			var projectUri = solutionExplorerView.getSelectedProject();
+
+			if (fileUri !== undefined && projectUri !== undefined) {
+				let projectTextDocument = await vscode.workspace.openTextDocument(projectUri);
+				let projectText = new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri));
+				
+				let filePath = path.relative(path.dirname(projectUri.path), fileUri.path);
+
+				let r = new RegExp(`#load.*"${filePath}".*(\\n|\\r\\n)`);
+				let results = r.exec(projectTextDocument.getText());
+				if (results !== null) {
+					let result = results[0];
+					let startIndex = projectText.indexOf(result);
+					let endIndex = startIndex + result.length;
+					let startPos = projectTextDocument.positionAt(startIndex);
+					let endPos = projectTextDocument.positionAt(endIndex);
+
+					let range = new vscode.Range(startPos, endPos);
+
+					let edit = new vscode.WorkspaceEdit();
+					edit.delete(projectUri, range)
+					await vscode.workspace.applyEdit(edit);
+					await vscode.workspace.saveAll();
+				}
+				await vscode.workspace.fs.delete(fileUri);
+			}
+		}));
+
+		async function refreshSolutionExplorer(doc: vscode.TextDocument) {
+			if (doc?.languageId === 'oly') {
 				await solutionExplorerView.refresh();
-				await solutionExplorerView.goTo(active.uri);
+				await solutionExplorerView.goTo(doc.uri);
+			} else {
+				await solutionExplorerView.refresh();
+			}
+		}
+
+		async function refreshSyntaxTree(doc: vscode.TextDocument) {
+			syntaxTreeView.clear();
+			if (doc?.languageId === 'oly') {
+				await syntaxTreeView.refresh(doc, null);
 			}
 		}
 
 		olyFileWatcher.onDidCreate(async _ => {
-			await refreshActiveDocument();
+			await refreshSolutionExplorer(getActiveDocument());
 		});
 
 		olyxFileWatcher.onDidCreate(async _ => {
-			await refreshActiveDocument();
+			await refreshSolutionExplorer(getActiveDocument());
+		});
+
+		olyFileWatcher.onDidDelete(async _ => {
+			await refreshSolutionExplorer(getActiveDocument());
+		});
+
+		olyxFileWatcher.onDidDelete(async _ => {
+			await refreshSolutionExplorer(getActiveDocument());
 		});
 
 		vscode.window.onDidChangeActiveTextEditor(async e => {
 			if (e?.document?.languageId === 'oly') {
-				await syntaxTreeView.refresh(e.document, null);
+				await refreshSyntaxTree(e.document);
 				await solutionExplorerView.goTo(e.document.uri)
 			}
 		});
 
 		solutionExplorerView.onDidChangeVisibility(async e => {
 			if (e.visible) {
-				let active = getActiveDocument();
-				if (active?.languageId === 'oly') {
-					await solutionExplorerView.goTo(active.uri);
-				}
+				await refreshSolutionExplorer(getActiveDocument());
 			}
 		})
 
-		await refreshActiveDocument();
+		syntaxTreeView.onDidChangeVisibility(async e => {
+			if (e.visible) {
+				await refreshSyntaxTree(getActiveDocument());
+			}
+		});
+
+		vscode.workspace.onDidSaveTextDocument(async e => {
+			if (e?.languageId === 'oly' && e.uri.path.toLowerCase().endsWith('.olyx')) {
+				await refreshSolutionExplorer(getActiveDocument());
+			}
+		});
 	});
 
 	// Start the client. This will also launch the server

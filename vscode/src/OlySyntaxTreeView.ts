@@ -64,26 +64,15 @@ export class OlySyntaxTreeView {
 		}
 	}
 
-	public static register(context: vscode.ExtensionContext, syntaxTreeView: OlySyntaxTreeView) {
-		syntaxTreeView.view.onDidChangeVisibility(async e => {
-			if (e?.visible)
-			{
-				let doc = getActiveDocument();
-				if (doc != null)
-				{
-					await syntaxTreeView.refresh(doc, null);
-				}
-				else
-				{
-					syntaxTreeView.dataProvider.clear();
-				}
-			}
-			else
-			{
-				syntaxTreeView.dataProvider.clear();
-			}
-		});
+	public get onDidChangeVisibility() {
+        return this.view.onDidChangeVisibility;
+    }
 
+	public clear() {
+		this.dataProvider.clear();
+	}
+
+	public static register(context: vscode.ExtensionContext, syntaxTreeView: OlySyntaxTreeView) {
 		let getSyntaxTreeCommandHandler = async () => {
 			if (syntaxTreeView != null) {
 				let active = getActiveDocumentAndCursorPosition();

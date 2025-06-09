@@ -844,7 +844,8 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             finally
                 view.Dispose()
         else
-            this.RemoveResource(filePath)
+            let mmap = MemoryMappedFile.CreateNew(null, 1, MemoryMappedFileAccess.ReadWrite)
+            this.SetResource(filePath, length, mmap, dt)
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
         OlyWorkspaceResourceSnapshot(

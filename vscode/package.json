@@ -40,8 +40,8 @@
 		  "viewsContainers": {
 				"activitybar": [
 				{
-					"id": "oly-explorer",
-					"title": "Oly Explorer",
+					"id": "oly-view",
+					"title": "Oly",
 					"icon": "./icons/oly-dark.png"
 				}
 			]
@@ -54,7 +54,7 @@
 		],
 		"taskDefinitions": [],
 		"views": {
-			"oly-explorer": [
+			"oly-view": [
 				{
 					"id": "oly.solutionExplorer",
 					"name": "Solution Explorer",
@@ -95,8 +95,31 @@
 					"command": "oly.cleanWorkspace",
 					"when": "resourceLangId == oly"
 				}
+			],
+			"view/item/context": [
+				{
+					"submenu": "oly.add.submenu",
+					"group": "oly.solutionExplorer.menu@0",
+					"when": "view == oly.solutionExplorer"
+				},
+				{
+					"command": "oly.deleteFile",
+					"group": "oly.solutionExplorer.menu@1",
+					"when": "view == oly.solutionExplorer"
+				}
+			],
+			"oly.add.submenu": [
+				{
+					"command": "oly.createFile"
+				}
 			]
 		},
+		"submenus": [
+			{
+				"id": "oly.add.submenu",
+				"label": "Add"
+			}
+		],
 		"commands": [
 			{
 				"command": "oly.getSyntaxTree",
@@ -121,6 +144,16 @@
 			{
 				"command": "oly.cleanWorkspace",
 				"title": "Clean Workspace",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.createFile",
+				"title": "New '.oly' File",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.deleteFile",
+				"title": "Delete",
 				"when": "resourceLangId == oly"
 			}
 		],

@@ -2095,3 +2095,62 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
     testLocation false
     workspace.UpdateDocument(rs, path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
     testLocation true
+
+
+[<Fact>]
+let ``Project has a blank file and project should have that file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+
+#load "testing.oly"
+
+main(): () =
+    ()
+        """
+
+    let src2 = ""
+
+    let path1 = OlyPath.Create("main.olyx")
+    let path2 = OlyPath.Create("testing.oly")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path1, CancellationToken.None)
+
+    let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
+    let project = solution.GetProject(path1)
+    Assert.Equal(2, project.Documents.Length)
+
+[<Fact>]
+let ``Project does not have a blank file and project should have that file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+
+#load "testing.oly"
+
+main(): () =
+    ()
+        """
+
+    let src2 = "namespace NotBlank"
+
+    let path1 = OlyPath.Create("main.olyx")
+    let path2 = OlyPath.Create("testing.oly")
+    let text1 = OlySourceText.Create(src1)
+    let text2 = OlySourceText.Create(src2)
+    let rs =
+        rs
+        |> updateText path1 src1
+        |> updateText path2 src2
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path1, CancellationToken.None)
+
+    let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
+    let project = solution.GetProject(path1)
+    Assert.Equal(2, project.Documents.Length)
