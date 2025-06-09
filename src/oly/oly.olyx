@@ -1,0 +1,20 @@
+#target "dotnet: net8"
+#load "oly.oly"
+#reference "../olylib/olylib.fsproj"
+
+#package "Spectre.Console.Cli,0.5.0"
+#package "Errata,0.14.0"
+
+namespace olycli
+
+open Spectre.Console.Cli
+
+module Program = 
+
+    main(args: string[]): int32 =
+        let app = CommandApp(null)
+        app.Configure(
+            c ->
+                let _ = c.AddCommand<BuildCommand>("build")
+        )
+        app.Run(Cast(args))

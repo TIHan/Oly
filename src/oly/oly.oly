@@ -1,0 +1,42 @@
+namespace olycli
+
+open System
+open System.IO
+open System.Threading
+open System.ComponentModel
+open Spectre.Console
+open Spectre.Console.Cli
+open Errata
+open Oly.Core
+
+#[export]
+class BuildCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-c|--configuration")]
+        #[DefaultValue("Debug")]
+        Configuration: string get, set = "Debug"
+
+        #[CommandArgument(0, "<project-file>")]
+        ProjectFile: string get, set = String.Empty
+
+    overrides Execute(context: CommandContext, settings: Settings): int32 =
+        let mutable results = olylib.Oly.Build(settings.Configuration, OlyPath.Create(settings.ProjectFile), CancellationToken.None).Result
+        if (results.IsOk)
+            AnsiConsole.Markup("[green]Build Successful[/]")
+            // TODO: Print warnings.
+            0
+        else
+            let mutable diags = results.ErrorValue
+            For(diags.Length,
+                i ->
+                    let diag = diags[i]
+                    if (diag.IsError)
+                        AnsiConsole.Markup("[red]" + diag.ToString() + "[/]")
+
+            )
+            AnsiConsole.Markup("[red]Build Failed[/]")
+            1
