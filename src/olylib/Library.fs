@@ -15,7 +15,6 @@ module Oly =
         let projectPath = OlyPath.Combine(OlyPath.Create(System.Environment.CurrentDirectory), projectPath)
         let rootPath = OlyPath.GetDirectory(projectPath)
         let activeConfigPath = OlyPath.Combine(rootPath, ".olyworkspace/state.json")
-        File.WriteAllText(activeConfigPath.ToString(), $"""{{ "activeConfiguration": "{configName}" }}""")
 
         let targets = 
             [
@@ -25,4 +24,6 @@ module Oly =
             ] |> ImArray.ofSeq
         let workspace = OlyWorkspace.Create(targets)
         let listener = OlyWorkspaceListener(workspace, System.Lazy<_>.CreateFromValue(rootPath))
-        workspace.BuildProjectAsync(listener.ResourceSnapshot, projectPath, ct)
+        use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
+        let rs = listener.ResourceSnapshot.SetResourceAsCopy(activeConfigPath, ms)
+        workspace.BuildProjectAsync(rs, projectPath, ct)
