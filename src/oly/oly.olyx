@@ -2,7 +2,7 @@
 #load "oly.oly"
 #reference "../olylib/olylib.fsproj"
 
-#package "Spectre.Console.Cli,0.5.0"
+#package "Spectre.Console.Cli,0.50.0"
 #package "Errata,0.14.0"
 
 namespace olycli
