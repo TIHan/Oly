@@ -25,7 +25,7 @@ type OlySolutionTreeNodeViewModel =
 
     static member FromDocument(doc: OlyDocument): OlySolutionTreeNodeViewModel =
         {
-            id = doc.Path.ToString() + $"({doc.Project.SharedBuild.PlatformName})({doc.Project.TargetInfo.Name})"
+            id = doc.Path.ToString() + $"({doc.Project.SharedBuild.PlatformName})({doc.Project.TargetInfo.Name})({doc.Project.Name})"
             label = OlyPath.GetFileName(doc.Path)
             description = ""
             resourcePath = doc.Path.ToString()
