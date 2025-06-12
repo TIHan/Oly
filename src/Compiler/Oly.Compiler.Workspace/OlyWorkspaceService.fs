@@ -18,6 +18,9 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
     [<Literal>]
     let WorkspaceStateFileName = "state.json"
 
+    static let isValidFileToListenFor (filePath: OlyPath) =
+        not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/"))
+
     let dirWatch = new DirectoryWatcher()
 
     let getActiveConfigPath =
@@ -46,7 +49,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
-            if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+            if isValidFileToListenFor filePath then
                 rs <- rs.SetResourceAsCopy(filePath)
                 if filePath.HasExtension(".olyx") then
                     projectsToUpdate.Add(filePath)
@@ -55,7 +58,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
-            if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+            if isValidFileToListenFor filePath then
                 rs <- rs.SetResourceAsCopy(filePath)
                 if filePath.HasExtension(".olyx") then
                     projectsToUpdate.Add(filePath)
@@ -64,14 +67,14 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         Directory.EnumerateFiles(rootPath.ToString(), "*.json", SearchOption.AllDirectories)
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
-            if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+            if isValidFileToListenFor filePath then
                 rs <- rs.SetResourceAsCopy(filePath)
         )
 
         Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
-            if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+            if isValidFileToListenFor filePath then
                 rs <- rs.SetResourceAsCopy(filePath)
         )
 
@@ -97,7 +100,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         dirWatch.FileCreated.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
-                if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+                if isValidFileToListenFor filePath then
                     lock rsObj <| fun _ ->
                         setResourceAsCopy filePath
                         if filePath.HasExtension(".olyx") then
@@ -107,7 +110,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         dirWatch.FileChanged.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
-                if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+                if isValidFileToListenFor filePath then
                     lock rsObj <| fun _ ->
                         setResourceAsCopy filePath
                         if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
@@ -117,7 +120,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         dirWatch.FileDeleted.Add(
             fun filePath ->
                 let filePath = OlyPath.CreateAbsolute(filePath)
-                if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+                if isValidFileToListenFor filePath then
                     lock rsObj <| fun _ ->
                         let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
                         rsOpt <-Some(rs.RemoveResource(filePath))
@@ -125,16 +128,19 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 
         dirWatch.FileRenamed.Add(
             fun (oldFilePath, filePath) ->
-                if not (filePath.ToString().Contains(".olycache")) && not (filePath.ToString().Contains("/bin/")) then
+                let oldFilePath = OlyPath.CreateAbsolute(oldFilePath)
+                let filePath = OlyPath.CreateAbsolute(filePath)
+                if isValidFileToListenFor filePath || isValidFileToListenFor oldFilePath then
                     lock rsObj <| fun _ ->
-                        let oldFilePath = OlyPath.CreateAbsolute(oldFilePath)
-                        let filePath = OlyPath.CreateAbsolute(filePath)
-                        let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
-                        rsOpt <- Some(rs.RemoveResource(oldFilePath))
-                        setResourceAsCopy filePath
-                        if filePath.HasExtension(".olyx") then
-                            workspace.RemoveProject(rsOpt.Value, oldFilePath, CancellationToken.None)
-                            workspace.UpdateDocument(rsOpt.Value, filePath, CancellationToken.None)
+                        if isValidFileToListenFor oldFilePath then
+                            let rs: OlyWorkspaceResourceSnapshot = this.ResourceSnapshot
+                            rsOpt <- Some(rs.RemoveResource(oldFilePath))
+                        if isValidFileToListenFor filePath then
+                            setResourceAsCopy filePath
+                if oldFilePath.HasExtension(".olyx") then
+                     workspace.RemoveProject(rsOpt.Value, oldFilePath, CancellationToken.None)
+                if filePath.HasExtension(".olyx") then
+                    workspace.UpdateDocument(rsOpt.Value, filePath, CancellationToken.None)
         )
 
     member this.ResourceSnapshot = 
