@@ -73,6 +73,8 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Te
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "oly_bootstrap", "src\oly_bootstrap\oly_bootstrap.fsproj", "{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Checked|Any CPU = Checked|Any CPU
@@ -236,6 +238,12 @@ Global
 		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Checked|Any CPU.ActiveCfg = Release|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Checked|Any CPU.Build.0 = Release|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

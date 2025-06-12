@@ -23,7 +23,6 @@ module Oly =
                 SpirvTarget()
             ] |> ImArray.ofSeq
         let workspace = OlyWorkspace.Create(targets)
-        let listener = OlyWorkspaceListener(workspace, System.Lazy<_>.CreateFromValue(rootPath))
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
-        let rs = listener.ResourceSnapshot.SetResourceAsCopy(activeConfigPath, ms)
+        let rs = OlyWorkspaceResourceSnapshot.CreateForced(activeConfigPath, ms)
         workspace.BuildProjectAsync(rs, projectPath, ct)
