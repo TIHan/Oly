@@ -1208,7 +1208,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ct.ThrowIfCancellationRequested()
                         reply.Reply(solutionRef.contents)
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - GetSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1227,7 +1230,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ct.ThrowIfCancellationRequested()
                         solutionRef.contents <- solutionRef.contents.RemoveProject(projectPath)
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()}):\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1246,7 +1252,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         ct.ThrowIfCancellationRequested()
                         clearSolution()
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - ClearSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1266,7 +1275,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, sourceText, ct) |> Async.AwaitTask
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1286,7 +1298,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         do! checkProjectsThatContainDocument rs documentPath ct
                         do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReplyNoText:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1307,7 +1322,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             do! checkProjectsThatContainDocument rs documentPath ct
                             do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
                         with
-                        | _ ->
+                        | ex ->
+                            match ex with
+                            | :? OperationCanceledException -> ()
+                            | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText:\n" + ex.ToString())
                             solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1329,7 +1347,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         let docs = solutionRef.contents.GetDocuments(documentPath)
                         reply.Reply(docs)
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1351,7 +1372,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         let docs = solutionRef.contents.GetDocuments(documentPath)
                         reply.Reply(docs)
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1362,7 +1386,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - GetAllDocuments()")
+                    OlyTrace.Log($"OlyWorkspace - GetAllDocuments")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1373,7 +1397,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         let docs = solutionRef.contents.GetAllDocuments()
                         reply.Reply(docs)
                     with
-                    | _ ->
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.Log($"OlyWorkspace - GetAllDocuments:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1383,16 +1410,24 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     // Clean cannot be canceled
                     do! onBeginWork CancellationToken.None
 
-                    solutionRef.contents.GetProjects()
-                    |> ImArray.iter (fun proj ->
-                        let projDir = OlyPath.GetDirectory(proj.Path)
-                        try Directory.Delete(OlyPath.Combine(projDir, CacheDirectoryName).ToString(), true) with | _ -> ()
-                        try Directory.Delete(OlyPath.Combine(projDir, BinDirectoryName).ToString(), true) with | _ -> ()
-                    )
+#if DEBUG || CHECKED
+                    OlyTrace.Log($"OlyWorkspace - Clean")
+#endif
 
-                    clearSolution()
+                    try
+                        solutionRef.contents.GetProjects()
+                        |> ImArray.iter (fun proj ->
+                            let projDir = OlyPath.GetDirectory(proj.Path)
+                            try Directory.Delete(OlyPath.Combine(projDir, CacheDirectoryName).ToString(), true) with | _ -> ()
+                            try Directory.Delete(OlyPath.Combine(projDir, BinDirectoryName).ToString(), true) with | _ -> ()
+                        )
 
-                    reply.Reply(())
+                        clearSolution()
+                        reply.Reply(())
+                    with
+                    | ex ->
+                         OlyTrace.Log($"OlyWorkspace - Clean:\n" + ex.ToString())
+                         reply.Reply(())
 
                     do! onEndWork CancellationToken.None
 
