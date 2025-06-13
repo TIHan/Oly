@@ -24,19 +24,42 @@ class BuildCommand =
         ProjectFile: string get, set = String.Empty
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
-        let mutable results = olylib.Oly.Build(settings.Configuration, OlyPath.Create(settings.ProjectFile), CancellationToken.None).Result
+        let mutable projectPath = OlyPath.Create(settings.ProjectFile)
+        let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result
         if (results.IsOk)
             AnsiConsole.Markup("[green]Build Successful[/]")
             // TODO: Print warnings.
             0
         else
+            let repo = InMemorySourceRepository()
+            let report = Report(repo)
             let mutable diags = results.ErrorValue
             For(diags.Length,
                 i ->
                     let diag = diags[i]
                     if (diag.IsError)
-                        AnsiConsole.Markup("[red]" + diag.ToString() + "[/]")
-
+                        report.Diagnostics.Add(
+                            DiagnosticExtensions.WithColor(
+                                DiagnosticExtensions.WithLabel(
+                                    DiagnosticExtensions.WithCode(
+                                        Diagnostic.Error(diag.Message), "OLY" + diag.Code.ToString()
+                                    ),
+                                    Label(
+                                        let path =
+                                            if (diag.SyntaxTree === null)
+                                                projectPath.ToString()
+                                            else
+                                                diag.SyntaxTree.Value.Path.ToString()
+                                        repo.Register(path, File.ReadAllText(path))
+                                        path,
+                                        TextSpan(diag.TextSpan.Start, diag.TextSpan.End),
+                                        ""
+                                    )
+                                ),
+                                Color.Red
+                            )
+                        )
             )
-            AnsiConsole.Markup("[red]Build Failed[/]")
+            report.Render(AnsiConsole.Console, null)
+            //AnsiConsole.Markup("[red]Build Failed[/]")
             1
