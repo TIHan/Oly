@@ -937,16 +937,21 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             dt
 
     member _.FindSubPaths(dirPath: OlyPath) =
-        let builder = ImArray.builder()
+        if isForced then
+            Directory.EnumerateFiles(dirPath.ToString(), "*.*", SearchOption.TopDirectoryOnly)
+            |> Seq.map (fun x -> OlyPath.Create(x))
+            |> ImArray.ofSeq
+        else
+            let builder = ImArray.builder()
 
-        // TODO: This isn't optimal. We iterate through every resource to find the ones with the dfirectory.
-        //       We should introduce a side-table that has this information instead of having to do this iteration.
-        //       For now, it works.
-        for pair in state.files do
-            if (OlyPath.Equals(OlyPath.GetDirectory(pair.Key), dirPath)) then
-                builder.Add(pair.Key)
+            // TODO: This isn't optimal. We iterate through every resource to find the ones with the dfirectory.
+            //       We should introduce a side-table that has this information instead of having to do this iteration.
+            //       For now, it works.
+            for pair in state.files do
+                if (OlyPath.Equals(OlyPath.GetDirectory(pair.Key), dirPath)) then
+                    builder.Add(pair.Key)
 
-        builder.ToImmutable()
+            builder.ToImmutable()
 
     member this.GetAllProjectConfigurations(projectFilePath: OlyPath) =
         match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
