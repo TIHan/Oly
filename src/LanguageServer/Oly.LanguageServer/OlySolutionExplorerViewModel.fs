@@ -1,5 +1,6 @@
 ﻿namespace Oly.LanguageServer
 
+open System
 open Oly.Core
 open Oly.Compiler.Workspace
 
@@ -135,6 +136,7 @@ type OlySolutionExplorerViewModel =
         {
             children =
                 solution.GetProjects()
+                |> Seq.filter (fun x -> x.Name.StartsWith("prelude_", StringComparison.OrdinalIgnoreCase) |> not)
                 |> Seq.map (OlySolutionTreeNodeViewModel.FromProject)
                 |> Seq.sortBy (_.label)
                 |> Array.ofSeq
