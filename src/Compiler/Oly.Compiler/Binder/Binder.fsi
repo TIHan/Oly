@@ -55,18 +55,25 @@ type BinderPass1 =
     member Bind : CompilerImports * CancellationToken -> BinderPass2
 
 /// Pass0 - Gather type definitions. 
-///         Open declarations are partially processed but will scope in everything(entities/values) - results are stored in the pre-pass environment.
 [<Sealed>]
 type BinderPass0 =
 
+    member Bind : CancellationToken -> BinderPass1
+
+/// PrePass - Imports references.
+///           Open declarations are partially processed but will scope in everything(entities/values) from those imported references.
+///           This is all cached. The eviction policy is when one of the references changes in the compilation.
+[<Sealed>]
+type BinderPrePass =
+
     member PrePassEnvironment: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>
 
-    member Bind : CancellationToken -> BinderPass1
+    member Bind : CancellationToken -> BinderPass0
 
 val CreateDefaultBinderEnvironment: OlyILAssemblyIdentity -> BinderEnvironment
 
 val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment
 
-val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> syntaxTree: OlySyntaxTree -> BinderPass0
+val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> syntaxTree: OlySyntaxTree -> BinderPrePass
 
-val bindSyntaxTreeFast: AssemblySymbol -> CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray> -> syntaxTree: OlySyntaxTree -> BinderPass0
+val bindSyntaxTreeFast: AssemblySymbol -> syntaxTree: OlySyntaxTree -> CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray> -> BinderPrePass

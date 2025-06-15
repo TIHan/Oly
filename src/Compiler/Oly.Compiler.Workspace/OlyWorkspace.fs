@@ -300,7 +300,7 @@ type OlyProject (
 
     member this.InvalidateReferences(newSolutionLazy) =
 #if DEBUG || CHECKED
-        OlyTrace.Log($"OlyWorkspace - Invalidating Project References - {projPath.ToString()}")
+        OlyTrace.Log($"[Workspace] - Invalidating Project References - {projPath.ToString()}")
 #endif
         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None)
 
@@ -749,7 +749,7 @@ type OlySolution (state: SolutionState) =
 
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
 #if DEBUG || CHECKED
-        OlyTrace.Log($"OlyWorkspace - Updating References For Project - {projectPath.ToString()}")
+        OlyTrace.Log($"[Workspace] - Updating References For Project - {projectPath.ToString()}")
 #endif
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
@@ -1230,7 +1230,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! _ = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - GetSolution()")
+                    OlyTrace.Log($"[Workspace] - GetSolution()")
 #endif
                     let prevSolution = solutionRef.contents
                     
@@ -1243,7 +1243,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - GetSolution:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - GetSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1253,7 +1253,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! _ = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()})")
+                    OlyTrace.Log($"[Workspace] - RemoveProject({projectPath.ToString()})")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1265,7 +1265,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - RemoveProject({projectPath.ToString()}):\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - RemoveProject({projectPath.ToString()}):\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1275,7 +1275,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     currentRs <- Unchecked.defaultof<_>
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - ClearSolution")
+                    OlyTrace.Log($"[Workspace] - ClearSolution")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1287,7 +1287,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - ClearSolution:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - ClearSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1297,7 +1297,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply({documentPath.ToString()})")
+                    OlyTrace.Log($"[Workspace] - UpdateDocumentNoReply({documentPath.ToString()})")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1310,7 +1310,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReply:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - UpdateDocumentNoReply:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1320,7 +1320,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReplyNoText")
+                    OlyTrace.Log($"[Workspace] - UpdateDocumentNoReplyNoText")
 #endif                    
                     let prevSolution = solutionRef.contents
                     try
@@ -1333,7 +1333,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentNoReplyNoText:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - UpdateDocumentNoReplyNoText:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1343,7 +1343,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText")
+                    OlyTrace.Log($"[Workspace] - UpdateDocumentsNoReplyNoText")
 #endif                    
                     for documentPath in documentPaths do
                         let prevSolution = solutionRef.contents
@@ -1357,7 +1357,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         | ex ->
                             match ex with
                             | :? OperationCanceledException -> ()
-                            | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocumentsNoReplyNoText:\n" + ex.ToString())
+                            | _ -> OlyTrace.LogError($"[Workspace] - UpdateDocumentsNoReplyNoText:\n" + ex.ToString())
                             solutionRef.contents <- prevSolution
 
                     do! onEndWork ct
@@ -1367,7 +1367,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})")
+                    OlyTrace.Log($"[Workspace] - UpdateDocument({documentPath.ToString()})")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1382,7 +1382,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - UpdateDocument({documentPath.ToString()})\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - UpdateDocument({documentPath.ToString()})\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1393,7 +1393,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})")
+                    OlyTrace.Log($"[Workspace] - GetDocuments({documentPath.ToString()})")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1407,7 +1407,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - GetDocuments({documentPath.ToString()})\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - GetDocuments({documentPath.ToString()})\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1418,7 +1418,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     let! rs = getRs rs ct
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - GetAllDocuments")
+                    OlyTrace.Log($"[Workspace] - GetAllDocuments")
 #endif
                     let prevSolution = solutionRef.contents
                     try
@@ -1432,7 +1432,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.Log($"OlyWorkspace - GetAllDocuments:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] - GetAllDocuments:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(ImArray.empty)
 
@@ -1443,7 +1443,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     do! onBeginWork CancellationToken.None
 
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - Clean")
+                    OlyTrace.Log($"[Workspace] - Clean")
 #endif
 
                     try
@@ -1458,7 +1458,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         reply.Reply(())
                     with
                     | ex ->
-                         OlyTrace.Log($"OlyWorkspace - Clean:\n" + ex.ToString())
+                         OlyTrace.LogError($"[Workspace] - Clean:\n" + ex.ToString())
                          reply.Reply(())
 
                     do! onEndWork CancellationToken.None
@@ -1650,7 +1650,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     )
                 with
                 | ex ->
-                    OlyTrace.Log(ex.Message)
+                    OlyTrace.LogError($"[Workspace] Getting project reference count failed:\n{ex.ToString()}")
                     ImArray.empty
 
             let projectReferencesInWorkspace = ImArray.builder()
@@ -1810,7 +1810,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
+                    OlyTrace.Log($"[Workspace] - Reloading Existing Project - {projPath.ToString()}")
 #endif
                     let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result
@@ -1835,13 +1835,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         return None
                     else
 #if DEBUG || CHECKED
-                        OlyTrace.Log($"OlyWorkspace - Reloading Existing Project - {projPath.ToString()}")
+                        OlyTrace.Log($"[Workspace] - Reloading Existing Project - {projPath.ToString()}")
 #endif                            
                         let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                         return Some result
             | _ -> 
 #if DEBUG || CHECKED
-                OlyTrace.Log($"OlyWorkspace - Creating Project - {projPath.ToString()}")
+                OlyTrace.Log($"[Workspace] - Creating Project - {projPath.ToString()}")
 #endif
                 let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                 return Some result
@@ -1952,7 +1952,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         docs
                         |> ImArray.forall (fun doc -> doc.GetSourceText(ct).GetHashCode() = sourceText.GetHashCode())
                 if isDocUpToDate then
-                    OlyTrace.Log($"{nameof(this.UpdateDocumentAsync)} - Using stale results for: {documentPath.ToString()}")
+                    // Solution is not stale, it is effectively cached.
+                    OlyTrace.Log($"[Workspace] {nameof(this.UpdateDocumentAsync)} - Using cached results for: {documentPath.ToString()}")
                     return docs
                 else
                     return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.UpdateDocument(rs, documentPath, sourceText, ct, reply))

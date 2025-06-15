@@ -1573,11 +1573,14 @@ type Importer private (name: string, peReader: PEReader) =
         olyAsm
 
     static member Import(name, stream: Stream) =
+        let s = System.Diagnostics.Stopwatch.StartNew()
         use peReader = new PEReader(stream, PEStreamOptions.LeaveOpen)
         try
-            Importer(name, peReader).Compute()
+            let result = Importer(name, peReader).Compute()
+            OlyTrace.Log($"[DotNet] (MSIL => OlyIL) Completed: {name} - {s.Elapsed.TotalMilliseconds}ms")
+            result
         with
         | ex ->
-            Debug.Write(ex.ToString())
+            OlyTrace.LogError($"[DotNet] (MSIL => OlyIL) Failed: {name} - Exception:\n{ex.ToString()}")
             reraise()
 

@@ -460,10 +460,9 @@ type BinderPass1(state: PassState) =
         compute imports ct
 
 [<Sealed>]
-type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>, syntaxTree: OlySyntaxTree) =
+type BinderPass0(asm: AssemblySymbol, syntaxTree: OlySyntaxTree, env: BinderEnvironment, declTable: BoundDeclarationTable, diags: OlyDiagnostic imarray) =
 
     let compute ct =
-        let env, declTable, diags = prePassEnv.GetValue(ct)
         let nmsEnv = NamespaceEnvironment.Create()
         let diagLogger = OlyDiagnosticLogger.Create()
         let cenv =
@@ -490,6 +489,16 @@ type BinderPass0(asm: AssemblySymbol, prePassEnv: CacheValue<BinderEnvironment *
                 syntaxTree = syntaxTree
             }
         )
+
+    member this.Bind(ct) =
+        compute ct
+
+[<Sealed>]
+type BinderPrePass(asm: AssemblySymbol, syntaxTree: OlySyntaxTree, prePassEnv: CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray>) =
+
+    let compute ct =
+        let env, declTable, diags = prePassEnv.GetValue(ct)
+        BinderPass0(asm, syntaxTree, env, declTable, diags)
 
     member _.PrePassEnvironment = prePassEnv
 
@@ -633,7 +642,7 @@ let bindSyntaxTree asm env (syntaxTree: OlySyntaxTree) =
             let env = bindSyntaxTreePrePass cenv env syntaxTree
             env, cenv.declTable.contents, diagLogger.GetDiagnostics()
         )
-    BinderPass0(asm, prePassEnv, syntaxTree)
+    BinderPrePass(asm, syntaxTree, prePassEnv)
 
-let bindSyntaxTreeFast asm prePassEnv (syntaxTree: OlySyntaxTree) =
-    BinderPass0(asm, prePassEnv, syntaxTree)
+let bindSyntaxTreeFast asm (syntaxTree: OlySyntaxTree) prePassEnv =
+    BinderPrePass(asm, syntaxTree, prePassEnv)

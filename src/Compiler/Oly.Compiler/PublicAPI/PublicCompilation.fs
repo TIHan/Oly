@@ -29,11 +29,11 @@ type private OlyCompilationEventSource() =
     static member val Log = new OlyCompilationEventSource()
 
     [<Event(1)>]
-    member this.BeginPass0(message: string) =
+    member this.BeginPass3(message: string) =
         this.WriteEvent(1, message)
 
     [<Event(2)>]
-    member this.EndPass0(message: string) =
+    member this.EndPass3(message: string) =
         this.WriteEvent(2, message)
 
 type OlyCompilationOptions =
@@ -80,7 +80,7 @@ type private CompilationUnitImplementationState =
                 let s = System.Diagnostics.Stopwatch.StartNew()
                 let boundTree = binder.Bind(ct)
                 s.Stop()
-                OlyTrace.Log("Impl Bind: " + syntaxTree.Path.ToString() + $" - {s.Elapsed.TotalMilliseconds} ms")
+                OlyTrace.Log("[Compilation] Implementation Pass: " + syntaxTree.Path.ToString() + $" - {s.Elapsed.TotalMilliseconds} ms")
                 boundTree.PrependDiagnostics(diags)
             )
 
@@ -108,7 +108,7 @@ type private CompilationUnitState =
     {
         syntaxTree: OlySyntaxTree
         lazyInitialState: CacheValue<InitialState>
-        initialPass: CacheValue<BinderPass0>
+        initialPass: CacheValue<BinderPrePass>
         implState: CompilationUnitImplementationState
     }
 
@@ -162,7 +162,7 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                     let prePassEnv = oldInitialPass.PrePassEnvironment
                     CacheValue(fun ct ->
                         ct.ThrowIfCancellationRequested()
-                        bindSyntaxTreeFast asm prePassEnv syntaxTree
+                        bindSyntaxTreeFast asm syntaxTree prePassEnv
                     )
                 else
                     CacheValue(fun ct ->
@@ -222,7 +222,7 @@ type internal CompilationState =
                         let s = System.Diagnostics.Stopwatch.StartNew()
                         let result = CompilationPhases.signature newState ct
                         s.Stop()
-                        OlyTrace.Log($"Compilation Sig: {newState.assembly.Name} {newState.version} - {s.Elapsed.TotalMilliseconds} ms")
+                        OlyTrace.Log($"[Compilation] Signature Pass: {newState.assembly.Name} {newState.version} - {s.Elapsed.TotalMilliseconds}ms")
                         result
                     )
             }
@@ -424,24 +424,25 @@ module private CompilationPhases =
         let importer = imports.Importer
 
         let s = System.Diagnostics.Stopwatch.StartNew()
-        OlyCompilationEventSource.Log.BeginPass0(state.assembly.Name)
 
         let binders1 =
             let passes =
                 seq {
                     for pair in state.cunits do
-                        pair.Value.LazyInitialPass
+                        pair.Value.LazyInitialPass.GetValue(ct).Bind(ct)
                 }
                 |> ImArray.ofSeq
+            OlyTrace.Log($"[Compilation] PrePass: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
 
-            passes
-            |> map (fun pass ->
-                pass.GetValue(ct).Bind(ct)
-            )
-
-        OlyCompilationEventSource.Log.EndPass0(state.assembly.Name)
-        OlyTrace.Log($"Compilation Pass0: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
-        s.Restart()
+            let result =
+                passes
+                |> map (fun pass ->
+                    pass.Bind(ct)
+                )
+            OlyTrace.Log($"[Compilation] Pass0: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
+            result
 
         binders1
         |> ImArray.iter (fun x ->
@@ -454,21 +455,23 @@ module private CompilationPhases =
                 x.Bind(imports, ct)
             )
 
-        OlyTrace.Log($"Compilation Pass1: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        OlyTrace.Log($"[Compilation] Pass1: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
         s.Restart()
 
         let binders3 =
             binders2
             |> map (fun x -> x.Bind(ct))
 
-        OlyTrace.Log($"Compilation Pass2: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        OlyTrace.Log($"[Compilation] Pass2: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
         s.Restart()
 
+        OlyCompilationEventSource.Log.BeginPass3(state.assembly.Name)
         let binders4 =
             binders3
             |> map (fun x -> x.Bind(ct))
+        OlyCompilationEventSource.Log.EndPass3(state.assembly.Name)
 
-        OlyTrace.Log($"Compilation Pass3: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds} ms")
+        OlyTrace.Log($"[Compilation] Pass3: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
         s.Stop()
 
         checkDuplications state binders4
@@ -795,9 +798,16 @@ type OlyCompilation private (state: CompilationState) =
             Result.Error(diags)
         else
             let boundTrees = this.Bind(ct)
+            let s = System.Diagnostics.Stopwatch.StartNew()
+
             let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
-            CompilationPhases.generateAssembly state loweredBoundTrees ct
-            |> Result.Ok      
+            OlyTrace.Log($"[Compilation] Lowering Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
+
+            let ilAsm = CompilationPhases.generateAssembly state loweredBoundTrees ct
+            OlyTrace.Log($"[Compilation] Assembly Generation Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+
+            Result.Ok(ilAsm)  
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity

@@ -955,6 +955,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             fun msg ->
                 let trace = OmniSharp.Extensions.LanguageServer.Protocol.Models.LogTraceParams(Message = msg)
                 server.SendNotification(trace)
+        OlyTrace.LogWarning <- fun text -> OlyTrace.Log $"[WARNING] {text}"
+        OlyTrace.LogError <- fun text -> OlyTrace.Log $"[ERROR] {text}"
 
     let lazyGetRootPath = lazy OlyPath.Create(server.ClientSettings.RootPath)
 

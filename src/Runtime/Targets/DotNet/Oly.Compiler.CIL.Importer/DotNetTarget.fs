@@ -112,6 +112,7 @@ module private DotNetReferences =
                         then
                             return! build()
                     else
+                        OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {dotnetBuildJson}")
                         return 
                             {
                                 ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
@@ -477,12 +478,19 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
+        let ilAsms =
+            comp.References
+            |> ImArray.Parallel.map (fun x ->
+                match x.GetILAssembly(ct) with
+                | Ok x -> Ok(x.ToReadOnly())
+                | Error diags -> Error(diags |> ImArray.filter (fun x -> x.IsError))
+            )
+
         let refDiags = ImArray.builder()
-        comp.References
-        |> ImArray.iter (fun x ->
-            match x.GetILAssembly(ct) with
-            | Ok x -> x.ToReadOnly() |> runtime.ImportAssembly
-            | Error diags -> refDiags.AddRange(diags |> ImArray.filter (fun x -> x.IsError))
+        ilAsms
+        |> ImArray.iter (function
+            | Ok ilAsm -> runtime.ImportAssembly ilAsm
+            | Error diags -> refDiags.AddRange(diags)
         )
 
         if refDiags.Count > 0 then

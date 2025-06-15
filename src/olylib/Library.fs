@@ -7,7 +7,6 @@ open Oly.Compiler.Workspace
 open Oly.Runtime.Target.DotNet
 open Oly.Runtime.Target.Interpreter
 open Oly.Runtime.Target.Spirv
-open Oly.Compiler.Workspace.Service
 
 module Oly =
 

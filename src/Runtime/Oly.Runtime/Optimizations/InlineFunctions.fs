@@ -603,7 +603,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression:\n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression:\n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp
@@ -633,7 +633,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression: \n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression: \n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp  
@@ -650,7 +650,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression:\n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression:\n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp
@@ -668,7 +668,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression:\n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression:\n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp
@@ -685,7 +685,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression:\n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression:\n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp  
@@ -702,7 +702,7 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                     match tryInlineFunction forwardSubLocals optenv expr with
                     | Some(expr) -> expr
                     | _ ->
-                        Log($"Unable to inline call indirect expression:\n{expr}\n")
+                        OlyTrace.LogWarning($"[Runtime] Unable to inline call indirect expression:\n{expr}\n")
                         handleOperation origTextRange origExpr origOp
                 | _ ->
                     handleOperation origTextRange origExpr origOp

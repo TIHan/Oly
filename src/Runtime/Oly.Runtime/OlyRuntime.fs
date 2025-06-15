@@ -2868,7 +2868,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             None
 
     member this.InitializeEmitter() =
+        let s = System.Diagnostics.Stopwatch.StartNew()
         emitter.Initialize(this)
+        OlyTrace.Log($"[Runtime] Emitter Initialized - {s.Elapsed.TotalMilliseconds}ms")
 
     member this.SubscribeType(receiverTy: RuntimeType, ty: RuntimeType) =
         if not receiverTy.IsBuiltIn then
@@ -2937,8 +2939,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         findFunctionsByTypeAndFunctionSignature ty func
 
     member this.EmitEntryPoint() =
+        let s = System.Diagnostics.Stopwatch.StartNew()
         let entryPoint = this.FindEntryPoint()
         this.EmitFunction(entryPoint) |> ignore
+        OlyTrace.Log($"[Runtime] Emitter Completed - {s.Elapsed.TotalMilliseconds}ms")
 
     member this.EmitAheadOfTime() =
         assemblies

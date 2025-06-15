@@ -115,8 +115,8 @@ type MSBuild() =
 </Target>
 </Project>
         """
-    
-    let getInfo (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
+
+    let getInfoCore (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
@@ -223,6 +223,28 @@ type MSBuild() =
                     try Directory.Delete(dir.FullName, true) with | _ -> ()
             finally
                 () // TODO: ??
+        }
+    
+    let getInfo (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (projectName: string) (ct: CancellationToken) =
+        backgroundTask {
+            ct.ThrowIfCancellationRequested()
+            OlyTrace.Log $"[MSBuild] Started resolving DotNet references for project: {projectName}"
+            let s = System.Diagnostics.Stopwatch.StartNew()
+            use _ = 
+                { new IDisposable with 
+                    member _.Dispose() = 
+                        s.Stop()
+                        OlyTrace.Log $"[MSBuild] Finished resolving DotNet references for project: {projectName} - {s.Elapsed.TotalMilliseconds}ms"
+                }
+            try
+                let! result = getInfoCore outputPath configPath configName isExe targetName referenceInfos projReferenceInfos packageInfos projectName ct
+                return result
+            with
+            | ex ->
+                match ex with
+                | :? OperationCanceledException -> ()
+                | _ -> OlyTrace.LogError $"[MSBuild] Failed resolving DotNet references for project: {projectName} - Exception:\n{ex.ToString()}"
+                return raise ex
         }
 
     member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, configPath: string, configName: string, isExe: bool, targetName, references, projectReferences, packages, ct) =
