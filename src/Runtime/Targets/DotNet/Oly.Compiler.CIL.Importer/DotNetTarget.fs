@@ -478,19 +478,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
-        let ilAsms =
-            comp.References
-            |> ImArray.Parallel.map (fun x ->
-                match x.GetILAssembly(ct) with
-                | Ok x -> Ok(x.ToReadOnly())
-                | Error diags -> Error(diags |> ImArray.filter (fun x -> x.IsError))
-            )
-
         let refDiags = ImArray.builder()
-        ilAsms
-        |> ImArray.iter (function
-            | Ok ilAsm -> runtime.ImportAssembly ilAsm
-            | Error diags -> refDiags.AddRange(diags)
+        comp.References
+        |> ImArray.iter (fun x ->
+            match x.GetILAssembly(ct) with
+            | Ok x -> x.ToReadOnly() |> runtime.ImportAssembly
+            | Error diags -> refDiags.AddRange(diags |> ImArray.filter (fun x -> x.IsError))
         )
 
         if refDiags.Count > 0 then
