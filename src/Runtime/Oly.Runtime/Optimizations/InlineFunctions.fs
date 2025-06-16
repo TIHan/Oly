@@ -265,7 +265,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
         match tryGetFunctionBody optenv func with
         | Some(irFuncBody) ->
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then

@@ -1543,7 +1543,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then
@@ -1566,7 +1566,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then
@@ -2754,7 +2754,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     let optimizeFunctionBody (func: RuntimeFunction) (funcBody: OlyIRFunctionBody<_, _, _>) (genericContext: GenericContext) =
 #if DEBUG || CHECKED
-        Log(
+        OlyTrace.Log(
             let witnesses = func.Witnesses
             let witnessText = 
                 if witnesses.IsEmpty then
@@ -4223,7 +4223,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             emitted.[key] <- emittedFunc
 
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnessText = 
                     if witnesses.IsEmpty then
                         ""

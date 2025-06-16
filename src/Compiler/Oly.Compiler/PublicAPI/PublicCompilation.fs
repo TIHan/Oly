@@ -544,12 +544,78 @@ module private CompilationPhases =
 
         loweredBoundTrees
 
-    let generateAssembly (state: CompilationState) (loweredBoundTrees: (BoundTree * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
+    let loweringAll (state: CompilationState) (boundTrees: (BoundTree * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
+        ct.ThrowIfCancellationRequested()
+
+        // TODO: We should create this earlier, such as in the initial state.
+        let g = OlyCompilation.CreateG(state, ct)
+
+        let compilations =
+            state.references
+            |> ImArray.choose (fun x ->
+                match x with
+                | OlyCompilationReference.CompilationReference(_, c) -> c.GetValue(ct) |> Some
+                |_ -> None
+            )
+
+        let boundTreeGroup =
+            compilations
+            |> ImArray.map (fun c ->
+                let g = OlyCompilation.CreateG(c.State, ct)
+                let boundTrees = c.Bind(ct)
+                let bts = boundTrees |> ImArray.map(fun x -> (fst x, LambdaLifting.Lower g, c.State))
+                let diags = boundTrees |> ImArray.map snd
+                bts, diags
+            )
+
+        let bts = boundTrees |> ImArray.map(fun x -> (fst x, LambdaLifting.Lower g, state))
+        let diags = boundTrees |> ImArray.map snd
+
+        let bts = bts.AddRange(boundTreeGroup |> ImArray.map (fst) |> ImArray.reduce ImArray.append)
+        let diags = diags.AddRange(boundTreeGroup |> ImArray.map (snd) |> ImArray.reduce ImArray.append)
+
+        let map f = 
+            if state.options.Parallel then
+                ImArray.Parallel.map f
+            else
+                ImArray.map f
+
+        let outputTree (tree: BoundTree) =
+            System.IO.File.WriteAllText(OlyPath.ChangeExtension(tree.SyntaxTree.Path, ".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
+            tree
+
+        // Lowering is REQUIRED before codegen, 
+        //     otherwise, there will be expressions that the codegen will not understand.
+        // The order of lowering matters.
+        let loweredBoundTrees =               
+            bts
+            |> map (fun (boundTree, lambdaLifting, state) -> 
+                ct.ThrowIfCancellationRequested()
+                let loweredBoundTree =
+                    boundTree
+                    |> PatternMatchCompilation.Lower ct
+                   // |> outputTree
+                    |> CommonLowering.Lower ct
+                    //|> outputTree
+                    |> Optimizer.Lower ct { LocalValueElimination = not state.options.Debuggable; BranchElimination = true }
+                  //  |> outputTree
+                    |> RefCellLowering.Lower
+                   //|> outputTree
+                    |> lambdaLifting
+                   // |> outputTree
+                loweredBoundTree, state
+            )
+
+        loweredBoundTrees
+        |> Seq.groupBy (fun x -> (snd x).assembly)
+        |> ImArray.ofSeq, diags |> ImArray.reduce ImArray.append
+
+    let generateAssembly (state: CompilationState) (loweredBoundTrees: (BoundTree imarray)) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
 
         let ilGen = OlyILAssemblyGenerator(state.assembly, state.options.Debuggable)
         loweredBoundTrees
-        |> ImArray.iter (fun (x, _) ->
+        |> ImArray.iter (fun x ->
             try
                 ilGen.Generate(x)
             with
@@ -785,10 +851,26 @@ type OlyCompilation private (state: CompilationState) =
             | _ -> String.Empty
         )
 
-    member private this.Bind(ct) =
+    member internal this.Bind(ct) =
         ct.ThrowIfCancellationRequested()
         let binders4 = state.lazySig.GetValue(ct)
         CompilationPhases.implementation state binders4 ct
+
+    static member internal CreateG(state, ct) =
+        // TODO: We should create this earlier, such as in the initial state.
+        {
+            ImplicitExtendsForStruct = state.lazyInitialState.GetValue(ct).env.benv.implicitExtendsForStruct
+            BaseObjectConstructor =
+                // REVIEW: This is very fast considering there will not be a lot of functions on the object type.
+                //         But, there could be in the future.
+                match state.lazyInitialState.GetValue(ct).env.TryFindConcreteEntityByType(TypeSymbol.BaseObject) with
+                | ValueSome x ->
+                    x.Functions
+                    |> ImArray.filter (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
+                    |> ImArray.tryExactlyOne
+                | _ -> 
+                    None
+        }
         
     member this.Version = state.version
 
@@ -804,10 +886,38 @@ type OlyCompilation private (state: CompilationState) =
             OlyTrace.Log($"[Compilation] Lowering Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
             s.Restart()
 
-            let ilAsm = CompilationPhases.generateAssembly state loweredBoundTrees ct
+            let ilAsm = CompilationPhases.generateAssembly state (loweredBoundTrees |> ImArray.map fst) ct
             OlyTrace.Log($"[Compilation] Assembly Generation Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
 
             Result.Ok(ilAsm)  
+
+    member this.GetILAssemblies(ct) : Result<OlyILAssembly imarray, OlyDiagnostic imarray> = 
+        let diags = this.GetDiagnostics(ct)
+        if checkHasErrors diags then
+            Result.Error(diags)
+        else
+            let boundTrees = this.Bind(ct)
+            let s = System.Diagnostics.Stopwatch.StartNew()
+
+            let loweredBoundTrees, diags = CompilationPhases.loweringAll state boundTrees ct
+            OlyTrace.Log($"[Compilation] Lowering All Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
+
+            if diags |> ImArray.exists (fun x -> x.IsError) then
+                Result.Error(diags)
+            else
+
+            let ilAsms =
+                loweredBoundTrees
+                |> ImArray.Parallel.map (fun (_, xs) ->
+                    let boundTrees = xs |> ImArray.ofSeq
+                    let state = boundTrees[0] |> snd
+                    let boundTrees = boundTrees |> ImArray.map fst
+                    CompilationPhases.generateAssembly state boundTrees ct
+                )
+            OlyTrace.Log($"[Compilation] All Assembly Generation Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+
+            Result.Ok(ilAsms)  
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity

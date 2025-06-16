@@ -381,10 +381,10 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             )
 
         let comp = proj.Compilation
-        let asm = comp.GetILAssembly(ct)
-        match asm with
+        let asms = comp.GetILAssemblies(ct)
+        match asms with
         | Error _ -> return Error(proj.GetDiagnostics(ct))
-        | Ok asm ->
+        | Ok asms ->
 
         let netInfo = netInfos[proj.Path]
 
@@ -475,27 +475,22 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
         | Some consoleAssembly ->
 
+        let asm = asms[0]
+
         let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
-        let ilAsms =
-            comp.References
-            |> ImArray.Parallel.map (fun x ->
-                match x.GetILAssembly(ct) with
-                | Ok x -> Ok(x.ToReadOnly())
-                | Error diags -> Error(diags |> ImArray.filter (fun x -> x.IsError))
-            )
-
         let refDiags = ImArray.builder()
-        ilAsms
-        |> ImArray.iter (function
-            | Ok ilAsm -> runtime.ImportAssembly ilAsm
-            | Error diags -> refDiags.AddRange(diags)
+        comp.References
+        |> ImArray.iter (fun x ->
+            if not x.IsCompilation then
+                match x.GetILAssembly(ct) with
+                | Ok x -> runtime.ImportAssembly (x.ToReadOnly())
+                | Error diags -> refDiags.AddRange(diags |> ImArray.filter (fun x -> x.IsError))
         )
 
-        if refDiags.Count > 0 then
-            return Error(refDiags.ToImmutable())
-        else
+        for i = 1 to asms.Length - 1 do
+            runtime.ImportAssembly (asms[i].ToReadOnly())
 
         match! analyzerTask with
         | Error diags -> return Error(diags)
