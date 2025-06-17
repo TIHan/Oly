@@ -1718,6 +1718,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 |> Seq.sortBy (fun (_, x) -> x.ToString())
                 |> ImArray.ofSeq
 
+            let s = System.Diagnostics.Stopwatch.StartNew()
             let! projectReferences =
                 resolvedReferences
                 |> Seq.distinctBy (fun x -> x.ToString().ToLower()) // TODO: This allocates extra with '.ToLower()', figure out a better way for this.
@@ -1725,6 +1726,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     chooseReference textSpan path
                 )
                 |> Task.WhenAll
+            OlyTrace.Log($"[Workspace] Resolved References - {s.Elapsed.TotalMilliseconds}ms")
 
             let projectReferences =
                 projectReferences
@@ -2002,7 +2004,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             |> ImArray.map (fun x -> KeyValuePair(x.PlatformName, x))
             |> ImmutableDictionary.CreateRange
 
-        let preludeDirName = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
+        let preludeDirName = System.IO.Path.GetDirectoryName(System.AppContext.BaseDirectory)
 
         let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
         let preludeDir =
