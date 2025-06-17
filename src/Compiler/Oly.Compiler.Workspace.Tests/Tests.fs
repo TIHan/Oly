@@ -508,10 +508,7 @@ main(): () =
 
     updateDocument path (src + " ") workspace
 
-    let solution = getSolution workspace
-    //let proj = solution.GetProject(path)
-    //let c = proj.Compilation
-    //let x = c.GetDiagnostics(CancellationToken.None)
+    let _ = getSolution workspace
     assertGC(projWeak, compWeak, treeWeak)
 
     workspaceGC_stub <- Unchecked.defaultof<_>

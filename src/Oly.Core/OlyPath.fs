@@ -154,9 +154,6 @@ type OlyPath private (path: string) =
     static member GetRelativePath(relativeTo: OlyPath, path: OlyPath) =
         OlyPath.Create(Path.GetRelativePath(relativeTo.ToString(), path.ToString()))
 
-    static member IsRooted(path: OlyPath) = 
-        Path.IsPathRooted(path.ToString())
-
     static member Equals(path1: OlyPath, path2: OlyPath) =
         path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
 

@@ -1543,7 +1543,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then
@@ -1551,7 +1551,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     else
                         let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
                         $" - Witnesses: {text}"
-                $"Calling Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+                $"[Runtime] Calling Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
             )
 #endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
@@ -1566,7 +1566,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then
@@ -1574,7 +1574,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     else
                         let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
                         $" - Witnesses: {text}"
-                $"Calling Virtual Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+                $"[Runtime] Calling Virtual Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
             )
 #endif
             assert(if func.Flags.IsStatic then ilArgs.Length = func.Parameters.Length else ilArgs.Length = func.Parameters.Length + 1)
@@ -2754,7 +2754,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     let optimizeFunctionBody (func: RuntimeFunction) (funcBody: OlyIRFunctionBody<_, _, _>) (genericContext: GenericContext) =
 #if DEBUG || CHECKED
-        Log(
+        OlyTrace.Log(
             let witnesses = func.Witnesses
             let witnessText = 
                 if witnesses.IsEmpty then
@@ -2762,7 +2762,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 else
                     let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
                     $" - Witnesses: {text}"
-            $"Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+            $"[Runtime] Optimizing Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
         )
 #endif
         let irTier = this.GetFunctionTier(func)
@@ -4223,14 +4223,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             emitted.[key] <- emittedFunc
 
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnessText = 
                     if witnesses.IsEmpty then
                         ""
                     else
                         let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
                         $" - Witnesses: {text}"
-                $"Emitting Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+                $"[Runtime] Emitting Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
             )
 #endif
 

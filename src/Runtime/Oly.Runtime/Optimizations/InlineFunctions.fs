@@ -265,7 +265,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
         match tryGetFunctionBody optenv func with
         | Some(irFuncBody) ->
 #if DEBUG || CHECKED
-            Log(
+            OlyTrace.Log(
                 let witnesses = func.Witnesses
                 let witnessText = 
                     if witnesses.IsEmpty then
@@ -273,7 +273,7 @@ let tryInlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _
                     else
                         let text = witnesses |> ImArray.map (fun x -> x.TypeExtension.Name.ToString()) |> (String.concat "\n")
                         $" - Witnesses: {text}"
-                $"Inlining Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
+                $"[Runtime] Inlining Function: {func.EnclosingType.Name}.{func.Name}{witnessText}"
             )
 #endif
 
