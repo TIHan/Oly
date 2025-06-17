@@ -8,7 +8,6 @@ open Oly.Compiler.Syntax
 open System
 open System.IO
 open System.IO.MemoryMappedFiles
-open System.Text.Json
 open System.Text.Json.Serialization
 open System.Threading
 open System.Threading.Tasks
@@ -227,9 +226,7 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
     member _.Configurations = configurations
 
     static member Deserialize(stream: System.IO.Stream): ProjectConfigurations =
-        let jsonOptions = JsonSerializerOptions()
-        jsonOptions.PropertyNameCaseInsensitive <- true
-        JsonSerializer.Deserialize<ProjectConfigurations>(stream, jsonOptions)
+        Json.Deserialize<ProjectConfigurations>(stream)
 
     member _.GetConfiguration(configName: string): OlyProjectConfiguration =
         let configOpt =
@@ -988,9 +985,7 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
         | true, (length, mmap, _) ->
             let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
             try
-                let jsonOptions = JsonSerializerOptions()
-                jsonOptions.PropertyNameCaseInsensitive <- true
-                let contents = JsonSerializer.Deserialize<ActiveConfigurationState>(view, jsonOptions)
+                let contents = Json.Deserialize<ActiveConfigurationState>(view)
                 contents.activeConfiguration
             finally
                 view.Dispose()
