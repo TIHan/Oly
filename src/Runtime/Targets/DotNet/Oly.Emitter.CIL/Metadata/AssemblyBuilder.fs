@@ -1158,11 +1158,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         let mutable computedHash = Unchecked.defaultof<_>
         let hash (content: Blob seq) =
             use incrHash = IncrementalHash.CreateHash(algoName)
-            let bytes =
-                content
-                |> Seq.map (fun x -> x.GetBytes().Array)
-                |> Array.concat
-            incrHash.AppendData(bytes)
+            content
+            |> Seq.iter (fun x -> incrHash.AppendData(x.GetBytes().Array))
             computedHash <- incrHash.GetHashAndReset().ToImmutableArray()
             computedHash
         let portablePdbIdProvider =

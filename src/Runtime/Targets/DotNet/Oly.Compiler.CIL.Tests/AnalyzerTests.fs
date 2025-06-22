@@ -4,7 +4,7 @@ open Xunit
 open WorkspaceUtilities
 
 let buildHasErrors expected src =
-    buildHasErrorsWith (DotNetTarget()) expected src
+    buildHasErrorsWithPrefix (DotNetTarget()) expected src
 
 [<Fact>]
 let ``Should error with ambiguous overloads for exported function for inref/outref/byref``() =

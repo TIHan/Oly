@@ -37,6 +37,8 @@ type OlyDiagnosticKind =
 [<AbstractClass>]
 type OlyDiagnostic internal () =
 
+    static member val CodePrefixOLY = "OLY"
+
     abstract Message : string
 
     /// TODO: Instead of IsError, IsWarning, we should use an union kind.
@@ -51,6 +53,8 @@ type OlyDiagnostic internal () =
     abstract SyntaxTree : OlySyntaxTree option
 
     abstract OffsideAmount : int
+
+    abstract CodePrefix : string
 
     abstract Code : int
 
@@ -81,7 +85,7 @@ type OlyDiagnostic internal () =
                     else
                         "error"
 
-                $"{syntaxTree.Path}({line},{column}): {kindText} OLY{this.Code}:\n{helperText}"
+                $"{syntaxTree.Path}({line},{column}): {kindText} {this.CodePrefix}{this.Code}:\n{helperText}"
             | _ ->
                 helperText
 
@@ -126,7 +130,7 @@ type OlyDiagnostic internal () =
         | _ ->
             String.Empty
 
-    static member CreateError(message, code, syntaxNode: OlySyntaxNode) =
+    static member CreateError(message, codePrefix, code, syntaxNode: OlySyntaxNode) =
         let textSpan = syntaxNode.TextSpan
 
         { new OlyDiagnostic() with
@@ -137,12 +141,13 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = Some syntaxNode.Tree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
     static member CreateError(message, syntaxNode: OlySyntaxNode) =
-        OlyDiagnostic.CreateError(message, -1, syntaxNode)
+        OlyDiagnostic.CreateError(message, OlyDiagnostic.CodePrefixOLY, -1, syntaxNode)
 
     static member CreateError(message, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
@@ -155,11 +160,12 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
             member _.Code = -1
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
-    static member CreateError(message, code, location: OlySourceLocation) =
+    static member CreateError(message, codePrefix, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -170,11 +176,12 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
-    static member CreateSyntacticWarning(message, code, location: OlySourceLocation) =
+    static member CreateSyntacticWarning(message, codePrefix, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -185,11 +192,12 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Syntactic
         }
 
-    static member CreateSyntacticError(message, code, location: OlySourceLocation) =
+    static member CreateSyntacticError(message, codePrefix, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -200,6 +208,7 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Syntactic
         }
@@ -213,6 +222,7 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = None
             member _.TextSpan = OlyTextSpan()
             member _.OffsideAmount = 0
+            member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
             member _.Code = -1
             member _.Kind = OlyDiagnosticKind.Semantic
         }
@@ -229,7 +239,7 @@ type OlyDiagnostic internal () =
             s.ToString()
 
 [<Sealed>]
-type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsidesAmount, syntaxTreeOpt) =
+type internal OlyDiagnosticSyntaxInternal (msg, codePrefix, code, severity, textSpan, offsidesAmount, syntaxTreeOpt) =
     inherit OlyDiagnostic()
     
     override _.Message = msg
@@ -246,6 +256,8 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
 
     override _.OffsideAmount = offsidesAmount
 
+    override _.CodePrefix = codePrefix
+
     override _.Code = code
 
     override _.Kind = OlyDiagnosticKind.Syntactic
@@ -258,6 +270,7 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
                 syntaxNode.TextSpan
         OlyDiagnosticSyntaxInternal(
             diagnostic.Message,
+            OlyDiagnostic.CodePrefixOLY,
             diagnostic.Code,
             diagnostic.Severity,
             textSpan,
@@ -271,25 +284,23 @@ type OlyDiagnosticLogger private (prefixOpt: string option) =
     let mutable hasErrors = false
     let queue = System.Collections.Concurrent.ConcurrentQueue()
 
-    let handlePrefix text =
+    let codePrefix =
         match prefixOpt with
-        | Some prefix ->
-            $"{prefix}: {text}"
-        | _ ->
-            text
+        | Some prefix -> prefix
+        | _ -> OlyDiagnostic.CodePrefixOLY
 
     member _.Error(text: string) =
-        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text))
+        queue.Enqueue(OlyDiagnostic.CreateError(text))
 
     member _.Error(text: string, code: int, node: OlySyntaxNode) =
         hasErrors <- true
-        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text, code, node))
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, node))
 
     member _.Error(text: string, code: int, startOffset: int, width: int, node: OlySyntaxNode) =
         hasErrors <- true
         let textSpan = node.TextSpan
         let textSpan = OlyTextSpan.Create(textSpan.Start + startOffset, width)
-        queue.Enqueue(OlyDiagnostic.CreateError(handlePrefix text, code, OlySourceLocation.Create(textSpan, node.Tree)))
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, OlySourceLocation.Create(textSpan, node.Tree)))
 
     member _.HasAnyErrors = hasErrors
 
@@ -480,9 +491,9 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                             this
                         )
                     if isError then
-                        OlyDiagnostic.CreateSyntacticError(msg, code, location)
+                        OlyDiagnostic.CreateSyntacticError(msg, OlyDiagnostic.CodePrefixOLY, code, location)
                     else
-                        OlyDiagnostic.CreateSyntacticWarning(msg, code, location)
+                        OlyDiagnostic.CreateSyntacticWarning(msg, OlyDiagnostic.CodePrefixOLY, code, location)
                 )
 
             internalTree
@@ -544,10 +555,11 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
 
             let getDirectiveValues directive =
                 directives
-                |> ImArray.choose(fun (startPos, endPos, rawToken) ->
+                |> ImArray.choose(fun (_startPos, endPos, rawToken) ->
                     match rawToken with
                     | Directive(_, identToken, _, valueToken) ->
-                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
+                        let length = valueToken.Width
+                        let textSpan = OlyTextSpan.Create(endPos - length, length)
                         if identToken.Text = directive then
                             checkConfigDirective textSpan
                             Some(textSpan, valueToken.ValueText)

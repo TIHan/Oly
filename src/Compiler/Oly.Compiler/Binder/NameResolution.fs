@@ -2709,6 +2709,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let diag = 
                         OlyDiagnostic.CreateError(
                             $"Invalid numeric literal: {ex.Message}",
+                            OlyDiagnostic.CodePrefixOLY,
                             10,
                             syntaxToken
                         )
@@ -2731,6 +2732,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let diag = 
                         OlyDiagnostic.CreateError(
                             $"Invalid numeric literal: {ex.Message}",
+                            OlyDiagnostic.CodePrefixOLY,
                             10,
                             syntaxToken
                         )

@@ -4,7 +4,7 @@ open Xunit
 open WorkspaceUtilities
 
 let buildHasErrors expected src =
-    buildHasErrorsWith (SpirvTarget()) expected src
+    buildHasErrorsWithPrefix (SpirvTarget()) expected src
 
 [<Fact>]
 let ``Should error with incorrect use of runtime array``() =

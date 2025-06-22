@@ -155,6 +155,7 @@ type OlyDocument =
     member Project : OlyProject
     member SyntaxTree : OlySyntaxTree
     member BoundModel : OlyBoundModel
+    /// TODO: Rename to 'IsProject'.
     member IsProjectDocument : bool
     member GetSourceText : CancellationToken -> IOlySourceText
     member GetDiagnostics : CancellationToken -> OlyDiagnostic imarray

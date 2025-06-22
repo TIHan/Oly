@@ -380,7 +380,7 @@ module private CompilationPhases =
         let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
             match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
             | true, srcLoc ->
-                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists across compilation units.", 10, srcLoc)
+                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists across compilation units.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
                 |> Some
             | _ ->
                 None

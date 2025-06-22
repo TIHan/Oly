@@ -474,11 +474,6 @@ module rec ClrCodeGen =
             mutable retEmitted: bool ref
         }
 
-        member this.NewBuffer() =
-            { this with
-                buffer = ImArray.builder ()
-            }
-
         member this.NewLocal(ty: ClrTypeInfo) =
             let localIndex = this.localCount.contents
             this.localCount.contents <- this.localCount.contents + 1

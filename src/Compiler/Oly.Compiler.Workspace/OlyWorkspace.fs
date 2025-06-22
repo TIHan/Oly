@@ -15,6 +15,8 @@ open System.Collections.Generic
 open System.Collections.Immutable
 open System.Runtime.CompilerServices
 
+exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
+
 [<Sealed>]
 type OlyProgram(path: OlyPath, run: unit -> unit) =
 
@@ -364,6 +366,7 @@ type OlyProject (
         newProject
 
     member this.UpdateReferences(newSolutionLazy: Lazy<OlySolution>, projectReferences: OlyProjectReference imarray, ct) =
+        ct.ThrowIfCancellationRequested()
         let mutable newProject = this
         let newProjectLazy = lazy newProject
         let newCompilation = 
@@ -384,6 +387,24 @@ type OlyProject (
         newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
+
+    //member this.UpdateExtraDiagnostics(newSolutionLazy: Lazy<OlySolution>, docPath: OlyPath, extraDiagnostics, ct: CancellationToken) =
+    //    ct.ThrowIfCancellationRequested()
+    //    let mutable newProject = this
+    //    let newProjectLazy = lazy newProject
+
+    //    let docs =
+    //        this.Documents
+    //        |> ImArray.map (fun doc ->
+    //            if OlyPath.Equals(doc.Path, docPath) then
+    //                OlyDocument(newProjectLazy, doc.Path, doc.SyntaxTree, extraDiagnostics)
+    //            else
+    //                doc
+    //        )
+
+    //    newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, this.CompilationLazy, newDocuments, this.References, packages, copyFileInfos, platformName, targetInfo)
+    //    newProjectLazy.Force() |> ignore
+    //    newProject
 
     member this.GetDiagnostics(ct: CancellationToken) : OlyDiagnostic imarray =
         let builder = ImArray.builder()
@@ -415,7 +436,6 @@ type OlyProject (
             )
         )
         builder.ToImmutable()
-
 
 [<NoEquality;NoComparison>]
 type ProjectChanged =
@@ -877,8 +897,12 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             OlySourceText.FromFile(filePath)
         else
 
-        let (length, mmap, _) = state.files[filePath]
+        match state.files.TryGetValue(filePath) with
+        | false, _ -> raise(OlyWorkspaceFileDoesNotExist(filePath))
+        | _, (length, mmap, _) ->
+
         if length = 0 then
+            // Blank file.
             OlySourceText.Create("")
         else
 
@@ -1748,8 +1772,6 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
             let loads = getSortedLoadsFromConfig rs absoluteDir config
 
-            let solution, _, _ = solution.UpdateDocument(projPath, filePath, syntaxTree, diags.ToImmutable())
-
             let solution =
                 (solution, loads)
                 ||> ImArray.fold (fun solution (textSpan, path) ->
@@ -1769,11 +1791,15 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                 let solution, _, _ = solution.UpdateDocument(projPath, path, syntaxTree, ImArray.empty)
                                 solution
                             with
+                            | :? OlyWorkspaceFileDoesNotExist as ex ->
+                                diags.Add(OlyDiagnostic.CreateError($"'{path.ToString()}' does not exist.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                                solution
                             | ex ->
-                                diags.Add(OlyDiagnostic.CreateError(ex.Message, OlySourceLocation.Create(textSpan, syntaxTree)))
+                                diags.Add(OlyDiagnostic.CreateError($"Internal error: {ex.Message}", OlySourceLocation.Create(textSpan, syntaxTree)))
                                 solution
                 )
 
+            let solution, _, _ = solution.UpdateDocument(projPath, filePath, syntaxTree, diags.ToImmutable())
             let solution, _ = solution.UpdateReferences(projPath, projectReferences, ct)
             return solution
         }

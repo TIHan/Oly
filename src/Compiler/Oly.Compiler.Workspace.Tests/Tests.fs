@@ -642,7 +642,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -680,7 +679,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -719,7 +717,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -761,7 +758,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -820,7 +816,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -867,7 +862,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -924,7 +918,6 @@ main(): () =
     let path2 = OlyPath.Create("fakepath/ui.oly")
     let path3 = OlyPath.Create("main.olyx")
     let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
     let rs =
         rs
@@ -966,7 +959,6 @@ main(): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -1028,7 +1020,6 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -1126,8 +1117,6 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("fakepath/Test2.olyx")
     let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
     let rs =
         rs
@@ -1230,8 +1219,6 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("fakepath/Test2.olyx")
     let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
     let rs =
         rs
@@ -1338,8 +1325,6 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("fakepath/Test2.olyx")
     let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let text3 = OlySourceText.Create(src3)
     let rs =
         rs
@@ -2067,7 +2052,6 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let path1 = OlyPath.Create("fakepath/Test.olyx")
     let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
     let text2 = OlySourceText.Create(src2)
     let rs =
         rs
@@ -2110,8 +2094,6 @@ main(): () =
 
     let path1 = OlyPath.Create("main.olyx")
     let path2 = OlyPath.Create("testing.oly")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let rs =
         rs
         |> updateText path1 src1
@@ -2139,8 +2121,6 @@ main(): () =
 
     let path1 = OlyPath.Create("main.olyx")
     let path2 = OlyPath.Create("testing.oly")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
     let rs =
         rs
         |> updateText path1 src1
@@ -2151,3 +2131,34 @@ main(): () =
     let solution = workspace.GetSolutionAsync(rs, CancellationToken.None).Result
     let project = solution.GetProject(path1)
     Assert.Equal(2, project.Documents.Length)
+
+[<Fact>]
+let ``Should error as project does not have the specified file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+#load "does_not_exist.oly"
+    
+print(): () =
+    print("Hello World!")
+        """
+
+    let path1 = OlyPath.Create("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let rs =
+        rs
+        |> updateText path1 src1
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(rs, path1, text1, CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(rs, path1, CancellationToken.None).Result[0].Project
+    Assert.Equal(1, proj.Documents.Length)
+
+    let diags = proj.GetDiagnostics(CancellationToken.None)
+
+    // TODO: We need a unified way of asserting diagnostics across the board.
+    Assert.Equal(1, diags.Length)
+    Assert.Equal("'does_not_exist.oly' does not exist.", diags[0].Message)
+
+    let textSpan = diags[0].TextSpan
+    Assert.Equal(40, textSpan.Start)
+    Assert.Equal(60, textSpan.End)

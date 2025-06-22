@@ -121,10 +121,14 @@ let buildWith target isDebug src =
     | Ok(program) ->
         program
 
-let buildHasErrorsWith target (expected: (string * string) list) src =
+let buildHasErrorsWithPrefix target (expected: (string * string) list) src =
     match buildWithAux target false src with
     | Error(diags) when diags |> ImArray.exists (fun x -> x.IsError) ->
-        let errorMsgs = diags |> ImArray.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+        let errorMsgs = 
+            diags 
+            |> ImArray.filter (fun x -> x.IsError) 
+            |> Seq.map (fun x -> ($"{x.CodePrefix}: {x.Message}", "\r\n" + x.GetHelperText() + "\r\n")) 
+            |> Array.ofSeq
         Assert.Equal(expected, errorMsgs)
     | _ ->
         failwith "Expected errors."

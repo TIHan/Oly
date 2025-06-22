@@ -1502,6 +1502,43 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return DocumentHighlightContainer.From([||])
             })
 
+    interface IDocumentLinkHandler with
+        member this.GetRegistrationOptions(capability: DocumentLinkCapability, clientCapabilities: ClientCapabilities): DocumentLinkRegistrationOptions = 
+            let options = DocumentLinkRegistrationOptions()
+            options.DocumentSelector <- documentSelector
+            options.WorkDoneProgress <- false
+            options
+
+        member this.Handle(request: DocumentLinkParams, ct: CancellationToken): Task<DocumentLinkContainer> = 
+            request.HandleOlyDocument(progress, getSnapshot(), ct, getCts, workspace, fun doc ct -> backgroundTask {
+                if doc.IsProjectDocument then
+                    let config = doc.SyntaxTree.GetCompilationUnitConfiguration(ct)
+
+                    let builder = ImArray.builder()
+
+                    let addDocumentLink (textSpan: OlyTextSpan, relativePath: OlyPath) =
+                        let uri =
+                            match relativePath.TryGetGlob() with
+                            | Some(dirPath, _) ->
+                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, dirPath).ToString())
+                            | _ ->
+                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, relativePath).ToString())
+                        let range = doc.SyntaxTree.GetSourceText(ct).GetTextRange(textSpan).ToLspRange()
+                        builder.Add(DocumentLink(Range = range, Target = uri))
+
+                    config.Loads
+                    |> ImArray.iter addDocumentLink
+                    config.References
+                    |> ImArray.iter addDocumentLink
+                    config.CopyFiles
+                    |> ImArray.iter addDocumentLink
+
+                    return DocumentLinkContainer.From(builder.ToArray())
+                else
+                    return DocumentLinkContainer.From([||])
+
+            })
+
     member this.FindAllReferences(doc: OlyDocument, line: int, column: int, ct) =
         backgroundTask {
             let allSymbols = List()
@@ -1558,7 +1595,19 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 let symbolInfoOpt = doc.TryFindSymbol(request.Position.Line, request.Position.Character, ct)
                 match symbolInfoOpt with
                 | Some symbolInfo ->
-                    return symbolInfo.Symbol.GetLspDefinitionLocation(doc.BoundModel, ct)
+                    match symbolInfo.Symbol with
+                    | :? OlyDirectiveSymbol as symbol when symbol.Name = "load" || symbol.Name = "reference" || symbol.Name = "copy" ->
+                        let relativePath = OlyPath.Create(symbol.Value)
+                        let uri =
+                            match relativePath.TryGetGlob() with
+                            | Some(dirPath, _) ->
+                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, dirPath).ToString())
+                            | _ ->
+                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, relativePath).ToString())
+                        let location = Location(Range = Range(0, 0, 0, 0), Uri = uri)
+                        return LocationOrLocationLinks.From([|LocationOrLocationLink(location)|])
+                    | _ ->
+                        return symbolInfo.Symbol.GetLspDefinitionLocation(doc.BoundModel, ct)
                 | _ ->
                     return LocationOrLocationLinks.From([||])
             })
