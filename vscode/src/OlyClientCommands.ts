@@ -1,15 +1,15 @@
-import * as vscode from 'vscode';
-
 export namespace OlyClientCommands {
-	export const navigateToSyntaxNodeCommand = `oly.navigateToSyntaxNode`;
-	export const getSyntaxTreeCommand = `oly.getSyntaxTree`;
-	export const compileCommand = `oly.compile`;
+	// Client to Server commands
+	export const navigateToSyntaxNode = `oly.navigateToSyntaxNode`;
+	export const getSyntaxTree = `oly.getSyntaxTree`;
+	export const compile = `oly.compile`;
 	export const changeActiveProject = `oly.changeActiveProject`;
 	export const changeActiveConfiguration = `oly.changeActiveConfiguration`;
 	export const cleanWorkspace = `oly.cleanWorkspace`;
+
+	// Client commands
 	export const debug = `workbench.action.debug.start`;
 	export const run = `workbench.action.debug.run`;
 	export const createFile = 'oly.createFile';
 	export const deleteFile = `oly.deleteFile`;
-	export const compileOutputChannel = vscode.window.createOutputChannel("Oly Compilation");
 }

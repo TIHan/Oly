@@ -84,6 +84,18 @@ export function activate(context: ExtensionContext) {
 		clientOptions
 	);
 
+	// Clear diagnostics on files that were deleted or renamed
+	olyFileWatcher.onDidDelete(uri => client.diagnostics.delete(uri));
+	olyxFileWatcher.onDidDelete(uri => client.diagnostics.delete(uri));
+	vscode.workspace.onDidRenameFiles(e => {
+		e.files.forEach(args => {
+			let path = args.oldUri.path.toLowerCase();
+			if (path.endsWith('.oly') || path.endsWith('olyx')) {
+				client.diagnostics.delete(args.oldUri);
+			}
+		})
+	});
+
 	// View initializations
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
 	let solutionExplorerView = OlySolutionExplorerView.createFromVscodeWindow(context);
@@ -174,8 +186,9 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
 
+		let compileOutputChannel = vscode.window.createOutputChannel("Oly Compilation");
 		async function compileCommandHandler() {
-			let ch = OlyClientCommands.compileOutputChannel;
+			let ch = compileOutputChannel;
 			
 			ch.show(true);
 			let result = await compile(client, olyProjectStatusBarItem, ch);
@@ -193,7 +206,7 @@ export function activate(context: ExtensionContext) {
 			return result.resultPath;
 		}
 
-		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compileCommand, compileCommandHandler));
+		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compile, compileCommandHandler));
 
 		// Oly Workspace Settings
 		let olyWorkspaceSettingsPath = '.olyworkspace/settings.json';
@@ -301,7 +314,7 @@ export function activate(context: ExtensionContext) {
 			if (isValid)
 			{
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`Active Project: ${projText}${configText}\n\n`);
-				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Compile](command:${OlyClientCommands.compileCommand} "Compile active project")\n\n`);
+				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Compile](command:${OlyClientCommands.compile} "Compile active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:${OlyClientCommands.debug} "Debug active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-start) Run](command:${OlyClientCommands.run} "Run active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Configuration](command:${OlyClientCommands.changeActiveConfiguration} "Change active configuration")\n\n`);
