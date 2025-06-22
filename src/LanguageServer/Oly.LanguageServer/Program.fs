@@ -1095,7 +1095,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: DocumentRangeFormattingCapability, clientCapabilities: ClientCapabilities): DocumentRangeFormattingRegistrationOptions = 
             let options = DocumentRangeFormattingRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: DocumentRangeFormattingParams, ct: CancellationToken): Task<TextEditContainer> = 
@@ -1109,7 +1109,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: DocumentOnTypeFormattingCapability, clientCapabilities: ClientCapabilities): DocumentOnTypeFormattingRegistrationOptions = 
             let options = DocumentOnTypeFormattingRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options.FirstTriggerCharacter <- "="
             options.MoreTriggerCharacter <- Container([|";";",";":";"."|])
             options
@@ -1245,7 +1245,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(_: CodeActionCapability, _: ClientCapabilities): CodeActionRegistrationOptions = 
             let options = CodeActionRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options.CodeActionKinds <- Container([CodeActionKind.QuickFix])
             options
 
@@ -1316,7 +1316,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: SignatureHelpCapability, clientCapabilities: ClientCapabilities): SignatureHelpRegistrationOptions = 
             let options = SignatureHelpRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options.TriggerCharacters <- Container([",";"("])
             options
 
@@ -1386,7 +1386,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: DocumentSymbolCapability, clientCapabilities: ClientCapabilities): DocumentSymbolRegistrationOptions = 
             let options = DocumentSymbolRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options.Label <- "Oly Symbols"
             options
 
@@ -1479,7 +1479,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: DocumentHighlightCapability, clientCapabilities: ClientCapabilities): DocumentHighlightRegistrationOptions = 
             let options = DocumentHighlightRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: DocumentHighlightParams, ct: CancellationToken): Task<DocumentHighlightContainer> = 
@@ -1537,7 +1537,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: ReferenceCapability, clientCapabilities: ClientCapabilities): ReferenceRegistrationOptions = 
             let options = ReferenceRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: ReferenceParams, ct: CancellationToken): Task<LocationContainer> = 
@@ -1550,7 +1550,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: DefinitionCapability, clientCapabilities: ClientCapabilities): DefinitionRegistrationOptions = 
             let options = DefinitionRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: DefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
@@ -1567,7 +1567,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: TypeDefinitionCapability, clientCapabilities: ClientCapabilities): TypeDefinitionRegistrationOptions = 
             let options = TypeDefinitionRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: TypeDefinitionParams, ct: CancellationToken): Task<LocationOrLocationLinks> =
@@ -1596,7 +1596,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(capability: CodeLensCapability, clientCapabilities: ClientCapabilities): CodeLensRegistrationOptions = 
             let options = CodeLensRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: CodeLensParams, ct: CancellationToken): Task<CodeLensContainer> = 
@@ -1662,7 +1662,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(_: HoverCapability, _: ClientCapabilities): HoverRegistrationOptions = 
             let options = HoverRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options
 
         member this.Handle(request: HoverParams, ct: CancellationToken): Task<Hover> = 
@@ -1765,7 +1765,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(c: CompletionCapability, client: ClientCapabilities) =
             let options = CompletionRegistrationOptions()
             options.DocumentSelector <- documentSelector
-            options.WorkDoneProgress <- true
+            options.WorkDoneProgress <- false
             options.TriggerCharacters <- Container([".";",";":";" "])
             options.AllCommitCharacters <- null
             options.ResolveProvider <- true
