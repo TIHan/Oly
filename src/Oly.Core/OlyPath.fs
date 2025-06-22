@@ -93,17 +93,20 @@ type OlyPath private (path: string) =
         DirectoryInfo(path)
 
     static member private NormalizeDirectory(dir: string) =
-        if String.IsNullOrWhiteSpace dir then
-            dir
-        else
-            if dir.StartsWith("\\\\") then
-                dir.Substring(2, dir.Length - 2)
-            elif dir.StartsWith("\\") then
-                dir.Substring(1, dir.Length - 1)
-            elif dir.StartsWith("/") then
-                dir.Substring(1, dir.Length - 1)
-            else
+        if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
+            if String.IsNullOrWhiteSpace dir then
                 dir
+            else
+                if dir.StartsWith("\\\\") then
+                    dir.Substring(2, dir.Length - 2)
+                elif dir.StartsWith("\\") then
+                    dir.Substring(1, dir.Length - 1)
+                elif dir.StartsWith("/") then 
+                    dir.Substring(1, dir.Length - 1)
+                else
+                    dir
+        else
+            dir
     
     static member private Normalize(path: string) =
         let path =
