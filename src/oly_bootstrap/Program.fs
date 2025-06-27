@@ -12,7 +12,9 @@ OlyTrace.LogWarning <-
 OlyTrace.LogError <- fun text -> Console.Error.WriteLine(text)
 
 let results = Oly.Build("Release", OlyPath.Create(Environment.GetCommandLineArgs()[1]), System.Threading.CancellationToken.None).Result
-if results.IsError then
+match results with
+| Ok(_) -> printfn "Oly Cli Bootstrap Succeeded"
+| Error(results) ->
+    results
+    |> ImArray.iter (fun x -> OlyTrace.LogError(x.ToString()))
     failwith "Failed: Oly Cli Bootstrap"
-else
-    printfn "Oly Cli Bootstrap Succeeded"

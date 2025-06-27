@@ -29,6 +29,13 @@ export interface OlyCompilationResult {
 	error: string
 }
 
+export interface OlyProjectInfo {
+	uri: vscode.Uri,
+	configurationName: string,
+	configurationList: string[],
+	isDebuggable: boolean
+}
+
 export class OlyLanguageClient extends LanguageClient {
 	static get legend() { return legend; }
 
@@ -41,20 +48,17 @@ export class OlyLanguageClient extends LanguageClient {
 		return await this.sendRequest("oly/getProjectList");
 	}
 
-	public async getActiveProjectConfigurationList(): Promise<string[]> {
-		return await this.sendRequest("oly/getActiveProjectConfigurationList");
-	}
-
 	public async doesProjectExist(projectName: string): Promise<boolean> {
 		return await this.sendRequest("oly/doesProjectExist", { ProjectName: projectName });
 	}
 
-	public async tryGetActiveProjectConfiguration(): Promise<string> {
-		return await this.sendRequest("oly/tryGetActiveProjectConfiguration");
+	public async tryGetActiveProjectInfo(): Promise<OlyProjectInfo> {
+		return await this.sendRequest("oly/tryGetActiveProjectInfo");
 	}
 
 	public async doesActiveProjectConfigurationExist(configName: string): Promise<boolean> {
-		return await this.sendRequest("oly/doesActiveProjectConfigurationExist", { ConfigurationName: configName });
+		let proj = await this.tryGetActiveProjectInfo();
+		return proj.configurationList.indexOf(configName) != -1;
 	}
 
 	public async compileActiveProject(): Promise<OlyCompilationResult> {

@@ -9,10 +9,10 @@ open Oly.Compiler.Syntax
 open Oly.Core
 
 /// TODO: This shouldn't be public, but it is to make Text.Json work.
+[<Sealed>]
 type ActiveConfigurationState =
-    {
-        mutable activeConfiguration: string
-    }
+    new : activeConfiguration: string -> ActiveConfigurationState
+    member ActiveConfiguration: string
 
 /// TODO: This shouldn't be public, but it is to make Text.Json work.
 [<Sealed>]

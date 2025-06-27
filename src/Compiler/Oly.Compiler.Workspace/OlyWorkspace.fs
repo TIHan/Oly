@@ -14,6 +14,7 @@ open System.Threading.Tasks
 open System.Collections.Generic
 open System.Collections.Immutable
 open System.Runtime.CompilerServices
+open System.Diagnostics.CodeAnalysis
 
 exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
 
@@ -196,10 +197,10 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
         let boundModel = this.BoundModel
         project.SharedBuild.GetAnalyzerDiagnostics(this.Project.TargetInfo, boundModel, ct)
 
-type ActiveConfigurationState =
-    {
-        mutable activeConfiguration: string
-    }
+[<Sealed>]
+type ActiveConfigurationState [<JsonConstructor>] (activeConfiguration: string) =
+
+    member _.ActiveConfiguration = activeConfiguration
 
 [<Sealed>]
 type ProjectConfiguration [<JsonConstructor>] (name: string, defines: string [], debuggable: bool) =
@@ -1010,7 +1011,7 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
             try
                 let contents = Json.Deserialize<ActiveConfigurationState>(view)
-                contents.activeConfiguration
+                contents.ActiveConfiguration
             finally
                 view.Dispose()
         | _ ->
@@ -1996,6 +1997,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetAllDocuments(rs, ct, reply))
         }
 
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ActiveConfigurationState>)>]
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectConfigurations>)>]
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectConfiguration>)>]
     member this.BuildProjectAsync(rs, projectPath: OlyPath, ct: CancellationToken) =
         backgroundTask {          
             this.UpdateDocument(rs, projectPath, ct)

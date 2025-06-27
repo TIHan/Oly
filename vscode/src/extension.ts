@@ -102,7 +102,7 @@ export function activate(context: ExtensionContext) {
 
 	// Oly Workspace - status bar item
 	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
-	let olyWorkspaceStatusSyncText = "$(sync~spin) Oly Workspace"
+	let olyWorkspaceStatusSyncText = "$(loading~spin) Oly Workspace"
 	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
 	olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
@@ -111,8 +111,8 @@ export function activate(context: ExtensionContext) {
 
 	function beginOlyWorkspaceStatus() {
 		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusSyncText;
-		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.warningForeground");
-		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
+		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
 	}
 
 	function endOlyWorkspaceStatus() {
@@ -125,14 +125,14 @@ export function activate(context: ExtensionContext) {
 	olyWorkspaceStatusBarItem.show();
 
 	// Building... - status bar item
-	let olyBuildingStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
-	olyBuildingStatusBarItem.text = "$(loading~spin) Building...";
-	olyBuildingStatusBarItem.color = new vscode.ThemeColor("statusBarItem.warningForeground");
-	olyBuildingStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+	let olyBuildingStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+	olyBuildingStatusBarItem.text = "$(loading~spin) Oly Building...";
+	olyBuildingStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
+	olyBuildingStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
 
 	// Oly Project: {active-project-name}({active-project-configuration-name}) - status bar item
 	let olyProjectStatusDefaultText = "Oly Project";
-	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
+	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
 
 	function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
 		switch (params.kind) {
@@ -160,7 +160,7 @@ export function activate(context: ExtensionContext) {
 	}
 
 	function registerStatusBarItems() {
-		client.onProgress(WorkDoneProgress.type, 'oly/analysis', handleProgressNotification);
+		client.onProgress(WorkDoneProgress.type, 'oly/progress', handleProgressNotification);
 	}
 
 	client.onReady().then(async () => {
@@ -274,8 +274,11 @@ export function activate(context: ExtensionContext) {
 			{
 				isValid = false;
 			}
+
+			var isDebuggable = false;
 			
 			var olyWorkspaceState = await readOlyWorkspaceState();
+			let proj = await client.tryGetActiveProjectInfo();
 			var configText = "";
 			if (isValid &&
 				olyWorkspaceState.activeConfiguration !== undefined && 
@@ -284,9 +287,9 @@ export function activate(context: ExtensionContext) {
 			{
 				configText = ` (${olyWorkspaceState.activeConfiguration})`;
 			}
-			else if (isValid)
+			else if (isValid && proj !== null)
 			{
-				configText = await client.tryGetActiveProjectConfiguration();
+				configText = proj.configurationName;
 				if (configText === null)
 				{
 					isValid = false;
@@ -296,6 +299,9 @@ export function activate(context: ExtensionContext) {
 					configText = ` (${configText})`;
 				}
 			}
+
+			if (proj !== null)
+				isDebuggable = proj.isDebuggable;
 
 			if (isValid)
 			{
@@ -315,7 +321,8 @@ export function activate(context: ExtensionContext) {
 			{
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`Active Project: ${projText}${configText}\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Compile](command:${OlyClientCommands.compile} "Compile active project")\n\n`);
-				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:${OlyClientCommands.debug} "Debug active project")\n\n`);
+				if (isDebuggable)
+					olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:${OlyClientCommands.debug} "Debug active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-start) Run](command:${OlyClientCommands.run} "Run active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Configuration](command:${OlyClientCommands.changeActiveConfiguration} "Change active configuration")\n\n`);
 			}
@@ -350,7 +357,8 @@ export function activate(context: ExtensionContext) {
 		}));
 
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.changeActiveConfiguration, async () => {
-			let configNames = await client.getActiveProjectConfigurationList();
+			let proj = await client.tryGetActiveProjectInfo();
+			let configNames = proj.configurationList;
 			let options: vscode.QuickPickOptions = { ignoreFocusOut: true, placeHolder: "Select a configuration..." }
 			let result = await vscode.window.showQuickPick(configNames, options);
 
@@ -379,7 +387,6 @@ export function activate(context: ExtensionContext) {
 						await x.document.save();
 					}
 				});
-
 			}
 		}));
 

@@ -3,6 +3,7 @@
 open System
 open System.IO
 open System.Diagnostics
+open System.Diagnostics.CodeAnalysis
 open System.Reflection
 open System.Threading
 open System.Reflection.PortableExecutable
@@ -359,6 +360,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]
     override this.BuildProjectAsync(proj, ct) = backgroundTask {
         ct.ThrowIfCancellationRequested()
 

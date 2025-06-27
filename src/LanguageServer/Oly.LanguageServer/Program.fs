@@ -195,6 +195,15 @@ type IOlyDocumentRequest<'T> =
     abstract DocumentPath: string with get, set
 
 [<NoEquality;NoComparison>]
+type ActiveProjectInfo =
+    {
+        uri: Protocol.DocumentUri
+        configurationName: string
+        configurationList: string[]
+        isDebuggable: bool
+    }
+
+[<NoEquality;NoComparison>]
 type OlyCompilationResult =
     {
         mutable resultPath: string
@@ -228,28 +237,15 @@ type OlyGetProjectListRequest() =
 
     interface IRequest<string[]>
 
+[<Method("oly/tryGetActiveProjectInfo", Direction.ClientToServer)>]
+type OlyTryGetActiveProjectInfoRequest() =
 
-[<Method("oly/getActiveProjectConfigurationList", Direction.ClientToServer)>]
-type OlyGetActiveProjectConfigurationListRequest() =
-
-    interface IRequest<string[]>
-
-[<Method("oly/tryGetActiveProjectConfiguration", Direction.ClientToServer)>]
-type OlyTryGetActiveProjectConfigurationRequest() =
-
-    interface IRequest<string>
+    interface IRequest<ActiveProjectInfo>
 
 [<Method("oly/doesProjectExist", Direction.ClientToServer)>]
 type OlyDoesProjectExistRequest() =
 
     member val ProjectName: string = null with get, set
-    
-    interface IRequest<bool>
-
-[<Method("oly/doesActiveProjectConfigurationExist", Direction.ClientToServer)>]
-type OlyDoesActiveProjectConfigurationExistRequest() =
-
-    member val ConfigurationName: string = null with get, set
     
     interface IRequest<bool>
 
@@ -679,7 +675,7 @@ type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
         if isNull observer then
             lock analysisLock <| fun _ ->
                 if isNull observer then
-                    observer <- server.ProgressManager.For(ProgressToken("oly/analysis"), CancellationToken.None)
+                    observer <- server.ProgressManager.For(ProgressToken("oly/progress"), CancellationToken.None)
         observer
 
     member private this.OnBeginAnalysisProgress() =
@@ -2014,7 +2010,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     |> Array.ofSeq
             }
 
-    interface IJsonRpcRequestHandler<OlyGetActiveProjectConfigurationListRequest, string[]> with
+    interface IJsonRpcRequestHandler<OlyTryGetActiveProjectInfoRequest, ActiveProjectInfo> with
 
         member _.Handle(_request, ct) =
             backgroundTask {
@@ -2022,27 +2018,19 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 let snapshot = getSnapshot()
                 match! tryGetActiveProject snapshot workspace ct with
                 | Some (proj) ->
-                    let projConfigs = snapshot.GetAllProjectConfigurations(proj.Path)
-                    return
-                        projConfigs
-                        |> Seq.map (fun x -> x.Name)
-                        |> Seq.sort
-                        |> Array.ofSeq
+                    return {
+                        uri = Protocol.DocumentUri.From(proj.Path.ToString())
+                        configurationName = proj.Configuration.Name
+                        configurationList = 
+                            let projConfigs = snapshot.GetAllProjectConfigurations(proj.Path)
+                            projConfigs
+                            |> Seq.map (fun x -> x.Name)
+                            |> Seq.sort
+                            |> Array.ofSeq
+                        isDebuggable = proj.Configuration.Debuggable
+                    }
                 | _ ->
-                    return [||]
-            }
-
-    interface IJsonRpcRequestHandler<OlyTryGetActiveProjectConfigurationRequest, string> with
-
-        member _.Handle(_request, ct) =
-            backgroundTask {
-                ct.ThrowIfCancellationRequested()
-                let snapshot = getSnapshot()
-                match! tryGetActiveProject snapshot workspace ct with
-                | Some (proj) ->
-                    return proj.Configuration.Name
-                | _ ->
-                    return null
+                    return Unchecked.defaultof<_>
             }
 
     interface IJsonRpcRequestHandler<OlyDoesProjectExistRequest, bool> with
@@ -2052,22 +2040,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 ct.ThrowIfCancellationRequested()
                 let! solution = workspace.GetSolutionAsync(getSnapshot(), ct)
                 return solution.GetProjects() |> ImArray.exists (fun x -> x.Name = request.ProjectName)
-            }
-
-    interface IJsonRpcRequestHandler<OlyDoesActiveProjectConfigurationExistRequest, bool> with
-
-        member _.Handle(request, ct) =
-            backgroundTask {
-                ct.ThrowIfCancellationRequested()
-                let snapshot = getSnapshot()
-                match! tryGetActiveProject snapshot workspace ct with
-                | Some (proj) ->
-                    let projConfigs = snapshot.GetAllProjectConfigurations(proj.Path)
-                    return
-                        projConfigs
-                        |> ImArray.exists (fun x -> x.Name = request.ConfigurationName)
-                | _ ->
-                    return false
             }
 
     interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest> with
