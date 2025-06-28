@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open System.Collections.Generic
 open FSharp.NativeInterop
 open Oly.Core
 
@@ -101,6 +102,8 @@ type IOlySourceText =
 
     abstract Item : int -> char with get
 
+    abstract Chars : IEnumerable<char>
+
     abstract GetSubText : textSpan: OlyTextSpan -> IOlySourceText
 
     abstract GetSubTextView : start: int * length: int -> ReadOnlyMemory<char>
@@ -125,17 +128,79 @@ type IOlySourceText =
 
     abstract ApplyTextChanges : textChanges: OlyTextChange seq -> IOlySourceText
 
-    abstract Lines : OlySourceTextLineCollection
+    abstract Lines : OlyTextLineCollection
 
-and [<AbstractClass>] OlySourceTextLineCollection internal () =
+and [<Sealed>] OlyTextLineCollection internal (sourceText: IOlySourceText) =
 
-    abstract Item : index: int -> OlySourceTextLine
+    let mutable lastLineNumber = -1
+    let lines = ResizeArray()
+    let lineStarts = ResizeArray()
+    do
+        let mutable startPos = OlyTextPosition()
+        let mutable endPos = OlyTextPosition()
+        let mutable line = 0
+        let mutable col = 0
+        let mutable pos = 0
 
-    abstract Count : int
+        sourceText.Chars
+        |> Seq.iter (fun c ->
+            match c with
+            | '\n' 
+            | '\u0085' // NEL
+            | '\u2028' // LS
+            | '\u2029' // PS
+                    ->
+                let start = pos - endPos.Column
+                lineStarts.Add(start)
+                lines.Add(OlyTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
+                line <- line + 1
+                col <- 0
+                startPos <- OlyTextPosition(line, col)
+                endPos <- startPos
+            | _ ->
+                col <- col + 1
+                endPos <- OlyTextPosition(line, col)
 
-    abstract GetLineFromPosition : position: int -> OlySourceTextLine
+            pos <- pos + 1
+        )
 
-and [<Struct;NoComparison;NoEquality>] OlySourceTextLine internal (textSpan: OlyTextSpan, lineIndex: int, sourceText: IOlySourceText) =
+        let start = pos - endPos.Column
+        lineStarts.Add(start)
+        lines.Add(OlyTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
+
+    member _.Item index = lines.[index]
+
+    member _.Count = lines.Count
+
+    member _.GetLineFromPosition(pos: int) =
+        // This impl is effectively the same as Roslyn.
+
+        // It is common to have back-to-back queries around the last line number that was found.
+        let mutable lineNumber = -1
+        let possibleLineNumber = lastLineNumber
+        if possibleLineNumber <> -1 && pos >= lineStarts[possibleLineNumber] then
+            let limit = Math.Min(lineStarts.Count, possibleLineNumber + 4);
+
+            let mutable i = possibleLineNumber
+            while (i < limit && lineNumber = -1) do
+                if pos < lineStarts[i] then
+                    lineNumber <- i - 1
+                    lastLineNumber <- lineNumber
+                i <- i + 1
+
+        if lineNumber <> -1 then
+            lines[lineNumber]
+        else
+            lineNumber <- lineStarts.BinarySearch(pos)
+            lineNumber <-
+                if lineNumber < 0 then
+                    (~~~lineNumber) - 1
+                else
+                    lineNumber
+            lastLineNumber <- lineNumber
+            lines[lineNumber]
+
+and [<Struct;NoComparison;NoEquality>] OlyTextLine internal (textSpan: OlyTextSpan, lineIndex: int, sourceText: IOlySourceText) =
 
     member _.TextSpan = textSpan
 
@@ -177,7 +242,7 @@ type private StringText(str: string) as this =
 
     let getLines =
         lazy
-            StringTextLineCollection(this)
+            OlyTextLineCollection(this)
 
     let hashCode =
         lazy
@@ -209,6 +274,8 @@ type private StringText(str: string) as this =
             StringText(appliedText) :> IOlySourceText
 
         member _.Item with get index = str.[index]
+
+        member _.Chars = str
 
         member _.GetSubText(textSpan) =
             str.Substring(textSpan.Start, textSpan.Width)
@@ -289,72 +356,7 @@ type private StringText(str: string) as this =
             | _ ->
                 None
 
-        member this.Lines = getLines.Value :> OlySourceTextLineCollection
-
-and [<Sealed>] private StringTextLineCollection(sourceText: StringText) =
-    inherit OlySourceTextLineCollection()
-
-    let mutable lastLineNumber = -1
-    let lines = ResizeArray()
-    let lineStarts = ResizeArray()
-    do
-        let mutable startPos = OlyTextPosition()
-        let mutable endPos = OlyTextPosition()
-        let mutable line = 0
-        let mutable col = 0
-        let mutable pos = 0
-
-        for c in sourceText.String do
-            match c with
-            | '\n' -> 
-                let start = pos - endPos.Column
-                lineStarts.Add(start)
-                lines.Add(OlySourceTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
-                line <- line + 1
-                col <- 0
-                startPos <- OlyTextPosition(line, col)
-                endPos <- startPos
-            | _ ->
-                col <- col + 1
-                endPos <- OlyTextPosition(line, col)
-
-            pos <- pos + 1
-
-        let start = pos - endPos.Column
-        lineStarts.Add(start)
-        lines.Add(OlySourceTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
-
-    override _.Item index = lines.[index]
-
-    override _.Count = lines.Count
-
-    override _.GetLineFromPosition(pos: int) =
-        // This impl is effectively the same as Roslyn.
-
-        // It is common to have back-to-back queries around the last line number that was found.
-        let mutable lineNumber = -1
-        let possibleLineNumber = lastLineNumber
-        if possibleLineNumber <> -1 && pos >= lineStarts[possibleLineNumber] then
-            let limit = Math.Min(lineStarts.Count, possibleLineNumber + 4);
-
-            let mutable i = possibleLineNumber
-            while (i < limit && lineNumber = -1) do
-                if pos < lineStarts[i] then
-                    lineNumber <- i - 1
-                    lastLineNumber <- lineNumber
-                i <- i + 1
-
-        if lineNumber <> -1 then
-            lines[lineNumber]
-        else
-            lineNumber <- lineStarts.BinarySearch(pos)
-            lineNumber <-
-                if lineNumber < 0 then
-                    (~~~lineNumber) - 1
-                else
-                    lineNumber
-            lastLineNumber <- lineNumber
-            lines[lineNumber]
+        member this.Lines = getLines.Value
 
 [<Sealed;AbstractClass>]
 type OlySourceText private () =
