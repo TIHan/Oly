@@ -74,8 +74,8 @@ type OlyDiagnostic internal () =
                 let textSpan = this.TextSpan
                 let sourceText = syntaxTree.GetSourceText(ct)
                 let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
-                let line = sourceLine.LineIndex + 1
-                let column = textSpan.Start - sourceLine.TextSpan.Start + 1
+                let line = sourceLine.Index + 1
+                let column = textSpan.Start - sourceLine.Span.Start + 1
 
                 let kindText =
                     if this.IsWarning then
@@ -99,13 +99,13 @@ type OlyDiagnostic internal () =
             let textSpan = this.TextSpan
 
             let sourceText = syntaxTree.GetSourceText(ct)
-            let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
-            let sourceLineTest = sourceText.Lines.GetLineFromPosition(textSpan.End)
+            let line = sourceText.Lines.GetLineFromPosition(textSpan.Start)
+            let lineTest = sourceText.Lines.GetLineFromPosition(textSpan.End)
 
-            if sourceLine.LineIndex = sourceLineTest.LineIndex then       
-                let startI = textSpan.Start - sourceLine.TextSpan.Start
+            if line.Index = lineTest.Index then       
+                let startI = textSpan.Start - line.Span.Start
 
-                let lineText = sourceLine.ToString()
+                let lineText = line.ToString(sourceText)
                 let locationText = 
                     let a = String.init startI (fun _ -> " ")
                     let width = textSpan.Width
@@ -116,17 +116,17 @@ type OlyDiagnostic internal () =
                             width
                     let b = String.init width (fun _ -> "^")
                     a + b
-                lineText + "\n" + locationText
+                lineText + Environment.NewLine + locationText
             else
                 // TODO: Fix support for multi-line diagnostic location
-                let startI = textSpan.Start - sourceLine.TextSpan.Start
+                let startI = textSpan.Start - line.Span.Start
 
-                let lineText = sourceLine.ToString()
+                let lineText = line.ToString(sourceText)
                 let locationText = 
                     let a = String.init startI (fun _ -> " ")
                     let b = String.init textSpan.Width (fun _ -> "^")
                     a + b
-                lineText + "\n" + locationText
+                lineText + Environment.NewLine + locationText
         | _ ->
             String.Empty
 

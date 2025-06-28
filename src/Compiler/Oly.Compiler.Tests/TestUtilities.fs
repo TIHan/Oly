@@ -242,7 +242,7 @@ let withSyntaxErrorDiagnostics (expected: string list) (c: TestCompilation) =
     c
 
 let withSyntaxErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, Environment.NewLine + x.GetHelperText() + Environment.NewLine)) |> Array.ofSeq
     (expected, errorMsgs)
     ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
         Assert.Equal(expectedMsg, msg)
@@ -265,7 +265,7 @@ let hasErrorDiagnostics (c: TestCompilation) =
     Assert.NotEmpty(errorMsgs)
 
 let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, Environment.NewLine + x.GetHelperText() + Environment.NewLine)) |> Array.ofSeq
 
     let builder = Text.StringBuilder()
     (expected |> ImArray.ofSeq, errorMsgs |> ImArray.ofSeq)

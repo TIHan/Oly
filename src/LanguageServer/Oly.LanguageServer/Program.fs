@@ -737,7 +737,7 @@ type ITextDocumentIdentifierParams with
                 fun ct ->
                     backgroundTask {
                         match rs.TextEditors.TryGet(documentPath) with
-                        | Some (sourceText, _) ->
+                        | Some (sourceText) ->
                             let! docs = workspace.UpdateDocumentAsync(rs, documentPath, sourceText, ct)
                             if docs.Length >= 1 then
                                 let doc = docs.[0]
@@ -916,7 +916,7 @@ module ExtensionHelpers =
                         let ct = handleCts.Token
 
                         match rs.TextEditors.TryGet(documentPath) with
-                        | Some (sourceText, _) ->
+                        | Some (sourceText) ->
                             let! docs = workspace.UpdateDocumentAsync(rs, documentPath, sourceText, ct)
                             if docs.Length >= 1 then
                                 let doc = docs.[0]
@@ -1054,7 +1054,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             ()
         }
 
-    member this.OnDidOpenOrSaveDocumentAsync(documentPath: OlyPath, version) =
+    member this.OnDidOpenDocumentAsync(documentPath: OlyPath, version) =
         backgroundTask {
             let cts = getCts documentPath
             let ct = cts.Token
@@ -1185,6 +1185,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.GetRegistrationOptions(_: TextSynchronizationCapability, _: ClientCapabilities): TextDocumentSaveRegistrationOptions = 
             let options = TextDocumentSaveRegistrationOptions()
             options.DocumentSelector <- documentSelector
+            options.IncludeText <- false
             options
 
         member this.GetTextDocumentAttributes(uri: OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri): TextDocumentAttributes = 
@@ -1198,7 +1199,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     OlyTextChangeWithRange(change.Range.ToOlyTextRange(), change.Text)
                 )
               
-            match textManager.OnChange(documentPath, request.TextDocument.Version, textChanges) with
+            match textManager.OnChange(documentPath, textChanges) with
             | Some(sourceText, newTextManager) ->
                 textManager <- newTextManager
                 try
@@ -1213,8 +1214,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member this.Handle(request: DidOpenTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> =
             task {
                 let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                textManager <- textManager.OnOpen(documentPath, request.TextDocument.Version)
-                this.OnDidOpenOrSaveDocumentAsync(documentPath, request.TextDocument.Version).Start()
+                textManager <- textManager.OnOpen(documentPath, OlySourceText.Create(request.TextDocument.Text))
+                this.OnDidOpenDocumentAsync(documentPath, request.TextDocument.Version).Start()
                 return MediatR.Unit.Value
             }
 
@@ -1225,14 +1226,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 return MediatR.Unit.Value
             }
 
-        member this.Handle(request: DidSaveTextDocumentParams, ct: CancellationToken): Task<MediatR.Unit> = 
+        member this.Handle(_request: DidSaveTextDocumentParams, _ct: CancellationToken): Task<MediatR.Unit> = 
             task {
-                let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                match textManager.TryGet(documentPath) with
-                | Some(_, version) ->
-                    this.OnDidOpenOrSaveDocumentAsync(documentPath, version).Start()
-                | _ ->
-                    ()
                 return MediatR.Unit.Value
             }
 
@@ -1821,7 +1816,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 try
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
                     match textManager.TryGet(documentPath) with
-                    | Some (sourceText, _) ->
+                    | Some (sourceText) ->
                         let! docs = workspace.UpdateDocumentAsync(getSnapshot(), documentPath, sourceText, ct)
                         if docs.IsEmpty then
                             return null
@@ -2113,10 +2108,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
                             let endLine = lines.GetLineFromPosition(x.TextSpan.End)
                             seq {
-                                for lineIndex = startLine.LineIndex + 1 to endLine.LineIndex - 1 do
+                                for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
                                     let line = lines[lineIndex]
-                                    let textRange = sourceText.GetTextRange(line.TextSpan)
-                                    classify textRange.Start.Line textRange.Start.Column line.TextSpan.Width "conditionalDirectiveBody" Array.empty
+                                    let textRange = sourceText.GetTextRange(line.Span)
+                                    classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty
                             }
                         )
                         |> Seq.concat

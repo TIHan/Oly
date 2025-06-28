@@ -98,7 +98,20 @@ type OlyTextChangeWithRange =
 
     new(range, text) = { Range = range; Text = text }
 
-type IOlySourceText =
+[<Struct>]
+type OlyTextLine(index: int, span: OlyTextSpan) =
+
+    member _.Index = index
+
+    member _.Span = span
+
+    member _.ToString(sourceText: IOlySourceText) =
+        let mutable str = String.init span.Width (fun _ -> string Char.MinValue)
+        use ptr = fixed str
+        sourceText.CopyTo(span.Start, Span(ptr |> NativePtr.toVoidPtr, span.Width))
+        str.ReplaceLineEndings("")
+
+and IOlySourceText =
 
     abstract Item : int -> char with get
 
@@ -133,46 +146,40 @@ type IOlySourceText =
 and [<Sealed>] OlyTextLineCollection internal (sourceText: IOlySourceText) =
 
     let mutable lastLineNumber = -1
-    let lines = ResizeArray()
     let lineStarts = ResizeArray()
+    let mutable charCount = 0
     do
-        let mutable startPos = OlyTextPosition()
-        let mutable endPos = OlyTextPosition()
-        let mutable line = 0
-        let mutable col = 0
+        let mutable idx = 0
         let mutable pos = 0
 
         sourceText.Chars
         |> Seq.iter (fun c ->
+            idx <- idx + 1
             match c with
             | '\n' 
-            | '\u0085' // NEL
-            | '\u2028' // LS
-            | '\u2029' // PS
-                    ->
-                let start = pos - endPos.Column
-                lineStarts.Add(start)
-                lines.Add(OlyTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
-                line <- line + 1
-                col <- 0
-                startPos <- OlyTextPosition(line, col)
-                endPos <- startPos
+            | '\u0085'    // NEL
+            | '\u2028'    // LS
+            | '\u2029' -> // PS
+                lineStarts.Add(pos)
+                pos <- idx
             | _ ->
-                col <- col + 1
-                endPos <- OlyTextPosition(line, col)
-
-            pos <- pos + 1
+               ()
         )
 
-        let start = pos - endPos.Column
-        lineStarts.Add(start)
-        lines.Add(OlyTextLine(OlyTextSpan.CreateWithEnd(start, pos), line, sourceText))
+        charCount <- idx
+        lineStarts.Add(pos)
 
-    member _.Item index = lines.[index]
+    member _.Item index =
+        let start = lineStarts[index]
+        if index = (lineStarts.Count - 1) then
+            OlyTextLine(index, OlyTextSpan.Create(start, charCount - start))
+        else
+            let nextStart = lineStarts[index + 1]
+            OlyTextLine(index, OlyTextSpan.Create(start, nextStart - start))
 
-    member _.Count = lines.Count
+    member _.Count = lineStarts.Count
 
-    member _.GetLineFromPosition(pos: int) =
+    member this.GetLineFromPosition(pos: int) =
         // This impl is effectively the same as Roslyn.
 
         // It is common to have back-to-back queries around the last line number that was found.
@@ -189,7 +196,7 @@ and [<Sealed>] OlyTextLineCollection internal (sourceText: IOlySourceText) =
                 i <- i + 1
 
         if lineNumber <> -1 then
-            lines[lineNumber]
+            this[lineNumber]
         else
             lineNumber <- lineStarts.BinarySearch(pos)
             lineNumber <-
@@ -198,22 +205,7 @@ and [<Sealed>] OlyTextLineCollection internal (sourceText: IOlySourceText) =
                 else
                     lineNumber
             lastLineNumber <- lineNumber
-            lines[lineNumber]
-
-and [<Struct;NoComparison;NoEquality>] OlyTextLine internal (textSpan: OlyTextSpan, lineIndex: int, sourceText: IOlySourceText) =
-
-    member _.TextSpan = textSpan
-
-    member _.SourceText = sourceText
-
-    member _.LineIndex = lineIndex
-
-    override _.ToString() = 
-        let mutable str = String.init textSpan.Width (fun _ -> string Char.MinValue)
-        use ptr = fixed str
-        let span = Span(ptr |> NativePtr.toVoidPtr, textSpan.Width)
-        sourceText.CopyTo(textSpan.Start, span)
-        str       
+            this[lineNumber]  
 
 [<AutoOpen>]
 module OlySourceTextExtensions =
@@ -333,7 +325,7 @@ type private StringText(str: string) as this =
             let line1 = lines.GetLineFromPosition(startPos)
             let line2 = lines.GetLineFromPosition(endPos)
 
-            OlyTextRange(OlyTextPosition(line1.LineIndex, startPos - line1.TextSpan.Start), OlyTextPosition(line2.LineIndex, endPos - line2.TextSpan.Start))
+            OlyTextRange(OlyTextPosition(line1.Index, startPos - line1.Span.Start), OlyTextPosition(line2.Index, endPos - line2.Span.Start))
 
         member _.TryGetPosition(textPos) =
             let line = textPos.Line
@@ -343,8 +335,8 @@ type private StringText(str: string) as this =
                 None
             else
                 let line = lines.[line]
-                let position = line.TextSpan.Start + column
-                if position <= line.TextSpan.End then
+                let position = line.Span.Start + column
+                if position <= line.Span.End then
                     Some position
                 else
                     None

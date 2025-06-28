@@ -325,6 +325,11 @@ export function activate(context: ExtensionContext) {
 					olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:${OlyClientCommands.debug} "Debug active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-start) Run](command:${OlyClientCommands.run} "Run active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Configuration](command:${OlyClientCommands.changeActiveConfiguration} "Change active configuration")\n\n`);
+				olyProjectStatusBarItem.command = { title: "", command: "vscode.open", arguments: [proj.uri] };
+			}
+			else
+			{
+				olyProjectStatusBarItem.command = null;
 			}
 			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Project](command:${OlyClientCommands.changeActiveProject} "Change active project")\n\n`);
 			olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: ${projText}${configText}`;

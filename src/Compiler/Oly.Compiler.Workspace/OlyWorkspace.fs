@@ -891,7 +891,7 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
 
     member _.GetSourceText(filePath) =
         match state.textEditors.TryGet filePath with
-        | Some(sourceText, _) -> sourceText
+        | Some(sourceText) -> sourceText
         | _ ->
 
         if isForced then
