@@ -101,19 +101,19 @@ type OlyBuild(platformName: string) =
 
     member _.PlatformName = platformName
 
-    member _.GetProjectCacheDirectory(configName: string, projectPath: OlyPath) =
+    member _.GetProjectCacheDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
         if projectPath.IsFile then
             let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
             let dir = OlyPath.GetDirectory(projectPath)
-            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{configName}/"))
+            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/"))
         else
             invalidOp "Expected file"
 
-    member _.GetProjectBinDirectory(configName: string, projectPath: OlyPath) =
+    member _.GetProjectBinDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
         if projectPath.IsFile then
             let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
             let dir = OlyPath.GetDirectory(projectPath)
-            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{configName}/"))
+            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/"))
         else
             invalidOp "Expected file"
 
@@ -265,7 +265,6 @@ type OlyProject (
     solution: OlySolution Lazy, 
     projPath: OlyPath,
     projName: string,
-    projConfig: OlyProjectConfiguration,
     compilationOptions: OlyCompilationOptions,
     compilation: OlyCompilation CacheValue, 
     documents: ImmutableDictionary<OlyPath, OlyDocument>, 
@@ -294,7 +293,7 @@ type OlyProject (
     member _.References = references
     member _.Name = projName
     member _.Path = projPath
-    member _.Configuration = projConfig
+    member _.Configuration = targetInfo.ProjectConfiguration
     member _.Packages = packages
     member _.CopyFileInfos = copyFileInfos
 
@@ -339,7 +338,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -362,7 +361,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -385,27 +384,9 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
-
-    //member this.UpdateExtraDiagnostics(newSolutionLazy: Lazy<OlySolution>, docPath: OlyPath, extraDiagnostics, ct: CancellationToken) =
-    //    ct.ThrowIfCancellationRequested()
-    //    let mutable newProject = this
-    //    let newProjectLazy = lazy newProject
-
-    //    let docs =
-    //        this.Documents
-    //        |> ImArray.map (fun doc ->
-    //            if OlyPath.Equals(doc.Path, docPath) then
-    //                OlyDocument(newProjectLazy, doc.Path, doc.SyntaxTree, extraDiagnostics)
-    //            else
-    //                doc
-    //        )
-
-    //    newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, compilationOptions, this.CompilationLazy, newDocuments, this.References, packages, copyFileInfos, platformName, targetInfo)
-    //    newProjectLazy.Force() |> ignore
-    //    newProject
 
     member this.GetDiagnostics(ct: CancellationToken) : OlyDiagnostic imarray =
         let builder = ImArray.builder()
@@ -544,7 +525,6 @@ module WorkspaceHelpers =
             (newSolution: OlySolution Lazy)
             projectId 
             projectName 
-            (projectConfig: OlyProjectConfiguration) 
             (documents: OlyDocument imarray) 
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
@@ -552,7 +532,7 @@ module WorkspaceHelpers =
             platformName 
             (targetInfo: OlyTargetInfo) =
 
-        let isDebuggable = projectConfig.Debuggable
+        let isDebuggable = targetInfo.ProjectConfiguration.Debuggable
 
         let syntaxTrees = getSyntaxTrees documents
         let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct; ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum }
@@ -568,7 +548,7 @@ module WorkspaceHelpers =
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
             |> ImmutableDictionary.CreateRange
 
-        OlyProject(newSolution, projectId, projectName, projectConfig, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
+        OlyProject(newSolution, projectId, projectName, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
         OlyAssert.False(newSolutionLazy.IsValueCreated)
@@ -596,7 +576,7 @@ module WorkspaceHelpers =
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -690,20 +670,20 @@ type OlySolution (state: SolutionState) =
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
+    member this.CreateProject(projectPath, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        let newProject = createProject newSolutionLazy projectPath projectName projectConfig ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
+        let newProject = createProject newSolutionLazy projectPath projectName ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
         let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
         newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ct: CancellationToken) =
-        this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
+    member this.CreateProject(projectPath, platformName, targetInfo, ct: CancellationToken) =
+        this.CreateProject(projectPath, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
 
     member this.UpdateDocument(projectPath: OlyPath, documentPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
         let project = this.GetProject(projectPath)
@@ -1769,7 +1749,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             | ex ->
                 diags.Add(OlyDiagnostic.CreateError(ex.Message))
 
-            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, packageInfos, copyFileInfos, ct)
+            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, ct)
 
             let loads = getSortedLoadsFromConfig rs absoluteDir config
 

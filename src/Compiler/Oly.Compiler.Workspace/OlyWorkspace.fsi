@@ -105,14 +105,12 @@ type OlyBuild =
     member PlatformName : string
 
     /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\.olycache\{platformName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\.olycache\CoolProject.project\{platformName}\{configName}\'
-    member GetProjectCacheDirectory : configName: string * projectPath: OlyPath -> OlyPath
+    /// {cacheDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectCacheDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
     /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\bin\{platformName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\bin\CoolProject.project\{platformName}\{configName}\'
-    member GetProjectBinDirectory : configName: string * projectPath: OlyPath -> OlyPath
+    /// {binDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectBinDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
     member GetProjectConfigurationPath : projectPath: OlyPath -> OlyPath
 
@@ -214,8 +212,8 @@ type OlySolution =
 
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
 
-    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
-    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
 
     member UpdateDocument : projectPath: OlyPath * documentPath: OlyPath * syntaxTree: OlySyntaxTree * extraDiagnostics: OlyDiagnostic imarray -> OlySolution * OlyProject * OlyDocument
 

@@ -73,7 +73,7 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
         else
             runtime.EmitAheadOfTime()
 
-        let binDir = this.GetProjectBinDirectory(proj.Configuration.Name, proj.Path)
+        let binDir = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
         return Ok(OlyProgram(proj.Path, fun () -> this.EmitOutput(proj, binDir, emitter, asm.IsDebuggable)))
         }
 
