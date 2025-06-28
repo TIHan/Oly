@@ -99,7 +99,7 @@ let private buildWithAux target isDebug src =
         else
             new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Release" }"""))
 
-    let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText, 1)
+    let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText)
     let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
 
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(projConfigPath, projConfigMs)

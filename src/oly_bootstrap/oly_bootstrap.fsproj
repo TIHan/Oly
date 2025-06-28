@@ -5,6 +5,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <PublishReadyToRun>true</PublishReadyToRun>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
