@@ -6,16 +6,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Json.fs" />
     <Compile Include="MiscHelpers.fs" />
     <Compile Include="Tracing.fs" />
     <Compile Include="OlyPath.fs" />
     <Compile Include="ImArray.fs" />
     <Compile Include="Assert.fs" />
     <Compile Include="CacheValue.fs" />
+    <Compile Include="Json.fs" />
     <Compile Include="IO.fs" />
     <Compile Include="FileWatcher.fs" />
-    <Compile Include="FileStore.fs" />
     <Compile Include="Threading.fs" />
     <Compile Include="Async.fs" />
     <Compile Include="ExternalProcess.fs" />

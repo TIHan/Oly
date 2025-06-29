@@ -75,12 +75,12 @@ module private DotNet =
                         result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray
                     )
 
-                do! JsonFileStore.SetContents(cachedBuildInfoJson, resultJsonFriendly, ct)
+                do! Json.SerializeAsFileAsync(cachedBuildInfoJson, resultJsonFriendly, ct)
                 return result
             }
 
             if File.Exists(cachedBuildInfoJson.ToString()) then
-                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(cachedBuildInfoJson, ct)
+                let! resultJsonFriendly = Json.DeserializeFromFileAsync<ProjectBuildInfoJsonFriendly>(cachedBuildInfoJson, ct)
 
                 let isValid =
                     resultJsonFriendly.TargetName = targetName &&
@@ -124,14 +124,14 @@ module private DotNet =
             (configPath: string) 
             (configName: string) 
             (isExe: bool) 
-            (targetName: string) 
+            msbuildTargetInfo
             referenceInfos 
             projReferenceInfos 
             packageInfos 
             (ct: CancellationToken) =
         backgroundTask {
             let msbuild = MSBuild()
-            let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), referenceInfos, projReferenceInfos, packageInfos, ct)
+            let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
 
