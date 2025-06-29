@@ -204,18 +204,18 @@ type ActiveProjectInfo =
     }
 
 [<NoEquality;NoComparison>]
-type OlyCompilationResult =
+type OlyBuildResult =
     {
         mutable resultPath: string
         mutable error: string
     }
 
-[<Method("oly/compileActiveProject", Direction.ClientToServer)>]
-type OlyCompileActiveProjectRequest() =
+[<Method("oly/buildActiveProject", Direction.ClientToServer)>]
+type OlyBuildActiveProjectRequest() =
 
     member val DocumentPath: string = null with get, set
 
-    interface IOlyDocumentRequest<OlyCompilationResult> with
+    interface IOlyDocumentRequest<OlyBuildResult> with
 
         member this.DocumentPath
             with get() = this.DocumentPath
@@ -1883,7 +1883,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return WorkspaceEdit()
             })
 
-    interface IJsonRpcRequestHandler<OlyCompileActiveProjectRequest, OlyCompilationResult> with
+    interface IJsonRpcRequestHandler<OlyBuildActiveProjectRequest, OlyBuildResult> with
 
         member _.Handle(request, ct) =
             backgroundTask {

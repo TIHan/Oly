@@ -1,4 +1,4 @@
-#target "dotnet: net8_r2r"
+#target "dotnet: net8"
 
 main(): () =
     print("Hello World!")

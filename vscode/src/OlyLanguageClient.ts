@@ -24,7 +24,7 @@ const legend = (function () {
 	return new vscode.SemanticTokensLegend(tokenTypesLegend, tokenModifiersLegend);
 })();
 
-export interface OlyCompilationResult {
+export interface OlyBuildResult {
 	resultPath: string,
 	error: string
 }
@@ -61,8 +61,8 @@ export class OlyLanguageClient extends LanguageClient {
 		return proj.configurationList.indexOf(configName) != -1;
 	}
 
-	public async compileActiveProject(): Promise<OlyCompilationResult> {
-		return await this.sendRequest("oly/compileActiveProject");
+	public async buildActiveProject(): Promise<OlyBuildResult> {
+		return await this.sendRequest("oly/buildActiveProject");
 	}
 
 	public async getSyntaxTree(document: vscode.TextDocument, ct: CancellationToken): Promise<IOlySyntaxTreeViewModel> {
