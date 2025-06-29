@@ -13,6 +13,7 @@
     <Compile Include="ImArray.fs" />
     <Compile Include="Assert.fs" />
     <Compile Include="CacheValue.fs" />
+    <Compile Include="IO.fs" />
     <Compile Include="FileWatcher.fs" />
     <Compile Include="FileStore.fs" />
     <Compile Include="Threading.fs" />

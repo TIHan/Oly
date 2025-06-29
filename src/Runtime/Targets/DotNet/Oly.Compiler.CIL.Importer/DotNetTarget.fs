@@ -13,6 +13,7 @@ open System.Collections.Concurrent
 open System.Collections.Immutable
 
 open Oly.Core
+open Oly.Core.IO
 open Oly.Metadata
 open Oly.Compiler
 open Oly.Compiler.Text
@@ -29,33 +30,6 @@ open Microsoft.CodeAnalysis.CSharp
 
 open Oly.Runtime.Target.DotNet.MSBuild
 
-[<AutoOpen>]
-module private Helpers2 =
-
-    let rec copyDir srcDir dstDir =
-        let dir = DirectoryInfo(srcDir)
-    
-        // Cache directories before we start copying
-        let dirs = dir.GetDirectories()
-
-        // Create the destination directory
-        Directory.CreateDirectory(dstDir) |> ignore
-
-        // Get the files in the source directory and copy to the destination directory
-        for file in dir.GetFiles() do
-            let targetFilePath = Path.Combine(dstDir, file.Name)
-            let targetFile = FileInfo(targetFilePath)
-            if targetFile.Exists then
-                if file.LastWriteTimeUtc > targetFile.LastWriteTimeUtc then                  
-                    file.CopyTo(targetFilePath, true) |> ignore
-            else
-                file.CopyTo(targetFilePath) |> ignore
-
-        for subDir in dirs do
-            let newDestinationDir = Path.Combine(dstDir, subDir.Name)
-            copyDir subDir.FullName newDestinationDir
-
-
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
         (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array) =
@@ -70,13 +44,23 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
 
 module private DotNet =
 
-    let getBuildInfo stubProjectName (cachePrefix: string) (cacheDir: OlyPath) (configPath: string) (configName: string) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
+    let getBuildInfo 
+            projectName 
+            (cacheDir: OlyPath) 
+            (configPath: string) 
+            (configName: string) 
+            (isExe: bool) 
+            (targetName: string) 
+            fileReferences 
+            dotnetProjectReferences 
+            dotnetPackages 
+            (ct: CancellationToken) =
         backgroundTask {
-            let dotnetBuildJson = OlyPath.Combine(cacheDir, $"{cachePrefix}_dotnet_build.json")
+            let cachedBuildInfoJson = OlyPath.Combine(cacheDir, $"__oly_cached_build_info.json")
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(stubProjectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), referenceInfos, projReferenceInfos, packageInfos, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
 
                 let configTimestamp = try File.GetLastWriteTimeUtc(configPath) with | _ -> DateTime()
                 // TODO: Handle 'isExe'.
@@ -91,12 +75,12 @@ module private DotNet =
                         result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray
                     )
 
-                do! JsonFileStore.SetContents(dotnetBuildJson, resultJsonFriendly, ct)
+                do! JsonFileStore.SetContents(cachedBuildInfoJson, resultJsonFriendly, ct)
                 return result
             }
 
-            if File.Exists(dotnetBuildJson.ToString()) then
-                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(dotnetBuildJson, ct)
+            if File.Exists(cachedBuildInfoJson.ToString()) then
+                let! resultJsonFriendly = JsonFileStore<ProjectBuildInfoJsonFriendly>.GetContents(cachedBuildInfoJson, ct)
 
                 let isValid =
                     resultJsonFriendly.TargetName = targetName &&
@@ -112,7 +96,7 @@ module private DotNet =
                         then
                             return! build()
                     else
-                        OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {dotnetBuildJson}")
+                        OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
                         return 
                             {
                                 TargetName = resultJsonFriendly.TargetName
@@ -122,7 +106,6 @@ module private DotNet =
                                 OutputPath = resultJsonFriendly.OutputPath
                                 References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
                                 FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-
                                 ReferenceNames =
                                     (ImmutableHashSet.Empty, resultJsonFriendly.References)
                                     ||> Array.fold (fun s r ->
@@ -133,6 +116,23 @@ module private DotNet =
                     return! build()
             else
                 return! build()
+        }
+
+    let publish
+            projectName 
+            (cacheDir: OlyPath) 
+            (configPath: string) 
+            (configName: string) 
+            (isExe: bool) 
+            (targetName: string) 
+            referenceInfos 
+            projReferenceInfos 
+            packageInfos 
+            (ct: CancellationToken) =
+        backgroundTask {
+            let msbuild = MSBuild()
+            let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), referenceInfos, projReferenceInfos, packageInfos, ct)
+            return result
         }
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
@@ -283,7 +283,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     if ext.Equals(".cs") then
                         let cacheDir = this.GetProjectCacheDirectory(targetInfo, path)
                         let configPath = this.GetProjectConfigurationPath(path)
-                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) "cs" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
+                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -319,6 +319,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                             return Result.Error(sprintf "%A" result.Diagnostics)
 
                     elif (ext.EndsWith("proj", StringComparison.OrdinalIgnoreCase)) then
+                        OlyTrace.Log($"[MSBuild] non-olyx: {pathStr}")
                         return Result.Ok(None)
                     else
                         use fs = File.OpenRead(pathStr)
@@ -335,20 +336,20 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try
-                let projReferenceInfos =
+                let dotnetProjectReferences =
                     referenceInfos
                     |> ImArray.filter (fun x -> x.Path.EndsWith("proj"))
                     |> ImArray.map (fun x -> x.Path.ToString())
-                let referenceInfos =
+                let fileReferences =
                     referenceInfos
                     |> ImArray.filter (fun x -> x.Path.EndsWith("proj") |> not)
                     |> ImArray.map (fun x -> x.Path.ToString())
-                let packageInfos =
+                let dotnetPackages =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
                 let configPath = this.GetProjectConfigurationPath(projPath)
-                let! netInfo = DotNet.getBuildInfo (OlyPath.GetFileNameWithoutExtension(projPath)) "project" cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let! netInfo = DotNet.getBuildInfo (OlyPath.GetFileNameWithoutExtension(projPath)) cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -526,13 +527,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
         transitiveRefProjs
         |> ImArray.iter copyFilesFromProject
-        copyFilesFromProject proj
 
         if copyReferences then
             let exePath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
 
-            copyDir netInfo.OutputPath outputPath
+            OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
 
             let exeFile = new System.IO.FileStream(exePath, IO.FileMode.Create)
             let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
