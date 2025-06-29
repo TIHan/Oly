@@ -2,7 +2,7 @@ export namespace OlyClientCommands {
 	// Client to Server commands
 	export const navigateToSyntaxNode = `oly.navigateToSyntaxNode`;
 	export const getSyntaxTree = `oly.getSyntaxTree`;
-	export const compile = `oly.compile`;
+	export const build = `oly.build`;
 	export const changeActiveProject = `oly.changeActiveProject`;
 	export const changeActiveConfiguration = `oly.changeActiveConfiguration`;
 	export const cleanWorkspace = `oly.cleanWorkspace`;

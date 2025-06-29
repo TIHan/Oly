@@ -30,7 +30,7 @@ export async function autoCreateLaunchJson() {
 			"name": ".NET Core Launch (console)",
 			"type": "coreclr",
 			"request": "launch",
-			"program": "\${command:oly.compile}",
+			"program": "\${command:oly.build}",
 			"args": [],
 			"cwd": "\${workspaceFolder}",
 			"console": "internalConsole",

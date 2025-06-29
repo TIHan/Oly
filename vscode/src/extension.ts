@@ -17,20 +17,20 @@ import { OlySolutionExplorerView } from './OlySolutionExplorerView';
 export let client: OlyLanguageClient;
 export let isClientReady: boolean = false;
 
-async function compile(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.StatusBarItem, ch: vscode.OutputChannel) {
+async function build(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.StatusBarItem, ch: vscode.OutputChannel) {
 	let document = getActiveDocument();
 	if (document != null && document.languageId == 'oly') {
 		await document.save();
 	}
 
-	ch.appendLine("Compiling");
+	ch.appendLine("Building");
 	let timeStart = new Date().getTime();
-	let result = await client.compileActiveProject();
+	let result = await client.buildActiveProject();
 	let assemblyPath = result.resultPath;
 	if (assemblyPath != null) {
 		let timeEnd = new Date().getTime();
 		let time = timeEnd - timeStart;
-		ch.appendLine("Compiled successfully - " + time + "ms: " + assemblyPath);
+		ch.appendLine("Build successful - " + time + "ms: " + assemblyPath);
 		olyProjectStatusBarItem.color = undefined;
 		olyProjectStatusBarItem.backgroundColor = undefined;
 		return result;
@@ -39,7 +39,7 @@ async function compile(client: OlyLanguageClient, olyProjectStatusBarItem: vscod
 	else {
 		let timeEnd = new Date().getTime();
 		let time = timeEnd - timeStart;
-		ch.appendLine("Compilation failed - " + time + "ms");
+		ch.appendLine("Build failed - " + time + "ms");
 		olyProjectStatusBarItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
 		olyProjectStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
 		return result;
@@ -186,27 +186,27 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
 
-		let compileOutputChannel = vscode.window.createOutputChannel("Oly Compilation");
-		async function compileCommandHandler() {
-			let ch = compileOutputChannel;
+		let buildOutputChannel = vscode.window.createOutputChannel("Oly Build");
+		async function buildCommandHandler() {
+			let ch = buildOutputChannel;
 			
 			ch.show(true);
-			let result = await compile(client, olyProjectStatusBarItem, ch);
+			let result = await build(client, olyProjectStatusBarItem, ch);
 			if (result == null)
 			{
-				throw new Error("Oly Compilation Failed\nSee output for details");
+				throw new Error("Oly Build Failed\nSee output for details");
 			}
 			else if (result.resultPath == null)
 			{
 				ch.appendLine("========================================================\n");
 				ch.append("ERROR:\n" + result.error);
-				throw new Error("Oly Compilation Failed\nSee output for details");
+				throw new Error("Oly Build Failed\nSee output for details");
 			}
 
 			return result.resultPath;
 		}
 
-		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.compile, compileCommandHandler));
+		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.build, buildCommandHandler));
 
 		// Oly Workspace Settings
 		let olyWorkspaceSettingsPath = '.olyworkspace/settings.json';
@@ -320,7 +320,7 @@ export function activate(context: ExtensionContext) {
 			if (isValid)
 			{
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`Active Project: ${projText}${configText}\n\n`);
-				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Compile](command:${OlyClientCommands.compile} "Compile active project")\n\n`);
+				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Build](command:${OlyClientCommands.build} "Build active project")\n\n`);
 				if (isDebuggable)
 					olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-alt) Debug](command:${OlyClientCommands.debug} "Debug active project")\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(debug-start) Run](command:${OlyClientCommands.run} "Run active project")\n\n`);
