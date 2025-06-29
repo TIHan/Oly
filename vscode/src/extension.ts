@@ -23,7 +23,7 @@ async function build(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.
 		await document.save();
 	}
 
-	ch.appendLine("Compiling");
+	ch.appendLine("Building");
 	let timeStart = new Date().getTime();
 	let result = await client.buildActiveProject();
 	let assemblyPath = result.resultPath;
