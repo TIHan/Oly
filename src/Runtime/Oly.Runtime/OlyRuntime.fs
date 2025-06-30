@@ -1803,6 +1803,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     let mutable isEmittingTypeDefinition = false
     let delayed = Queue()
 
+    let mutable entryPoint = None
+
     let inlineFunctionBodyCache: LruCache<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = LruCache(64)
 
     let primitiveTypes = Dictionary<RuntimeType, RuntimeType>()
@@ -2940,8 +2942,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     member this.EmitEntryPoint() =
         let s = System.Diagnostics.Stopwatch.StartNew()
-        let entryPoint = this.FindEntryPoint()
-        this.EmitFunction(entryPoint) |> ignore
+        entryPoint <- Some(this.EmitFunction(this.FindEntryPoint()))
         OlyTrace.Log($"[Runtime] Emitter Completed - {s.Elapsed.TotalMilliseconds}ms")
 
     member this.EmitAheadOfTime() =
@@ -4841,8 +4842,4 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | _ ->
                 None
 
-
-        
-
-
-        
+        member this.TryGetEntryPoint() = entryPoint

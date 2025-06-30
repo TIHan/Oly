@@ -28,6 +28,7 @@ type IOlyVirtualMachine<'Type, 'Function, 'Field> =
     abstract TryFindField : fullyQualifiedTypeName: string * tyParCount: int32 * fieldName: string -> 'Field option
     abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterCount: int32 * kind: OlyFunctionKind -> 'Function option
     abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterTypes: (string * int32) imarray * returnType: (string * int32) * kind: OlyFunctionKind -> 'Function option
+    abstract TryGetEntryPoint : unit -> 'Function option
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 

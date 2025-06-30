@@ -130,35 +130,26 @@ type MSBuild() =
                     dir
 
                 let stub = createProjStub isExe msbuildTargetInfo.TargetName fileReferences dotnetProjectReferences dotnetPackages msbuildTargetInfo.PublishKind
-                OlyTrace.Log($"[MSBuild] Stub Project:(\n{stub}\n)")
                 ct.ThrowIfCancellationRequested()
 
                 File.WriteAllText(Path.Combine(stubDir.FullName, "Program.cs"), programCs)
                 File.WriteAllText(Path.Combine(stubDir.FullName, $"{projectName}.csproj"), stub)
                 ct.ThrowIfCancellationRequested()
 
-                let stubOutputDir = Path.Combine(Path.Combine(Path.Combine(stubDir.FullName, "bin"), configName), msbuildTargetInfo.TargetName)
-
                 let cleanup() =
                     if not isExe then
-                        try File.Delete(Path.Combine(stubOutputDir, $"{projectName}.deps.json")) with | _ -> ()
-                    try File.Delete(Path.Combine(stubOutputDir, $"{projectName}.dll")) with | _ -> ()
-                    try File.Delete(Path.Combine(stubOutputDir, $"{projectName}.pdb")) with | _ -> ()
-                    try File.Delete(Path.Combine(stubDir.FullName, "FrameworkReferences.txt")) with | _ -> ()
-                    try File.Delete(Path.Combine(stubDir.FullName, $"{projectName}.csproj")) with | _ -> ()
-                    try File.Delete(Path.Combine(stubDir.FullName, "Program.cs")) with | _ -> ()
-                    try Directory.Delete(Path.Combine(stubDir.FullName, "obj"), true) with | _ -> ()
+                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.deps.json")) with | _ -> ()
+                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.dll")) with | _ -> ()
+                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.pdb")) with | _ -> ()
 
                 let projectPath = Path.Combine(stubDir.FullName, $"{projectName}.csproj")
 
                 try
-                    try Directory.Delete(stubOutputDir, true) with | _ -> ()
-
                     let msbuildTask = backgroundTask {
                         let build =
                             if isPublish then "publish"
                             else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o {stubOutputDir} {projectName}.csproj", workingDirectory = stubDir.FullName)
+                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o {outputPath.ToString()} {projectName}.csproj", workingDirectory = stubDir.FullName)
 
                         try
                             let! _result = p.RunAsync(ct)
@@ -197,7 +188,6 @@ type MSBuild() =
                         |> ImmutableHashSet.CreateRange
 
                     cleanup()
-                    OlyIO.CopyDirectory(stubOutputDir, (outputPath.ToString()))
 
                     let filesToCopy =
                         OlyIO.GetFilesFromDirectory(outputPath.ToString())

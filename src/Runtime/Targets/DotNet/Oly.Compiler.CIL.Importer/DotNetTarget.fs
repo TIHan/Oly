@@ -51,13 +51,13 @@ module private DotNet =
     }
 }"""
 
-    let private defaultMainCs = """static class Program
-{
-    static void Main()
-    {
-        __oly_gen_0.main();
-    }
-}"""
+    let createMainCs call = $"""static class Program
+{{
+    static void Main(string[] args)
+    {{
+        {call}
+    }}
+}}"""
 
     let getBuildInfo 
             projectName 
@@ -134,6 +134,7 @@ module private DotNet =
         }
 
     let publish
+            call
             projectName 
             (outputPath: OlyPath) 
             (configPath: string) 
@@ -146,7 +147,7 @@ module private DotNet =
             (ct: CancellationToken) =
         backgroundTask {
             let msbuild = MSBuild()
-            let! result = msbuild.CreateAndBuildProjectAsync(defaultMainCs, projectName, outputPath, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
+            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectName, outputPath, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
 
@@ -571,8 +572,19 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
                 let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path) + "__"
 
+                let entryPoint = (runtime : Oly.Runtime.CodeGen.IOlyVirtualMachine<_, _, _>).TryGetEntryPoint().Value
+
+                let call = 
+                    let m = entryPoint.AsDefinition
+                    let text = m.enclosingTyHandle.FullyQualifiedName + "." + m.name
+                    if m.Parameters.IsEmpty then
+                        text + "();"
+                    else
+                        text + "(args);"
+
                 let! result =
                     DotNet.publish 
+                        call
                         projectName
                         (OlyPath.Create(outputPath))
                         (configPath.ToString()) 
