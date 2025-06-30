@@ -1895,7 +1895,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     server.ClearDiagnostics(Protocol.DocumentUri.From(proj.Path.ToString()))
                     match! workspace.BuildProjectAsync(snapshot, proj.Path, ct) with
                     | Ok prog -> 
-                        prog.Run()
                         return { resultPath = prog.Path.ToString(); error = null }
                     | Error error -> 
                         let diags =

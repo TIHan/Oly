@@ -44,6 +44,21 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
 
 module private DotNet =
 
+    let private defaultCs = """static class Program
+{
+    static void Main()
+    {
+    }
+}"""
+
+    let private defaultMainCs = """static class Program
+{
+    static void Main()
+    {
+        __oly_gen_0.main();
+    }
+}"""
+
     let getBuildInfo 
             projectName 
             (cacheDir: OlyPath) 
@@ -60,7 +75,7 @@ module private DotNet =
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
 
                 let configTimestamp = try File.GetLastWriteTimeUtc(configPath) with | _ -> DateTime()
                 // TODO: Handle 'isExe'.
@@ -120,7 +135,7 @@ module private DotNet =
 
     let publish
             projectName 
-            (cacheDir: OlyPath) 
+            (outputPath: OlyPath) 
             (configPath: string) 
             (configName: string) 
             (isExe: bool) 
@@ -131,7 +146,7 @@ module private DotNet =
             (ct: CancellationToken) =
         backgroundTask {
             let msbuild = MSBuild()
-            let! result = msbuild.CreateAndBuildProjectAsync(projectName, cacheDir, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
+            let! result = msbuild.CreateAndBuildProjectAsync(defaultMainCs, projectName, outputPath, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
 
@@ -529,17 +544,82 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         |> ImArray.iter copyFilesFromProject
 
         if copyReferences then
-            let exePath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
-            let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
+            let msbuildTargetInfo = MSBuildTargetInfo.Parse(proj.TargetInfo.Name)
+            if msbuildTargetInfo.IsPublish then
+                // TODO: This really needs some massive cleanup.
 
-            OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
+                let dotnetProjectReferences = ImArray.empty
+                let fileReferences =
+                    proj.Compilation.References
+                    |> ImArray.choose (fun r ->
+                        if r.Path.EndsWith(".dll") then
+                            Some(r.Path.ToString())
+                        else
+                            None
+                    )
+                let dotnetPackages = ImArray.empty
+                let cacheDir = this.GetProjectCacheDirectory(proj.TargetInfo, proj.Path)
+                let configPath = this.GetProjectConfigurationPath(proj.Path)
 
-            let exeFile = new System.IO.FileStream(exePath, IO.FileMode.Create)
-            let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
-            emitter.Write(exeFile, pdbFile, asm.IsDebuggable)
-            exeFile.Close()
-            pdbFile.Close()
-            return Ok(OlyProgram(OlyPath.Create(exePath), fun () -> ()))
+                let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + ".dll")
+                let pdbPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + ".pdb")
+                let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
+                let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
+                emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
+                dllFile.Close()
+                pdbFile.Close()
+
+                let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path) + "__"
+
+                let! result =
+                    DotNet.publish 
+                        projectName
+                        (OlyPath.Create(outputPath))
+                        (configPath.ToString()) 
+                        proj.TargetInfo.ProjectConfiguration.Name 
+                        proj.TargetInfo.IsExecutable 
+                        msbuildTargetInfo 
+                        (fileReferences.Add(dllPath))
+                        dotnetProjectReferences 
+                        dotnetPackages 
+                        ct
+
+                if not msbuildTargetInfo.IsNativeAOT then
+                    OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
+                OlyIO.CopyDirectory(result.OutputPath, outputPath)
+
+                let exePath = Path.Combine(outputPath, projectName + ".exe")
+
+                return Ok(OlyProgram(OlyPath.Create(exePath), 
+                    fun args -> 
+                        use p = new ExternalProcess(exePath, String.Join(' ', args))
+                        let result = p.RunAsync(CancellationToken.None).Result
+                        if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                            failwith result.Errors
+                        else
+                            result.Output
+                ))
+
+            else
+                let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
+                let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
+
+                OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
+
+                let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
+                let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
+                emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
+                dllFile.Close()
+                pdbFile.Close()
+                return Ok(OlyProgram(OlyPath.Create(dllPath), 
+                    fun args ->
+                        use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))
+                        let result = p.RunAsync(CancellationToken.None).Result
+                        if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                            failwith result.Errors
+                        else
+                            result.Output
+                ))
         else
             let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
@@ -548,7 +628,15 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
             dllFile.Close()
             pdbFile.Close()
-            return Ok(OlyProgram(OlyPath.Create(dllPath), fun () -> ()))
+            return Ok(OlyProgram(OlyPath.Create(dllPath), 
+                fun args -> 
+                    use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))
+                    let result = p.RunAsync(CancellationToken.None).Result
+                    if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                        failwith result.Errors
+                    else
+                        result.Output
+            ))
         }
 
     override _.GetImplicitExtendsForStruct() = Some "System.ValueType"

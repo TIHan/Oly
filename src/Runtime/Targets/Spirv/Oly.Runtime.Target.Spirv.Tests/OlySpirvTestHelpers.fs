@@ -13,7 +13,6 @@ let private build isDebug src =
     buildWith (SpirvTarget()) isDebug src
 
 let private runAux input (program: OlyProgram) =
-    program.Run()
     let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()

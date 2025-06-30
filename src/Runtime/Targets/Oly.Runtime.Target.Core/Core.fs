@@ -74,7 +74,8 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
             runtime.EmitAheadOfTime()
 
         let binDir = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
-        return Ok(OlyProgram(proj.Path, fun () -> this.EmitOutput(proj, binDir, emitter, asm.IsDebuggable)))
+        this.EmitOutput(proj, binDir, emitter, asm.IsDebuggable)
+        return Ok(OlyProgram(proj.Path, fun _ -> failwith "Cannot run this program."))
         }
 
     override this.CanImportReference(path: OlyPath): bool = false

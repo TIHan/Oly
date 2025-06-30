@@ -438,6 +438,8 @@ module rec ClrCodeGen =
 
             ``ArgumentOutOfRangeExceptionCtor``: ClrMethodHandle
 
+            ``InternalsVisibleToAttribute.ctor``: ClrMethodHandle
+
             // Caches
             ActivatorCreateInstanceCacheLock: obj
             ActivatorCreateInstanceCache: ConcurrentDictionary<ClrTypeHandle, ClrMethodHandle>
@@ -2478,6 +2480,22 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let ``ArgumentOutOfRangeExceptionCtor`` =
                 vm.TryFindFunction(("System.ArgumentOutOfRangeException", 0), ".ctor", 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
 
+            let ``InternalsVisibleToAttribute.ctor`` =
+                vm.TryFindFunction(("System.Runtime.CompilerServices.InternalsVisibleToAttribute", 0), ".ctor", 0, 1, OlyFunctionKind.Instance)
+                    .Value
+                    .AsDefinition
+                    .handle
+
+            // Adds an InternalsVisibleTo attributre to the assembly with the same name
+            // as the assmelby project.
+            asmBuilder.AddAssemblyAttribute(
+                ``InternalsVisibleToAttribute.ctor``,
+                ClrCodeGen.writeAttributeArguments 
+                    asmBuilder 
+                    (ImArray.createOne(C.Utf16(assemblyName + "__"))) 
+                    ImArray.empty
+            )
+
             g <-
                 {
                     ``Attribute`` = ``Attribute``
@@ -2509,6 +2527,8 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     ``Activator_CreateInstance`1`` = ``Activator_CreateInstance`1``
 
                     ``ArgumentOutOfRangeExceptionCtor`` = ``ArgumentOutOfRangeExceptionCtor``
+
+                    ``InternalsVisibleToAttribute.ctor`` = ``InternalsVisibleToAttribute.ctor``
 
                     ActivatorCreateInstanceCacheLock = obj()
                     ActivatorCreateInstanceCache = ConcurrentDictionary()

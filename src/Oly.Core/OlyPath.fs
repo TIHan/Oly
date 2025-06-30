@@ -92,6 +92,12 @@ type OlyPath private (path: string) =
             failwith $"'{path}' is not a directory."
         DirectoryInfo(path)
 
+    member this.ToAbsolute() =
+        if Path.IsPathRooted(this.ToString()) then
+            this
+        else
+            OlyPath.Combine(OlyPath.Create(Environment.CurrentDirectory), this)
+
     static member private NormalizeDirectory(dir: string) =
         if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
             if String.IsNullOrWhiteSpace dir then

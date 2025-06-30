@@ -28,8 +28,6 @@ let private deserializeOutput<'T> (output: string) =
     JsonSerializer.Deserialize<'T array>(output, options)
 
 let private runAux<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> dataKind (input: 'T array) (program: OlyProgram) : 'T array =
-    program.Run()
-
     let input = serializeInput dataKind input
 
     let fs = System.IO.File.OpenRead(program.Path.ToString())

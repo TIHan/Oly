@@ -19,10 +19,10 @@ open System.Diagnostics.CodeAnalysis
 exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
 
 [<Sealed>]
-type OlyProgram(path: OlyPath, run: unit -> unit) =
+type OlyProgram(path: OlyPath, run: string[] -> string) =
 
     member _.Path = path
-    member _.Run() = run()
+    member _.Run(args: string[]) = run(args)
 
 [<AutoOpen>]
 module Helpers =
@@ -105,7 +105,7 @@ type OlyBuild(platformName: string) =
         if projectPath.IsFile then
             let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
             let dir = OlyPath.GetDirectory(projectPath)
-            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/"))
+            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
 
@@ -113,7 +113,7 @@ type OlyBuild(platformName: string) =
         if projectPath.IsFile then
             let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
             let dir = OlyPath.GetDirectory(projectPath)
-            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/"))
+            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
 

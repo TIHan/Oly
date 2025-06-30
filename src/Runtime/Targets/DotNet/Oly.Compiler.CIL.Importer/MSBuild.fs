@@ -21,49 +21,56 @@ type ProjectBuildInfo =
         FilesToCopy: OlyPath imarray
     }
 
+[<RequireQualifiedAccess>]
+type MSBuildPublishKind =
+    | None
+    | ReadyToRun
+    | NativeAOT
+
 [<NoEquality;NoComparison>]
 type MSBuildTargetInfo =
     {
         FullTargetName: string
         TargetName: string
-        IsReadyToRun: bool
+        PublishKind: MSBuildPublishKind
     }
 
-    member this.IsPublish = this.IsReadyToRun
+    member this.IsPublish = match this.PublishKind with MSBuildPublishKind.None -> false | _ -> true
+
+    member this.IsNativeAOT = match this.PublishKind with MSBuildPublishKind.NativeAOT -> true | _ -> false
 
     static member Parse(targetName: string) =
         let parts = targetName.Split("_")
         if parts.Length > 1 then
-            { FullTargetName = targetName; TargetName = parts[0]; IsReadyToRun = parts[1] = "r2r" }
+            let publishKind =
+                match parts[1] with
+                | "r2r" -> MSBuildPublishKind.ReadyToRun
+                | "aot" -> MSBuildPublishKind.NativeAOT
+                | _ -> failwith "Invalid target."
+            { FullTargetName = targetName; TargetName = parts[0]; PublishKind = publishKind }
         else
-            { FullTargetName = targetName; TargetName = parts[0]; IsReadyToRun = false }
+            { FullTargetName = targetName; TargetName = parts[0]; PublishKind = MSBuildPublishKind.None }
 
     static member ParseOnlyTargetName(targetName: string) =
         let info = MSBuildTargetInfo.Parse(targetName)
-        { FullTargetName = info.TargetName; TargetName = info.TargetName; IsReadyToRun = false }
+        { FullTargetName = info.TargetName; TargetName = info.TargetName; PublishKind = MSBuildPublishKind.None }
 
 // TODO: This needs alot more work.
 [<Sealed>]
 type MSBuild() =
-
-    let programCs = """static class Program
-{
-    static void Main()
-    {
-    }
-}"""
     
-    let createProjStub isExe targetName (fileReferences: string seq) (dotnetProjectReferences: string seq) (dotnetPackages: string seq) isReadyToRun =
+    let createProjStub isExe targetName (fileReferences: string seq) (dotnetProjectReferences: string seq) (dotnetPackages: string seq) publishKind =
         let outputType =
             if isExe then
                 "<OutputType>Exe</OutputType>"
             else
                 ""
-        let readyToRun =
-            if isReadyToRun then
-                "<PublishReadyToRun>true</PublishReadyToRun>"
-            else
-                ""
+        let publishKind =
+            match publishKind with
+            | MSBuildPublishKind.None -> ""
+            | MSBuildPublishKind.ReadyToRun -> "<PublishReadyToRun>true</PublishReadyToRun>"
+            | MSBuildPublishKind.NativeAOT -> "<PublishAot>true</PublishAot>"
+
         let references =
             fileReferences
             |> Seq.map (fun x ->
@@ -92,7 +99,7 @@ type MSBuild() =
 <PropertyGroup>
     <EnableDefaultItems>false</EnableDefaultItems>
     {outputType}
-    {readyToRun}
+    {publishKind}
     <TargetFramework>{targetName}</TargetFramework>
 </PropertyGroup>
 <ItemGroup>
@@ -107,12 +114,12 @@ type MSBuild() =
 </Project>
         """
 
-    let getInfoCore (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let getInfoCore programCs (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
 
-            let isPublish = msbuildTargetInfo.IsReadyToRun
+            let isPublish = msbuildTargetInfo.IsPublish
 
             let tmpFile = Path.GetTempFileName()
             try
@@ -122,7 +129,7 @@ type MSBuild() =
                     let dir = Directory.CreateDirectory(dir)
                     dir
 
-                let stub = createProjStub isExe msbuildTargetInfo.TargetName fileReferences dotnetProjectReferences dotnetPackages msbuildTargetInfo.IsReadyToRun
+                let stub = createProjStub isExe msbuildTargetInfo.TargetName fileReferences dotnetProjectReferences dotnetPackages msbuildTargetInfo.PublishKind
                 OlyTrace.Log($"[MSBuild] Stub Project:(\n{stub}\n)")
                 ct.ThrowIfCancellationRequested()
 
@@ -130,11 +137,7 @@ type MSBuild() =
                 File.WriteAllText(Path.Combine(stubDir.FullName, $"{projectName}.csproj"), stub)
                 ct.ThrowIfCancellationRequested()
 
-                let stubOutputDir = 
-                    if isPublish then
-                        Path.Combine(Path.Combine(Path.Combine(Path.Combine(stubDir.FullName, "bin"), configName), msbuildTargetInfo.TargetName), "publish")
-                    else
-                        Path.Combine(Path.Combine(Path.Combine(stubDir.FullName, "bin"), configName), msbuildTargetInfo.TargetName)
+                let stubOutputDir = Path.Combine(Path.Combine(Path.Combine(stubDir.FullName, "bin"), configName), msbuildTargetInfo.TargetName)
 
                 let cleanup() =
                     if not isExe then
@@ -155,7 +158,7 @@ type MSBuild() =
                         let build =
                             if isPublish then "publish"
                             else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} {projectName}.csproj", workingDirectory = stubDir.FullName)
+                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o {stubOutputDir} {projectName}.csproj", workingDirectory = stubDir.FullName)
 
                         try
                             let! _result = p.RunAsync(ct)
@@ -223,7 +226,7 @@ type MSBuild() =
                 try File.Delete(tmpFile) with | _ -> ()
         }
     
-    let getInfo (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let getInfo programCs (outputPath: OlyPath) (configPath: string) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             OlyTrace.Log $"[MSBuild] Started resolving DotNet references for project: {projectName}"
@@ -235,7 +238,7 @@ type MSBuild() =
                         OlyTrace.Log $"[MSBuild] Finished resolving DotNet references for project: {projectName} - {s.Elapsed.TotalMilliseconds}ms"
                 }
             try
-                let! result = getInfoCore outputPath configPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
+                let! result = getInfoCore programCs outputPath configPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
                 return result
             with
             | ex ->
@@ -245,8 +248,8 @@ type MSBuild() =
                 return raise ex
         }
 
-    member this.CreateAndBuildProjectAsync(projectName: string, outputPath: OlyPath, configPath: string, configName: string, isExe: bool, targetName, fileReferences, dotnetProjectReferences, dotnetPackages, ct) =
-        getInfo outputPath configPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
+    member this.CreateAndBuildProjectAsync(programCs, projectName: string, outputPath: OlyPath, configPath: string, configName: string, isExe: bool, targetName, fileReferences, dotnetProjectReferences, dotnetPackages, ct) =
+        getInfo programCs outputPath configPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
 
     member this.DeleteProjectObjDirectory(info: ProjectBuildInfo) =
         try Directory.Delete(Path.Combine(info.ProjectPath.ToString(), "obj"), true) with | _ -> ()

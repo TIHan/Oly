@@ -429,13 +429,15 @@ type ClrPdbBuilder() =
         metadata.AddMethodDebugInformation(Unchecked.defaultof<_>, this.BuildSequencePoints(localSigToken, ImArray.empty, false))
 
 [<Sealed>]
-type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: AssemblyName, consoleAssembly: AssemblyName) as this =
+type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: AssemblyName, consoleAssembly: AssemblyName) =
 
     let tyDefsByQualifiedName = Dictionary<string, obj>()
     let ilBuilder = BlobBuilder()
 
     let metadataBuilder = MetadataBuilder()
     let pdbBuilder = ClrPdbBuilder()
+
+    let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
 
     let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (EntityHandle * EntityHandle), EntityHandle>()
 
@@ -1121,8 +1123,6 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         |> ignore
     
     member this.Write(stream: IO.Stream, pdbStream: IO.Stream, isDebuggable: bool) =
-        let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
-
         if isDebuggable then
             this.AddDebuggableAttribute(asmDefHandle)
 
@@ -1526,20 +1526,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
         )
 
-    member _.AddMethodAttribute(parent: ClrMethodHandle, ctor: ClrMethodHandle) =
-        let b = BlobBuilder()
-
-        // Prolog
-        b.WriteByte(1uy)
-        b.WriteByte(0uy)
-
-        // NumNamed
-        b.WriteByte(0uy)
-        b.WriteByte(0uy)        
-
-        let blobHandle = this.AddBlob(b)
+    member this.AddAssemblyAttribute(ctor: ClrMethodHandle, blobHandle) =
         attrQueue.Enqueue(fun () ->
-            metadataBuilder.AddCustomAttribute(parent.UnsafeLazilyEvaluateEntityHandle(), ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
+            metadataBuilder.AddCustomAttribute(asmDefHandle, ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
         )
 
     member internal this.CreateMethodDefinitionHandle(f, name, signature) =

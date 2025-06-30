@@ -34,10 +34,10 @@ type ProjectConfigurations =
 [<Sealed>]
 type OlyProgram =
 
-    new : path: OlyPath * run: (unit -> unit) -> OlyProgram
+    new : path: OlyPath * run: (string[] -> string) -> OlyProgram
 
     member Path: OlyPath
-    member Run: unit -> unit
+    member Run: args: string[] -> string
 
 [<Sealed>]
 type OlyReferenceInfo =
