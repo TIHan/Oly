@@ -2492,7 +2492,14 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 ``InternalsVisibleToAttribute.ctor``,
                 ClrCodeGen.writeAttributeArguments 
                     asmBuilder 
-                    (ImArray.createOne(C.Utf16(assemblyName + "__"))) 
+                    (ImArray.createOne(C.Utf16(assemblyName + "_r2r"))) 
+                    ImArray.empty
+            )
+            asmBuilder.AddAssemblyAttribute(
+                ``InternalsVisibleToAttribute.ctor``,
+                ClrCodeGen.writeAttributeArguments 
+                    asmBuilder 
+                    (ImArray.createOne(C.Utf16(assemblyName + "_aot"))) 
                     ImArray.empty
             )
 

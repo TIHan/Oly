@@ -139,8 +139,9 @@ type MSBuild() =
                 let cleanup() =
                     if not isExe then
                         try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.deps.json")) with | _ -> ()
-                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.dll")) with | _ -> ()
-                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.pdb")) with | _ -> ()
+                    if not isPublish then
+                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.dll")) with | _ -> ()
+                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.pdb")) with | _ -> ()
 
                 let projectPath = Path.Combine(stubDir.FullName, $"{projectName}.csproj")
 

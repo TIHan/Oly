@@ -570,7 +570,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 dllFile.Close()
                 pdbFile.Close()
 
-                let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path) + "__"
+                let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path)
+                let projectName =
+                    if msbuildTargetInfo.IsNativeAOT then
+                        projectName + "_aot"
+                    else
+                        projectName + "_r2r"
 
                 let entryPoint = (runtime : Oly.Runtime.CodeGen.IOlyVirtualMachine<_, _, _>).TryGetEntryPoint().Value
 
