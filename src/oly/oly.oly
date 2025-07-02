@@ -88,8 +88,8 @@ class BuildCommand =
         let mutable projectPath = OlyPath.Create(settings.ProjectFile)
         let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result
         if (results.IsOk)
-            AnsiConsole.Markup("[green]Build Successful[/]")
-            // TODO: Print warnings.
+            AnsiConsole.Markup("[green]Build Successful[/]: {0}", mutable [results.ResultValue.Path.ToString(): object] )
+            AnsiConsole.WriteLine()
             0
         else
             let repo = InMemorySourceRepository()

@@ -603,7 +603,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         dotnetPackages 
                         ct
 
-                let exePath = Path.Combine(outputPath, projectName + ".exe")
+                let exePath = 
+                    if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
+                        Path.Combine(outputPath, projectName + ".exe")
+                    else
+                        Path.Combine(outputPath, projectName)
 
                 copyFiles()
                 return Ok(OlyProgram(OlyPath.Create(exePath), 
