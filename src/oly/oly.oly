@@ -8,6 +8,59 @@ open Spectre.Console
 open Spectre.Console.Cli
 open Errata
 open Oly.Core
+open Microsoft.FSharp.Core
+
+enum LogVerbosity =
+    | Quiet
+    | Normal
+    | Detailed
+
+class LogInfoFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Detailed =>
+            AnsiConsole.WriteLine(msg)
+        | LogVerbosity.Normal =>
+            if (msg.StartsWith("[Compilation]"))
+                AnsiConsole.WriteLine(msg)
+        | _ =>
+            ()
+        null
+
+class LogWarnFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Normal
+        | LogVerbosity.Detailed =>
+            AnsiConsole.Markup("[yellow]{0}[/yellow]", mutable [msg: object]) // TODO: language-bug, should not need ': object'
+        | _ =>
+            ()
+        null
+
+class LogErrorFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Normal
+        | LogVerbosity.Detailed =>
+            AnsiConsole.Markup("[red]{0}[/red]", mutable [msg: object]) // TODO: language-bug, should not need ': object'
+        | _ =>
+            ()
+        null
 
 #[export]
 class BuildCommand =
@@ -20,10 +73,18 @@ class BuildCommand =
         #[DefaultValue("Debug")]
         Configuration: string get, set = "Debug"
 
+        #[CommandOption("-v|--verbosity")]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
         #[CommandArgument(0, "<project-file>")]
         ProjectFile: string get, set = String.Empty
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
+        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        
         let mutable projectPath = OlyPath.Create(settings.ProjectFile)
         let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result
         if (results.IsOk)
@@ -38,28 +99,37 @@ class BuildCommand =
                 i ->
                     let diag = diags[i]
                     if (diag.IsError)
+                        let locationLabel =
+                            Label(
+                                let path =
+                                    if (diag.SyntaxTree === null)
+                                        projectPath.ToString()
+                                    else
+                                        diag.SyntaxTree.Value.Path.ToString()
+                                repo.Register(path, File.ReadAllText(path))
+                                path,
+                                TextSpan(diag.TextSpan.Start, diag.TextSpan.End),
+                                diag.Message
+                            )
+                        locationLabel.Color <- Color.Red
+                        let newDiag =
+                            DiagnosticExtensions.WithCode(
+                                Diagnostic.Error(diag.Message), diag.CodePrefix + diag.Code.ToString("D4")
+                            )
+                        let newDiag =
+                            DiagnosticExtensions.WithColor(newDiag, Color.Red)
                         report.Diagnostics.Add(
                             DiagnosticExtensions.WithColor(
                                 DiagnosticExtensions.WithLabel(
-                                    DiagnosticExtensions.WithCode(
-                                        Diagnostic.Error(diag.Message), "OLY" + diag.Code.ToString()
-                                    ),
-                                    Label(
-                                        let path =
-                                            if (diag.SyntaxTree === null)
-                                                projectPath.ToString()
-                                            else
-                                                diag.SyntaxTree.Value.Path.ToString()
-                                        repo.Register(path, File.ReadAllText(path))
-                                        path,
-                                        TextSpan(diag.TextSpan.Start, diag.TextSpan.End),
-                                        ""
-                                    )
+                                    newDiag,
+                                    locationLabel
                                 ),
                                 Color.Red
                             )
                         )
             )
             report.Render(AnsiConsole.Console, null)
-            //AnsiConsole.Markup("[red]Build Failed[/]")
+            AnsiConsole.WriteLine()
+            AnsiConsole.Markup("[red]Build Failed[/]")
+            AnsiConsole.WriteLine()
             1
