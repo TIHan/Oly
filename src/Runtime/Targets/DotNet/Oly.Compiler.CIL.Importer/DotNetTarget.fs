@@ -540,9 +540,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     |> ignore
             )
 
-        let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
-        transitiveRefProjs
-        |> ImArray.iter copyFilesFromProject
+        let copyFiles() =
+            let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
+            transitiveRefProjs
+            |> ImArray.iter copyFilesFromProject
+            copyFilesFromProject proj
 
         if copyReferences then
             let msbuildTargetInfo = MSBuildTargetInfo.Parse(proj.TargetInfo.Name)
@@ -601,12 +603,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         dotnetPackages 
                         ct
 
-                if not msbuildTargetInfo.IsNativeAOT then
-                    OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
-                OlyIO.CopyDirectory(result.OutputPath, outputPath)
-
                 let exePath = Path.Combine(outputPath, projectName + ".exe")
 
+                copyFiles()
                 return Ok(OlyProgram(OlyPath.Create(exePath), 
                     fun args -> 
                         use p = new ExternalProcess(exePath, String.Join(' ', args))
@@ -628,6 +627,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
                 dllFile.Close()
                 pdbFile.Close()
+
+                copyFiles()
                 return Ok(OlyProgram(OlyPath.Create(dllPath), 
                     fun args ->
                         use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))
@@ -645,6 +646,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
             dllFile.Close()
             pdbFile.Close()
+
+            copyFiles()
             return Ok(OlyProgram(OlyPath.Create(dllPath), 
                 fun args -> 
                     use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))

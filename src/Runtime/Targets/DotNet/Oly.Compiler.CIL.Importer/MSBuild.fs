@@ -184,6 +184,8 @@ type MSBuild() =
                         refs
                         |> Seq.map (fun x -> 
                             hashRefs.Add(x) |> ignore
+                            hashRefs.Add(OlyPath.ChangeExtension(x, ".pdb"))
+                            hashRefs.Add(OlyPath.ChangeExtension(x, ".xml"))
                             OlyPath.GetFileName(x)
                         )
                         |> ImmutableHashSet.CreateRange
