@@ -187,6 +187,7 @@ type MSBuild() =
                             hashRefs.Add(x) |> ignore
                             hashRefs.Add(OlyPath.ChangeExtension(x, ".pdb")) |> ignore
                             hashRefs.Add(OlyPath.ChangeExtension(x, ".xml")) |> ignore
+                            hashRefs.Add(OlyPath.ChangeExtension(x, ".deps.json")) |> ignore
                             OlyPath.GetFileName(x)
                         )
                         |> ImmutableHashSet.CreateRange
