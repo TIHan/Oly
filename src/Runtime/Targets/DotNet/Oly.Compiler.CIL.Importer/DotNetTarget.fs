@@ -32,7 +32,7 @@ open Oly.Runtime.Target.DotNet.MSBuild
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
-        (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array) =
+        (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime) =
 
     member _.TargetName = targetName
     member _.ProjectPath = projectPath
@@ -41,6 +41,7 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
     member _.OutputPath = outputPath
     member _.References = references
     member _.FilesToCopy = filesToCopy
+    member _.DependencyTimeStamp = dependencyTimeStamp
 
 module private DotNet =
 
@@ -87,7 +88,8 @@ module private DotNet =
                         configTimestamp,
                         result.OutputPath,
                         result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
-                        result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray
+                        result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
+                        result.DependencyTimeStamp
                     )
 
                 do! Json.SerializeAsFileAsync(cachedBuildInfoJson, resultJsonFriendly, ct)
@@ -104,12 +106,16 @@ module private DotNet =
 
                 if isValid then
                     let configTimestamp = try File.GetLastWriteTimeUtc(configPath.ToString()) with | _ -> DateTime()
-                    // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
-                    if 
+                    let hasConfigChanged =
                         (resultJsonFriendly.ConfigurationTimestamp <> configTimestamp) ||
                         (not <| OlyPath.Equals(OlyPath.Create(resultJsonFriendly.ConfigurationPath), OlyPath.Create(configPath)))
-                        then
-                            return! build()
+
+                    let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
+                    let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
+
+                    // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
+                    if hasConfigChanged || hasDependencyChanged then
+                        return! build()
                     else
                         OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
                         return 
@@ -126,6 +132,7 @@ module private DotNet =
                                     ||> Array.fold (fun s r ->
                                         s.Add(Path.GetFileName(r))
                                     )
+                                DependencyTimeStamp = resultJsonFriendly.DependencyTimeStamp
                             }
                 else
                     return! build()

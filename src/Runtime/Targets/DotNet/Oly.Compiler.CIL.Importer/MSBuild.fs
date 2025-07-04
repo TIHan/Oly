@@ -19,6 +19,7 @@ type ProjectBuildInfo =
         References: OlyPath imarray
         ReferenceNames: ImmutableHashSet<string>
         FilesToCopy: OlyPath imarray
+        DependencyTimeStamp: DateTime
     }
 
 [<RequireQualifiedAccess>]
@@ -212,6 +213,7 @@ type MSBuild() =
                             References = refs
                             ReferenceNames = refNames
                             FilesToCopy = filesToCopy
+                            DependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
                         }
                 finally
                     try Directory.Delete(stubDir.FullName, true) with | _ -> ()
@@ -249,6 +251,16 @@ type MSBuild() =
 
     member this.CopyOutput(info: ProjectBuildInfo, dstDir: OlyPath) =
         OlyIO.CopyDirectory(info.OutputPath, (dstDir.ToString()))
+
+    static member GetObjPathTimeStamp dotnetProjectReferences =
+        let mutable dt = DateTime()
+        dotnetProjectReferences
+        |> Seq.iter (fun x ->
+            let dtResult = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(Path.Combine(Path.GetDirectoryName(x), "obj"))
+            if dtResult > dt then
+                dt <- dtResult
+        )
+        dt
 
 
 
