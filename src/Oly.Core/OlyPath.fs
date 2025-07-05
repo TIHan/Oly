@@ -87,6 +87,8 @@ type OlyPath private (path: string) =
             else
                 false
 
+    member this.IsRooted = Path.IsPathRooted(this.ToString())
+
     member this.ToDirectoryInfo() =
         if this.IsFile then
             failwith $"'{path}' is not a directory."

@@ -32,7 +32,7 @@ open Oly.Runtime.Target.DotNet.MSBuild
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
-        (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime) =
+        (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool) =
 
     member _.TargetName = targetName
     member _.ProjectPath = projectPath
@@ -42,6 +42,7 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
     member _.References = references
     member _.FilesToCopy = filesToCopy
     member _.DependencyTimeStamp = dependencyTimeStamp
+    member _.IsExe = isExe
 
 module private DotNet =
 
@@ -89,7 +90,8 @@ module private DotNet =
                         result.OutputPath,
                         result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
                         result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
-                        result.DependencyTimeStamp
+                        result.DependencyTimeStamp,
+                        result.IsExe
                     )
 
                 do! Json.SerializeAsFileAsync(cachedBuildInfoJson, resultJsonFriendly, ct)
@@ -112,9 +114,10 @@ module private DotNet =
 
                     let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
                     let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
+                    let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
 
                     // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
-                    if hasConfigChanged || hasDependencyChanged then
+                    if hasConfigChanged || hasDependencyChanged || hasIsExeChanged then
                         return! build()
                     else
                         OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
@@ -133,6 +136,7 @@ module private DotNet =
                                         s.Add(Path.GetFileName(r))
                                     )
                                 DependencyTimeStamp = resultJsonFriendly.DependencyTimeStamp
+                                IsExe = resultJsonFriendly.IsExe
                             }
                 else
                     return! build()
@@ -342,7 +346,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                             return Result.Error(sprintf "%A" result.Diagnostics)
 
                     elif (ext.EndsWith("proj", StringComparison.OrdinalIgnoreCase)) then
-                        OlyTrace.Log($"[MSBuild] non-olyx: {pathStr}")
                         return Result.Ok(None)
                     else
                         use fs = File.OpenRead(pathStr)
@@ -597,6 +600,10 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         text + "(args);"
 
                 let! result =
+                    if msbuildTargetInfo.IsNativeAOT then
+                        OlyTrace.Log($"[Compilation] Compiling ReadyToRun...")
+                    else
+                        OlyTrace.Log($"[Compilation] Compiling NativeAOT...")
                     DotNet.publish 
                         call
                         projectName

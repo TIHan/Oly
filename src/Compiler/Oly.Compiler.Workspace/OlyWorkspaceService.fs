@@ -42,45 +42,10 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
 }"""
             )
 
-        let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
-
-        let projectsToUpdate = ImArray.builder()
-
-        Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            let filePath = OlyPath.CreateAbsolute(filePath)
-            if isValidFileToListenFor filePath then
-                rs <- rs.SetResourceAsCopy(filePath)
-                if filePath.HasExtension(".olyx") then
-                    projectsToUpdate.Add(filePath)
-        )
-
-        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            let filePath = OlyPath.CreateAbsolute(filePath)
-            if isValidFileToListenFor filePath then
-                rs <- rs.SetResourceAsCopy(filePath)
-                if filePath.HasExtension(".olyx") then
-                    projectsToUpdate.Add(filePath)
-        )
-
-        Directory.EnumerateFiles(rootPath.ToString(), "*.json", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            let filePath = OlyPath.CreateAbsolute(filePath)
-            if isValidFileToListenFor filePath then
-                rs <- rs.SetResourceAsCopy(filePath)
-        )
-
-        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            let filePath = OlyPath.CreateAbsolute(filePath)
-            if isValidFileToListenFor filePath then
-                rs <- rs.SetResourceAsCopy(filePath)
-        )
-
+        let rs, projectsToUpdate = OlyWorkspaceListener.GetProjectsFromDirectory(activeConfigPath, rootPath)
         workspace.CancelCurrentWork()
         workspace.ClearSolution(CancellationToken.None)
-        workspace.UpdateDocuments(rs, projectsToUpdate.ToImmutable(), CancellationToken.None)
+        workspace.UpdateDocuments(rs, projectsToUpdate, CancellationToken.None)
 
         rs
 
@@ -168,10 +133,48 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         | Some rs ->
             rs
 
-    member _.CleanWorkspace() = backgroundTask {
+    member _.CleanWorkspace(rs) = backgroundTask {
         if Interlocked.CompareExchange(&isCleaning, 1, 0) = 0 then
             workspace.CancelCurrentWork()
-            do! workspace.CleanAsync()
+            do! workspace.CleanAsync(rs)
             rsOpt <- lock rsObj (fun () -> Some(refresh()))
             isCleaning <- 0
     }
+
+    static member GetProjectsFromDirectory(activeConfigPath, rootPath: OlyPath) =
+        let mutable rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath)
+        let projectsToUpdate = ImArray.builder()
+
+        Directory.EnumerateFiles(rootPath.ToString(), "*.oly*", SearchOption.AllDirectories)
+        |> Seq.iter (fun filePath ->
+            let filePath = OlyPath.CreateAbsolute(filePath)
+            if isValidFileToListenFor filePath then
+                rs <- rs.SetResourceAsCopy(filePath)
+                if filePath.HasExtension(".olyx") then
+                    projectsToUpdate.Add(filePath)
+        )
+
+        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly*", SearchOption.AllDirectories)
+        |> Seq.iter (fun filePath ->
+            let filePath = OlyPath.CreateAbsolute(filePath)
+            if isValidFileToListenFor filePath then
+                rs <- rs.SetResourceAsCopy(filePath)
+                if filePath.HasExtension(".olyx") then
+                    projectsToUpdate.Add(filePath)
+        )
+
+        Directory.EnumerateFiles(rootPath.ToString(), "*.json", SearchOption.AllDirectories)
+        |> Seq.iter (fun filePath ->
+            let filePath = OlyPath.CreateAbsolute(filePath)
+            if isValidFileToListenFor filePath then
+                rs <- rs.SetResourceAsCopy(filePath)
+        )
+
+        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
+        |> Seq.iter (fun filePath ->
+            let filePath = OlyPath.CreateAbsolute(filePath)
+            if isValidFileToListenFor filePath then
+                rs <- rs.SetResourceAsCopy(filePath)
+        )
+
+        (rs, projectsToUpdate.ToImmutable())

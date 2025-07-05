@@ -20,6 +20,7 @@ type ProjectBuildInfo =
         ReferenceNames: ImmutableHashSet<string>
         FilesToCopy: OlyPath imarray
         DependencyTimeStamp: DateTime
+        IsExe: bool
     }
 
 [<RequireQualifiedAccess>]
@@ -215,6 +216,7 @@ type MSBuild() =
                             ReferenceNames = refNames
                             FilesToCopy = filesToCopy
                             DependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
+                            IsExe = isExe
                         }
                 finally
                     try Directory.Delete(stubDir.FullName, true) with | _ -> ()

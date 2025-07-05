@@ -2041,7 +2041,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
-                do! workspaceListener.CleanWorkspace() 
+                do! workspaceListener.CleanWorkspace(getSnapshot()) 
                 return Unit()
             }
 

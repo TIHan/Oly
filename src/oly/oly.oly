@@ -133,3 +133,21 @@ class BuildCommand =
             AnsiConsole.Markup("[red]Build Failed[/]")
             AnsiConsole.WriteLine()
             1
+
+#[export]
+class CleanCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-v|--verbosity")]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
+    overrides Execute(context: CommandContext, settings: Settings): int32 =
+        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        olylib.Oly.Clean(Environment.CurrentDirectory)
+        0

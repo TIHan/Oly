@@ -1034,7 +1034,7 @@ type WorkspaceMessage =
     | RemoveProject of OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken
     | GetSolution of OlyWorkspaceResourceSnapshot * ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution of ct: CancellationToken
-    | Clean of AsyncReplyChannel<unit>
+    | Clean of OlyWorkspaceResourceSnapshot * AsyncReplyChannel<unit>
 
 type IOlyWorkspaceProgress =
 
@@ -1438,17 +1438,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
                     do! onEndWork ct
 
-                | Clean(reply) ->
+                | Clean(rs, reply) ->
                     // Clean cannot be canceled
                     do! onBeginWork CancellationToken.None
 
+                    try
+                        let! rs = getRs rs CancellationToken.None
 #if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - Clean")
+                        OlyTrace.Log($"[Workspace] - Clean")
 #endif
 
-                    try
                         solutionRef.contents.GetProjects()
-                        |> ImArray.iter (fun proj ->
+                        |> ImArray.iter (fun proj ->                           
                             let projDir = OlyPath.GetDirectory(proj.Path)
                             try Directory.Delete(OlyPath.Combine(projDir, CacheDirectoryName).ToString(), true) with | _ -> ()
                             try Directory.Delete(OlyPath.Combine(projDir, BinDirectoryName).ToString(), true) with | _ -> ()
@@ -2030,8 +2031,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     member this.ClearSolution(ct) =
         mbp.Post(WorkspaceMessage.ClearSolution(ct))
 
-    member _.CleanAsync() = backgroundTask {
-        do! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.Clean(reply))
+    member _.CleanAsync(rs) = backgroundTask {
+        do! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.Clean(rs, reply))
     }      
 
     static member Create(targets) =

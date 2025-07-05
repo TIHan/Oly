@@ -16,5 +16,6 @@ module Program =
         app.Configure(
             c ->
                 let _ = c.AddCommand<BuildCommand>("build")
+                let _ = c.AddCommand<CleanCommand>("clean")
         )
         app.Run(Cast(args))
