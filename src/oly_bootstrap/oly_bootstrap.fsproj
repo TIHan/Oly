@@ -3,9 +3,6 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <PublishReadyToRun>true</PublishReadyToRun>
-    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
-    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,5 +12,9 @@
   <ItemGroup>
     <ProjectReference Include="..\olylib\olylib.fsproj" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="dotnet $(OutputPath)\oly_bootstrap.dll ../oly/oly.olyx" />
+  </Target>
 
 </Project>

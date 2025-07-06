@@ -259,6 +259,12 @@ type MSBuild() =
         let mutable dt = DateTime()
         dotnetProjectReferences
         |> Seq.iter (fun x ->
+            let dtResult = OlyIO.GetLastWriteTimeUtc(OlyPath.Create(x))
+            if dtResult > dt then
+                dt <- dtResult
+        )
+        dotnetProjectReferences
+        |> Seq.iter (fun x ->
             let dtResult = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(Path.Combine(Path.GetDirectoryName(x), "obj"))
             if dtResult > dt then
                 dt <- dtResult

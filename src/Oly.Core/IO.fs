@@ -54,6 +54,12 @@ type OlyIO private () =
 
         files.ToImmutable()
 
+    static member GetLastWriteTimeUtc(filePath: OlyPath) =
+        File.GetLastWriteTimeUtc(filePath.ToString())
+
+    static member GetLastWriteTimeUtcOrDefault(filePath: OlyPath) =
+        try OlyIO.GetLastWriteTimeUtc(filePath) with | _ -> DateTime()
+
     static member GetLastWriteTimeUtcFromDirectoryRecursively(dir) =
         let mutable dt = DateTime()
 

@@ -107,7 +107,7 @@ module private DotNet =
                     |> Array.forall File.Exists
 
                 if isValid then
-                    let configTimestamp = try File.GetLastWriteTimeUtc(configPath.ToString()) with | _ -> DateTime()
+                    let configTimestamp = OlyIO.GetLastWriteTimeUtcOrDefault(OlyPath.Create(configPath))
                     let hasConfigChanged =
                         (resultJsonFriendly.ConfigurationTimestamp <> configTimestamp) ||
                         (not <| OlyPath.Equals(OlyPath.Create(resultJsonFriendly.ConfigurationPath), OlyPath.Create(configPath)))

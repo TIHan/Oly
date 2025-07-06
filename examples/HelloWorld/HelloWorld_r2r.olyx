@@ -1,0 +1,4 @@
+#target "dotnet: net8_r2r"
+
+main(): () =
+    print("Hello World!")
