@@ -2486,20 +2486,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     .AsDefinition
                     .handle
 
-            // Adds an InternalsVisibleTo attributre to the assembly with the same name
-            // as the assmelby project.
+            // Adds an InternalsVisibleTo attribute to the assembly with the same name
+            // as the assembly project.
             asmBuilder.AddAssemblyAttribute(
                 ``InternalsVisibleToAttribute.ctor``,
                 ClrCodeGen.writeAttributeArguments 
                     asmBuilder 
-                    (ImArray.createOne(C.Utf16(assemblyName + "_r2r"))) 
-                    ImArray.empty
-            )
-            asmBuilder.AddAssemblyAttribute(
-                ``InternalsVisibleToAttribute.ctor``,
-                ClrCodeGen.writeAttributeArguments 
-                    asmBuilder 
-                    (ImArray.createOne(C.Utf16(assemblyName + "_aot"))) 
+                    (ImArray.createOne(C.Utf16(assemblyName.Replace("__oly_internal", "")))) 
                     ImArray.empty
             )
 

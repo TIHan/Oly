@@ -501,7 +501,14 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
         | Some consoleAssembly ->
 
-        let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
+        let msbuildTargetInfo = MSBuildTargetInfo.Parse(proj.TargetInfo.Name)
+        let asmName =
+            if msbuildTargetInfo.IsPublish then
+                asm.Name + "__oly_internal"
+            else
+                asm.Name
+
+        let emitter = OlyRuntimeClrEmitter(asmName, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
         let refDiags = ImArray.builder()
@@ -574,20 +581,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 let cacheDir = this.GetProjectCacheDirectory(proj.TargetInfo, proj.Path)
                 let configPath = this.GetProjectConfigurationPath(proj.Path)
 
-                let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + ".dll")
-                let pdbPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + ".pdb")
+                let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.dll")
+                let pdbPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.pdb")
                 let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
                 let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
                 emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
                 dllFile.Close()
                 pdbFile.Close()
+                copyFiles()
 
                 let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path)
-                let projectName =
-                    if msbuildTargetInfo.IsNativeAOT then
-                        projectName + "_aot"
-                    else
-                        projectName + "_r2r"
 
                 let entryPoint = (runtime : Oly.Runtime.CodeGen.IOlyVirtualMachine<_, _, _>).TryGetEntryPoint().Value
 
@@ -599,11 +602,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     else
                         text + "(args);"
 
-                let! result =
+                let! _ =
                     if msbuildTargetInfo.IsNativeAOT then
-                        OlyTrace.Log($"[Compilation] Compiling ReadyToRun...")
-                    else
                         OlyTrace.Log($"[Compilation] Compiling NativeAOT...")
+                    else
+                        OlyTrace.Log($"[Compilation] Compiling ReadyToRun...")
                     DotNet.publish 
                         call
                         projectName
@@ -623,7 +626,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     else
                         Path.Combine(outputPath, projectName)
 
-                copyFiles()
                 return Ok(OlyProgram(OlyPath.Create(exePath), 
                     fun args -> 
                         use p = new ExternalProcess(exePath, String.Join(' ', args))

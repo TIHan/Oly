@@ -10,10 +10,12 @@ open olylib
 let ExamplesDirectory = "../../../../../examples"
 
 let project relativePath =
-    OlyPath.Create(Path.Combine(ExamplesDirectory, relativePath))
+    OlyPath.Create(Path.Combine(ExamplesDirectory, relativePath)).ToAbsolute()
 
 let build configName relativePath =
-    Oly.Build(configName, project relativePath, CancellationToken.None).Result
+    let projPath = project relativePath
+    Oly.Clean(OlyPath.GetDirectory(projPath).ToString())
+    Oly.Build(configName, projPath, CancellationToken.None).Result
 
 let run configName relativePath =
     match build configName relativePath with
