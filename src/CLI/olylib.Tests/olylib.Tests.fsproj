@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\olylib\olylib.fsproj" />
+    <ProjectReference Include="..\olylib\olylib.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -51,7 +51,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Benchmarks", "src\Bench
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Tests", "src\Runtime\Oly.Runtime.Tests\Oly.Runtime.Tests.fsproj", "{DB621E76-054D-4AD4-8671-7703AF2AE223}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "olylib", "src\olylib\olylib.fsproj", "{7BEE6F1E-40FE-4658-9EA6-4879428BA733}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "olylib", "src\CLI\olylib\olylib.fsproj", "{7BEE6F1E-40FE-4658-9EA6-4879428BA733}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
 EndProject
@@ -65,9 +65,9 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Te
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "oly_bootstrap", "src\oly_bootstrap\oly_bootstrap.fsproj", "{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "oly_bootstrap", "src\CLI\oly_bootstrap\oly_bootstrap.fsproj", "{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "olylib.Tests", "src\Tests\olylib.Tests\olylib.Tests.fsproj", "{9FDABE27-5521-4237-9D5E-64CCD1B09255}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "olylib.Tests", "src\CLI\olylib.Tests\olylib.Tests.fsproj", "{9FDABE27-5521-4237-9D5E-64CCD1B09255}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Targets", "Targets", "{BD579750-FA3C-4EBB-AE8C-7A89A8266545}"
 EndProject
