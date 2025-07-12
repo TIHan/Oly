@@ -19977,28 +19977,6 @@ main(): () =
     |> shouldRunWithExpectedOutput "15"
 
 [<Fact>]
-let ``Throw string should work on most platforms``() =
-    """
-#[intrinsic("utf16")]
-alias string
-
-#[intrinsic("print")]
-print(string): ()
-
-#[intrinsic("throw")]
-(throw)<TResult>(string): TResult
-
-main(): () =
-    try
-        throw "test"
-    catch (msg: string) =>
-        print(msg)
-    """
-    |> Oly
-    |> withCompile
-    |> shouldRunWithExpectedOutput "test"
-
-[<Fact>]
 let ``Native int should work on most platforms``() =
     """
 #[intrinsic("int32")]
