@@ -1,4 +1,4 @@
-﻿namespace rec Oly.Runtime.Target.Spirv.Emitter
+﻿namespace rec Oly.Emitters.Spirv
 
 // This is preventing warnings for recursive objects that we know are delayed
 #nowarn "40"

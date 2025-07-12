@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.Spirv
+﻿namespace Oly.Targets.Spirv
 
 open System
 open System.IO
@@ -10,8 +10,8 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
-open Oly.Runtime.Target.Core
-open Oly.Runtime.Target.Spirv.Emitter
+open Oly.Targets.Core
+open Oly.Emitters.Spirv
 open Spirv
 open Spirv.SpirvModule
 

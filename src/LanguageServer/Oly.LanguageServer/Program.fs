@@ -30,11 +30,6 @@ open OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities
 open Oly.Compiler.Extensions
 open Oly.Compiler.Workspace.Extensions
 open Oly.Compiler.Syntax
-open Oly.Runtime.Target.DotNet
-open Oly.Runtime.Target.Interpreter
-open System.Reflection.Metadata
-open System.Reflection.PortableExecutable
-open System.Collections.Immutable
 
 open Oly.LanguageServer
 
@@ -959,9 +954,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
     // NOTE: Removing any of these targets may result in exceptions when modifying prelude.
     let targets = 
         [
-            DotNetTarget() :> OlyBuild
-            Oly.Runtime.Target.Spirv.SpirvTarget()
-            InterpreterTarget()
+            Oly.Targets.DotNet.DotNetTarget() :> OlyBuild
+            Oly.Targets.Spirv.SpirvTarget()
+            Oly.Targets.Interpreter.InterpreterTarget()
         ] |> ImArray.ofSeq
     let workspace = OlyWorkspace.Create(targets, progress)
     let workspaceListener = OlyWorkspaceListener(workspace, lazyGetRootPath)

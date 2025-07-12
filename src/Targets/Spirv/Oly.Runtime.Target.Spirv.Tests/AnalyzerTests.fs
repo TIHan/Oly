@@ -1,4 +1,4 @@
-﻿module Oly.Runtime.Target.Spirv.AnalyzerTests
+﻿module Oly.Targets.Spirv.AnalyzerTests
 
 open Xunit
 open WorkspaceUtilities

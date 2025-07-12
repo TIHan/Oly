@@ -1,4 +1,4 @@
-﻿module Oly.Runtime.Target.Spirv.OlySpirvTestHelpers
+﻿module Oly.Targets.Spirv.OlySpirvTestHelpers
 
 open System
 open System.Numerics

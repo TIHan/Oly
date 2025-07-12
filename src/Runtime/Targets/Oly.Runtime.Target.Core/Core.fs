@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.Core
+﻿namespace Oly.Targets.Core
 
 open Oly.Core
 open Oly.Runtime

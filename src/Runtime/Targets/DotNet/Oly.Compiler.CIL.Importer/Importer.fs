@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.DotNet
+﻿namespace Oly.Targets.DotNet
 
 open System
 open System.IO

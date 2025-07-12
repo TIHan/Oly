@@ -1,4 +1,4 @@
-﻿module Oly.Runtime.Target.Spirv.OlySpirvTestHelpers
+﻿module Oly.Targets.Spirv.OlySpirvTestHelpers
 
 open System
 open System.Numerics
@@ -6,7 +6,7 @@ open System.Diagnostics
 open System.Text.Json
 open WorkspaceUtilities
 open Oly.Compiler.Workspace
-open Oly.Runtime.Target.DotNet
+open Oly.Targets.DotNet
 open TestPlatform
 open Xunit
 open Oly.Core

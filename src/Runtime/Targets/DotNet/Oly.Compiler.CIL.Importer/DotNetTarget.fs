@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.DotNet
+﻿namespace Oly.Targets.DotNet
 
 open System
 open System.IO
@@ -28,7 +28,7 @@ open Microsoft.CodeAnalysis.Text
 open Microsoft.CodeAnalysis.MSBuild
 open Microsoft.CodeAnalysis.CSharp
 
-open Oly.Runtime.Target.DotNet.MSBuild
+open Oly.Targets.DotNet.MSBuild
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]

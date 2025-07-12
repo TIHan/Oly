@@ -1,0 +1,80 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8</TargetFramework>
+    <Configurations>Debug;Release;Checked</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\cs\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\de\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\es\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\fr\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\it\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\ja\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\ko\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\Microsoft.Bcl.AsyncInterfaces.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\Microsoft.Build.Locator.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\Newtonsoft.Json.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\pl\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\pt-BR\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\ru\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Buffers.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Collections.Immutable.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.CommandLine.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Memory.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Numerics.Vectors.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Runtime.CompilerServices.Unsafe.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Text.Encodings.Web.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Text.Json.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.Threading.Tasks.Extensions.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\System.ValueTuple.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\tr\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\zh-Hans\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-net472\zh-Hant\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\cs\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\de\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\es\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\fr\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\it\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\ja\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\ko\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Microsoft.Build.Locator.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll.config" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\Newtonsoft.Json.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\pl\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\pt-BR\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\runtimes\browser\lib\net6.0\System.Text.Encodings.Web.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\ru\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\System.Collections.Immutable.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\System.CommandLine.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\System.Text.Encodings.Web.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\System.Text.Json.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\tr\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\zh-Hans\System.CommandLine.resources.dll" />
+    <Content Remove="C:\Users\lolti\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.11.0\contentFiles\any\any\BuildHost-netcore\zh-Hant\System.CommandLine.resources.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Importer.fs" />
+    <Compile Include="MSBuild.fs" />
+    <Compile Include="DotNetTarget.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.11.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\..\..\Emitters\DotNet\Oly.Emitters.DotNet\Oly.Emitters.DotNet.fsproj" />
+    <ProjectReference Include="..\..\Oly.Runtime.Target.Core\Oly.Targets.Core.fsproj" />
+  </ItemGroup>
+
+</Project>

@@ -36,8 +36,8 @@
     <ItemGroup>
       <ProjectReference Include="..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
       <ProjectReference Include="..\..\..\Emitters\Spirv\Spirv.Tests\Spirv.Tests.fsproj" />
-      <ProjectReference Include="..\..\..\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj" />
-      <ProjectReference Include="..\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj" />
+      <ProjectReference Include="..\..\..\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Targets.Core.fsproj" />
+      <ProjectReference Include="..\Oly.Runtime.Target.Spirv\Oly.Targets.Spirv.fsproj" />
     </ItemGroup>
 
 </Project>

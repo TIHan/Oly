@@ -1,4 +1,4 @@
-﻿module internal Oly.Runtime.Target.DotNet.MSBuild
+﻿module internal Oly.Targets.DotNet.MSBuild
 
 open System
 open System.IO

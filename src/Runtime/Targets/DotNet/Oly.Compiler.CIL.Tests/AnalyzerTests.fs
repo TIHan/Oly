@@ -1,4 +1,4 @@
-﻿module Oly.Runtime.Target.DotNet.AnalyzerTests
+﻿module Oly.Targets.DotNet.AnalyzerTests
 
 open Xunit
 open WorkspaceUtilities

@@ -11,11 +11,11 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Metadata", "src\Metadat
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Emitters.DotNet", "src\Emitters\DotNet\Oly.Emitters.DotNet\Oly.Emitters.DotNet.fsproj", "{0A761F52-F99A-4772-AEDC-B44B7CF0BCE8}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Clr.Tests", "src\Runtime\Targets\DotNet\Oly.Compiler.CIL.Tests\Oly.Runtime.Clr.Tests.fsproj", "{DD5BABEA-0B02-40B9-A745-A3F5DAD2EB1F}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.DotNet.Tests", "src\Runtime\Targets\DotNet\Oly.Compiler.CIL.Tests\Oly.Targets.DotNet.Tests.fsproj", "{DD5BABEA-0B02-40B9-A745-A3F5DAD2EB1F}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime", "src\Runtime\Oly.Runtime\Oly.Runtime.fsproj", "{8E0A44E2-A254-439F-A9D4-62181D5D0E50}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.DotNet", "src\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj", "{76988776-38EE-467B-84E7-D112213B2F79}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.DotNet", "src\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Targets.DotNet.fsproj", "{76988776-38EE-467B-84E7-D112213B2F79}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.LanguageServer", "src\LanguageServer\Oly.LanguageServer\Oly.LanguageServer.fsproj", "{EC7A94C7-AB52-452C-8236-135D3BB6CDA9}"
 EndProject
@@ -27,7 +27,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Extensions", "
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Emitters.Interpreter", "src\Emitters\Interpreter\Oly.Emitters.Interpreter\Oly.Emitters.Interpreter.fsproj", "{E46E81DF-9368-443D-BFD6-B7BFA8AC03EF}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Interpreter.Tests", "src\Runtime\Targets\Interpreter\Oly.Runtime.Interpreter.Tests\Oly.Runtime.Interpreter.Tests.fsproj", "{8EF3899B-2E58-446C-8DA6-4EFA29E548AA}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.Interpreter.Tests", "src\Runtime\Targets\Interpreter\Oly.Runtime.Interpreter.Tests\Oly.Targets.Interpreter.Tests.fsproj", "{8EF3899B-2E58-446C-8DA6-4EFA29E548AA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Compiler", "Compiler", "{F32A998D-A664-47A1-953A-22E1E83A38D7}"
 EndProject
@@ -41,7 +41,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Syntax", "src\
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Workspace.Tests", "src\Compiler\Oly.Compiler.Workspace.Tests\Oly.Compiler.Workspace.Tests.fsproj", "{DC690434-3CA9-407E-B403-98F2A6156578}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Interpreter", "src\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj", "{B1976AAF-257E-411B-ADAD-04F5CEF29218}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.Interpreter", "src\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Targets.Interpreter.fsproj", "{B1976AAF-257E-411B-ADAD-04F5CEF29218}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LanguageServer", "LanguageServer", "{93E9CA74-784F-4A5B-BB2E-1D1D35355DF2}"
 EndProject
@@ -53,7 +53,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Tests", "src\Ru
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "olylib", "src\CLI\olylib\olylib.fsproj", "{7BEE6F1E-40FE-4658-9EA6-4879428BA733}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv", "src\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.Spirv", "src\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Targets.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.ApiGenerator", "src\Emitters\Spirv\Spirv.ApiGenerator\Spirv.ApiGenerator.fsproj", "{238D43A4-F13C-4366-8F49-52510AE39E30}"
 EndProject
@@ -61,9 +61,9 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv", "src\Emitters\Spirv
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Emitters\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Tests", "src\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.Spirv.Tests", "src\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Targets.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Targets.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Targets.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "oly_bootstrap", "src\CLI\oly_bootstrap\oly_bootstrap.fsproj", "{BC285E50-8291-4133-8CAC-B9E64D1D5B6E}"
 EndProject

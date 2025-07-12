@@ -26,7 +26,7 @@ let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceSnapshot) 
     result
 
 let createWorkspace() =
-    OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
+    OlyWorkspace.Create([Oly.Targets.Interpreter.InterpreterTarget()])
 
 let createProject src (workspace: OlyWorkspace) =
     let path = OlyPath.Create "olytest.olyx"

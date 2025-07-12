@@ -1,8 +1,8 @@
-﻿module Oly.Runtime.Target.Spirv.GLSL_std_450_Tests
+﻿module Oly.Targets.Spirv.GLSL_std_450_Tests
 
 open Xunit
 open System.Numerics
-open Oly.Runtime.Target.Spirv.OlySpirvTestHelpers
+open Oly.Targets.Spirv.OlySpirvTestHelpers
 
 [<Fact>]
 let ``round - float``() =

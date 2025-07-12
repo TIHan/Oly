@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.Interpreter
+﻿namespace Oly.Targets.Interpreter
 
 open System
 open System.IO
@@ -11,7 +11,7 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
 open Oly.Emitters.Interpreter
-open Oly.Runtime.Target.Core
+open Oly.Targets.Core
 
 [<Sealed>]
 type InterpreterTarget() =

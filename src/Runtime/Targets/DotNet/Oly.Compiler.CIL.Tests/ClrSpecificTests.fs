@@ -8,7 +8,7 @@ open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
-open Oly.Runtime.Target.DotNet
+open Oly.Targets.DotNet
 open Oly.Core
 open System.Runtime.Loader
 open System

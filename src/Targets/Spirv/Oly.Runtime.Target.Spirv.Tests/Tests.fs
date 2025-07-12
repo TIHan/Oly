@@ -1,4 +1,4 @@
-module Oly.Runtime.Target.Spirv.Tests
+module Oly.Targets.Spirv.Tests
 
 open System
 open System.Drawing

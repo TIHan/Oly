@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Targets.Interpreter.fsproj" />
     <ProjectReference Include="..\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
   </ItemGroup>
 

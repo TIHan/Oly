@@ -8,9 +8,9 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Service
-open Oly.Runtime.Target.DotNet
-open Oly.Runtime.Target.Interpreter
-open Oly.Runtime.Target.Spirv
+open Oly.Targets.DotNet
+open Oly.Targets.Interpreter
+open Oly.Targets.Spirv
 
 module Oly =
 

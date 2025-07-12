@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.Spirv.Emitter
+﻿namespace Oly.Emitters.Spirv
 
 open System
 open System.IO

@@ -6,7 +6,7 @@ open System.Threading
 open Oly.Core
 open Oly.Compiler.Text
 open Oly.Compiler.Workspace
-open Oly.Runtime.Target.DotNet
+open Oly.Targets.DotNet
 
 let rs = 
     let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)

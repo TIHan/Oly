@@ -4,7 +4,7 @@ open System.IO
 open System.Text
 open Oly.Metadata
 open Oly.Runtime
-open Oly.Runtime.Target.Spirv.Emitter
+open Oly.Emitters.Spirv
 open Oly.Core
 open Xunit
 open Spirv

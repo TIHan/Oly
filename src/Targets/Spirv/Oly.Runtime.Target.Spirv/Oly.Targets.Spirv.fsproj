@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Emitters\Spirv\Oly.Emitters.Spirv\Oly.Emitters.Spirv.fsproj" />
-    <ProjectReference Include="..\..\..\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj" />
+    <ProjectReference Include="..\..\..\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Targets.Core.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -24,8 +24,7 @@
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
     <ProjectReference Include="..\..\Runtime\Oly.Runtime\Oly.Runtime.fsproj" />
-    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
-    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Emitter.CIL\Oly.Emitters.DotNet.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Targets.DotNet.fsproj" />
   </ItemGroup>
 
 </Project>
