@@ -53,15 +53,15 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Tests", "src\Ru
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "olylib", "src\CLI\olylib\olylib.fsproj", "{7BEE6F1E-40FE-4658-9EA6-4879428BA733}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv", "src\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj", "{1D25002C-D63F-4779-83D9-095846CB3A3C}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.ApiGenerator", "src\Runtime\Targets\Spirv\Spirv.ApiGenerator\Spirv.ApiGenerator.fsproj", "{238D43A4-F13C-4366-8F49-52510AE39E30}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.ApiGenerator", "src\Emitters\Spirv\Spirv.ApiGenerator\Spirv.ApiGenerator.fsproj", "{238D43A4-F13C-4366-8F49-52510AE39E30}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv", "src\Runtime\Targets\Spirv\Spirv\Spirv.fsproj", "{449DED35-EE7E-4499-BA87-D1C3D3BDCE12}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv", "src\Emitters\Spirv\Spirv\Spirv.fsproj", "{449DED35-EE7E-4499-BA87-D1C3D3BDCE12}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Runtime\Targets\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Spirv.Tests", "src\Emitters\Spirv\Spirv.Tests\Spirv.Tests.fsproj", "{0D4F8D42-049D-4312-9958-68E0C2DBFAE7}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Tests", "src\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Spirv.Tests", "src\Targets\Spirv\Oly.Runtime.Target.Spirv.Tests\Oly.Runtime.Target.Spirv.Tests.fsproj", "{265A3607-1E29-4509-B607-E948175F2A6B}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Target.Core", "src\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj", "{8C5EDE92-0AE9-42F1-B571-4E6ABC8028BB}"
 EndProject

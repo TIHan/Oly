@@ -14,7 +14,7 @@
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj" />
-	  <ProjectReference Include="..\..\Runtime\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj" />
+    <ProjectReference Include="..\..\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Runtime.Target.Spirv.fsproj" />
   </ItemGroup>
 
 </Project>

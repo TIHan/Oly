@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="SpirvTarget.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Emitters\Spirv\Oly.Emitters.Spirv\Oly.Emitters.Spirv.fsproj" />
+    <ProjectReference Include="..\..\..\Runtime\Targets\Oly.Runtime.Target.Core\Oly.Runtime.Target.Core.fsproj" />
+  </ItemGroup>
+
+</Project>
