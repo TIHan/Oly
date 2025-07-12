@@ -1059,7 +1059,6 @@ module rec ClrCodeGen =
                 GenArgumentExpression cenv env irRhsArg
                 I.Stobj(irRhsArg.ResultType.Handle) |> emitInstruction cenv
             | _ ->
-                GenArgumentExpression cenv env irReceiver
                 if irIndexArgs.Length > 1 then
                     failwith "clr emit rank greater than zero not yet supported."
                 else
