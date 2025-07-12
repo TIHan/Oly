@@ -5,176 +5,8 @@ open Oly.Core
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax.Internal
 
+#nowarn "40"
 
-[<Sealed;NoComparison>]
-type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-
-    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
-    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsDefault then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-        if childrenOfType.IsDefault then
-            childrenOfType <- 
-                children 
-                |> ImArray.choose (fun x -> if x.InternalNode.IsToken then None else Some(System.Runtime.CompilerServices.Unsafe.As<'T>(x)))
-        children
-
-    member this.ChildrenOfType =
-        this.Children |> ignore
-        childrenOfType
-
-[<Sealed;NoComparison>]
-type OlySyntaxList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-
-    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
-    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsDefault then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-        if childrenOfType.IsDefault then
-            childrenOfType <- 
-                children 
-                |> ImArray.map (fun x -> System.Runtime.CompilerServices.Unsafe.As<'T>(x))
-        children
-
-    member this.ChildrenOfType =
-        this.Children |> ignore
-        childrenOfType
-
-[<Sealed;NoComparison>]
-type OlySyntaxBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsDefault then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-        if obj.ReferenceEquals(element, null) then
-            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
-
-[<Sealed;NoComparison>]
-type OlySyntaxBracketInnerPipes<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsDefault then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-        if obj.ReferenceEquals(element, null) then
-            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
-
-[<Sealed;NoComparison>]
-type OlySyntaxCurlyBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsDefault then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-        if obj.ReferenceEquals(element, null) then
-            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
 [<Sealed;NoComparison>]
 type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxAccessor) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
@@ -3898,6 +3730,8 @@ module OlySyntaxExpression =
 
 [<RequireQualifiedAccess>]
 module private Convert =
+    let convert = From
+
     let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =
         match internalNode.Tag with
         | SyntaxAccessor.Tag -> OlySyntaxAccessor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
@@ -3953,45 +3787,45 @@ module private Convert =
         | _ ->
 
         match internalNode with
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode, convert) :> OlySyntaxNode
         | _ -> failwith "Invalid Internal Syntax Node"

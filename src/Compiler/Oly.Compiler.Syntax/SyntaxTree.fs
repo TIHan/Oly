@@ -647,3 +647,179 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
     internal new(path, getText: CancellationToken -> IOlySourceText, version, options) =
         let getText = CacheValue(getText)
         OlySyntaxTree(path, getText, version, options)
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+[<Sealed;NoComparison>]
+type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if childrenOfType.IsDefault then
+            childrenOfType <- 
+                children 
+                |> ImArray.choose (fun x -> if x.InternalNode.IsToken then None else Some(System.Runtime.CompilerServices.Unsafe.As<'T>(x)))
+        children
+
+    member this.ChildrenOfType =
+        this.Children |> ignore
+        childrenOfType
+
+[<Sealed;NoComparison>]
+type OlySyntaxList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if childrenOfType.IsDefault then
+            childrenOfType <- 
+                children 
+                |> ImArray.map (fun x -> System.Runtime.CompilerServices.Unsafe.As<'T>(x))
+        children
+
+    member this.ChildrenOfType =
+        this.Children |> ignore
+        childrenOfType
+
+[<Sealed;NoComparison>]
+type OlySyntaxBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode
+
+[<Sealed;NoComparison>]
+type OlySyntaxBracketInnerPipes<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode
+
+[<Sealed;NoComparison>]
+type OlySyntaxCurlyBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode
