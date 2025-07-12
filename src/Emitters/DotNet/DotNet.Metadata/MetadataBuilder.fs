@@ -1,16 +1,16 @@
-﻿namespace rec Oly.Platform.Clr.Metadata
+﻿namespace rec DotNet.Metadata
 
 open System
 open System.Reflection
-open Oly.Core
+open System.Diagnostics
 open System.Reflection.PortableExecutable
 open System.Reflection.Metadata
 open System.Reflection.Metadata.Ecma335
 open System.Collections.Immutable
 open System.Collections.Generic
 open System.Security.Cryptography
+open Oly.Core
 open ClrPatterns
-open System.Diagnostics
 
 [<NoEquality;NoComparison>]
 type private DebugLocalScope =

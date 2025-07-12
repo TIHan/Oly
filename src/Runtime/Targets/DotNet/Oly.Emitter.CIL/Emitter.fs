@@ -1,4 +1,4 @@
-﻿module Oly.Runtime.Clr.Emitter
+﻿namespace Oly.Emitters.DotNet
 
 open System
 open System.Collections.Generic
@@ -11,397 +11,11 @@ open Oly.Metadata
 open Oly.Runtime
 open Oly.Runtime.CodeGen
 open Oly.Runtime.CodeGen.Patterns
-open Oly.Platform.Clr.Metadata
-open ClrPatterns
-
-[<RequireQualifiedAccess>]
-type ClrMethodSpecialKind =
-    | None
-    | External
-    | TypeOf
-    | SizeOf
-    | IsSubtypeOf
-    | FunctionPointer
-    | CreateDelegate
-
-[<RequireQualifiedAccess>]
-type ClrTypeFlags =
-    | None           = 0x00000
-    | Struct         = 0x00001
-    | ByRefLike      = 0x00011
-    | ScopedFunction = 0x00111
-
-[<RequireQualifiedAccess;NoComparison;NoEquality>]
-type ClrTypeDefinitionInfo =
-    {
-        mutable enumBaseTyOpt: ClrTypeInfo option
-        mutable typeExtensionInfo: (ClrTypeInfo * ClrTypeInfo * ClrFieldHandle) voption
-        mutable isFixedArray: bool
-    }
-
-    static member Create() =
-        {
-            enumBaseTyOpt = None
-            typeExtensionInfo = ValueNone
-            isFixedArray = false
-        }
-
-and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.DebuggerDisplay("{FullyQualifiedName}")>] ClrTypeInfo = 
-    | TypeGenericInstance of ClrTypeInfo * tyArgs: ClrTypeHandle imarray * appliedTyHandle: ClrTypeHandle
-    | TypeReference of ClrTypeHandle * isReadOnly: bool * isStruct: bool
-    | TypeDefinition of ClrTypeDefinitionBuilder * isReadOnly: bool * isInterface: bool * flags: ClrTypeFlags * isClosure: bool * info: ClrTypeDefinitionInfo
-    | ByRef of ClrTypeInfo * kind: OlyIRByRefKind * appliedTyHandle: ClrTypeHandle
-    | Shape // only for { new() } on constraints
-
-    member this.IsFixedArray =
-        match this with
-        | TypeDefinition(info=info) -> info.isFixedArray
-        | _ -> false
-
-    member this.IsShape_t =
-        match this with
-        | Shape -> true
-        | _ -> false
-
-    member this.FullyQualifiedName =
-        match this with
-        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
-            tyDefBuilder.FullyQualifiedName
-        | TypeReference(tyHandle, _, _) ->
-            tyHandle.FullyQualifiedName
-        | TypeGenericInstance(formalTy, _, _) ->
-            formalTy.FullyQualifiedName
-        | ByRef _
-        | Shape ->
-            failwith "Not a named typed."
-
-    member this.IsDefinitionEnum =
-        match this with
-        | TypeDefinition(info=info) -> info.enumBaseTyOpt.IsSome
-        | _ -> false
-
-    member this.TryGetEnumBaseType() =
-        match this with
-        | TypeDefinition(info=info) -> info.enumBaseTyOpt
-        | _ -> None
-
-    member this.IsReadOnly =
-        match this with
-        | TypeGenericInstance(x, _, _) -> x.IsReadOnly
-        | TypeReference(isReadOnly=isReadOnly)
-        | TypeDefinition(isReadOnly=isReadOnly) -> isReadOnly
-        | ByRef(kind=kind) -> kind = OlyIRByRefKind.ReadOnly
-        | Shape -> false
-
-    member this.IsWriteOnly =
-        match this with
-        | ByRef(kind=kind) -> kind = OlyIRByRefKind.WriteOnly
-        | _ -> false
-
-    member this.IsStruct =
-        match this with
-        | TypeGenericInstance(x, _, _) -> x.IsStruct
-        | TypeReference(isStruct=isStruct) -> isStruct
-        | TypeDefinition(flags=flags;info=info) -> 
-            if flags.HasFlag(ClrTypeFlags.Struct) then true
-            else
-                (match info.enumBaseTyOpt with Some ty -> ty.IsStruct | _ -> false)
-        | ByRef _
-        | Shape ->
-            false
-
-    member this.IsTypeVariable =
-        match this with
-        | TypeReference(handle, _, _) ->
-            handle.IsVariable
-        | _ ->
-            false
-
-    member this.IsByRefOfTypeVariable =
-        match this with
-        | ByRef(elementTy, _, _) ->
-            elementTy.IsTypeVariable
-        | _ ->
-            false
-
-    member this.IsByRefOfStruct =
-        match this with
-        | ByRef(elementTy, _, _) ->
-            elementTy.IsStruct
-        | _ ->
-            false
-
-    member this.IsByRef_t =
-        match this with
-        | ByRef _ ->
-            true
-        | _ ->
-            false
-
-    member this.IsByRefLike =
-        match this with
-        | ByRef _ -> true
-        | TypeDefinition(flags=flags) -> flags.HasFlag(ClrTypeFlags.ByRefLike)
-        | _ -> false
-
-    member this.IsScopedFunction =
-        match this with
-        | TypeDefinition(flags=flags) -> flags.HasFlag(ClrTypeFlags.ScopedFunction)
-        | _ -> false
-
-    member this.TryByRefElementType =
-        match this with
-        | ByRef(elementTy, _, _) ->
-            ValueSome(elementTy)
-        | _ ->
-            ValueNone
-
-    member this.IsNativePointer =
-        match this with
-        | TypeGenericInstance(_, _, handle) ->
-            handle.IsNativePointer_t
-        | _ ->
-            false
-
-    member this.TryTypeVariable =
-        match this with
-        | TypeReference(handle, _, _) ->
-            handle.TryTypeVariable
-        | _ ->
-            ValueNone
-
-    member this.IsClosure =
-        match this with
-        | TypeGenericInstance(x, _, _) -> x.IsClosure
-        | TypeReference _ -> false
-        | TypeDefinition(isClosure=isClosure) -> isClosure
-        | ByRef _ 
-        | Shape -> false
-
-    member this.IsScopedClosure = this.IsClosure && this.IsStruct
-
-    member this.IsTypeDefinitionInterface =
-        match this with
-        | TypeDefinition(isInterface=isInterface) -> isInterface
-        | _ -> false
-
-    member this.IsTypeDefinition_t =
-        match this with
-        | TypeDefinition _ -> true
-        | _ -> false
-
-    member this.Handle =
-        match this with
-        | TypeGenericInstance(_, _, x) -> x
-        | TypeReference(handle, _, _) -> handle
-        | TypeDefinition(tyDefBuilder, _, _, _, _, _) -> tyDefBuilder.Handle
-        | ByRef(_, _, handle) -> handle
-        | Shape -> failwith "Handle not valid"
-
-    member this.TypeArguments: ClrTypeHandle imarray =
-        match this with
-        | TypeGenericInstance(tyArgs=tyArgs) -> tyArgs
-        | TypeReference(ty, _, _) ->
-            match ty with
-            | ClrTypeHandle.TypeSpecification(tyInst=tyInst) -> tyInst
-            | _ -> ImArray.empty
-        | _ -> ImArray.empty
-
-    member this.TryTypeExtensionType =
-        match this with
-        | TypeDefinition(_, _, _, _, _, info) -> info.typeExtensionInfo |> ValueOption.map (fun (x) -> x)
-        | _ -> ValueNone
-
-    member this.TypeDefinitionBuilder =
-        match this with
-        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
-            tyDefBuilder
-        | _ ->
-            OlyAssert.Fail("Not a type definition.")
-
-    member this.TypeDefinitionInfo =
-        match this with
-        | TypeDefinition(_, _, _, _, _, info) ->
-            info
-        | _ ->
-            OlyAssert.Fail("Not a type definition.")
-
-    member this.MethodDefinitionBuilders: ClrMethodDefinitionBuilder seq =
-        match this with
-        | TypeDefinition(tyDefBuilder, _, _, _, _, _) ->
-            tyDefBuilder.MethodDefinitionBuilders
-        | _ ->
-            ImArray.empty
-
-[<ReferenceEquality;NoComparison>]
-type ClrFieldInfo = 
-    { 
-        handle: ClrFieldHandle
-        isMutable: bool } with
-
-    member this.Handle: ClrFieldHandle = this.handle
-
-and [<ReferenceEquality;NoComparison>] ClrMethodInfoDefinition =
-    {
-        isEnclosingClosure: bool
-        enclosingTyHandle: ClrTypeHandle
-        handle: ClrMethodHandle
-        builder: ClrMethodDefinitionBuilder option
-        name: string
-        isStatic: bool
-        isConstructor: bool
-        returnTy: ClrTypeInfo
-        pars: (string * ClrTypeInfo) imarray
-        tyInst: ClrTypeInfo imarray
-        specialKind: ClrMethodSpecialKind
-        tyParCount: int
-    }
-
-    member this.IsStatic = this.isStatic
-    member this.IsInstance = not this.IsStatic
-
-    member this.ReturnType = this.returnTy
-
-    member this.Parameters = this.pars
-
-and [<RequireQualifiedAccess;ReferenceEquality;NoComparison>] ClrMethodInfo =
-    | Definition of ClrMethodInfoDefinition
-    | DefaultConstructorConstraint
-
-    member this.AsDefinition = 
-        match this with
-        | Definition d -> d
-        | _ -> failwith "Not a method definition"
-
-type BlobBuilder with
-
-    member b.WriteSerializedUTF8(value: string) =
-        b.WriteByte(byte value.Length)
-        b.WriteUTF8(value)
-
-    member b.WriteTypeOfC(asmBuilder: ClrAssemblyBuilder, x: C<ClrTypeInfo, ClrMethodInfo>) =
-        match x with
-        | C.Int8 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceByte)
-        | C.UInt8 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSByte)
-        | C.Int16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt16)
-        | C.UInt16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt16)
-        | C.Int32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt32)
-        | C.UInt32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt32)
-        | C.Int64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceInt64)
-        | C.UInt64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceUInt64)
-        | C.Float32 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceSingle)
-        | C.Float64 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceDouble)
-
-        | C.True -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
-
-        | C.False -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceBoolean)
-
-        | C.Array(elementTy, _) ->
-            let mutable encoder = CustomAttributeArrayTypeEncoder(b)
-            if elementTy.Handle = asmBuilder.TypeReferenceObject then
-                encoder.ObjectArray()
-            else
-                asmBuilder.EncodeAttributeElementType(encoder.ElementType(), elementTy.Handle)
-
-        | C.Char16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceChar)
-
-        | C.Utf16 _ -> 
-            let mutable encoder = SignatureTypeEncoder(b)
-            asmBuilder.EncodeType(encoder, asmBuilder.TypeReferenceString)
-
-        | C.Variable _ ->
-            raise(System.NotSupportedException("constant variable"))
-
-        | C.External(func) -> 
-            let func = func.AsDefinition
-            match func.specialKind with
-            | ClrMethodSpecialKind.TypeOf ->
-                if func.ReturnType.IsStruct then
-                    ClrElementTypes.ValueType
-                    |> b.WriteByte
-                else
-                    ClrElementTypes.Class
-                    |> b.WriteByte
-            | ClrMethodSpecialKind.SizeOf ->
-                if func.tyInst.Length = 1 && func.tyInst[0].IsStruct then
-                    raise(System.NotSupportedException("sizeof constant"))
-                    //ClrElementTypes.ValueType
-                    //|> b.WriteByte
-                else
-                    failwith "Invalid use of SizeOf."
-            | ClrMethodSpecialKind.FunctionPointer ->
-                SignatureTypeCode.FunctionPointer
-                |> byte
-                |> b.WriteByte
-            | _ ->
-                raise(System.NotSupportedException($"Constant function '{func.name}'."))
-
-    member b.WriteValueOfC(x: C<ClrTypeInfo, ClrMethodInfo>, asCountedUtf8) =
-        match x with
-        | C.UInt8(value) -> b.WriteByte(value)
-        | C.Int8(value) -> b.WriteSByte(value)
-        | C.UInt16(value) -> b.WriteUInt16(value)
-        | C.Int16(value) -> b.WriteInt16(value)
-        | C.UInt32(value) -> b.WriteUInt32(value)
-        | C.Int32(value) -> b.WriteInt32(value)
-        | C.UInt64(value) -> b.WriteUInt64(value)
-        | C.Int64(value) -> b.WriteInt64(value)
-        | C.Float32(value) -> b.WriteSingle(value)
-        | C.Float64(value) -> b.WriteDouble(value)
-        | C.Char16(value) -> b.WriteUInt16(uint16 value)
-        | C.Utf16(value) -> 
-            if asCountedUtf8 then
-                b.WriteSerializedUTF8(value)
-            else
-                b.WriteSerializedString(value)
-        | C.True -> b.WriteBoolean(true)
-        | C.False -> b.WriteBoolean(false)
-        | C.Array(ty: ClrTypeInfo, elements) ->
-            b.WriteUInt32(uint32 elements.Length)
-            elements
-            |> ImArray.iter (fun x -> b.WriteValueOfC(x, false))
-        | C.Variable _ ->
-            raise(System.NotSupportedException("constant variable"))
-        | C.External(func) -> 
-            let func = func.AsDefinition
-            match func.specialKind with
-            | ClrMethodSpecialKind.TypeOf when func.tyInst.Length = 1 ->
-                let ty = func.tyInst.[0]
-                b.WriteSerializedString(ty.FullyQualifiedName)
-            | ClrMethodSpecialKind.SizeOf when func.tyInst.Length = 1 ->
-                raise(System.NotSupportedException("constant sizeof"))
-            | _ ->
-                failwith "Invalid external constant."
+open Oly.Emitters.DotNet.Extensions
+open DotNet.Metadata
+open DotNet.Metadata.ClrPatterns
 
 module rec ClrCodeGen =
-
-    
 
     [<NoEquality;NoComparison>]
     type g =
@@ -2168,75 +1782,6 @@ module rec ClrCodeGen =
                     emitHiddenSequencePointIfPossible cenv env
                     I.Ret |> emitInstruction cenv
 
-let createMethod (enclosingTy: ClrTypeInfo) (flags: OlyIRFunctionFlags) methodName tyPars cilParameters (cilReturnTy: ClrTypeHandle) isStatic isCtor (tyDefBuilder: ClrTypeDefinitionBuilder) =
-    let methDefBuilder = tyDefBuilder.CreateMethodDefinitionBuilder(methodName, tyPars, cilParameters, cilReturnTy, not isStatic)
-
-    let methAttrs =
-        if flags.IsPublic then
-            MethodAttributes.Public
-        elif flags.IsProtected then
-            MethodAttributes.Family
-        else
-            if flags.IsInternal || (not flags.IsExported) then
-                // We always emit "internal" due to inlining.
-                // Exported functions will never be inlined by Oly.
-                MethodAttributes.Assembly
-            else
-                MethodAttributes.Private
-
-    let methAttrs = methAttrs ||| MethodAttributes.HideBySig
-
-    let methAttrs =
-        if isStatic then
-            methAttrs ||| MethodAttributes.Static
-        else
-            methAttrs
-
-    let methAttrs =
-        if isCtor then
-            methAttrs ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
-        else
-            methAttrs
-
-    let methAttrs =
-        if flags.IsVirtual && not isStatic then
-            methAttrs ||| MethodAttributes.Virtual
-        else
-            methAttrs
-
-    let methAttrs =
-        if flags.IsAbstract && not isStatic && not(flags.IsInstance && flags.AreGenericsErased && enclosingTy.IsTypeDefinitionInterface) then
-            methAttrs ||| MethodAttributes.Abstract
-        else
-            methAttrs
-
-    let methAttrs =
-        if flags.IsNewSlot && not isStatic then
-            methAttrs ||| MethodAttributes.NewSlot
-        else
-            methAttrs
-
-    let methAttrs =
-        if flags.IsFinal && not isStatic then
-            methAttrs ||| MethodAttributes.Final ||| MethodAttributes.Virtual
-        else
-            methAttrs
-
-    methDefBuilder.Attributes <- methAttrs
-    methDefBuilder.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
-
-    if flags.IsAbstract && isStatic then
-        // We do this as it's a stub for a static abstract method.
-        methDefBuilder.BodyInstructions <-
-            [
-                I.Ldnull
-                I.Throw
-                I.Ret
-            ]
-            |> ImArray.ofSeq
-
-    methDefBuilder
-
 [<Sealed>]
 type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly) =
 
@@ -3356,7 +2901,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     if flags.IsExternal && (externalInfoOpt.IsNone || externalInfoOpt.Value.Platform <> "C") then
                         ClrMethodHandle.None, None
                     else
-                        let methDefBuilder = createMethod enclosingTy flags methodName tyPars parHandles cilReturnTy2.Handle isStatic isCtor tyDefBuilder
+                        let methDefBuilder = 
+                            tyDefBuilder.CreateMethodDefinitionBuilderEx(
+                                enclosingTy,
+                                flags,
+                                methodName,
+                                tyPars, 
+                                parHandles, 
+                                cilReturnTy2.Handle, 
+                                isStatic, 
+                                isCtor
+                            )
                         overridesOpt
                         |> Option.iter (fun x ->
                             methDefBuilder.Overrides <- Some x.AsDefinition.handle
@@ -3365,7 +2920,17 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         if isTypeExtension && not flags.IsStatic then
                             match tyExtInfoOpt with
                             | ValueSome(extendedTy, (ClrTypeInfo.TypeDefinition(instanceTyDefBuilder, _, _, _, _, _) as enclosingTy), instanceFieldHandle) ->
-                                let instanceMethDefBuilder = createMethod enclosingTy flags methodName tyPars (parHandles.RemoveAt(0)) cilReturnTy2.Handle false false instanceTyDefBuilder
+                                let instanceMethDefBuilder = 
+                                    instanceTyDefBuilder.CreateMethodDefinitionBuilderEx(
+                                        enclosingTy, 
+                                        flags, 
+                                        methodName,
+                                        tyPars,
+                                        parHandles.RemoveAt(0), 
+                                        cilReturnTy2.Handle,
+                                        false,
+                                        false
+                                    )
                                 match originalOverridesOpt with
                                 | Some overrides ->
                                    instanceMethDefBuilder.Overrides <- Some overrides.AsDefinition.handle

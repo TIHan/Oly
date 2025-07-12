@@ -6,12 +6,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Metadata\Types.fs" />
-    <Compile Include="Metadata\AssemblyBuilder.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="Extensions.fs" />
     <Compile Include="Emitter.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Emitters\DotNet\DotNet.Metadata\DotNet.Metadata.fsproj" />
     <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
   </ItemGroup>
 

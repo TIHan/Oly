@@ -7,7 +7,7 @@ open System.Runtime.Loader
 open Oly.Core
 open Oly.Metadata
 open Oly.Runtime
-open Oly.Runtime.Clr.Emitter
+open Oly.Emitters.DotNet
 open Oly.Runtime.Target.DotNet
 open Oly.Compiler
 open Xunit

@@ -14,7 +14,6 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
 open Oly.Runtime.Target.DotNet
-open Oly.Runtime.Clr
 open Oly.Runtime.CodeGen
 
 [<MemoryDiagnoser>]

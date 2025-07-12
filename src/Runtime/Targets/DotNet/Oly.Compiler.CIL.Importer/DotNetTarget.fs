@@ -20,7 +20,7 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
-open Oly.Runtime.Clr.Emitter
+open Oly.Emitters.DotNet
 
 open Microsoft.Build.Framework
 open Microsoft.CodeAnalysis

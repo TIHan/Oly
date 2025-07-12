@@ -24,7 +24,6 @@ open Oly.Runtime
 open System.IO
 open Oly.Core
 open Oly.Runtime.Tools
-open Oly.Runtime.Clr.Emitter
 open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Service
 open OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities

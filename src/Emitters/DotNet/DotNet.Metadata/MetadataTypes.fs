@@ -1,13 +1,8 @@
-﻿namespace rec Oly.Platform.Clr.Metadata
+﻿namespace rec DotNet.Metadata
 
 open System
-open System.Reflection
-open Oly.Core
-open System.Reflection
-open System.Reflection.PortableExecutable
 open System.Reflection.Metadata
-open System.Reflection.Metadata.Ecma335
-open System.Collections.Immutable
+open Oly.Core
 
 [<AutoOpen>]
 module internal Helpers =
@@ -34,7 +29,6 @@ type ClrTypeVariableKind =
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type ClrTypeHandle =
-    internal
     | None
     | AssemblyReference of AssemblyReferenceHandle * qualifiedName: string
     | TypeVariable of index: int32 * kind: ClrTypeVariableKind
@@ -166,7 +160,6 @@ type ClrTypeHandle =
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type ClrFieldHandle =
-    internal
     | None
     | MemberReference of handle: MemberReferenceHandle * name: StringHandle * signature: BlobHandle
     | LazyFieldDefinition of realHandle: Lazy<FieldDefinitionHandle> * handle: Lazy<FieldDefinitionHandle> * name: StringHandle * signature: BlobHandle
@@ -195,7 +188,6 @@ type ClrFieldHandle =
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type ClrMethodHandle =
-    internal
     | None
     | MemberReference of handle: MemberReferenceHandle * name: StringHandle * signature: BlobHandle
     | MethodSpecification of handle: Lazy<MethodSpecificationHandle> * name: StringHandle * signature: BlobHandle
