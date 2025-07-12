@@ -165,7 +165,13 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length < 3 then false
                 else
-                    func.Parameters[0].Type.IsAnyNonFixedArray &&
+                    let isPar1Valid =
+                        let par1Ty = func.Parameters[0].Type
+                        if par1Ty.IsByRef_t then
+                            par1Ty.FirstTypeArgument.IsAnyFixedArray
+                        else
+                            par1Ty.IsAnyNonFixedArray
+                    isPar1Valid &&
                     func.Parameters[1].Type.IsInteger &&
                     (areTypesEqual func.ReturnType TypeSymbol.Unit)
 

@@ -1010,9 +1010,11 @@ module rec ClrCodeGen =
         | O.LoadArrayElement(irReceiver, irIndexArgs, resultTy) ->
             GenArgumentExpression cenv env irReceiver
             match irReceiver.ResultType with
-            | ClrTypeInfo.ByRef(fixedArrayTy, _, _) when fixedArrayTy.IsFixedArray ->
+            | ClrTypeInfo.ByRef(fixedArrayTy, irByRefKind, _) when fixedArrayTy.IsFixedArray ->
                 if irIndexArgs.Length <> 1 then
                     invalidOp "Invalid number of arguments"
+                if irByRefKind = OlyIRByRefKind.WriteOnly then
+                    failwith "Did not expect a write-only by-ref type."
                 irIndexArgs
                 |> ImArray.iter (GenArgumentExpression cenv env)
                 I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, irIndexArgs.Length) |> emitInstruction cenv
@@ -1027,13 +1029,13 @@ module rec ClrCodeGen =
         | O.LoadArrayElementAddress(irReceiver, irIndexArgs, _, resultTy) ->
             GenArgumentExpression cenv env irReceiver
             match irReceiver.ResultType with
-            | ClrTypeInfo.ByRef(fixedArrayTy, _, _) when fixedArrayTy.IsFixedArray ->
+            | ClrTypeInfo.ByRef(fixedArrayTy, irByRefKind, _) when fixedArrayTy.IsFixedArray ->
+                if irIndexArgs.Length <> 1 then
+                    invalidOp "Invalid number of arguments"
+                if irByRefKind = OlyIRByRefKind.WriteOnly then
+                    failwith "Did not expect a write-only by-ref type."
                 irIndexArgs
                 |> ImArray.iter (GenArgumentExpression cenv env)
-                match irIndexArgs.Length with
-                | 1 -> I.LdcI4(1) |> emitInstruction cenv
-                | 2 -> ()
-                | _ -> invalidOp "Too many arguments"
                 I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, 2) |> emitInstruction cenv
             | _ ->
                 if irIndexArgs.Length > 1 then
@@ -1047,18 +1049,27 @@ module rec ClrCodeGen =
                         OlyAssert.Fail("Expected ByRef type.")
 
         | O.StoreArrayElement(irReceiver, irIndexArgs, irRhsArg, _) ->
-            let tyHandle =
-                match irReceiver.ResultType.Handle.TryElementType with
-                | ValueSome ty -> ty
-                | _ -> failwith "Expecting a type with an element."
-
             GenArgumentExpression cenv env irReceiver
-            if irIndexArgs.Length > 1 then
-                failwith "clr emit rank greater than zero not yet supported."
-            else
+            match irReceiver.ResultType with
+            | ClrTypeInfo.ByRef(fixedArrayTy, irByRefKind, _) when fixedArrayTy.IsFixedArray ->
+                if irByRefKind <> OlyIRByRefKind.ReadWrite then
+                    failwith "Expected a read-write by-ref type."
                 GenArgumentExpression cenv env irIndexArgs[0]
+                I.Call(getFixedArrayGetItemMethodHandle fixedArrayTy, 2) |> emitInstruction cenv
                 GenArgumentExpression cenv env irRhsArg
-                emitInstruction cenv (I.Stelem tyHandle)
+                I.Stobj(irRhsArg.ResultType.Handle) |> emitInstruction cenv
+            | _ ->
+                GenArgumentExpression cenv env irReceiver
+                if irIndexArgs.Length > 1 then
+                    failwith "clr emit rank greater than zero not yet supported."
+                else
+                    GenArgumentExpression cenv env irIndexArgs[0]
+                    GenArgumentExpression cenv env irRhsArg
+                    let tyHandle =
+                        match irReceiver.ResultType.Handle.TryElementType with
+                        | ValueSome ty -> ty
+                        | _ -> failwith "Expecting a type with an element."
+                    emitInstruction cenv (I.Stelem tyHandle)
 
         | O.BitwiseNot(irArg, resultTy) ->
             GenArgumentExpression cenv env irArg

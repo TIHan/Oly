@@ -85,7 +85,9 @@ type OlyDiagnostic internal () =
                     else
                         "error"
 
-                $"{syntaxTree.Path}({line},{column}): {kindText} {this.CodePrefix}{this.Code}:\n{helperText}"
+                let codeText = this.Code.ToString("D4")
+
+                $"{syntaxTree.Path}({line},{column}): {kindText} {this.CodePrefix}{codeText}: {this.Message}\n{helperText}"
             | _ ->
                 helperText
 

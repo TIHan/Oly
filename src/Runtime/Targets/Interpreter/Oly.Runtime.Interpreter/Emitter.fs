@@ -68,6 +68,7 @@ type InterpreterType =
     | ReferenceCell of elementTy: InterpreterType
     | Function of parTys: InterpreterType imarray * returnTy: InterpreterType
     | Object
+    | CopyByValueObject
     | LiteralInt32 of value: int32
 
     | Custom of enclosing: Choice<string imarray, InterpreterType> * name: string * isTyExt: bool * isStruct: bool * isEnum: bool * isInterface: bool * info: InterpreterTypeDefinitionInfo
@@ -103,7 +104,8 @@ type InterpreterType =
         | Char16 
         | Unit
         | Tuple _ 
-        | LiteralInt32 _ -> true
+        | LiteralInt32 _
+        | CopyByValueObject -> true
         | Custom(isStruct=isStruct;info=info) -> 
             if isStruct then
                 true
@@ -1045,6 +1047,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             // TODO: If struct is read-only then we do not need to make a copy.
             | :? InterpreterInstanceOfType as arg when arg.IsStruct ->
                 arg.Copy() :> obj
+            | :? InterpreterInstanceOfFixedArrayType as arg ->
+                InterpreterInstanceOfFixedArrayType((arg.Instance :?> obj[]).Clone())
             | _ ->
                 arg
 
@@ -1053,6 +1057,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             // TODO: If struct is read-only then we do not need to make a copy.
             | :? InterpreterInstanceOfType as arg when arg.IsStruct ->
                 arg.Box() :> obj
+            | :? InterpreterInstanceOfFixedArrayType as arg ->
+                InterpreterInstanceOfFixedArrayType((arg.Instance :?> obj[]).Clone())
             | _ ->
                 arg
 
@@ -1060,6 +1066,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
             match arg with
             | :? InterpreterInstanceOfType as arg when arg.IsStruct ->
                 InterpreterByReferenceOfInstance(arg) :> obj
+            | :? InterpreterInstanceOfFixedArrayType as arg ->
+                InterpreterByReferenceOfInstance(arg)
             | _ ->
                 arg
 
@@ -1096,11 +1104,11 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 | InterpreterConstant.Utf16(value) ->
                     stack.Push(value)
                 | InterpreterConstant.Array _ ->
-                    raise(System.NotImplementedException())
+                    raise(NotImplementedException())
                 | InterpreterConstant.Variable _ ->
-                    raise(System.NotSupportedException("constant variable"))
+                    raise(NotSupportedException("constant variable"))
                 | InterpreterConstant.External _ ->
-                    raise(System.NotImplementedException())
+                    raise(NotImplementedException())
             | InterpreterValue.Local(n, _) ->
                 stack.Push(locals.[n] |> copyIfStruct)
             | InterpreterValue.LocalAddress(n, _, _) ->
@@ -1159,7 +1167,7 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 InterpreterInstanceOfFunctionType(resultTy, func.EmittedFunction)
                 |> stack.Push
             | _ ->
-                raise(System.NotImplementedException(sprintf "InterpreterValue.%A" value))
+                raise(NotImplementedException(sprintf "InterpreterValue.%A" value))
 
         let rec evalArg (stack: Stack<obj>) (argExpr: InterpreterExpression) =
             evalExpr stack argExpr
@@ -1498,64 +1506,92 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterOperation.CallStaticConstructor(irFunc, _) ->
                 irFunc.EmittedFunction.CallStaticConstructor()
 
-            | InterpreterOperation.NewArray(_, _, irArgExprs, _) ->
-                let arr = Array.zeroCreate irArgExprs.Length
+            | InterpreterOperation.NewArray(_, _, argExprs, _) ->
+                let arr = Array.zeroCreate argExprs.Length
                 
-                for i = 0 to irArgExprs.Length - 1 do
-                    arr[i] <- evalArg stack irArgExprs[i]
+                for i = 0 to argExprs.Length - 1 do
+                    arr[i] <- evalArg stack argExprs[i]
 
                 stack.Push(arr)
 
-            | InterpreterOperation.NewMutableArray(elementTy, irSizeArgExpr, _) ->
-                Array.init (evalArg stack irSizeArgExpr :?> int) (fun _ ->
+            | InterpreterOperation.NewMutableArray(elementTy, sizeArgExpr, _) ->
+                Array.init (evalArg stack sizeArgExpr :?> int) (fun _ ->
                     evalArg stack (this.CreateDefaultValue(elementTy))
                 )
                 |> stack.Push
 
-            | InterpreterOperation.LoadArrayLength(irReceiverExpr, rank, _) ->
-                match evalArg stack irReceiverExpr with
+            | InterpreterOperation.NewFixedArray(_, _, _, argExprs, _) ->
+                let arr = Array.zeroCreate argExprs.Length
+                
+                for i = 0 to argExprs.Length - 1 do
+                    arr[i] <- evalArg stack argExprs[i]
+
+                stack.Push(InterpreterInstanceOfFixedArrayType(arr))
+
+            | InterpreterOperation.LoadArrayLength(receiverExpr, rank, _) ->
+                match evalArg stack receiverExpr with
                 | :? (obj[]) as receiver when rank = 1 ->
                     receiver.Length
                     |> stack.Push
                 | _ ->
-                    raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
+                    raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
-            | InterpreterOperation.LoadArrayElement(irReceiverExpr, irIndexArgExprs, _) ->
-                match evalArg stack irReceiverExpr with
-                | :? (obj[]) as receiver when irIndexArgExprs.Length = 1 ->
-                    receiver[evalArg stack irIndexArgExprs[0] :?> int]
+            | InterpreterOperation.LoadArrayElement(receiverExpr, indexArgExprs, _) ->
+                match evalArg stack receiverExpr with
+                | :? (obj[]) as receiver when indexArgExprs.Length = 1 ->
+                    receiver[evalArg stack indexArgExprs[0] :?> int]
                     |> stack.Push
+                | :? InterpreterByReferenceOfInstance as receiver ->
+                    match receiver.Instance with
+                    | :? InterpreterInstanceOfFixedArrayType as receiver when indexArgExprs.Length = 1 ->
+                        (receiver.Instance :?> obj[])[evalArg stack indexArgExprs[0] :?> int]
+                        |> stack.Push
+                    | _ ->
+                        raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
                 | _ ->
-                    raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
+                    raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
-            | InterpreterOperation.LoadArrayElementAddress(irReceiverExpr, irIndexArgExprs, _, _) ->
-                match evalArg stack irReceiverExpr with
-                | :? (obj[]) as receiver when irIndexArgExprs.Length = 1 ->
-                    InterpreterByReferenceOfArrayElement(evalArg stack irIndexArgExprs[0] :?> int, receiver)
+            | InterpreterOperation.LoadArrayElementAddress(receiverExpr, indexArgExprs, _, _) ->
+                match evalArg stack receiverExpr with
+                | :? (obj[]) as receiver when indexArgExprs.Length = 1 ->
+                    InterpreterByReferenceOfArrayElement(evalArg stack indexArgExprs[0] :?> int, receiver)
                     |> stack.Push
+                | :? InterpreterByReferenceOfInstance as receiver ->
+                    match receiver.Instance with
+                    | :? InterpreterInstanceOfFixedArrayType as receiver when indexArgExprs.Length = 1 ->
+                        InterpreterByReferenceOfArrayElement(evalArg stack indexArgExprs[0] :?> int, (receiver.Instance :?> obj[]))
+                        |> stack.Push
+                    | _ ->
+                        raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
                 | _ ->
-                    raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
+                    raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
-            | InterpreterOperation.StoreArrayElement(irReceiverExpr, irIndexArgExprs, irArgExpr, _) ->
-                match evalArg stack irReceiverExpr with
-                | :? (obj[]) as receiver when irIndexArgExprs.Length = 1 ->
-                    receiver[evalArg stack irIndexArgExprs[0] :?> int] <- evalArg stack irArgExpr
+            | InterpreterOperation.StoreArrayElement(receiverExpr, indexArgExprs, argExpr, _) ->
+                match evalArg stack receiverExpr with
+                | :? (obj[]) as receiver when indexArgExprs.Length = 1 ->
+                    receiver[evalArg stack indexArgExprs[0] :?> int] <- evalArg stack argExpr
+                | :? InterpreterByReferenceOfInstance as receiver ->
+                    match receiver.Instance with
+                    | :? InterpreterInstanceOfFixedArrayType as receiver when indexArgExprs.Length = 1 ->
+                        (receiver.Instance :?> obj[])[evalArg stack indexArgExprs[0] :?> int] <- evalArg stack argExpr
+                    | _ ->
+                        raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
                 | _ ->
-                    raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
+                    raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
-            | InterpreterOperation.LoadFunction(irFunc, irArgExpr, _) ->
+            | InterpreterOperation.LoadFunction(irFunc, argExpr, _) ->
                 InterpreterInstanceOfClosureType(
                     irFunc.EmittedFunction.EnclosingType, 
                     false,
-                    evalArg stack irArgExpr,
+                    evalArg stack argExpr,
                     irFunc.EmittedFunction)
                 |> stack.Push
 
             | InterpreterOperation.NewOrDefaultOfTypeVariable _ ->
-                raise(System.NotSupportedException())
+                raise(NotSupportedException())
 
             | _ ->
-                raise(System.NotImplementedException(sprintf "InterpreterOperation.%A" op))
+                raise(NotImplementedException(sprintf "InterpreterOperation.%A" op))
 
         and evalExpr (stack: Stack<obj>) (expr: InterpreterExpression) =
             match expr with
@@ -1739,6 +1775,16 @@ type InterpreterByReferenceOfArgument(arguments: obj [], n: int32) =
         and set value = arguments.[n] <- value
 
     member this.InstanceOfType: InterpreterInstanceOfType = this.Instance :?> InterpreterInstanceOfType  
+
+[<Sealed>]
+type InterpreterInstanceOfFixedArrayType(instance: obj) =
+
+    let mutable instance = instance
+
+    abstract Instance : obj with get, set
+    default _.Instance
+        with get() = instance
+        and set value = instance <- value
         
 [<Sealed>]
 type InterpreterRuntimeEmitter(stdout) =
@@ -1759,21 +1805,21 @@ type InterpreterRuntimeEmitter(stdout) =
 
         member this.Initialize(_) = ()
 
-        member this.EmitFunctionInstance(_, func: InterpreterFunction, tyArgs: _): InterpreterFunction = 
-            raise(System.NotSupportedException())
+        member this.EmitFunctionInstance(_, _, _): InterpreterFunction = 
+            raise(NotSupportedException())
 
-        member this.EmitFunctionReference(_, func: InterpreterFunction): InterpreterFunction = 
-            raise(System.NotSupportedException())
+        member this.EmitFunctionReference(_, _): InterpreterFunction = 
+            raise(NotSupportedException())
 
-        member this.EmitTypeGenericInstance(ty: InterpreterType, tyArgs: imarray<InterpreterType>): InterpreterType = 
-            raise(System.NotSupportedException())
+        member this.EmitTypeGenericInstance(_, _): InterpreterType = 
+            raise(NotSupportedException())
 
         member this.EmitExternalType(_, _, _, _, _, _, _, _): InterpreterType = 
             raise(NotSupportedException())
 
         member _.EmitProperty(_, _, _, _, _, _) = ()
 
-        member this.EmitFieldDefinition(enclosingTy, flags, name: string, fieldTy: InterpreterType, _, _, irConstValueOpt): InterpreterField = 
+        member this.EmitFieldDefinition(enclosingTy, _flags, name: string, fieldTy: InterpreterType, _, _, irConstValueOpt): InterpreterField = 
             match enclosingTy with
             | InterpreterType.Custom(info = { fields=fields }) ->
                 let constValueOpt =
@@ -1806,7 +1852,7 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitFieldReference(_, _) =
             raise(NotSupportedException())
 
-        member this.EmitFunctionDefinition(_, enclosingTy, flags, name: string, tyPars, pars, returnTy, overridesOpt, sigKey, _): InterpreterFunction = 
+        member this.EmitFunctionDefinition(_, enclosingTy, flags, name: string, tyPars, _pars, _returnTy, overridesOpt, sigKey, _): InterpreterFunction = 
             if not tyPars.IsEmpty then
                 raise(NotSupportedException())
 
@@ -1843,7 +1889,7 @@ type InterpreterRuntimeEmitter(stdout) =
             //irFuncBody.Force() |> ignore // make this emitter not a JIT
             func.Body <- Some irFuncBody
 
-        member this.EmitTypeDefinitionInfo(ty, enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, flags: OlyIRTypeFlags, name: string, tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, extends, implements, _, runtimeTyOpt) = 
+        member this.EmitTypeDefinitionInfo(ty, _enclosing: Choice<string imarray, InterpreterType>, kind: OlyILEntityKind, _flags: OlyIRTypeFlags, _name: string, _tyPars: imarray<OlyIRTypeParameter<InterpreterType>>, extends, implements, _, runtimeTyOpt) = 
             let funcs = ty.TypeDefinitionInfo.funcs
             let fields = ty.TypeDefinitionInfo.fields
             ty.TypeDefinitionInfo.runtimeTyOpt <- runtimeTyOpt
@@ -1910,8 +1956,8 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitTypeFunction(inputTys: imarray<InterpreterType>, outputTy: InterpreterType, _): InterpreterType = 
             InterpreterType.Function(inputTys, outputTy)
 
-        member this.EmitTypeHigherVariable(index: int32, tyInst: imarray<InterpreterType>, _): InterpreterType = 
-            raise(System.NotSupportedException("Second-Order Generics"))
+        member this.EmitTypeHigherVariable(_, _, _): InterpreterType = 
+            raise(NotSupportedException("Second-Order Generics"))
 
         member this.EmitTypeInt16(): InterpreterType = 
             InterpreterType.Int16
@@ -1955,8 +2001,8 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitTypeUtf16(): InterpreterType = 
             InterpreterType.Utf16
 
-        member this.EmitTypeVariable(index: int32, _): InterpreterType = 
-            raise(System.NotSupportedException("Generics"))
+        member this.EmitTypeVariable(_, _): InterpreterType = 
+            raise(NotSupportedException("Generics"))
 
         member this.EmitTypeVoid(): InterpreterType = 
             InterpreterType.Void
@@ -1967,17 +2013,17 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitTypeNativeUInt() =
             InterpreterType.UInt64
 
-        member this.EmitTypeNativePtr(elementTy) =
-            raise(System.NotImplementedException())
+        member this.EmitTypeNativePtr(_) =
+            raise(NotImplementedException())
 
         member this.EmitTypeNativeFunctionPtr(_, _, _) =
-            raise(System.NotImplementedException())
+            raise(NotImplementedException())
 
-        member this.EmitTypeArray(elementTy, _, _) =
-            InterpreterType.Object // TODO:
+        member this.EmitTypeArray(_, _, _) =
+            InterpreterType.Object
 
-        member this.EmitTypeFixedArray(elementTy: InterpreterType, length: int, kind: OlyIRArrayKind): InterpreterType = 
+        member this.EmitTypeFixedArray(_elementTy: InterpreterType, length: int, _kind: OlyIRArrayKind): InterpreterType = 
             if length <= 0 then
                 raise(InvalidOperationException())
-            raise(NotImplementedException())
+            InterpreterType.CopyByValueObject
 
