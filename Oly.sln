@@ -21,7 +21,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.LanguageServer", "src\L
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Workspace", "src\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj", "{2F96654E-E448-4A6D-A606-BA1072B9A02D}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Core", "src\Oly.Core\Oly.Core.fsproj", "{A68053C4-D297-4146-92C8-FE817AF96833}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Core", "src\Core\Oly.Core\Oly.Core.fsproj", "{A68053C4-D297-4146-92C8-FE817AF96833}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Extensions", "src\Compiler\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj", "{0A63D536-904E-44AA-9C37-D2484A60FD72}"
 EndProject

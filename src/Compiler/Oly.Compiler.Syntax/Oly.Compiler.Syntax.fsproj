@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Oly.Core\Oly.Core.fsproj" />
+    <ProjectReference Include="..\..\Core\Oly.Core\Oly.Core.fsproj" />
   </ItemGroup>
 
 </Project>
