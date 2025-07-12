@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Emitters\DotNet\DotNet.Metadata\DotNet.Metadata.fsproj" />
-    <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\..\..\Runtime\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\DotNet.Metadata\DotNet.Metadata.fsproj" />
   </ItemGroup>
 
 </Project>

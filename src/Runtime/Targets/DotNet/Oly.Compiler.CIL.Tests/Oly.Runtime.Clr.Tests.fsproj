@@ -56,7 +56,6 @@
     <ProjectReference Include="..\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
     <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
-    <ProjectReference Include="..\Oly.Emitter.CIL\Oly.Emitters.DotNet.fsproj" />
   </ItemGroup>
 
 </Project>
