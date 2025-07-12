@@ -1,4 +1,4 @@
-﻿namespace rec Oly.Runtime.Interpreter
+﻿namespace rec Oly.Emitters.Interpreter
 
 open System
 open System.IO

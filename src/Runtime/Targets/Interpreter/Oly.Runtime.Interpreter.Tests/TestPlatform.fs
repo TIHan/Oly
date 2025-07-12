@@ -4,7 +4,7 @@ open System.IO
 open System.Text
 open Oly.Metadata
 open Oly.Runtime
-open Oly.Runtime.Interpreter
+open Oly.Emitters.Interpreter
 open Oly.Core
 open Xunit
 

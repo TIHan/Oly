@@ -25,7 +25,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Core", "src\Core\Oly.Co
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Compiler.Extensions", "src\Compiler\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj", "{0A63D536-904E-44AA-9C37-D2484A60FD72}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Interpreter", "src\Runtime\Targets\Interpreter\Oly.Runtime.Interpreter\Oly.Runtime.Interpreter.fsproj", "{E46E81DF-9368-443D-BFD6-B7BFA8AC03EF}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Emitters.Interpreter", "src\Emitters\Interpreter\Oly.Emitters.Interpreter\Oly.Emitters.Interpreter.fsproj", "{E46E81DF-9368-443D-BFD6-B7BFA8AC03EF}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Oly.Runtime.Interpreter.Tests", "src\Runtime\Targets\Interpreter\Oly.Runtime.Interpreter.Tests\Oly.Runtime.Interpreter.Tests.fsproj", "{8EF3899B-2E58-446C-8DA6-4EFA29E548AA}"
 EndProject

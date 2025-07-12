@@ -10,7 +10,7 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
-open Oly.Runtime.Interpreter
+open Oly.Emitters.Interpreter
 open Oly.Runtime.Target.Core
 
 [<Sealed>]
