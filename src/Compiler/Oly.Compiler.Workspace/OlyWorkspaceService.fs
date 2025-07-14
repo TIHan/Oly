@@ -167,7 +167,6 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
             if isValidFileToListenFor filePath then
-                //if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
                 rs <- rs.SetResourceAsCopy(filePath)
         )
 
