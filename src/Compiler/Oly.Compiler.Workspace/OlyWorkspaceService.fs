@@ -167,13 +167,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace, getRootPath: Lazy<OlyPath>) a
         |> Seq.iter (fun filePath ->
             let filePath = OlyPath.CreateAbsolute(filePath)
             if isValidFileToListenFor filePath then
-                rs <- rs.SetResourceAsCopy(filePath)
-        )
-
-        Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.json", SearchOption.AllDirectories)
-        |> Seq.iter (fun filePath ->
-            let filePath = OlyPath.CreateAbsolute(filePath)
-            if isValidFileToListenFor filePath then
+                //if OlyPath.Equals(filePath, getActiveConfigPath.Value) then
                 rs <- rs.SetResourceAsCopy(filePath)
         )
 

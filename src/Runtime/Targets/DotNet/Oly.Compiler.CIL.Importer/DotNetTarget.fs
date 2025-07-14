@@ -32,12 +32,10 @@ open Oly.Targets.DotNet.MSBuild
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
-        (targetName: string, projectPath: string, configurationPath: string, configurationTimestamp: DateTime, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool) =
+        (targetName: string, projectPath: string, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool) =
 
     member _.TargetName = targetName
     member _.ProjectPath = projectPath
-    member _.ConfigurationPath = configurationPath
-    member _.ConfigurationTimestamp = configurationTimestamp
     member _.OutputPath = outputPath
     member _.References = references
     member _.FilesToCopy = filesToCopy
@@ -64,7 +62,6 @@ module private DotNet =
     let getBuildInfo 
             projectName 
             (cacheDir: OlyPath) 
-            (configPath: string) 
             (configName: string) 
             (isExe: bool) 
             (targetName: string) 
@@ -77,16 +74,11 @@ module private DotNet =
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configPath, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
-
-                let configTimestamp = try File.GetLastWriteTimeUtc(configPath) with | _ -> DateTime()
-                // TODO: Handle 'isExe'.
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
                         targetName,
                         result.ProjectPath.ToString(),
-                        configPath,
-                        configTimestamp,
                         result.OutputPath,
                         result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
                         result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
@@ -107,17 +99,12 @@ module private DotNet =
                     |> Array.forall File.Exists
 
                 if isValid then
-                    let configTimestamp = OlyIO.GetLastWriteTimeUtcOrDefault(OlyPath.Create(configPath))
-                    let hasConfigChanged =
-                        (resultJsonFriendly.ConfigurationTimestamp <> configTimestamp) ||
-                        (not <| OlyPath.Equals(OlyPath.Create(resultJsonFriendly.ConfigurationPath), OlyPath.Create(configPath)))
-
                     let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
                     let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
                     let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
 
                     // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
-                    if hasConfigChanged || hasDependencyChanged || hasIsExeChanged then
+                    if hasDependencyChanged || hasIsExeChanged then
                         return! build()
                     else
                         OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
@@ -125,8 +112,6 @@ module private DotNet =
                             {
                                 TargetName = resultJsonFriendly.TargetName
                                 ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
-                                ConfigurationPath = OlyPath.Create(resultJsonFriendly.ConfigurationPath)
-                                ConfigurationTimestamp = resultJsonFriendly.ConfigurationTimestamp
                                 OutputPath = resultJsonFriendly.OutputPath
                                 References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
                                 FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
@@ -148,7 +133,6 @@ module private DotNet =
             call
             projectName 
             (outputPath: OlyPath) 
-            (configPath: string) 
             (configName: string) 
             (isExe: bool) 
             msbuildTargetInfo
@@ -158,7 +142,7 @@ module private DotNet =
             (ct: CancellationToken) =
         backgroundTask {
             let msbuild = MSBuild()
-            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectName, outputPath, configPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
+            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectName, outputPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
 
@@ -309,8 +293,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 | _ ->
                     if ext.Equals(".cs") then
                         let cacheDir = this.GetProjectCacheDirectory(targetInfo, path)
-                        let configPath = this.GetProjectConfigurationPath(path)
-                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
+                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -374,8 +357,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
-                let configPath = this.GetProjectConfigurationPath(projPath)
-                let! netInfo = DotNet.getBuildInfo (OlyPath.GetFileNameWithoutExtension(projPath)) cacheDir (configPath.ToString()) targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
+                let! netInfo = DotNet.getBuildInfo (OlyPath.GetFileNameWithoutExtension(projPath)) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -579,7 +561,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     )
                 let dotnetPackages = ImArray.empty
                 let cacheDir = this.GetProjectCacheDirectory(proj.TargetInfo, proj.Path)
-                let configPath = this.GetProjectConfigurationPath(proj.Path)
 
                 let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.dll")
                 let pdbPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.pdb")
@@ -611,7 +592,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         call
                         projectName
                         (OlyPath.Create(outputPath))
-                        (configPath.ToString()) 
                         proj.TargetInfo.ProjectConfiguration.Name 
                         proj.TargetInfo.IsExecutable 
                         msbuildTargetInfo 

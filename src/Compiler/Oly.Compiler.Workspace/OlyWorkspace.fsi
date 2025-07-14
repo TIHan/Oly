@@ -112,8 +112,6 @@ type OlyBuild =
     /// {binDir}/{fileName}/{platformName}/{targetName}/{configName}/
     member GetProjectBinDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
-    member GetProjectConfigurationPath : projectPath: OlyPath -> OlyPath
-
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
     abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>

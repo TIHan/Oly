@@ -8,11 +8,13 @@ open Oly.Core
 let Serialize<'T>(utf8JsonStream: Stream, value: 'T) =
     let jsonOptions = JsonSerializerOptions()
     jsonOptions.PropertyNameCaseInsensitive <- true
+    jsonOptions.WriteIndented <- true
     JsonSerializer.Serialize<'T>(utf8JsonStream, value, jsonOptions)
 
 let SerializAsync<'T>(utf8JsonStream: Stream, value: 'T, ct: CancellationToken) =
     let jsonOptions = JsonSerializerOptions()
     jsonOptions.PropertyNameCaseInsensitive <- true
+    jsonOptions.WriteIndented <- true
     JsonSerializer.SerializeAsync<'T>(utf8JsonStream, value, jsonOptions, ct)
 
 let Deserialize<'T>(utf8JsonStream: Stream) =

@@ -23,9 +23,6 @@ let private createWorkspace target isDebug =
 
     let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
 
-    let projConfigPath = OlyPath.Combine(preludeDir, $"{projectName}.json")
-    use projConfigMs = new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "configurations": [{ "name": "Debug", "defines": ["DEBUG"], "debuggable": true }, { "name": "Release", "defines": ["RELEASE"], "debuggable": false }] }"""))
-
     let configPath = OlyPath.Create("state.json")
     use configMs = 
         if isDebug then
@@ -36,7 +33,6 @@ let private createWorkspace target isDebug =
     let textManager = OlySourceTextManager.Empty
     let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
 
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(projConfigPath, projConfigMs)
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
@@ -89,9 +85,6 @@ let private buildWithAux target isDebug src =
     let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
     let srcText = OlySourceText.Create(src)
 
-    let projConfigPath = OlyPath.Combine(preludeDir, $"{projectName}.json")
-    use projConfigMs = new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "configurations": [{ "name": "Debug", "defines": ["DEBUG"], "debuggable": true }, { "name": "Release", "defines": ["RELEASE"], "debuggable": false }] }"""))
-
     let configPath = OlyPath.Create("state.json")
     use configMs = 
         if isDebug then
@@ -102,7 +95,6 @@ let private buildWithAux target isDebug src =
     let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText)
     let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
 
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(projConfigPath, projConfigMs)
     let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude

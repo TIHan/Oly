@@ -36,9 +36,6 @@ module Helpers =
     [<Literal>]
     let BinDirectoryName = "bin"
 
-    [<Literal>]
-    let ProjectConfigurationExtension = ".json"
-
     let inline internal getInlineCache (valueCache: byref<'T voption>) (f: unit -> 'T) =
         match valueCache with
         | ValueSome value -> value
@@ -114,12 +111,6 @@ type OlyBuild(platformName: string) =
             let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
             let dir = OlyPath.GetDirectory(projectPath)
             OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
-        else
-            invalidOp "Expected file"
-
-    member _.GetProjectConfigurationPath(projectPath: OlyPath) =
-        if projectPath.IsFile then
-            OlyPath.ChangeExtension(projectPath, ".json")
         else
             invalidOp "Expected file"
 
@@ -956,34 +947,14 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             builder.ToImmutable()
 
     member this.GetAllProjectConfigurations(projectFilePath: OlyPath) =
-        match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
-        | true, (length, mmap, _) ->
-            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
-            try    
-                let configs = ProjectConfigurations.Deserialize(view)
-                configs.Configurations
-                |> Array.map (fun x -> configs.GetConfiguration(x.Name))
-                |> ImArray.ofSeq
-            finally
-                view.Dispose()
-        | _ -> 
-            let configs = ProjectConfigurations.Default
-            configs.Configurations
-            |> Array.map (fun x -> configs.GetConfiguration(x.Name))
-            |> ImArray.ofSeq
+        let configs = ProjectConfigurations.Default
+        configs.Configurations
+        |> Array.map (fun x -> configs.GetConfiguration(x.Name))
+        |> ImArray.ofSeq
 
     member this.GetProjectConfiguration(projectFilePath: OlyPath) =
         let configName = this.GetActiveConfigurationName()
-        match state.files.TryGetValue(OlyPath.ChangeExtension(projectFilePath, ".json")) with
-        | true, (length, mmap, _) ->
-            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
-            try    
-                let configs = ProjectConfigurations.Deserialize(view)
-                configs.GetConfiguration(configName)
-            finally
-                view.Dispose()
-        | _ -> 
-            ProjectConfigurations.Default.GetConfiguration(configName)
+        ProjectConfigurations.Default.GetConfiguration(configName)
 
     member _.GetActiveConfigurationName() =
         match state.files.TryGetValue(OlyPath.ChangeExtension(activeConfigPath, ".json")) with
@@ -1485,8 +1456,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
         state.targetPlatforms.[project.PlatformName]
 
     static member private GetProjectConfiguration(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath) =
-        let projConfigPath = OlyPath.ChangeExtension(projPath, ProjectConfigurationExtension)
-        rs.GetProjectConfiguration(projConfigPath)
+        rs.GetProjectConfiguration(projPath)
 
     static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
         backgroundTask {
