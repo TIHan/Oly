@@ -19,7 +19,7 @@ class LogInfoFunc =
     inherits FSharpFunc<string, Unit>
 
     private Verbosity: LogVerbosity get
-    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
 
     overrides Invoke(msg: string): Unit =
         match (this.Verbosity)
@@ -36,7 +36,7 @@ class LogWarnFunc =
     inherits FSharpFunc<string, Unit>
 
     private Verbosity: LogVerbosity get
-    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
 
     overrides Invoke(msg: string): Unit =
         match (this.Verbosity)
@@ -51,7 +51,7 @@ class LogErrorFunc =
     inherits FSharpFunc<string, Unit>
 
     private Verbosity: LogVerbosity get
-    new(verbosity: LogVerbosity) = base() with { Verbosity = verbosity }
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
 
     overrides Invoke(msg: string): Unit =
         match (this.Verbosity)

@@ -986,9 +986,9 @@ let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv 
     env, BoundExpression.Match(syntaxNode, env.benv, matchExprs, matchClauses, expectedTargetTy)
 
 /// Returns a SetField expression or multiple SetField expressions in a Sequential.
-let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (syntaxConstructTy: OlySyntaxConstructType) =
-    match syntaxConstructTy with
-    | OlySyntaxConstructType.Anonymous(_, syntaxFieldPatList, _) ->
+let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxNode (syntaxInitializer: OlySyntaxInitializer) =
+    match syntaxInitializer with
+    | OlySyntaxInitializer.Initializer(_, syntaxFieldPatList, _) ->
         match env.isInInstanceConstructorType with
         | Some(ty) ->
             if not env.isReturnable then
@@ -1034,7 +1034,7 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
                         match tryFindField() with
                         | Some(field) ->
                             if not(currentFieldSet.Add(fieldName)) then
-                                cenv.diagnostics.Error($"Field '{fieldName}' has already been assigned.", 10, syntaxConstructTy)
+                                cenv.diagnostics.Error($"Field '{fieldName}' has already been assigned.", 10, syntaxInitializer)
 
                             let expectedTyOpt = Some field.Type
                             let _, boundExpr = bindLocalExpression cenv (env.SetReturnable(false)) expectedTyOpt syntaxExpr syntaxExpr
@@ -1044,7 +1044,7 @@ let private bindConstructType (cenv: cenv) (env: BinderEnvironment) syntaxNode (
 
                             BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr, isCtorInit = true)
                         | _ ->
-                            cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxConstructTy)
+                            cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxInitializer)
                             invalidExpression syntaxFieldPat env.benv
 
                     | OlySyntaxFieldPattern.Error _ ->
@@ -1478,6 +1478,61 @@ let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxT
     | _ ->
         OlyAssert.Fail("Unmatched syntax expression.")
 
+let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) =
+    if not ty.Inherits.IsEmpty && not ty.IsAnyStruct then
+        let implicitParameterlessBaseInstanceCtorOpt =
+            if env.implicitThisOpt.IsNone then
+                None
+            else
+                match env.benv.TryGetUnqualifiedFunction("base", 0) with
+                | Some func ->
+                    let funcs =
+                        match func with
+                        | :? FunctionGroupSymbol as funcGroup ->
+                            funcGroup.Functions
+                        | _ ->
+                            ImArray.createOne func
+                    funcs
+                    |> ImArray.tryFind (fun x -> 
+                        x.IsInstanceConstructor && x.LogicalParameterCount = 0
+                    )
+                | _ ->
+                    None
+        match implicitParameterlessBaseInstanceCtorOpt with
+        | None ->
+            // This is a special case. 
+            // The Oly runtime does not require that we need to call the base object constructor.
+            if ty.Inherits[0].IsBaseObject_t |> not then
+                cenv.diagnostics.Error($"Cannot implicitly call parameterless base constructor for type '{printType env.benv ty}' as it does not exist.", 10, syntaxToCapture)
+            None
+        | Some(baseCtor) ->
+            let thisValue = env.implicitThisOpt.Value
+            BoundExpression.Call(
+                BoundSyntaxInfo.Generated(cenv.syntaxTree), 
+                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue)),
+                ImArray.empty,
+                ImArray.empty,
+                baseCtor,
+                CallFlags.None
+            )
+            |> Some
+    else
+        None
+
+let private bindThisInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) syntaxInitializer =
+    match tryGetCallParameterlessBaseCtorExpression cenv env syntaxToCapture ty with
+    | Some(callBaseCtorExpr) ->
+        env,
+        E.Sequential(
+            BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+            callBaseCtorExpr, // IMPORTANT: Call base constructor first!
+            bindInitializer cenv env syntaxToCapture syntaxInitializer,
+            ConstructorInitSequential
+        )
+    | _ ->
+        env,
+        bindInitializer cenv env syntaxToCapture syntaxInitializer
+
 #if DEBUG || CHECKED
 let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
     StackGuard.Do(fun () ->
@@ -1510,81 +1565,43 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let env1, expr = bindLambdaExpression cenv env syntaxToCapture syntaxLambdaKind syntaxPars syntaxBodyExpr
         env1, checkExpression cenv env expectedTyOpt expr
 
-    | OlySyntaxExpression.UpdateRecord(syntaxBody, _, syntaxConstructTy) ->
-        match syntaxConstructTy with
-        | OlySyntaxConstructType.Anonymous _ when env.isReturnable && env.isInInstanceConstructorType.IsSome ->
-            // We call the Aux version as to prevent the constructor field assignment checks from happening at this point.
-            // REVIEW: Is there a better way to handle this without having to call the Aux version?
-            let env1, bodyExpr = bindLocalExpressionAux cenv env (* do not set returnable *) None syntaxBody syntaxBody
-            match bodyExpr with
-            | BoundExpression.Call(value=value) when value.IsBase && value.IsFunction ->
-                env,
-                E.Sequential(
-                    BoundSyntaxInfo.User(syntaxExpr, env.benv),
-                    bodyExpr, // IMPORTANT: Call base constructor first!
-                    bindConstructType cenv env1 syntaxExpr syntaxConstructTy,
-                    ConstructorInitSequential
-                )
+    | OlySyntaxExpression.UpdateRecord(_, _, _) ->
+        cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
+        env, BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+
+    | OlySyntaxExpression.Initialize(syntaxBodyExpr, syntaxInitializer) ->
+        // We call the Aux version as to prevent the constructor field assignment checks from happening at this point.
+        // REVIEW: Is there a better way to handle this without having to call the Aux version?
+        let _, bodyExpr = bindLocalExpressionAux cenv env (* do not set returnable *) None syntaxBodyExpr syntaxBodyExpr
+
+        if env.isReturnable && env.isInInstanceConstructorType.IsSome then
+            match env.isInInstanceConstructorType with
+            | Some(ty) ->
+                match bodyExpr with
+                // Only do this for generated FromAddress.
+                | FromAddress(E.Value(value=value)) when value.IsThis && not value.IsFunction && ty.IsStruct && bodyExpr.IsGenerated ->
+                    bindThisInitializer cenv env syntaxToCapture ty syntaxInitializer
+
+                | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct ->
+                    bindThisInitializer cenv env syntaxToCapture ty syntaxInitializer
+
+                | E.Call(value=value) when value.IsBase && value.IsFunction ->
+                    env,
+                    E.Sequential(
+                        BoundSyntaxInfo.User(syntaxExpr, env.benv),
+                        bodyExpr, // IMPORTANT: Call base constructor first!
+                        bindInitializer cenv env syntaxExpr syntaxInitializer,
+                        ConstructorInitSequential
+                    )
+                | _ ->
+                    cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
+                    env, bodyExpr
             | _ ->
-                cenv.diagnostics.Error("This kind of record updates are not implemented.", 10, syntaxToCapture)
-                env, BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-        | _ ->
-            let _env1, _bodyExpr = bindLocalExpression cenv (env.SetReturnable(false)) None syntaxBody syntaxBody
-            cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
-            env, BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-
-    | OlySyntaxExpression.CreateRecord(syntaxConstructTy) ->
-        let implicitBaseCtorCallExprOpt =
-            match syntaxConstructTy, env.isInInstanceConstructorType with
-            | OlySyntaxConstructType.Anonymous _, Some(ty) ->
-                if not ty.Inherits.IsEmpty && not ty.IsAnyStruct then
-                    let implicitParameterlessBaseInstanceCtorOpt =
-                        if env.implicitThisOpt.IsNone then
-                            None
-                        else
-                            match env.benv.TryGetUnqualifiedFunction("base", 0) with
-                            | Some func ->
-                                let funcs =
-                                    match func with
-                                    | :? FunctionGroupSymbol as funcGroup ->
-                                        funcGroup.Functions
-                                    | _ ->
-                                        ImArray.createOne func
-                                funcs
-                                |> ImArray.tryFind (fun x -> 
-                                    x.IsInstanceConstructor && x.LogicalParameterCount = 0
-                                )
-                            | _ ->
-                                None
-                    match implicitParameterlessBaseInstanceCtorOpt with
-                    | None ->
-                        // This is a special case. 
-                        // The Oly runtime does not require that we need to call the base object constructor.
-                        if ty.Inherits[0].IsBaseObject_t |> not then
-                            cenv.diagnostics.Error($"Cannot implicitly call parameterless base constructor for type '{printType env.benv ty}' as it does not exist.", 10, syntaxConstructTy)
-                        None
-                    | Some(baseCtor) ->
-                        let thisValue = env.implicitThisOpt.Value
-                        BoundExpression.Call(
-                            BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                            Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue)),
-                            ImArray.empty,
-                            ImArray.empty,
-                            baseCtor,
-                            CallFlags.None
-                        )
-                        |> Some
-                else
-                    None
-
-            | _ ->
-                None
-
-        match implicitBaseCtorCallExprOpt with
-        | Some(baseCtorCallExpr) ->
-            env, BoundExpression.CreateSequential(baseCtorCallExpr, bindConstructType cenv env syntaxToCapture syntaxConstructTy)
-        | _ ->
-            env, bindConstructType cenv env syntaxToCapture syntaxConstructTy
+                cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
+                env, bodyExpr
+        else
+            cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
+            env, bodyExpr
 
     | OlySyntaxExpression.OpenDeclaration _
     | OlySyntaxExpression.OpenStaticDeclaration _

@@ -142,7 +142,7 @@ module TestModule
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)

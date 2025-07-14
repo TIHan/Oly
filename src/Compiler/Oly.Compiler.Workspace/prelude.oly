@@ -1054,7 +1054,7 @@ extension ArrayEnumerableExtension<T> =
             field mutable currentTyped: T
 
             new(arr: T[]) =
-                {
+                this {
                     arr = arr
                     currentIndex = -1
                     current = unchecked default
@@ -1105,7 +1105,7 @@ extension MutableArrayEnumerableExtension<T> =
             field mutable currentTyped: T
 
             new(arr: mutable T[]) =
-                {
+                this {
                     arr = arr
                     currentIndex = -1
                     current = unchecked default
@@ -1670,7 +1670,7 @@ class PtrPtrHandle =
     private field mutable ptrPtr: GCHandle
 
     new(handles: mutable GCHandle[], ptrPtr: GCHandle) =
-        {
+        this {
             handles = handles
             ptrPtr = ptrPtr
         }

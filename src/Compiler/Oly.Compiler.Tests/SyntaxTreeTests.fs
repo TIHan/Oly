@@ -527,7 +527,7 @@ class Test =
     x: int32
     y: int32
 
-    new(x, y) = { x = x; y = y }
+    new(x, y) = this { x = x; y = y }
         """
     Oly src
     |> withNoSyntaxDiagnostics

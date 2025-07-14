@@ -143,7 +143,7 @@ class Console =
 struct TestData =
     field str: utf16
 
-    new(str: utf16) = { str = str }
+    new(str: utf16) = this { str = str }
 
     TestFunc() : utf16 =
         this.str
@@ -239,11 +239,11 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 test(mutable t: Test2) : () =
     t.~^~x.orange <- 100
@@ -262,11 +262,11 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 test(mutable t: Test2) : () =
     t.x.~^~orange <- 100
@@ -285,11 +285,11 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 test(mutable t: Test2) : () =
     ~^~t.x.orange <- 100
@@ -308,15 +308,15 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 struct Test3 =
     public field mutable y: Test2
-    new(y: Test2) = { y = y }
+    new(y: Test2) = this { y = y }
 
 test(mutable t: Test3) : () =
     t.~^~y.x.orange <- 100
@@ -335,15 +335,15 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 struct Test3 =
     public field mutable y: Test2
-    new(y: Test2) = { y = y }
+    new(y: Test2) = this { y = y }
 
 test(mutable t: Test3) : () =
     t.y.~^~x.orange <- 100
@@ -362,15 +362,15 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 struct Test3 =
     public field mutable y: Test2
-    new(y: Test2) = { y = y }
+    new(y: Test2) = this { y = y }
 
 test(mutable t: Test3) : () =
     t.y.x.~^~orange <- 100
@@ -389,15 +389,15 @@ struct Test =
 
     public field mutable orange: __oly_int32
     public field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = x; apple = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 struct Test3 =
     public field mutable y: Test2
-    new(y: Test2) = { y = y }
+    new(y: Test2) = this { y = y }
 
 test(mutable t: Test3) : () =
     ~^~t.y.x.orange <- 100
@@ -416,7 +416,7 @@ struct Test =
 
     field mutable orange: __oly_int32
     field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { ~^~orange = x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { ~^~orange = x; apple = y }
         """
     src |> hasSymbolSignatureTextByCursor "field mutable orange: __oly_int32"
 
@@ -428,7 +428,7 @@ struct Test =
 
     field mutable orange: __oly_int32
     field mutable apple: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { orange = ~^~x; apple = y }
+    new(x: __oly_int32, y: __oly_int32) = this { orange = ~^~x; apple = y }
         """
     src |> hasSymbolSignatureTextByCursor "x: __oly_int32"
 
@@ -438,7 +438,7 @@ let ``Cannot mutate field value on type``() =
         """
 class Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test(1)
@@ -456,7 +456,7 @@ let ``Cannot mutate field value on struct``() =
         """
 struct Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test(1)
@@ -474,7 +474,7 @@ let ``Cannot mutate field value on struct 2``() =
         """
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test(1)
@@ -492,7 +492,7 @@ let ``Cannot mutate field value on struct 3``() =
         """
 struct Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test(t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
@@ -508,7 +508,7 @@ let ``Cannot mutate field value on struct 4``() =
         """
 struct Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test(t: __oly_by_ref<Test>): () =
     t.x <- 5
@@ -524,7 +524,7 @@ let ``Cannot mutate field value on struct 5``() =
         """
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test(t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
@@ -540,7 +540,7 @@ let ``Cannot mutate field value on struct 6``() =
         """
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test(mutable t: __oly_by_ref_read_only<Test>): () =
     t.x <- 5
@@ -556,11 +556,11 @@ let ``Cannot mutate field value on nested struct``() =
         """
 class Test2 =
     public field test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test2(Test(1))
@@ -578,11 +578,11 @@ let ``Cannot mutate field value on nested struct 2``() =
         """
 class Test2 =
     public field test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let mutable t = Test2(Test(1))
@@ -600,11 +600,11 @@ let ``Cannot mutate field value on nested struct 3``() =
         """
 class Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test2(Test(1))
@@ -622,11 +622,11 @@ let ``Cannot mutate field value on nested struct with chained call``() =
         """
 class Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test() : Test2 =
     Test2(Test(1))
@@ -646,11 +646,11 @@ let ``Can mutate field value on nested struct with chained call``() =
         """
 class Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test() : Test2 =
     Test2(Test(1))
@@ -741,12 +741,12 @@ let ``Generic struct cycle should not compile``() =
 struct C<T> =
     field y: T
 
-    new(y: T) = { y = y }
+    new(y: T) = this { y = y }
 
 struct B =
     field x: C<B>
 
-    new(x: C<B>) = { x = x }
+    new(x: C<B>) = this { x = x }
         """
     Oly src
     |> withErrorDiagnostics [
@@ -762,12 +762,12 @@ let ``Second-order generic struct cycle should not compile``() =
 struct A<T<_>> =
     field y: T<__oly_int32>
 
-    new(y: T<__oly_int32>) = { y = y }
+    new(y: T<__oly_int32>) = this { y = y }
 
 struct B<T> =
     field x: A<B>
 
-    new(x: A<B>) = { x = x }
+    new(x: A<B>) = this { x = x }
         """
     Oly src
     |> withErrorDiagnostics [
@@ -782,11 +782,11 @@ let ``Second-order generic``() =
         """
 class A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 class B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test(z: B<A<B>>) : () =
     let x = A<B>(z)
@@ -802,11 +802,11 @@ let ``Second-order generic inference``() =
         """
 class A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 class B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test() : () =
     let test2(~^~z) =
@@ -820,11 +820,11 @@ let ``Second-order generic inference 2``() =
         """
 class ~^~A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 class B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test() : () =
     let test2(z) =
@@ -838,11 +838,11 @@ let ``Second-order generic inference 3``() =
         """
 class A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 class B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test() : () =
     let ~^~test2(z) =
@@ -856,11 +856,11 @@ let ``Second-order generic struct should fail``() =
         """
 struct A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 struct B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test(x: B<A<B>>) : () = ()
         """
@@ -877,11 +877,11 @@ let ``Second-order generic struct should fail 2``() =
         """
 struct A<T<_>> =
     field y: T<A<T>>
-    new(y: T<A<T>>) = { y = y }
+    new(y: T<A<T>>) = this { y = y }
 
 struct B<T> =
     field x: T
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 test() : () =
     let test2(z) =
@@ -938,7 +938,7 @@ class Test =
 
     public field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main() : () =
     let t = Test(456)
@@ -1227,7 +1227,7 @@ struct Test =
 
     field mutable x: __oly_int32
     field y: __oly_int32
-    new(x: __oly_int32, y: __oly_int32) = { x = x; y = y }
+    new(x: __oly_int32, y: __oly_int32) = this { x = x; y = y }
 
     test() : __oly_int32 = this
         """
@@ -1244,7 +1244,7 @@ let ``Should error when trying to set the receiver``() =
 struct Test =
 
     field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
     test() : () =
         this <- Test(1)
@@ -1262,7 +1262,7 @@ let ``Should error when trying to set the receiver 2 - NOW PASSES``() =
 struct Test =
 
     field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
     mutable test() : () =
         this <- Test(1)
@@ -1644,7 +1644,7 @@ alias inref<T>
 struct Test =
 
     field mutable x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
     test() : inref<__oly_int32> =
         &this.x
@@ -1675,7 +1675,7 @@ alias inref<T>
 struct Test =
 
     field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     test() : inref<__oly_int32> =
         &this.x
@@ -1710,7 +1710,7 @@ alias inref<T>
 struct Test =
 
     field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     test() : inref<__oly_int32> =
         &this.x
@@ -1748,7 +1748,7 @@ alias inref<T>
 struct Test =
 
     field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     test() : inref<__oly_int32> =
         &this.x
@@ -2353,7 +2353,7 @@ class Test1 =
 
     class Test2 =
 
-        new() = {}
+        new() = this { }
 
         static printTest2(): () = ()
 
@@ -2390,7 +2390,7 @@ class Test1 =
 
     class Test2 =
 
-        new() = {}
+        new() = this { }
 
 main(): () =
     let x = ~^~Test1.Test2()
@@ -2411,7 +2411,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V): () = 
             Console.WriteLine(t)
@@ -2443,7 +2443,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2478,7 +2478,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2487,7 +2487,7 @@ class Test1<T> =
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             print(t: T, u: U, v: V, z: Z) : () =
                 Console.WriteLine(t)
@@ -2520,7 +2520,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2529,7 +2529,7 @@ class Test1<T> =
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             print(t: T, u: U, v: V, z: Z) : () =
                 Console.WriteLine(t)
@@ -2563,7 +2563,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2572,7 +2572,7 @@ class Test1<T> =
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             print(t: T, u: U, v: V, z: Z) : () =
                 Console.WriteLine(t)
@@ -2605,7 +2605,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2633,7 +2633,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             Console.WriteLine(t)
@@ -2657,7 +2657,7 @@ interface TraitTest
 
 class Test<T> where T: TraitTest =
 
-    new() = { }
+    new() = this { }
 
 extension Int32Extension =
     inherits __oly_int32
@@ -2692,7 +2692,7 @@ interface TraitTest
 
 class Test<T> where T: TraitTest =
 
-    new() = { }
+    new() = this { }
 
 extension Int32Extension =
     inherits __oly_int32
@@ -2727,7 +2727,7 @@ interface TraitTest
 
 class Test<T> where T: TraitTest =
 
-    new() = { }
+    new() = this { }
 
 extension Int32Extension =
     inherits __oly_int32
@@ -2756,11 +2756,11 @@ let ``Should infer correctly``() =
         """
 class Test =
 
-    new() = { }
+    new() = this { }
 
 class Test<T> =
 
-    new() = { }
+    new() = this { }
 
 main(): () =
     let x: Test = Test()
@@ -2775,11 +2775,11 @@ let ``Should infer correctly 2``() =
         """
 class Test =
 
-    new() = { }
+    new() = this { }
 
 class Test<T> =
 
-    new() = { }
+    new() = this { }
 
 main(): () =
     let x = Test()
@@ -2794,11 +2794,11 @@ let ``Should infer correctly 3``() =
         """
 class Test =
 
-    new() = { }
+    new() = this { }
 
 class Test<T> =
 
-    new() = { }
+    new() = this { }
 
 test(t: Test<__oly_int32>): () = ()
 
@@ -2815,11 +2815,11 @@ let ``Should infer correctly reversed``() =
         """
 class Test<T> =
 
-    new() = { }
+    new() = this { }
 
 class Test =
 
-    new() = { }
+    new() = this { }
 
 main(): () =
     let x: Test = Test()
@@ -2884,7 +2884,7 @@ class Test<T> =
 
     field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
         """
 
     Oly src
@@ -2927,7 +2927,7 @@ let ``Type can have a field mutable for the shape``() =
         """
 struct TestStruct =
     x: __oly_int32 get, set
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get } = t.x
 
@@ -2945,7 +2945,7 @@ let ``Type must have a field mutable for the shape``() =
         """
 struct TestStruct =
     x: __oly_int32 get
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 test<T>(t: T): __oly_int32 where T: { x: __oly_int32 get, set } = t.x
 
@@ -2973,7 +2973,7 @@ struct TestStruct =
     mutable Change(): () =
         this.x <- 100
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 main(): () =
     let ts = TestStruct(123)
@@ -3156,7 +3156,7 @@ open extension Int32Extension
 
 class Test<T> where T: Add<T, T, T> =
 
-    new() = { }
+    new() = this { }
     add(x: T, y: T) : T = T.add(x, y)
 
 interface Add<T1, T2, T3> =
@@ -3614,7 +3614,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 (let!)<T<_>, A, B>(a: T<A>, f: A -> T<B>): T<B> where T<_>: null = default
 
@@ -3638,7 +3638,7 @@ class Wrapper<T> =
 
     public field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 (let!)<A, B>(a: Wrapper<A>, f: A -> Wrapper<B>): Wrapper<B> =
     f(a.Value)
@@ -3664,7 +3664,7 @@ class Wrapper<T> =
 
     public field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 (let!)<A, B>(a: Wrapper<A>, f: A -> Wrapper<B>): Wrapper<B> =
     f(a.Value)
@@ -4331,7 +4331,7 @@ struct Chunk<TMemory<_>> where TMemory<_>: IMemory =
     field X: int32
     new() =
         let m = TMemory<int32>.Allocate()
-        {
+        this {
             X = 1
         }
         """
@@ -4389,7 +4389,7 @@ struct DefaultMemory<T> where T: struct =
     private field Buffer: mutable T[]
 
     private new(buffer: mutable T[]) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4410,7 +4410,7 @@ private struct Chunk1<TMemory<_>, TComponent1>
     public field Data1: TMemory<TComponent1>
 
     new(lookup: TMemory<int32>, data1: TMemory<TComponent1>) =
-        {
+        this {
            Lookup = lookup
            Data1 = data1 
         }
@@ -4426,7 +4426,7 @@ private struct Chunk2<TMemory<_>, TComponent1, TComponent2>
     public field Data2: TMemory<TComponent2>
 
     new(lookup: TMemory<int32>, data1: TMemory<TComponent1>, data2: TMemory<TComponent2>) =
-        {
+        this {
            Lookup = lookup
            Data1 = data1
            Data2 = data2
@@ -4438,7 +4438,7 @@ private struct IndexQueue<TMemory<_>> where TMemory<_>: IMemory =
     public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
-        {
+        this {
             Indices = indices
             Count = count
         }
@@ -4519,7 +4519,7 @@ struct DefaultMemory<T> =
     private field Buffer: mutable T[]
 
     private new(buffer: mutable T[]) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4546,13 +4546,13 @@ internal struct IndexQueue<TMemory<_>, TMemoryAllocator>
     public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
-        {
+        this {
             Indices = indices
             Count = count
         }
 
     new() =
-        {
+        this {
             Indices = TMemoryAllocator.Allocate(8)
             Count = 0
         }
@@ -4635,7 +4635,7 @@ struct DefaultMemory<T> =
     private field Buffer: mutable T[]
 
     private new(buffer: mutable T[]) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4658,7 +4658,7 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     public field mutable Count: int32
 
     new() =
-        {
+        this {
             Indices = TMemoryAllocator.Allocate(8)
             Count = 0
         }
@@ -4766,7 +4766,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
     field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4820,7 +4820,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
     field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4866,7 +4866,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
     field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -4912,7 +4912,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
     field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -5286,7 +5286,7 @@ struct Test<TMemory<_>> where TMemory<_>: IMemory =
     public field mutable Buffer: TMemory<int32>
 
     new(buffer: TMemory<int32>) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -5350,7 +5350,7 @@ module Entities =
         field Version: __oly_uint32
 
         new(index: __oly_int32, version: __oly_uint32) =
-            {
+            this {
                 Index = index
                 Version = version
             }
@@ -5375,7 +5375,7 @@ module Entities =
         field Version: __oly_uint32
 
         new(index: __oly_int32, version: __oly_uint32) =
-            {
+            this {
                 Index = index
                 Version = version
             }
@@ -6247,7 +6247,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
@@ -6266,7 +6266,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern None<T>(value: Option<T>): () =
     ()
@@ -6288,7 +6288,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 module Test2Module =
     pattern None<T>(value: Option<T>): () =
@@ -6311,7 +6311,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 module Test2Module =
     pattern None<T>(value: Option<T>): () =
@@ -6336,7 +6336,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern None<T>(value: Option<T>): () =
     ()
@@ -6358,7 +6358,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 #[open]
 module OptionPatterns<T> =
@@ -6429,7 +6429,7 @@ module TestModule
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 module Test2Module =
     pattern None<T>(value: Option<T>): () =
@@ -7415,11 +7415,11 @@ class C1
 class C2 =
     field C: C1
 
-    new() = { C = C1(123) }
+    new() = this { C = C1(123) }
 
     class C1 =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
         """
     Oly src
     |> withCompile
@@ -7440,11 +7440,11 @@ class C1
 class C2 =
     field C: C1
 
-    new() = { C = C1(123) }
+    new() = this { C = C1(123) }
 
     class C1 =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
         """
     Oly src
     |> withCompile
@@ -7467,11 +7467,11 @@ class C1
 class C2 =
     field C: C1
 
-    new() = { C = C1(123) }
+    new() = this { C = C1(123) }
 
     class C1 =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
         """
     Oly src
     |> withCompile
@@ -7494,11 +7494,11 @@ class C1
 class C2 =
     field C: C1
 
-    new() = { C = C1(123) }
+    new() = this { C = C1(123) }
 
     class C1 =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
         """
     Oly src
     |> withCompile
@@ -7521,11 +7521,11 @@ class C1
 class C2 =
     field C: C1
 
-    new() = { C = C1(123) }
+    new() = this { C = C1(123) }
 
     class C1 =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
         """
     Oly src
     |> withCompile
@@ -7869,7 +7869,7 @@ class C =
         C(value1, "passed")
 
     new(value1: string, value2: string) =
-        {
+        this {
             value1 = value1
             value2 = value2
         }     
@@ -8067,7 +8067,7 @@ struct Vector3 =
     public field mutable Z: float32
 
     new(x: float32) =
-        {
+        this {
             X = x
             Y = x
             Z = x
@@ -8181,7 +8181,7 @@ class Test =
     X: int32 -> () get, set
 
     new() =
-        {
+        this {
             X = () -> ()
         }
 
@@ -8658,7 +8658,7 @@ Test(): () =
         field X: int32
 
         new() =
-            {
+            this {
                 X = cannotAccess
             }
         """
@@ -9013,11 +9013,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -9068,11 +9068,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -9161,7 +9161,7 @@ class GpuFrameLayer =
     VkFramebuffers get, set
 
     new() =
-        {
+        this {
             VkFramebuffers = []
         }
         """
@@ -10447,7 +10447,7 @@ alias int32
 struct AbcAttribute
 
 struct Abc =
-    new(x: int32) = { }
+    new(x: int32) = this { }
 
 #[Abc]
 main(): () =
@@ -10466,7 +10466,7 @@ module M =
     struct AbcAttribute
 
     struct Abc =
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
 #[M.Abc]
 main(): () =
@@ -10487,7 +10487,7 @@ module M =
     struct AbcAttribute
 
     struct Abc =
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
     #[Test.M.Abc]
     main(): () =
@@ -10504,7 +10504,7 @@ alias int32
 
 struct AbcAttribute =
 
-    new(x: int32) = { }
+    new(x: int32) = this { }
 
 #[Abc]
 main(): () =
@@ -10532,7 +10532,7 @@ module M =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
 #[M.Abc]
 main(): () =
@@ -10560,7 +10560,7 @@ module M =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
 #[M.Abc()]
 main(): () =
@@ -10588,7 +10588,7 @@ module M =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
 #[M.AbcAttribute]
 main(): () =
@@ -10616,7 +10616,7 @@ module M =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
 #[M.AbcAttribute()]
 main(): () =
@@ -10646,7 +10646,7 @@ module M =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
     #[Test.M.Abc()]
     main(): () =
@@ -10674,7 +10674,7 @@ alias int32
 
 struct AbcAttribute =
 
-    new(x: int32) = { }
+    new(x: int32) = this { }
 
 module M =
 
@@ -10706,7 +10706,7 @@ module MAttribute =
 
     struct AbcAttribute =
 
-        new(x: int32) = { }
+        new(x: int32) = this { }
 
     #[Test.M.Abc()]
     main(): () =
@@ -10961,7 +10961,7 @@ class C =
     Prop2: int32 get
 
     new() =
-        {
+        this {
             Prop1 = 1
         }
     """
@@ -10970,8 +10970,8 @@ class C =
         [
             ("Property 'Prop2' is not initialized.",
                 """
-        {
-        ^
+        this {
+             ^
 """
             )
         ]
@@ -10989,7 +10989,7 @@ class C =
     field value2: int32
 
     new() =
-        {
+        this {
             value1 = 1
         }
     """
@@ -10998,8 +10998,8 @@ class C =
         [
             ("Field 'value2' is not initialized.",
                 """
-        {
-        ^
+        this {
+             ^
 """
             )
         ]
@@ -11013,7 +11013,7 @@ alias int32
 
 abstract class BaseC =
 
-    new(x: int32) = { }
+    new(x: int32) = this { }
 
 class C =
     inherits BaseC
@@ -11022,7 +11022,7 @@ class C =
     Prop2: int32 get
 
     new() =
-        base(123) with {
+        base(123) {
             Prop1 = 1
         }
     """
@@ -11031,8 +11031,8 @@ class C =
         [
             ("Property 'Prop2' is not initialized.",
                 """
-        base(123) with {
-                       ^
+        base(123) {
+                  ^
 """
             )
         ]

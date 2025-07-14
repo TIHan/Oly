@@ -3354,7 +3354,7 @@ module OlySyntaxMatchClause =
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3], System.Runtime.CompilerServices.Unsafe.As node.Children[4])
 
 [<Sealed;NoComparison>]
-type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: SyntaxConstructType) as this =
+type OlySyntaxInitializer internal (tree, start: int, parent, internalNode: SyntaxInitializer) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
     
@@ -3399,21 +3399,12 @@ type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: Sy
     member internal _.Internal = internalNode
 
 [<RequireQualifiedAccess>]
-module OlySyntaxConstructType =
+module OlySyntaxInitializer =
 
-    let (|Anonymous|_|) (node: OlySyntaxConstructType) : ( OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
+    let (|Initializer|_|) (node: OlySyntaxInitializer) : ( OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
         match node.Internal with
-        | SyntaxConstructType.Anonymous _ ->
+        | SyntaxInitializer.Initializer _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
-        | _ ->
-            Option.None
-
-    let (|Named|_|) (node: OlySyntaxConstructType) : ( OlySyntaxName * OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxConstructType.Named _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxCompilationUnit internal (tree, start: int, parent, internalNode: SyntaxCompilationUnit) as this =
@@ -3623,17 +3614,17 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|CreateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxConstructType ) option =
-        match node.Internal with
-        | SyntaxExpression.CreateRecord _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
-    let (|UpdateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxToken * OlySyntaxConstructType ) option =
+    let (|UpdateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxToken * OlySyntaxInitializer ) option =
         match node.Internal with
         | SyntaxExpression.UpdateRecord _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
+        | _ ->
+            Option.None
+
+    let (|Initialize|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxInitializer ) option =
+        match node.Internal with
+        | SyntaxExpression.Initialize _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
         | _ ->
             Option.None
 
@@ -3779,7 +3770,7 @@ module private Convert =
         | SyntaxMatchGuard.Tag -> OlySyntaxMatchGuard(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxMatchPattern.Tag -> OlySyntaxMatchPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxMatchClause.Tag -> OlySyntaxMatchClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxConstructType.Tag -> OlySyntaxConstructType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | SyntaxInitializer.Tag -> OlySyntaxInitializer(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
         | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode

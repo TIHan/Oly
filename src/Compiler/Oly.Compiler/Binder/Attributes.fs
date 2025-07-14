@@ -45,47 +45,37 @@ let private tryAttributeConstant cenv syntaxNode =
         cenv.diagnostics.Error("Invalid expression for an attribute.", 10, syntaxNode)
         None
 
-let private bindAttributeNamedArguments cenv env (value: IValueSymbol) syntaxArgs =
-    // TODO: We should do this logic else-where for named arguments. - probably in bindNameAsItem?
-    match syntaxArgs with
-    | OlySyntaxArguments.Arguments(_, _, syntaxNamedArgList, _) ->
-        let namedArgs =
-            syntaxNamedArgList.ChildrenOfType
-            |> ImArray.choose (function
-                | OlySyntaxNamedArgument.NamedArgument(syntaxIdent, _, syntaxExpr) ->
-                    let ident = syntaxIdent.ValueText
-                    match value.Enclosing with
-                    | EnclosingSymbol.Entity(ent) ->
-                        let ty = ent.AsType
-                        match ty.FindFields(env.benv, QueryMemberFlags.Instance) |> Seq.tryFind (fun x -> x.Name = ident) with
-                        | Some(field) ->
-                            let expr = bindAttributeExpression cenv env field.Type true syntaxExpr
-                            match tryAttributeConstant cenv syntaxExpr expr with
-                            | Some(value) ->
-                                AttributeNamedArgumentSymbol.Field(field, value) |> Some
-                            | _ ->
-                                None
-                        | _ ->
-                            // REVIEW: Only intrinsic properties will work, which is fine. However, from a design standpoint, are there useful use cases for extrinsic properties?
-                            match ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
-                            | Some(prop) ->
-                                let expr = bindAttributeExpression cenv env prop.Type true syntaxExpr
-                                match tryAttributeConstant cenv syntaxExpr expr with
-                                | Some(value) ->
-                                    AttributeNamedArgumentSymbol.Property(prop, value) |> Some
-                                | _ ->
-                                    None
-                            | _ ->
-                                cenv.diagnostics.Error($"Unable to find field or property with the name '{ident}'.", 10, syntaxIdent)
-                                None
-                    | _ ->
-                        raise(InternalCompilerUnreachedException())
+let private bindAttributeFieldOrPropertyExpression cenv env (value: IValueSymbol) (syntaxArgs: (OlySyntaxToken * OlySyntaxExpression) imarray) =
+    syntaxArgs
+    |> ImArray.choose (fun (syntaxIdent, syntaxExpr) ->
+        let ident = syntaxIdent.ValueText
+        match value.Enclosing with
+        | EnclosingSymbol.Entity(ent) ->
+            let ty = ent.AsType
+            match ty.FindFields(env.benv, QueryMemberFlags.Instance) |> Seq.tryFind (fun x -> x.Name = ident) with
+            | Some(field) ->
+                let expr = bindAttributeExpression cenv env field.Type true syntaxExpr
+                match tryAttributeConstant cenv syntaxExpr expr with
+                | Some(value) ->
+                    AttributeNamedArgumentSymbol.Field(field, value) |> Some
                 | _ ->
-                    raise(InternalCompilerUnreachedException())
-            )
-        namedArgs
-    | _ ->
-        ImArray.empty
+                    None
+            | _ ->
+                // REVIEW: Only intrinsic properties will work, which is fine. However, from a design standpoint, are there useful use cases for extrinsic properties?
+                match ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
+                | Some(prop) ->
+                    let expr = bindAttributeExpression cenv env prop.Type true syntaxExpr
+                    match tryAttributeConstant cenv syntaxExpr expr with
+                    | Some(value) ->
+                        AttributeNamedArgumentSymbol.Property(prop, value) |> Some
+                    | _ ->
+                        None
+                | _ ->
+                    cenv.diagnostics.Error($"Unable to find field or property with the name '{ident}'.", 10, syntaxIdent)
+                    None
+        | _ ->
+            raise(InternalCompilerUnreachedException())
+    )
 
 let private isValidAttributeArguments (cenv: cenv) (env: BinderEnvironment) argExprs =
     argExprs 
@@ -111,6 +101,21 @@ let private isValidAttributeArguments (cenv: cenv) (env: BinderEnvironment) argE
     )
 
 let private bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expectedTy: TypeSymbol) isArg syntaxExpr =
+    match syntaxExpr with
+    | OlySyntaxExpression.Initialize(syntaxExpr, _) ->
+        match bindAttributeExpressionAux cenv env expectedTy isArg syntaxExpr with
+        | BoundExpression.Call _ as expr ->
+            if isArg then
+                cenv.diagnostics.Error("Not a valid attribute expression.", 10, syntaxExpr)  
+                BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
+            else
+                expr
+        | expr ->
+            expr
+    | _ ->
+        bindAttributeExpressionAux cenv env expectedTy isArg syntaxExpr
+
+let private bindAttributeExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTy: TypeSymbol) isArg syntaxExpr =
 
     let errorAttribute cenv env syntaxExpr =
         cenv.diagnostics.Error("Not a valid attribute expression.", 10, syntaxExpr)  
@@ -187,7 +192,10 @@ let private bindAttributeExpression (cenv: cenv) (env: BinderEnvironment) (expec
 
 let private bindAttributeArguments (cenv: cenv) (env: BinderEnvironment) syntaxArgs =
     match syntaxArgs with
-    | OlySyntaxArguments.Arguments(_, syntaxArgList, _, _) ->
+    | OlySyntaxArguments.Arguments(_, syntaxArgList, syntaxNamedArgList, _) ->
+        if not syntaxNamedArgList.Children.IsEmpty then
+            cenv.diagnostics.Error("Named arguments not allowed in attribute.", 10, syntaxArgs)
+            
         syntaxArgList.ChildrenOfType
         |> ImArray.map (fun x -> bindAttributeExpression cenv env (mkInferenceVariableType None) true x)
 
@@ -219,8 +227,28 @@ let bindAttributes (cenv: cenv) (env: BinderEnvironment) syntaxAttrs =
 
                         let attrNamedArgs =
                             match syntaxExpr with
-                            | OlySyntaxExpression.Call(_, syntaxArgs) ->
-                                bindAttributeNamedArguments cenv env value syntaxArgs
+                            | OlySyntaxExpression.Initialize(_, syntaxInitializer) ->
+                                match syntaxInitializer with
+                                | OlySyntaxInitializer.Initializer(_, syntaxFieldPats, _) ->
+                                    let syntaxArgs =
+                                        syntaxFieldPats.ChildrenOfType
+                                        |> ImArray.choose (function
+                                            | OlySyntaxFieldPattern.FieldPattern(syntaxName, _, syntaxExpr) ->
+                                                match syntaxName with
+                                                | OlySyntaxName.Identifier(syntaxIdent) ->
+                                                    (syntaxIdent, syntaxExpr)
+                                                    |> Some
+                                                | _ ->
+                                                    cenv.diagnostics.Error("Not a valid field or property.", 10, syntaxName)
+                                                    None
+                                            | OlySyntaxFieldPattern.Error _ ->
+                                                None
+                                            | _ ->
+                                                unreached()
+                                        )
+                                    bindAttributeFieldOrPropertyExpression cenv env value syntaxArgs
+                                | _ ->
+                                    unreached()
                             | _ ->
                                 ImArray.empty
 

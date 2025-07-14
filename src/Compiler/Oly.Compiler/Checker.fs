@@ -536,15 +536,13 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
                     match expr.Syntax with
                     | :? OlySyntaxExpression as syntaxExpr ->
                         match syntaxExpr with
-                        | OlySyntaxExpression.CreateRecord(syntaxConstructTy)
-                        | OlySyntaxExpression.UpdateRecord(_, _, syntaxConstructTy) ->
-                            match syntaxConstructTy with
+                        | OlySyntaxExpression.Initialize(_, syntaxInitializer)
+                        | OlySyntaxExpression.UpdateRecord(_, _, syntaxInitializer) ->
+                            match syntaxInitializer with
                             // Show an error on the curly bracket instead of the entire construct.
                             // We have tests for this.
-                            | OlySyntaxConstructType.Anonymous(syntaxLeftCurlyBracketToken, _, _) ->
+                            | OlySyntaxInitializer.Initializer(syntaxLeftCurlyBracketToken, _, _) ->
                                 syntaxLeftCurlyBracketToken : OlySyntaxNode
-                            | OlySyntaxConstructType.Named(syntaxName, _, _, _) ->
-                                syntaxName
                             | _ ->
                                 unreached()
                         | _ ->

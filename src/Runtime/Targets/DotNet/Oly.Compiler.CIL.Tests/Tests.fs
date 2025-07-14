@@ -35,7 +35,7 @@ class Test =
     test() : () =
         print("Hello World")
     field x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let x = Test(123)
@@ -403,7 +403,7 @@ extension AddInt32Extension =
 class Hoot<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension HootAddExtension<T> where T: Add<T> =
     inherits Hoot<T>
@@ -480,7 +480,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -536,12 +536,12 @@ interface Monad<M<_>, M2<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 class Maybe2<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -955,7 +955,7 @@ class Test =
 
     test() : int32 = 123
 
-    new() = { }
+    new() = this { }
 
 getResult(t: ITest) : int32 =
     t.test()
@@ -987,7 +987,7 @@ class Test =
     get_x(): int32 = this.x
     test() : int32 = 123
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 getResult(t: ITest) : int32 =
     t.test()
@@ -1016,7 +1016,7 @@ class Test =
 
     test<T>() : int32 = 123
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 getResult(t: ITest) : int32 =
     t.test<float64>()
@@ -1047,7 +1047,7 @@ class Test =
     test<T>(x: int16) : int32 = 123
     test<T>(x: float64) : int32 = 456
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 getResult(t: ITest<int16, float64>) : int32 =
     t.test<float64>(123.0)
@@ -1075,7 +1075,7 @@ class Test =
 
     field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 getResult(t: ITest) : int32 =
     t.test()
@@ -1104,7 +1104,7 @@ class Test =
 
     test() : int32 = 123
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 getResult(t: ITest) : int32 =
     t.test()
@@ -1126,7 +1126,7 @@ class Test<T> =
 
     field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     M<U>() : utf16 = "Hello World"
 
@@ -1164,7 +1164,7 @@ class Test<T> =
 
     public field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 main() : () =
     let x = Test<int32>(123)
@@ -1183,7 +1183,7 @@ class Test<T> =
 
     public field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 main() : () =
     let x = Test<int32>(123).x
@@ -1218,7 +1218,7 @@ class Test =
         print(this.x)
         print(y)
     field x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let x = Test(123)
@@ -1250,7 +1250,7 @@ let ``Mutate field``() =
         """
 class Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let test = Test(1)
@@ -1268,7 +1268,7 @@ let ``Mutate field 2``() =
         """
 class Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let test = Test(1)
@@ -1288,11 +1288,11 @@ let ``Mutate field 3``() =
         """
 class Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 class Test2 =
     public field y: Test
-    new(y: Test) = { y = y }
+    new(y: Test) = this { y = y }
 
 main() : () =
     let test = Test(1)
@@ -1311,11 +1311,11 @@ let ``Mutate field value on nested struct``() =
         """
 class Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let t = Test2(Test(1))
@@ -1334,11 +1334,11 @@ let ``Mutate field value on nested struct on type with chained call``() =
         """
 class Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(x: Test2) : Test2 = 
     print(x.test.x)
@@ -1360,11 +1360,11 @@ let ``Mutate field value on nested struct on struct with chained call``() =
         """
 struct Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(x: Test2) : Test2 = 
     print(x.test.x)
@@ -1392,11 +1392,11 @@ let ``Mutate field value on nested struct on struct with chained call 2``() =
 
 struct Test2 =
     public field mutable test: Test
-    new(test: Test) = { test = test }
+    new(test: Test) = this { test = test }
 
 struct Test =
     public field mutable x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let mutable t = Test2(Test(1))
@@ -1418,8 +1418,8 @@ class Test =
 
     class Test2 =
         public field y: float64
-        new(y: float64) = { y = y }
-    new(x: int32) = { x = x }
+        new(y: float64) = this { y = y }
+    new(x: int32) = this { x = x }
 
 test() : () =
     let x = Test.Test2(2.0)
@@ -1451,7 +1451,7 @@ print(object): ()
 class Test =
 
     public field x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     add(x: int32, y: int32) : int32 = y
 
@@ -1486,7 +1486,7 @@ struct Test =
 
     public field x: int32
     public field y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 main() : () =
     let t = Test(7, 9)
@@ -1506,7 +1506,7 @@ struct Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 main() : () =
     let mutable t = Test(7, 9)
@@ -1527,7 +1527,7 @@ struct Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 test(mutable t: Test) : () =
     print(t.x)
@@ -1553,7 +1553,7 @@ struct Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 test(mutable t: Test) : () =
     print(t.x)
@@ -1579,11 +1579,11 @@ struct Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 test(mutable t: Test2) : () =
     print(t.x.x)
@@ -1609,7 +1609,7 @@ struct Test =
 
     public field mutable x: int32
     public field y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
     test() : int32 = this.x
 
@@ -1631,7 +1631,7 @@ struct Test =
 
     public field x: int32
     public field y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
     test() : int32 = this.x
 
@@ -1653,11 +1653,11 @@ struct Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 struct Test2 =
     public field mutable x: Test
-    new(x: Test) = { x = x }
+    new(x: Test) = this { x = x }
 
 test(mutable t: Test2) : () =
     t.x.x <- 100
@@ -1681,7 +1681,7 @@ class Test =
 
     public field mutable x: int32
     public field mutable y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 main() : () =
     let t = Test(7, 9)
@@ -1702,7 +1702,7 @@ class Test =
 
     x: int32 get
     y: int32 get
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 test<T>(x: T): int32 where T: { x: int32 get; y: int32 get } =
     x.y
@@ -1725,7 +1725,7 @@ struct Test =
 
     x: int32 get
     y: int32 get
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 test<T>(x: T): int32 where T: { x: int32 get; y: int32 get } =
     x.y
@@ -1748,7 +1748,7 @@ struct Test =
 
     x: int32 get
     y: int32 get
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 test<T, U>(x: T): U where T: { x: int32 get; y: U get } =
     x.y
@@ -1968,7 +1968,7 @@ let ``Simple lambda expression 11``() =
         """
 class Test =
     public field x: int32
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(f: Test -> ()) : () =
     let t = Test(567)
@@ -2026,7 +2026,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let t = Test(256)
@@ -2046,7 +2046,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let mutable t = Test(256)
@@ -2086,7 +2086,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(t: Test) : () =
     let a = () -> t.x
@@ -2109,7 +2109,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(mutable t: Test) : () =
     let a = () -> t.x
@@ -2186,7 +2186,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let mutable x = 5
@@ -2206,7 +2206,7 @@ class Test =
 
     field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     P: int32
         get() =
@@ -2397,7 +2397,7 @@ class Test =
 
     field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(x: (int32, int32)) : int32 = 123
 
@@ -2418,7 +2418,7 @@ class Test =
 
     field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test(x: (int32, int32), y: (int32, int32)) : int32 = 123
 
@@ -2968,7 +2968,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let t = Test(456)
@@ -2988,7 +2988,7 @@ class Test =
 
     public field x: int32
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 main() : () =
     let t = Test(789)
@@ -3398,7 +3398,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     field mutable x: int32
     get_x(): int32 = this.x
@@ -3434,7 +3434,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     field mutable x: int32
     get_x(): int32 = this.x
@@ -3484,7 +3484,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     field mutable x: int32
     get_x(): int32 = this.x
@@ -3536,7 +3536,7 @@ interface ITest =
 struct Test =
     implements ITest
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     field mutable x: int32
     get_x(): int32 = this.x
@@ -3593,7 +3593,7 @@ interface ITest2 =
 struct Test =
     implements ITest
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
     public field mutable x: int32
     get_x(): int32 = this.x
@@ -3602,7 +3602,7 @@ struct Test =
 struct Test2 =
     implements ITest2
     
-    new(t: ITest) = { t = t }
+    new(t: ITest) = this { t = t }
 
     public field mutable t: ITest
     get_t(): ITest = this.t
@@ -3943,7 +3943,7 @@ class Test1 =
 
     class Test2 =
 
-        new() = {}
+        new() = this { }
 
         printTest2() : () = print("Test2")
 
@@ -3982,7 +3982,7 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         printTest2(t: T, u: U, v: V) : () = 
             print(t)
@@ -4025,11 +4025,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -4073,11 +4073,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -4119,11 +4119,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -4172,12 +4172,12 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
             implements ITest
 
-            new() = {}
+            new() = this { }
 
             M(): () = print("M")
 
@@ -4230,12 +4230,12 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
             implements ITest
 
-            new() = {}
+            new() = this { }
 
             M(): () = print("M")
 
@@ -4284,11 +4284,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -4330,11 +4330,11 @@ class Test1<T> =
 
     class Test2<U, V> =
 
-        new() = {}
+        new() = this { }
 
         class Test3<Z> =
 
-            new() = {}
+            new() = this { }
 
             static print(t: T, u: U, v: V, z: Z) : () =
                 print(t)
@@ -4596,7 +4596,7 @@ struct TestStruct =
 
     x: int32 get, set
 
-    new(x: int32) = { x = x }
+    new(x: int32) = this { x = x }
 
 test<T>(x: T&): int32 where T: { x: int32 get, set } = 
     x.x <- 500
@@ -4626,7 +4626,7 @@ print(__oly_object): ()
 
 abstract class Test1 =
 
-    new() = {}
+    new() = this { }
 
     test(): () = print("Test1")
 
@@ -4635,7 +4635,7 @@ class Test =
 
     field x: int32
     field y: int32
-    new(x: int32, y: int32) = { x = x; y = y }
+    new(x: int32, y: int32) = this { x = x; y = y }
 
 shape TestShape =
 
@@ -4670,7 +4670,7 @@ print(__oly_object): ()
 
 abstract class Test1 =
 
-    new() = {}
+    new() = this { }
 
     test(): () = print("Test1")
 
@@ -4679,7 +4679,7 @@ class Test =
 
     x: float32 get
     y: int32 get
-    new(x: float32, y: int32) = { x = x; y = y }
+    new(x: float32, y: int32) = this { x = x; y = y }
 
 test<T>(x: T) : int32 where T: { x: float32 get; y: int32 get; test(): () } =
     x.test()
@@ -4710,7 +4710,7 @@ print(__oly_object): ()
 
 abstract class Test1 =
 
-    new() = {}
+    new() = this { }
 
     test(): () = print("Test1")
 
@@ -4719,7 +4719,7 @@ class Test<T1, T2, T3, T4, T5> =
 
     x: T3 get
     y: T1 get
-    new(x: T3, y: T1) = { x = x; y = y }
+    new(x: T3, y: T1) = this { x = x; y = y }
 
 test<T>(x: T) : int32 where T: { x: float32 get; y: int32 get; test(): () } =
     x.test()
@@ -4772,7 +4772,7 @@ test<T>(x: T): () where T: trait IDoot, trait BestTrait =
 class Test =
   implements IDoot
 
-  new() = {}
+  new() = this { }
 
   Doot<T>(x: T): T where T: trait BestTrait = 
     print("Test-Doot")
@@ -4933,7 +4933,7 @@ interface ITest =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -4977,7 +4977,7 @@ interface ITest =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5018,7 +5018,7 @@ interface ITest =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5059,7 +5059,7 @@ interface ITest =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5100,7 +5100,7 @@ interface ITest =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5146,7 +5146,7 @@ interface ITest2 =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5205,7 +5205,7 @@ interface ITest2 =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 #[open]
 extension TestExtension<T> =
@@ -5269,7 +5269,7 @@ interface ITest2 =
 
 class Test<T> =
 
-    new() = {}
+    new() = this { }
 
 extension TestExtension<T> =
     inherits Test<T>
@@ -5325,7 +5325,7 @@ interface ITest =
 class Test =
     implements ITest
 
-    new() = {}
+    new() = this { }
 
     test(): int32 = 123
 
@@ -5356,7 +5356,7 @@ interface IExample
 class Example =
     implements IExample
 
-    new() = {}
+    new() = this { }
 
 test<T>(x: T): () where T: IExample = print("success")
 
@@ -7206,7 +7206,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7250,7 +7250,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7297,7 +7297,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7344,7 +7344,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7391,7 +7391,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7439,7 +7439,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7487,7 +7487,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7535,7 +7535,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7582,7 +7582,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7629,7 +7629,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7678,7 +7678,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7728,7 +7728,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7778,7 +7778,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7828,7 +7828,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7876,7 +7876,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7926,7 +7926,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -7985,7 +7985,7 @@ alias byref<T>
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -8047,7 +8047,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -8100,7 +8100,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -8203,7 +8203,7 @@ print(__oly_object): ()
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -8865,7 +8865,7 @@ abstract class A =
 
     field x: int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
     abstract default test(): int32 = 1
 
@@ -8873,7 +8873,7 @@ class B =
     inherits A
 
     new(x: int32) = 
-        { }
+        this { }
 
     overrides test(): int32 = 4
     
@@ -8901,7 +8901,7 @@ abstract class A =
 
     field x: int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
     abstract default test(): int32 = 1
 
@@ -8909,7 +8909,7 @@ class B =
     inherits A
 
     new(x: int32) = 
-        { }
+        this { }
     
 main(): () =
     let b = B(1)
@@ -8933,7 +8933,7 @@ print(__oly_object): ()
 
 abstract class A =
 
-    new() = { }
+    new() = this { }
 
     abstract default test(): int32 = 1
 
@@ -8941,13 +8941,13 @@ abstract class B =
     inherits A
 
     new() = 
-        { }
+        this { }
 
 class C =
     inherits B
 
     new() = 
-        { }
+        this { }
 
     test2(): int32 = base.test()
     overrides test(): int32 = 2
@@ -8976,7 +8976,7 @@ print(__oly_object): ()
 
 abstract class A =
 
-    new() = { }
+    new() = this { }
 
     abstract default test(): int32 = 1
 
@@ -8984,7 +8984,7 @@ abstract class B =
     inherits A
 
     new() = 
-        { }
+        this { }
 
     overrides test(): int32 = 5
 
@@ -8992,7 +8992,7 @@ class C =
     inherits B
 
     new() = 
-        { }
+        this { }
 
     overrides test(): int32 = 2
 
@@ -9024,7 +9024,7 @@ class Test =
     implements ITest
 
     x: int32 get
-    new() = { x = 5 }
+    new() = this { x = 5 }
 
 test(t: ITest): int32 = t.x
 
@@ -9058,7 +9058,7 @@ class Test =
 
     x: int32 abstract default get
 
-    new() = { x = 5 }
+    new() = this { x = 5 }
 
 extension TestExtension =
     inherits Test
@@ -9104,7 +9104,7 @@ class Test =
     implements ITest2
 
     x: int32 get
-    new() = { x = 5 }
+    new() = this { x = 5 }
 
 extension TestExtension =
     inherits ITest2
@@ -9142,13 +9142,13 @@ interface ITest =
 abstract class Test1 =
     abstract default x(): int32 = 123
 
-    new() = { }
+    new() = this { }
 
 class Test =
     inherits Test1
     implements ITest
 
-    new() = { }
+    new() = this { }
 
 test(t: ITest): int32 = t.x()
 
@@ -9181,7 +9181,7 @@ interface ITest =
 class Test =
 
     abstract default x(): int32 = 123
-    new() = { }
+    new() = this { }
 
 extension TestExtension =
     inherits Test
@@ -9380,7 +9380,7 @@ class Wrapper<T> =
 
     public field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 (let!)<A, B>(a: Wrapper<A>, f: A -> Wrapper<B>): Wrapper<B> =
     f(a.Value)
@@ -9420,7 +9420,7 @@ class Wrapper<T> =
 
     public field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 (let!)<A, B>(a: Wrapper<A>, f: A -> Wrapper<B>): Wrapper<B> =
     f(a.Value)
@@ -9760,7 +9760,7 @@ print(__oly_object): ()
 class Test =
 
     public field Value: int32
-    new(value: int32) = { Value = value }
+    new(value: int32) = this { Value = value }
 
     static Default: Test get = Test(123)
 
@@ -10348,7 +10348,7 @@ struct DefaultMemory<T> =
     private field Buffer: mutable T[]
 
     private new(buffer: mutable T[]) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -10375,13 +10375,13 @@ private struct IndexQueue<TMemory<_>, TMemoryAllocator>
     public field mutable Count: int32
 
     new(indices: TMemory<int32>, count: int32) =
-        {
+        this {
             Indices = indices
             Count = count
         }
 
     new() =
-        {
+        this {
             Indices = TMemoryAllocator.Allocate(8)
             Count = 0
         }
@@ -10813,7 +10813,7 @@ struct DefaultMemory<T> =
     private field Buffer: mutable T[]
 
     private new(buffer: mutable T[]) =
-        {
+        this {
             Buffer = buffer
         }
 
@@ -10844,7 +10844,7 @@ struct IndexQueue<TMemory<_>, TMemoryAllocator>
         public field mutable Offset: int32
 
         new() =
-            {
+            this {
                 Indices = TMemoryAllocator.Allocate(8)
                 Count = 0
                 Offset = 0
@@ -10978,7 +10978,7 @@ class Test =
     public field F: int32 -> ()
 
     new(f: int32 -> ()) =
-        {
+        this {
             F = f
         }
 
@@ -11006,7 +11006,7 @@ struct Test =
     public field F: int32 -> ()
 
     new(f: int32 -> ()) =
-        {
+        this {
             F = f
         }
 
@@ -11304,7 +11304,7 @@ alias byref<T>
 struct TestStruct =
     public field mutable A: int32
 
-    new(a: int32) = { A = a }
+    new(a: int32) = this { A = a }
 
     mutable SetA(): () =
         this <- TestStruct(5)  
@@ -12907,7 +12907,7 @@ struct BitSet512 =
     field mutable value6: uint64
     field mutable value7: uint64 // 512
     new(value: uint64) =
-        {
+        this {
             value0 = value
             value1 = 0
             value2 = 0
@@ -12919,7 +12919,7 @@ struct BitSet512 =
         }
 
     new(value0: uint64, value1: uint64, value2: uint64, value3: uint64, value4: uint64, value5: uint64, value6: uint64, value7: uint64) =
-        {
+        this {
             value0 = value0
             value1 = value1
             value2 = value2
@@ -13394,7 +13394,7 @@ print(__oly_object): ()
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern Some<T>(option: Option<T>): T =
     option.Value
@@ -13420,7 +13420,7 @@ print(__oly_object): ()
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 #[open]
 module OptionPatterns<T> =
@@ -13452,7 +13452,7 @@ print(__oly_object): ()
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 #[open]
 module OptionPatterns<T> =
@@ -13484,7 +13484,7 @@ print(__oly_object): ()
 
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 #[open]
 module OptionPatterns<T> =
@@ -15793,7 +15793,7 @@ class C =
         C(value1, "passed")
 
     new(value1: string, value2: string) =
-        {
+        this {
             value1 = value1
             value2 = value2
         }       
@@ -15944,7 +15944,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     ArchetypedIndex: int32 get
 
     new() =
-        {
+        this {
             ArchetypedIndex = T0.GetValue()
         }
 
@@ -16071,7 +16071,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent, trait ICompo
     ArchetypedIndex: int32 get
 
     new() =
-        {
+        this {
             ArchetypedIndex = __oly_add(T0.GetValue(), T0.GetValue2())
         }
 
@@ -16355,7 +16355,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     ArchetypedIndex: int32 get
 
     new() =
-        {
+        this {
             ArchetypedIndex = T0.GetValue()
         }
 
@@ -16896,7 +16896,7 @@ print(__oly_object): ()
 
 struct Vector2 =
     public field mutable X: int32
-    new(x: int32) = { X = x }
+    new(x: int32) = this { X = x }
 
 struct MouseInfo =
     X: int32 set, get = 123
@@ -16991,7 +16991,7 @@ print(__oly_object): ()
 
 struct Vector2 =
     public field mutable X: int32
-    new(x: int32) = { X = x }
+    new(x: int32) = this { X = x }
 
 struct MouseInfo =
     X: int32 set, get = 123
@@ -17044,7 +17044,7 @@ abstract class A =
 
     new() =
         print("A")
-        {}
+        this { }
 
 class B =
     inherits A
@@ -17053,7 +17053,7 @@ class B =
 
     new() =
         print("before ")
-        base() with {
+        base() {
             X =
                 print(" after")
                 1
@@ -18780,7 +18780,7 @@ class A =
     public field Y: (int32, int32) -> ()
 
     new(x: int32 -> (), y: (int32, int32) -> ()) =
-        {
+        this {
             X = x
             Y = y
         }
@@ -18793,7 +18793,7 @@ class B =
         let f(x: int32) = print(x)
         let g(x: int32, /* inference */ y) =
             print(x)
-        {
+        this {
             A = A(f, (x: int32, y: int32) -> g(x, y))
         }
 
@@ -20080,7 +20080,7 @@ alias bool
 abstract class Command =
     Tag: int32 get
     Name: string get
-    new(tag: int32, name: string) = { Tag = tag; Name = name }
+    new(tag: int32, name: string) = this { Tag = tag; Name = name }
 
 module FieldCommand<T> =
 
@@ -20093,7 +20093,7 @@ module FieldCommand<T> =
         implements IFieldCommand
         Getter: () -> T get
         Setter: T -> () get
-        new(name: string, getter: () -> T, setter: T -> ()) = base(10000, name) with { Getter = getter; Setter = setter }
+        new(name: string, getter: () -> T, setter: T -> ()) = base(10000, name) { Getter = getter; Setter = setter }
 
     pattern FieldCommand(cmd: Command): (getter: () -> T, setter: T -> ()) when (cmd.Tag == 10000) =>
         let cmd = unsafeCast<IFieldCommand>(cmd)
@@ -20102,7 +20102,7 @@ module FieldCommand<T> =
 class FunctionCommand =
     inherits Command
     Action: () -> () get
-    new(name: string, action: () -> ()) = base(0, name) with { Action = action }
+    new(name: string, action: () -> ()) = base(0, name) { Action = action }
 
 pattern FunctionCommand(cmd: Command): (() -> ()) when (cmd.Tag == 0) =>
     let cmd = unsafeCast<FunctionCommand>(cmd)
@@ -20669,7 +20669,7 @@ class Example =
 
 struct S =
 
-    new(x: int32) = { X = x }
+    new(x: int32) = this { X = x }
     X: int32 get
 
 main(): () =
@@ -20856,7 +20856,7 @@ class C =
     field s: S
 
     new() =
-        {
+        this {
             s =
                 let mutable s = S()
                 s.X <- 123
@@ -20887,7 +20887,7 @@ alias int32
 alias string
 
 class C<T1> =
-    new(x: T1) = { }
+    new(x: T1) = this { }
 
     static Create(): C<T1> = C(unchecked default)
 
@@ -20902,8 +20902,8 @@ module Helpers =
 namespace Oly.Test
 
 class C<T1, T2> =
-    new(x: T1) = { }
-    new(x: T1, y: T2) = { }
+    new(x: T1) = this { }
+    new(x: T1, y: T2) = this { }
 
     static Create(): C<T1, T2> = C(unchecked default)
         """

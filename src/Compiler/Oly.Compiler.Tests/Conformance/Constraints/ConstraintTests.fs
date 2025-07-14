@@ -240,7 +240,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -552,7 +552,7 @@ class Test<T> where T : Add<T, T, T> =
 
     field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
     test(y: T) : T = T.add(y, y) 
         """

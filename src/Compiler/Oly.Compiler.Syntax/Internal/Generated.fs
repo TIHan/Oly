@@ -3308,16 +3308,9 @@ module SyntaxMatchClause =
     let Tag = 44
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
-type SyntaxConstructType =
-    | Anonymous
+type SyntaxInitializer =
+    | Initializer
         of
-        leftCurlyBracketToken: SyntaxToken *
-        fieldPatList: SyntaxFieldPattern SyntaxSeparatorList *
-        rightCurlyBracketToken: SyntaxToken *
-        fullWidth: int
-    | Named
-        of
-        name: SyntaxName *
         leftCurlyBracketToken: SyntaxToken *
         fieldPatList: SyntaxFieldPattern SyntaxSeparatorList *
         rightCurlyBracketToken: SyntaxToken *
@@ -3333,36 +3326,26 @@ type SyntaxConstructType =
 
         member this.GetSlot(index) =
             match this with
-            | Anonymous(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
+            | Initializer(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
                 match index with
                 | 0 -> leftCurlyBracketToken :> ISyntaxNode
                 | 1 -> fieldPatList :> ISyntaxNode
                 | 2 -> rightCurlyBracketToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Named(name, leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
-                match index with
-                | 0 -> name :> ISyntaxNode
-                | 1 -> leftCurlyBracketToken :> ISyntaxNode
-                | 2 -> fieldPatList :> ISyntaxNode
-                | 3 -> rightCurlyBracketToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
 
         member this.SlotCount =
             match this with
-            | Anonymous _ -> 3
-            | Named _ -> 4
+            | Initializer _ -> 3
 
         member this.FullWidth =
             match this with
-            | Anonymous(fullWidth=fullWidth) ->
-                fullWidth
-            | Named(fullWidth=fullWidth) ->
+            | Initializer(fullWidth=fullWidth) ->
                 fullWidth
 
         member _.Tag = 45
 
 [<RequireQualifiedAccess>]
-module SyntaxConstructType =
+module SyntaxInitializer =
 
     [<Literal>]
     let Tag = 45
@@ -3518,14 +3501,16 @@ type SyntaxExpression =
     | Literal
         of
         lit: SyntaxLiteral
-    | CreateRecord
-        of
-        constructTy: SyntaxConstructType
     | UpdateRecord
         of
         expr: SyntaxExpression *
         withToken: SyntaxToken *
-        constructTy: SyntaxConstructType *
+        init: SyntaxInitializer *
+        fullWidth: int
+    | Initialize
+        of
+        expr: SyntaxExpression *
+        init: SyntaxInitializer *
         fullWidth: int
     | If
         of
@@ -3692,15 +3677,16 @@ type SyntaxExpression =
                 match index with
                 | 0 -> lit :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | CreateRecord(constructTy) ->
-                match index with
-                | 0 -> constructTy :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | UpdateRecord(expr, withToken, constructTy, _) ->
+            | UpdateRecord(expr, withToken, init, _) ->
                 match index with
                 | 0 -> expr :> ISyntaxNode
                 | 1 -> withToken :> ISyntaxNode
-                | 2 -> constructTy :> ISyntaxNode
+                | 2 -> init :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Initialize(expr, init, _) ->
+                match index with
+                | 0 -> expr :> ISyntaxNode
+                | 1 -> init :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | If(ifToken, leftParenToken, predicateExpr, rightParenToken, target, elseIfOrElseExpr, _) ->
                 match index with
@@ -3804,8 +3790,8 @@ type SyntaxExpression =
             | Indexer _ -> 2
             | Name _ -> 1
             | Literal _ -> 1
-            | CreateRecord _ -> 1
             | UpdateRecord _ -> 3
+            | Initialize _ -> 2
             | If _ -> 6
             | Try _ -> 3
             | Match _ -> 5
@@ -3848,9 +3834,9 @@ type SyntaxExpression =
                 (x :> ISyntaxNode).FullWidth
             | Literal(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | CreateRecord(x) ->
-                (x :> ISyntaxNode).FullWidth
             | UpdateRecord(fullWidth=fullWidth) ->
+                fullWidth
+            | Initialize(fullWidth=fullWidth) ->
                 fullWidth
             | If(fullWidth=fullWidth) ->
                 fullWidth

@@ -47,7 +47,7 @@ let ``Should compile 3``() =
 class Test =
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 Test() : () = ()
         """
@@ -98,7 +98,7 @@ class Test =
     field x: __oly_int32
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
@@ -120,7 +120,7 @@ class Test =
     
     x() : ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
@@ -237,7 +237,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -259,7 +259,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -281,7 +281,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -304,7 +304,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -327,7 +327,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -350,7 +350,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -373,7 +373,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<() -> T>): () = ()
@@ -396,7 +396,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<() -> T>): () = ()
@@ -418,7 +418,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -441,7 +441,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -463,7 +463,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -486,7 +486,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -508,7 +508,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -531,7 +531,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -555,7 +555,7 @@ alias int32
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -679,7 +679,7 @@ module TestModule
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)

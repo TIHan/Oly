@@ -15,7 +15,7 @@ class BinarySearchNode<T> where T: IComparable<T> =
     Right: BinarySearchNode<T> get, private set
 
     new(item: T) =
-        {
+        this {
             Item = item
             Left = null
             Right = null

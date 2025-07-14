@@ -130,7 +130,7 @@ let ``Class has correct parameter on constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(~^~x: __oly_int32) = { x = x }
+    new(~^~x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "x: __oly_int32"
 
@@ -140,7 +140,7 @@ let ``Class has correct parameter type on constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(x: ~^~__oly_int32) = { x = x }
+    new(x: ~^~__oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "__oly_int32"
 
@@ -223,7 +223,7 @@ class Test<T> =
 
     field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 main() : () =
     let x = Test<__oly_int32>(123.0f)
@@ -355,7 +355,7 @@ f() : () =
 class Test =
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "x: Test"
 
@@ -367,7 +367,7 @@ class Test =
 
     class Test2 =
         field ~^~y: __oly_float32 = 0
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "field y: __oly_float32"
 
@@ -379,8 +379,8 @@ class Test =
 
     class Test2 =
         field y: __oly_float32
-        new(y: __oly_float32) = { y = y }
-    new(x: __oly_int32) = { x = x }
+        new(y: __oly_float32) = this { y = y }
+    new(x: __oly_int32) = this { x = x }
 
 test() : () =
     let x = Test.~^~Test2(2.0f)
@@ -468,7 +468,7 @@ let ``Class with no fields with a constructor``() =
         """
 class Test =
 
-    new() = { }
+    new() = this { }
 
 test() : () =
     let t = Test()
@@ -485,7 +485,7 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -507,14 +507,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     new() = 
         let x = 1
-        { }
+        this { }
 
 test() : () =
     let t = Class2()
@@ -531,14 +531,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     field y: __oly_int32
 
-    new() = base() with { y = 1 }
+    new() = base() { y = 1 }
 
 test() : () =
     let t = Class2()
@@ -555,7 +555,7 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -581,14 +581,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     new() = 
         let x = base()
-        { }
+        this { }
 
 test() : () =
     let t = Class2()
@@ -607,12 +607,12 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 class Class2 =
     inherits Class1
 
-    new() = { }
+    new() = this { }
 
 test() : () =
     let t = Class2()
@@ -643,7 +643,7 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 test() : () =
     let x = Class1() // should fail
@@ -664,7 +664,7 @@ abstract class Class1 =
 
     abstract default VirtualTest() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -688,7 +688,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -714,7 +714,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -740,7 +740,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -764,7 +764,7 @@ abstract class Class1 =
 
     abstract default Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1

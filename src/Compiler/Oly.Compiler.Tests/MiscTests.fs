@@ -98,7 +98,7 @@ let ``Generic new type`` () =
 class Test<T> =
     field value: T
 
-    new(x: T) = { value = x }
+    new(x: T) = this { value = x }
 
 f() : () =
     let x = Test<_>(1)
@@ -165,7 +165,7 @@ IntrinsicPrint<T>(value: T) : ()
 class Test =
     field value: __oly_int32
 
-    new(value: __oly_int32) = { value = value }
+    new(value: __oly_int32) = this { value = value }
 
 interface Add<T> =
 
@@ -275,7 +275,7 @@ f<T>(x: T, y: T): T where T: trait Add<T> =
        public field x: T
        field y: U
 
-       new(x: T, y: U) = { x = x; y = y }
+       new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
 
@@ -340,7 +340,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -367,7 +367,7 @@ example(): () =
 class Hoot<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension HootAddExtension<T> where T: trait Add<T> =
     inherits Hoot<T>
@@ -386,7 +386,7 @@ g<T>(x: T, y: T): T where T: trait Add<T> =
     public field x: T
     field y: U
 
-    new(x: T, y: U) = { x = x; y = y }
+    new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
         """
@@ -520,7 +520,7 @@ let ``HigherTypeArgument example 1``() =
 class Hoot<T> =
     field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 interface Functor<F<_>> =
 
@@ -580,7 +580,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -688,7 +688,7 @@ let ``Simple type with constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
         """
     Oly src
     |> withCompile
@@ -703,7 +703,7 @@ test<T>(x: T) : () =
       field x: T
       field y: U
 
-      new(x: T, y: U) = { x = x; y = y }
+      new(x: T, y: U) = this { x = x; y = y }
 
     let y = X<__oly_int32>(x, 1)
         """

@@ -137,12 +137,12 @@ interface Monad<M<_>, M2<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 class Maybe2<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -170,12 +170,12 @@ interface Monad<M<_>, M2<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 class Maybe2<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeExtension<T> =
     inherits Maybe<T>
@@ -320,7 +320,7 @@ interface Test2<T<_>> where T<_> : Test =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension Int32Extension =
     inherits __oly_int32
@@ -350,7 +350,7 @@ extension Int32Extension =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 interface Test2<T<_>> where T<_> : Test =
 
@@ -384,7 +384,7 @@ interface Test2<T<_>> where T<_> : Test =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension TestTypeExtension<T> =
     inherits TestType<T>
@@ -662,7 +662,7 @@ open extension TestAddExtension
 class Test =
 
     field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
     add(x: __oly_int32, y: __oly_int32) : __oly_int32 = y
 

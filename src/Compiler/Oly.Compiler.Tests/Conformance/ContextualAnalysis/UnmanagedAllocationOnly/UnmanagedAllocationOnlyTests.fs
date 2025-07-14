@@ -218,7 +218,7 @@ struct S =
     public field mutable X: obj
 
     #[unmanaged(allocation_only)]
-    new() = { X = null }
+    new() = this { X = null }
 
 #[unmanaged(allocation_only)]
 main(): () =
@@ -249,7 +249,7 @@ struct S =
     X: obj get, set
 
     #[unmanaged(allocation_only)]
-    new() = { X = null }
+    new() = this { X = null }
 
 #[unmanaged(allocation_only)]
 main(): () =

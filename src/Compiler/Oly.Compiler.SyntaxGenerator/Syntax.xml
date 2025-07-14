@@ -772,17 +772,11 @@
     </Case>
   </Node>
 	
-  <Node name="SyntaxConstructType">
-	<Case name="Anonymous">
+  <Node name="SyntaxInitializer">
+	<Case name="Initializer">
 	  <Field name="leftCurlyBracketToken">SyntaxToken</Field>
 	  <Field name="fieldPatList">SyntaxFieldPattern SyntaxSeparatorList</Field>
-	  <Field name="rightCurlyBracketToken">SyntaxToken</Field>
-	</Case>
-	<Case name="Named">
-	  <Field name="name">SyntaxName</Field>
-	  <Field name="leftCurlyBracketToken">SyntaxToken</Field>
-	  <Field name="fieldPatList">SyntaxFieldPattern SyntaxSeparatorList</Field>
-	  <Field name="rightCurlyBracketToken">SyntaxToken</Field>
+	  <Field name="rightCurlyBracketToken">SyntaxToken</Field>		
 	</Case>
   </Node>
 
@@ -866,14 +860,15 @@
     <Case name="Literal">
       <Field name="lit">SyntaxLiteral</Field>
     </Case>
-    <Case name="CreateRecord">
-      <Field name="constructTy">SyntaxConstructType</Field>
-    </Case>
 	<Case name="UpdateRecord">
 	  <Field name="expr">SyntaxExpression</Field>
 	  <Field name="withToken">SyntaxToken</Field>
-      <Field name="constructTy">SyntaxConstructType</Field>
+      <Field name="init">SyntaxInitializer</Field>
     </Case>
+	<Case name="Initialize">
+      <Field name="expr">SyntaxExpression</Field>
+      <Field name="init">SyntaxInitializer</Field>	  
+	</Case>
     <Case name="If">
       <Field name="ifToken">SyntaxToken</Field>
       <Field name="leftParenToken">SyntaxToken</Field>

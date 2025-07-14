@@ -284,7 +284,7 @@ test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 class Test =
   implements IDisposable
 
-  new() = {}
+  new() = this { }
 
   Dispose(): () = 
     let x = 1
@@ -328,7 +328,7 @@ test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 class Test =
   implements IDisposable
 
-  new() = {}
+  new() = this { }
 
   Dispose(): () = 
     let x = 1
@@ -376,7 +376,7 @@ struct TestStruct =
 
     x: Int32 get, set
 
-    new(x: Int32) = { x = x }
+    new(x: Int32) = this { x = x }
 
 test<T>(x: T&): Int32 where T: { x: Int32 get, set } = 
     let mutable result = Int32.Parse("123")
@@ -462,7 +462,7 @@ struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     mutable GetValue(): int32 =
         this.item.GetHashCode()
@@ -494,7 +494,7 @@ struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     mutable GetValue(): int32 =
         this.item.GetHashCode()
@@ -526,7 +526,7 @@ struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     mutable GetValue(): int32 =
@@ -536,7 +536,7 @@ struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     mutable GetValue(): int32 =
@@ -576,7 +576,7 @@ struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
@@ -587,7 +587,7 @@ struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
@@ -627,7 +627,7 @@ struct Hash<T> where T: { GetHashCode(): int32 } =
     
     public field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
@@ -639,7 +639,7 @@ struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     public field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     GetValue(x: T): int32 =
@@ -713,7 +713,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -722,7 +722,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () where U: IExample = 
@@ -781,7 +781,7 @@ test<T>(x: T): () where T: IExample =
 struct Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -790,7 +790,7 @@ struct Example =
 struct Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () where U: IExample = 
@@ -849,7 +849,7 @@ test<T>(x: T): () where T: IExample =
 struct Example<Z> =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -858,7 +858,7 @@ struct Example<Z> =
 struct Example2<Z> =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () where U: IExample = 
@@ -928,7 +928,7 @@ module Test =
 struct Example<Z> =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -938,7 +938,7 @@ struct Example<Z> =
 struct Example2<Z> =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
@@ -1228,7 +1228,7 @@ open System
 class NonExportedClass<T> =
 
     Value: T get, set
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 abstract class BaseExample =
 
@@ -1536,7 +1536,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1545,7 +1545,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
@@ -1590,7 +1590,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1599,7 +1599,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       let f() =
@@ -1645,7 +1645,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -1654,7 +1654,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
   
   #[export]
   GenericExample<U>(x: U): () where U: IExample = 
@@ -1700,7 +1700,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1709,7 +1709,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       class LocalClass =
@@ -1758,7 +1758,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1767,7 +1767,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       class LocalClass =
@@ -1808,7 +1808,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1816,7 +1816,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
   
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
@@ -1856,7 +1856,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1865,7 +1865,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
   
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
@@ -1905,7 +1905,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
@@ -1914,7 +1914,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
   
   GenericExample<U>(x: U): () where U: IExample = 
       let f() =
@@ -1955,7 +1955,7 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
   #[export]
   GenericExample<U>(x: U): () = 
@@ -1964,7 +1964,7 @@ class Example =
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
   
   #[export]
   GenericExample<U>(x: U): () where U: IExample = 
@@ -1998,7 +1998,7 @@ class Test =
     implements IExample
 
     X: Int32 get
-    new() = { X = 123 }
+    new() = this { X = 123 }
 
 main(): () =
     let t = Test()
@@ -3028,7 +3028,7 @@ module Test =
     #[import("intrinsic-CLR", "", "typeof")]
     typeof<T>(): System.Type
 
-    #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
+    #[UnmanagedCallersOnly() { CallConvs = [DotNet.TypeOf<CallConvCdecl>] })]
     test(x: __oly_int32): __oly_int32 = x
 
 module Main =
@@ -4360,7 +4360,7 @@ print(__oly_object): ()
 typeof<require T>: System.Type
 
 #[blittable]
-#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
+#[UnmanagedCallersOnly() { CallConvs = [typeof<CallConvCdecl>] }]
 test(): () =
     ()
 
@@ -5973,7 +5973,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     ArchetypedIndex: int32 get
 
     new() =
-        {
+        this {
             ArchetypedIndex = T0.GetValue()
         }
 
@@ -6065,7 +6065,7 @@ extension Vector3Extensions =
 struct Transform =
     public field mutable Matrix: Matrix4x4
 
-    new(matrix: Matrix4x4) = { Matrix = matrix }
+    new(matrix: Matrix4x4) = this { Matrix = matrix }
 
     Position: Vector3
         get() = this.Matrix.Translation
@@ -6229,7 +6229,7 @@ class Subscription<T> =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -6254,7 +6254,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key(value))
 
-    new(value: T) = { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
 
 main(): () =
     let var = Observable<int32>(0)
@@ -6346,7 +6346,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -6357,7 +6357,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -6390,7 +6390,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = ConcurrentDictionary() }
 
 main(): () =
     let o = Observable(123)
@@ -6466,7 +6466,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -6477,7 +6477,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -6510,7 +6510,7 @@ class Observable =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: int32) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: int32) = this { value = value; subscribers = ConcurrentDictionary() }
 
 main(): () =
     let o = Observable(123)
@@ -7673,7 +7673,7 @@ extension MutableArrayEnumerableExtension<T> =
             field mutable currentTyped: T
 
             new(arr: mutable T[]) =
-                {
+                this {
                     arr = arr
                     currentIndex = -1
                     current = unchecked default
@@ -7950,7 +7950,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -7961,7 +7961,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -7995,7 +7995,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = ConcurrentDictionary() }
 
 #[open]
 newtype Adaptive<T> =
@@ -8973,7 +8973,7 @@ class ExportedClass<T> =
     Value: mutable T[] get
 
     new(xs: mutable T[]) =
-        {
+        this {
             Value = xs
         }
 
@@ -9017,7 +9017,7 @@ class NonExportedClass<T> =
     Value: mutable T[] get
 
     new(xs: mutable T[]) =
-        {
+        this {
             Value = xs
         }
 
@@ -9091,7 +9091,7 @@ module TestModule =
             Value: mutable T[] get
 
             new(xs: mutable T[]) =
-                {
+                this {
                     Value = xs
                 }
         let xs = NonExportedClass(input)
@@ -9110,7 +9110,7 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
             new(xs: mutable T[]) =
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
@@ -9162,7 +9162,7 @@ class NonExportedClass<T> =
     Value: mutable T[] get
 
     new(xs: mutable T[]) =
-        {
+        this {
             Value = xs
         }
 
@@ -9238,7 +9238,7 @@ module TestModule =
             Value: mutable T[] get
 
             new(xs: mutable T[]) =
-                {
+                this {
                     Value = xs
                 }
         let f() =
@@ -9259,7 +9259,7 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
             new(xs: mutable T[]) =
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",

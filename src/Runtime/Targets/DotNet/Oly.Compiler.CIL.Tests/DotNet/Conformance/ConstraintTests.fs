@@ -52,7 +52,7 @@ alias int32
 
 class Example =
     X: int32 get
-    new() = { X = 123 }
+    new() = this { X = 123 }
 
 main(): () =
     let example = ExampleModule.M<Example>()
@@ -168,7 +168,7 @@ class Example =
 
 struct C =
 
-    new(x: int32) = { X = x }
+    new(x: int32) = this { X = x }
     X: int32 get
 
 main(): () =

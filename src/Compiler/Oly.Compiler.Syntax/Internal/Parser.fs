@@ -2758,16 +2758,6 @@ let tryParseArrayExpression context state =
     else
         None
 
-let tryCreateRecordExpression context state =
-    if isNextToken (function LeftCurlyBracket -> true | _ -> false) state then
-        match bt (tryParseConstructType context) state with
-        | Some(constructTy) ->
-           SyntaxExpression.CreateRecord(constructTy) |> Some
-        | _ ->
-            None
-    else
-        None
-
 let tryParseNameExpression state =
     if isNextToken (function Identifier _ | LeftParenthesis | This | Base -> true | _ -> false) state then
         match bt (tryParseName TypeParameterContext.Operator) state with
@@ -2813,7 +2803,7 @@ let literalOrPrefixCallOrNameExpr context state =
 
     tryParseNameExpression state
 
-let tryCreateTerminalExpression context state =
+let tryCreateTerminalExpression state =
     match bt (ignoreOffside (tryToken (fun _ -> true))) state with
     | Some token ->
         errorDo(UnexpectedToken token.RawToken, token) state
@@ -3080,10 +3070,6 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (tryCreateRecordExpression context)) state with
-        | Some result -> result
-        | _ ->
-
         match bt (alignOrFlexAlignRecover (tryParseLetExpression context)) state with
         | Some result -> result
         | _ ->
@@ -3096,7 +3082,13 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (tryCreateTerminalExpression context) state with
+        match bt (alignOrFlexAlignRecover (tryParseInitializer context)) state with
+        | Some result ->
+            // Anonymous record initialization. Not supported yet though.
+            SyntaxExpression.Initialize(SyntaxExpression.None(), result, (result: ISyntaxNode).FullWidth)
+        | _ ->
+
+        match bt tryCreateTerminalExpression state with
         | Some result -> result
         | _ ->
 
@@ -3110,7 +3102,7 @@ let parseExpressionAux context state =
     | SyntaxExpression.PrefixCall _
     | SyntaxExpression.Call _
     | SyntaxExpression.MemberAccess _ 
-    | SyntaxExpression.CreateRecord _ ->
+    | SyntaxExpression.Initialize _ ->
         let left = parseDefaultOrMutateExpression s res state
 
         match bt (tryInfixOperator s left) state with
@@ -3122,7 +3114,7 @@ let parseExpressionAux context state =
             parseNextAlignedExpression s context res state
         | _ ->
 
-        match bt (tryParseUpdateRecordExpression s left context) state with
+        match bt (tryParseUpdateRecordOrInitializeExpression s left context) state with
         | Some(res) ->
             parseNextAlignedExpression s context res state
         | _ ->
@@ -3140,35 +3132,39 @@ let parseExpression context state =
         noAlign (parseExpressionAux context) state
     )
 
-let tryParseUpdateRecordExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
+let tryParseUpdateRecordOrInitializeExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
     if isNextToken (function With -> true | _ -> false) state then
-        match bt2 WITH (tryParseConstructType context) state with
-        | Some(withToken), Some(constructTy) ->
-            SyntaxExpression.UpdateRecord(expr, withToken, constructTy, ep s state) |> Some
+        match bt2 WITH (tryParseInitializer context) state with
+        | Some(withToken), Some(init) ->
+            SyntaxExpression.UpdateRecord(expr, withToken, init, ep s state) |> Some
         | Some(withToken), _ ->
-            error(ExpectedSyntaxAfterToken("record syntax", With), SyntaxExpression.UpdateRecord(expr, withToken, SyntaxConstructType.Anonymous(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
+            error(ExpectedSyntaxAfterToken("record syntax", With), SyntaxExpression.UpdateRecord(expr, withToken, SyntaxInitializer.Initializer(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
         | _ ->
             None
     else
-        None
+        match bt (tryParseInitializer context) state with
+        | Some(init) ->
+            SyntaxExpression.Initialize(expr, init, ep s state) |> Some
+        | _ ->
+            None
 
-let tryParseConstructType context state =
+let tryParseInitializer context state : SyntaxInitializer option =
     if isNextToken (function LeftCurlyBracket -> true | _ -> false) state then
         let s = sp state
 
         match bt3 LEFT_CURLY_BRACKET (tryParseListWithSeparatorOld tryOptionalSemiColon "field pattern" SyntaxFieldPattern.Error (tryParseFieldPattern context)) (tryFlexAlign RIGHT_CURLY_BRACKET) state with
         | Some(leftCurlyBracketToken), Some(fieldPatList), Some(rightCurlyBracketToken) ->
-            SyntaxConstructType.Anonymous(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, ep s state) |> Some
+            SyntaxInitializer.Initializer(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, ep s state) |> Some
         | Some(leftCurlyBracketToken), Some(fieldPatList), _ ->
-            let result = SyntaxConstructType.Anonymous(leftCurlyBracketToken, fieldPatList, dummyToken(), ep s state)
+            let result = SyntaxInitializer.Initializer(leftCurlyBracketToken, fieldPatList, dummyToken(), ep s state)
             errorDo(ExpectedToken RightCurlyBracket, result) state
             result |> Some
         | Some(leftCurlyBracketToken), _, _ ->
             match bt (tryFlexAlign RIGHT_CURLY_BRACKET) state with
             | Some(rightCurlyBracketToken) ->
-                SyntaxConstructType.Anonymous(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), rightCurlyBracketToken, ep s state) |> Some
+                SyntaxInitializer.Initializer(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), rightCurlyBracketToken, ep s state) |> Some
             | _ ->
-                let result = SyntaxConstructType.Anonymous(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), dummyToken(), ep s state)
+                let result = SyntaxInitializer.Initializer(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), dummyToken(), ep s state)
                 errorDo(ExpectedToken RightCurlyBracket, result) state
                 result |> Some
         | _ ->
