@@ -1540,7 +1540,7 @@ module rec ClrCodeGen =
 
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
-        | E.None(textRange, resultTy) ->
+        | E.None(textRange, _) ->
             if emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange then
                 emitDebugNopIfPossible cenv env
 
