@@ -11063,3 +11063,130 @@ main(): () = ()
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Able to get symbol for 'this'``() =
+    let src =
+        """
+#[intrinsic("utf16")]
+alias utf16
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+struct TestData =
+    field str: utf16
+
+    new(str: utf16) = ~^~this { str = str }
+
+main() : () =
+    ()
+        """
+    src |> hasSymbolSignatureTextByCursor "this: byref<TestData>"
+
+[<Fact>]
+let ``Able to get symbol for 'this' 2``() =
+    let src =
+        """
+#[intrinsic("utf16")]
+alias utf16
+
+class TestData =
+    field str: utf16
+
+    new(str: utf16) = ~^~this { str = str }
+
+main() : () =
+    ()
+        """
+    src |> hasSymbolSignatureTextByCursor "this: TestData"
+
+[<Fact>]
+let ``Should get error when using 'with' in a constructor init``() =
+    let src =
+        """
+abstract class A =
+
+    new(x: __oly_int32) = this { }
+
+class B =
+    inherits A
+
+    X: __oly_int32 get, set
+
+    new() = base(0) with { X = 1 }
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Records not implemented (yet).",
+                """
+    new() = base(0) with { X = 1 }
+            ^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Invalid return expression for constructor.",
+                """
+    new() = base(0) with { X = 1 }
+            ^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should get error when using anonymous '{ }' in a constructor init``() =
+    let src =
+        """
+abstract class A =
+
+    new(x: __oly_int32) = this { }
+
+class B =
+    inherits A
+
+    X: __oly_int32 get, set
+
+    new() = { X = 1 }
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous records not implemented (yet).",
+                """
+    new() = { X = 1 }
+            ^^^^^^^^^
+"""
+            )
+            ("Invalid return expression for constructor.",
+                """
+    new() = { X = 1 }
+            ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should get error when trying to construct a record as it is not implemented yet``() =
+    let src =
+        """
+class A
+
+main(): () =
+    let a = A { } // This would be invalid anyway since A is not a record.
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Records not implemented (yet).",
+                """
+    let a = A { } // This would be invalid anyway since A is not a record.
+            ^^^^^
+"""
+            )
+        ]
+    |> ignore

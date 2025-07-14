@@ -441,12 +441,25 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                 | _ ->
                     analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
             | _ ->
+                let tyPars = func.TypeParameters
                 func.TypeArguments
-                |> ImArray.iter (fun tyArg -> 
-                    if isVanilla then
-                        analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                |> ImArray.iteri (fun i tyArg -> 
+                    let isScoped =
+                        if i < tyPars.Length then
+                            tyPars[i].Constraints
+                            |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false)
+                        else
+                            false
+                    if isScoped then
+                        if isVanilla then
+                            analyzeTypePermitByRefAndRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                        else
+                            analyzeTypePermitByRef acenv aenv syntaxNode tyArg
                     else
-                        analyzeType acenv aenv syntaxNode tyArg
+                        if isVanilla then
+                            analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                        else
+                            analyzeType acenv aenv syntaxNode tyArg
                 )
                 func.Parameters
                 |> ImArray.iter (fun par ->

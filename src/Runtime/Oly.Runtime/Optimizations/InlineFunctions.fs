@@ -1110,7 +1110,7 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
             let irNewExpr1 = handleExpression irExpr1
             let irNewExpr2 = handleExpression irExpr2
 
-            if hasSideEffect optenv irNewExpr1 then
+            if optenv.IsDebuggable || hasSideEffect optenv irNewExpr1 then
                 if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
                     irExpr
                 else

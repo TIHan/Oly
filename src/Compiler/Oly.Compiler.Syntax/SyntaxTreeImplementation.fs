@@ -1131,6 +1131,12 @@ module OlySyntaxTreeExtensions =
                             syntaxBinding
                     | OlySyntaxExpression.Sequential(syntaxExpr1, _) ->
                         find syntaxExpr1
+                    | OlySyntaxExpression.None _ ->
+                        // None doesn't have syntax, so look at its parent.
+                        if syntaxExpr.HasParent then
+                            find syntaxExpr.Parent
+                        else
+                            syntaxExpr
                     | _ ->
                         syntaxExpr
                 | syntaxNode ->

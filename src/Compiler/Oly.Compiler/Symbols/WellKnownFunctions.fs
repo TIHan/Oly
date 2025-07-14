@@ -594,9 +594,13 @@ let PrintFunction =
 
 let IgnoreFunction =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("ignore"))
+    let tyPars =
+        seq {
+            TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Function 0, ref(ImArray.createOne ConstraintSymbol.Scoped))
+        } |> ImArray.ofSeq
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
+            createLocalParameterValue(ImArray.empty, "", tyPars[0].AsType, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.Unit
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_ignore" ImArray.empty pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Ignore None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_ignore" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.Ignore None false

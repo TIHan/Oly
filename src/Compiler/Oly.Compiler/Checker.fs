@@ -578,7 +578,7 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
                     isVirtual
                 )
             | _ ->
-                env.diagnostics.Error("Invalid return expression for constructor.", 10, expr.Syntax)
+                env.diagnostics.Error("Invalid return expression for constructor.", 10, expr.Syntax.BestSyntaxForReporting)
                 expr
 
     loop expr

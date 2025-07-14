@@ -38,7 +38,9 @@ let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.IgnoreFunction, CallFlags.None)
+    let ignoreFunc = WellKnownFunctions.IgnoreFunction
+    let ignoreFunc = actualValue ignoreFunc.Enclosing (ImArray.createOne expr.Type) ignoreFunc
+    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, ignoreFunc, CallFlags.None)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then

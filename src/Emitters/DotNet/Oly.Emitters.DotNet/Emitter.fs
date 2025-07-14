@@ -812,9 +812,19 @@ module rec ClrCodeGen =
         | O.Ignore(irArg, _) ->
             GenArgumentExpression cenv env irArg
             match irArg with
+            | E.Value(textRange, _) ->
+                // TODO: This is almost correct for debugging. For
+                //       For some reason we can't place a breakpoint on 'this',
+                //       but we can step to it.
+                if emitSequencePointIfPossible cenv env &textRange then
+                    emitDebugNopIfPossible cenv env
+            | _ ->
+                ()
+            match irArg with
             | E.Operation(op=O.Throw _) -> () // do not emit a pop for a Throw.
             | _ ->
-                I.Pop |> emitInstruction cenv
+                if irArg.ResultType.Handle <> cenv.assembly.TypeReferenceVoid then
+                    I.Pop |> emitInstruction cenv
 
         | O.Add(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
@@ -1416,16 +1426,18 @@ module rec ClrCodeGen =
             else
                 I.HiddenSequencePoint |> emitInstruction cenv
                 cenv.IncrementSequencePointCount()
+            true
         | _ ->
-            ()
+            false
 
     let emitHiddenSequencePointIfPossible cenv (env: env) =
         match env.spb with
         | EnableSequencePoint ->
             I.HiddenSequencePoint |> emitInstruction cenv
             cenv.IncrementSequencePointCount()
+            true
         | _ ->
-            ()
+            false
 
     let emitDebugNopIfPossible cenv env : unit =
         if canEmitDebugNop cenv env then
@@ -1529,9 +1541,7 @@ module rec ClrCodeGen =
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
         | E.None(textRange, resultTy) ->
-            // We only want to emit actual nop and sequence points if the result type is void.
-            if resultTy.Handle = cenv.assembly.TypeReferenceVoid then
-                emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
+            if emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange then
                 emitDebugNopIfPossible cenv env
 
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
@@ -1569,13 +1579,13 @@ module rec ClrCodeGen =
                 I.EndLocalScope |> emitInstruction cenv
 
         | E.Value(textRange, irValue) ->
-            emitSequencePointIfPossible cenv env &textRange
-            emitDebugNopIfPossible cenv env
+            if emitSequencePointIfPossible cenv env &textRange then
+                emitDebugNopIfPossible cenv env
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
-            emitSequencePointIfPossible cenv env &textRange
-            emitDebugNopIfPossible cenv env
+            if emitSequencePointIfPossible cenv env &textRange then
+                emitDebugNopIfPossible cenv env
 
             GenOperation cenv env irOp
 
@@ -1645,8 +1655,8 @@ module rec ClrCodeGen =
 
             match debugTmpOpt with
             | Some(debugTmp) ->
-                emitHiddenSequencePointIfPossible cenv env
-                emitDebugNopIfPossible cenv env
+                if emitHiddenSequencePointIfPossible cenv env then
+                    emitDebugNopIfPossible cenv env
                 I.Stloc debugTmp |> emitInstruction cenv
             | _ ->
                 ()
@@ -1672,7 +1682,7 @@ module rec ClrCodeGen =
             let loopStartLabelId = cenv.NewLabel()
             let loopEndLabelId = cenv.NewLabel()
 
-            emitHiddenSequencePointIfPossible cenv env
+            emitHiddenSequencePointIfPossible cenv env |> ignore
             I.Label loopStartLabelId |> emitInstruction cenv
 
             GenArgumentExpression cenv envLoop conditionExpr
@@ -1716,7 +1726,7 @@ module rec ClrCodeGen =
                     let handlerStartLabelId = cenv.NewLabel()
                     let handlerEndLabelId = cenv.NewLabel()
 
-                    emitHiddenSequencePointIfPossible cenv env
+                    emitHiddenSequencePointIfPossible cenv env |> ignore
                     I.Label handlerStartLabelId |> emitInstruction cenv
 
                     // This is sort of hacky, but it does make it easier to handle introducing locals
@@ -1779,7 +1789,7 @@ module rec ClrCodeGen =
                 | E.Sequential _
                 | E.IfElse _ -> ()
                 | _ ->
-                    emitHiddenSequencePointIfPossible cenv env
+                    emitHiddenSequencePointIfPossible cenv env |> ignore
                     I.Ret |> emitInstruction cenv
 
 [<Sealed>]

@@ -985,90 +985,97 @@ let private bindMatchExpression (cenv: cenv) (env: BinderEnvironment) solverEnv 
 
     env, BoundExpression.Match(syntaxNode, env.benv, matchExprs, matchClauses, expectedTargetTy)
 
+let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) seqSemantic (syntaxFieldPatList: OlySyntaxSeparatorList<OlySyntaxFieldPattern>) =
+    let fields = ty.GetInstanceFields()
+
+    let syntaxFields = 
+        syntaxFieldPatList.ChildrenOfType
+        
+    let thisExpr = 
+        match seqSemantic with
+        | ConstructorInitSequential ->
+            match env.implicitThisOpt with
+            | Some(receiver) -> BoundExpression.CreateValue(cenv.syntaxTree, receiver)
+            | _ ->
+                // TODO: We need a test for this error.
+                cenv.diagnostics.Error("Expected a 'this' value.", 10, syntaxToCapture)
+                E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        | _ ->
+            cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
+            E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+
+    let currentFieldSet = HashSet()
+
+    let setFieldExprs =
+        syntaxFields
+        |> Seq.map (fun syntaxFieldPat ->
+            match syntaxFieldPat with
+            | OlySyntaxFieldPattern.FieldPattern(syntaxName, _, syntaxExpr) ->
+                let fieldName = syntaxName.LastIdentifier.ValueText
+                let tryFindField() =
+                    fields 
+                    |> ImArray.tryFind (fun x -> 
+                        if x.Name = fieldName then
+                            true
+                        else
+                            match x.AssociatedFormalPropertyId with
+                            | Some(formalPropId) ->
+                                ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, fieldName)
+                                |> Seq.tryExactlyOne
+                                |> Option.filter (fun x -> x.Formal.Id = formalPropId)
+                                |> Option.isSome
+                            | _ ->
+                                false
+                    )
+                match tryFindField() with
+                | Some(field) ->
+                    if not(currentFieldSet.Add(fieldName)) then
+                        cenv.diagnostics.Error($"Field '{fieldName}' has already been assigned.", 10, syntaxToCapture)
+
+                    let expectedTyOpt = Some field.Type
+                    let _, boundExpr = bindLocalExpression cenv (env.SetReturnable(false)) expectedTyOpt syntaxExpr syntaxExpr
+
+                    let syntaxInfo =
+                        BoundSyntaxInfo.User(syntaxFieldPat, env.benv, Some syntaxName, None)
+
+                    BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr, isCtorInit = true)
+                | _ ->
+                    cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxToCapture)
+                    invalidExpression syntaxFieldPat env.benv
+
+            | OlySyntaxFieldPattern.Error _ ->
+                invalidExpression syntaxFieldPat env.benv
+
+            | _ ->
+                unreached()
+        )
+        |> List.ofSeq
+
+    if setFieldExprs.IsEmpty then
+        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        BoundExpression.CreateSequential(syntaxToCapture, env.benv, noneExpr, noneExpr, seqSemantic)
+    elif setFieldExprs.Length = 1 then
+        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        BoundExpression.CreateSequential(syntaxToCapture, env.benv, noneExpr, setFieldExprs[0], seqSemantic)
+    else
+        BoundExpression.CreateSequential(syntaxToCapture, env.benv, setFieldExprs, seqSemantic)
+
 /// Returns a SetField expression or multiple SetField expressions in a Sequential.
-let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxNode (syntaxInitializer: OlySyntaxInitializer) =
+let private bindConstructorInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (syntaxInitializer: OlySyntaxInitializer) =
     match syntaxInitializer with
     | OlySyntaxInitializer.Initializer(_, syntaxFieldPatList, _) ->
         match env.isInInstanceConstructorType with
         | Some(ty) ->
             if not env.isReturnable then
-                cenv.diagnostics.Error("Constructing the type in a constructor is only allowed as the last expression of a branch.", 10, syntaxNode)
+                cenv.diagnostics.Error("Constructing the type in a constructor is only allowed as the last expression of a branch.", 10, syntaxToCapture)
 
-            let fields = ty.GetInstanceFields()
-
-            let syntaxFields = 
-                syntaxFieldPatList.ChildrenOfType
-        
-            let thisExpr = 
-                match env.implicitThisOpt with
-                | Some(receiver) -> BoundExpression.CreateValue(cenv.syntaxTree, receiver)
-                | _ ->
-                    // TODO: We need a test for this error.
-                    cenv.diagnostics.Error("Expected a 'this' value.", 10, syntaxNode)
-                    E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-
-            let currentFieldSet = HashSet()
-
-            let setFieldExprs =
-                syntaxFields
-                |> Seq.map (fun syntaxFieldPat ->
-                    match syntaxFieldPat with
-                    | OlySyntaxFieldPattern.FieldPattern(syntaxName, _, syntaxExpr) ->
-                        let fieldName = syntaxName.LastIdentifier.ValueText
-                        let tryFindField() =
-                            fields 
-                            |> ImArray.tryFind (fun x -> 
-                                if x.Name = fieldName then
-                                    true
-                                else
-                                    match x.AssociatedFormalPropertyId with
-                                    | Some(formalPropId) ->
-                                        // TODO/REVIEW: Extrinsic could pick up properties from extensions, do we want that?
-                                        ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.IntrinsicAndExtrinsic, fieldName)
-                                        |> Seq.tryExactlyOne
-                                        |> Option.filter (fun x -> x.Formal.Id = formalPropId)
-                                        |> Option.isSome
-                                    | _ ->
-                                        false
-                            )
-                        match tryFindField() with
-                        | Some(field) ->
-                            if not(currentFieldSet.Add(fieldName)) then
-                                cenv.diagnostics.Error($"Field '{fieldName}' has already been assigned.", 10, syntaxInitializer)
-
-                            let expectedTyOpt = Some field.Type
-                            let _, boundExpr = bindLocalExpression cenv (env.SetReturnable(false)) expectedTyOpt syntaxExpr syntaxExpr
-
-                            let syntaxInfo =
-                                BoundSyntaxInfo.User(syntaxFieldPat, env.benv, Some syntaxName, None)
-
-                            BoundExpression.SetField(syntaxInfo, thisExpr, field, boundExpr, isCtorInit = true)
-                        | _ ->
-                            cenv.diagnostics.Error($"Field '{fieldName}' does not exist on type '{printType env.benv ty}'.", 10, syntaxInitializer)
-                            invalidExpression syntaxFieldPat env.benv
-
-                    | OlySyntaxFieldPattern.Error _ ->
-                        invalidExpression syntaxFieldPat env.benv
-
-                    | _ ->
-                        raise(InternalCompilerException())
-                )
-                |> List.ofSeq
-
-            if setFieldExprs.IsEmpty then
-                let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-                BoundExpression.CreateSequential(syntaxNode, env.benv, noneExpr, noneExpr, ConstructorInitSequential)
-            elif setFieldExprs.Length = 1 then
-                let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
-                BoundExpression.CreateSequential(syntaxNode, env.benv, noneExpr, setFieldExprs[0], ConstructorInitSequential)
-            else
-                BoundExpression.CreateSequential(syntaxNode, env.benv, setFieldExprs, ConstructorInitSequential)
+            bindInitializer cenv env syntaxToCapture ty ConstructorInitSequential syntaxFieldPatList
         | _ ->
-            cenv.diagnostics.Error("Construction of a type not allowed in this context.", 10, syntaxNode)
-            invalidExpression syntaxNode env.benv
+            cenv.diagnostics.Error("Construction of a type not allowed in this context.", 10, syntaxToCapture)
+            invalidExpression syntaxToCapture env.benv
 
     | _ ->
-        cenv.diagnostics.Error("Creating named records not implemented.", 10, syntaxNode)
+        cenv.diagnostics.Error("Creating named records not implemented.", 10, syntaxToCapture)
         BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
 let private bindElseIfOrElseExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxNode) syntaxTargetExpr conditionExpr syntaxElseIfOrElseExpr =
@@ -1519,19 +1526,28 @@ let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderE
     else
         None
 
-let private bindThisInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) syntaxInitializer =
-    match tryGetCallParameterlessBaseCtorExpression cenv env syntaxToCapture ty with
-    | Some(callBaseCtorExpr) ->
-        env,
-        E.Sequential(
-            BoundSyntaxInfo.User(syntaxToCapture, env.benv),
-            callBaseCtorExpr, // IMPORTANT: Call base constructor first!
-            bindInitializer cenv env syntaxToCapture syntaxInitializer,
-            ConstructorInitSequential
-        )
-    | _ ->
-        env,
-        bindInitializer cenv env syntaxToCapture syntaxInitializer
+let private bindThisConstructorInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (syntaxThisValue, thisValue) (ty: TypeSymbol) syntaxInitializer =
+    let expr =
+        match tryGetCallParameterlessBaseCtorExpression cenv env syntaxToCapture ty with
+        | Some(callBaseCtorExpr) ->
+            E.Sequential(
+                BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+                callBaseCtorExpr, // IMPORTANT: Call base constructor first!
+                bindConstructorInitializer cenv env syntaxInitializer syntaxInitializer,
+                ConstructorInitSequential
+            )
+        | _ ->
+            bindConstructorInitializer cenv env syntaxInitializer syntaxInitializer
+
+    let thisExpr = E.Value(BoundSyntaxInfo.User(syntaxThisValue, env.benv), thisValue)
+    // Create a sequential that has the main syntax at the top.
+    env,
+    E.Sequential(
+        BoundSyntaxInfo.User(syntaxToCapture, env.benv),
+        Ignore(thisExpr),
+        expr,
+        ConstructorInitSequential
+    )
 
 #if DEBUG || CHECKED
 let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (syntaxExpr: OlySyntaxExpression) =
@@ -1567,41 +1583,79 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.UpdateRecord(_, _, _) ->
         cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
-        env, BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
 
     | OlySyntaxExpression.Initialize(syntaxBodyExpr, syntaxInitializer) ->
         // We call the Aux version as to prevent the constructor field assignment checks from happening at this point.
         // REVIEW: Is there a better way to handle this without having to call the Aux version?
-        let _, bodyExpr = bindLocalExpressionAux cenv env (* do not set returnable *) None syntaxBodyExpr syntaxBodyExpr
+        let choice = 
+            match syntaxBodyExpr with
+            | OlySyntaxExpression.Name(syntaxName) ->
+                match syntaxName with
+                | OlySyntaxName.Identifier(syntaxIdent) when syntaxIdent.ValueText = "this" ->
+                    bindLocalExpressionAux cenv env (* do not set returnable *) None syntaxBodyExpr syntaxBodyExpr
+                    |> Choice1Of2
+                | _ ->
+                    bindNameAsType cenv env (Some syntaxBodyExpr) ResolutionTypeArity.Any syntaxName
+                    |> Choice2Of2
+            | _ ->
+                bindLocalExpressionAux cenv env (* do not set returnable *) None syntaxBodyExpr syntaxBodyExpr
+                |> Choice1Of2
+
+        let errorOnExpression bodyExpr =
+            match bodyExpr with
+            | E.None _ ->
+                cenv.diagnostics.Error("Anonymous records not implemented (yet).", 10, syntaxToCapture)
+                env, bodyExpr
+
+            | _ ->
+                cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
+                env, bodyExpr
+
+        let handleRecordExpression (ty: TypeSymbol) syntaxInitializer =
+            if ty.IsError_t then
+                env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
+            else
+                cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
+                env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
 
         if env.isReturnable && env.isInInstanceConstructorType.IsSome then
             match env.isInInstanceConstructorType with
             | Some(ty) ->
-                match bodyExpr with
-                // Only do this for generated FromAddress.
-                | FromAddress(E.Value(value=value)) when value.IsThis && not value.IsFunction && ty.IsStruct && bodyExpr.IsGenerated ->
-                    bindThisInitializer cenv env syntaxToCapture ty syntaxInitializer
+                match choice with
+                | Choice1Of2(_, bodyExpr) ->
+                    match bodyExpr with
+                    // Only do this for generated FromAddress.
+                    | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsStruct && bodyExpr.IsGenerated ->
+                        bindThisConstructorInitializer cenv env syntaxToCapture (valueExpr.Syntax, value) ty syntaxInitializer
 
-                | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct ->
-                    bindThisInitializer cenv env syntaxToCapture ty syntaxInitializer
+                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct ->
+                        bindThisConstructorInitializer cenv env syntaxToCapture (bodyExpr.Syntax, value) ty syntaxInitializer
 
-                | E.Call(value=value) when value.IsBase && value.IsFunction ->
-                    env,
-                    E.Sequential(
-                        BoundSyntaxInfo.User(syntaxExpr, env.benv),
-                        bodyExpr, // IMPORTANT: Call base constructor first!
-                        bindInitializer cenv env syntaxExpr syntaxInitializer,
-                        ConstructorInitSequential
-                    )
-                | _ ->
-                    cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
-                    env, bodyExpr
+                    | E.Call(value=value) when value.IsBase && value.IsFunction ->
+                        env,
+                        E.Sequential(
+                            BoundSyntaxInfo.User(syntaxExpr, env.benv),
+                            bodyExpr, // IMPORTANT: Call base constructor first!
+                            bindConstructorInitializer cenv env syntaxExpr syntaxInitializer,
+                            ConstructorInitSequential
+                        )
+
+                    | _ ->
+                        errorOnExpression bodyExpr
+
+                | Choice2Of2(ty) ->
+                    handleRecordExpression ty syntaxInitializer
             | _ ->
-                cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
-                env, bodyExpr
+                match choice with
+                | Choice1Of2(_, bodyExpr) -> errorOnExpression bodyExpr
+                | Choice2Of2(ty) ->
+                    handleRecordExpression ty syntaxInitializer
         else
-            cenv.diagnostics.Error("Invalid initializer.", 10, syntaxToCapture)
-            env, bodyExpr
+            match choice with
+            | Choice1Of2(_, bodyExpr) -> errorOnExpression bodyExpr
+            | Choice2Of2(ty) ->
+                handleRecordExpression ty syntaxInitializer
 
     | OlySyntaxExpression.OpenDeclaration _
     | OlySyntaxExpression.OpenStaticDeclaration _

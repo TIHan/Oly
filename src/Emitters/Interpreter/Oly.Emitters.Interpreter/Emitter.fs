@@ -1182,8 +1182,11 @@ type InterpreterFunction(env: InterpreterEnvironment,
         and evalOp (stack: Stack<obj>) (op: InterpreterOperation) =
             match op with
             | InterpreterOperation.Ignore(argExpr, _) ->
-                evalArg stack argExpr
-                |> ignore
+                if argExpr.ResultType.IsVoid then
+                    evalExpr stack argExpr
+                else
+                    evalArg stack argExpr
+                    |> ignore
 
             | InterpreterOperation.Witness(bodyExpr, witnessTy, _) ->
                 let ctor = witnessTy.Functions |> Seq.find (fun x -> x.Name = "__oly_instance_ctor")

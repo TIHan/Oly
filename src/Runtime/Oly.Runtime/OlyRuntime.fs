@@ -1234,12 +1234,8 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             O.Throw(irArgExpr, cenv.EmitType(resultTy)) |> asExpr, resultTy
 
         | OlyILOperation.Ignore(ilArg) ->
-            let irArg, resultTy = importExpression cenv env None ilArg
-            // If the argument expression returns void, then we do not need to emit an Ignore op.
-            if resultTy.IsVoid_t then
-                irArg, RuntimeType.Void
-            else
-                O.Ignore(irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
+            let irArg, _ = importExpression cenv env None ilArg
+            O.Ignore(irArg, cenv.EmittedTypeVoid) |> asExpr, RuntimeType.Void
 
         | OlyILOperation.Store(localIndex, ilArg) ->
             cenv.LocalMutability[localIndex] <- true
