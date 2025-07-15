@@ -11190,3 +11190,115 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Recursive generics should error``() =
+    let src =
+        """
+class B<T>
+
+abstract class A<T> =
+
+    abstract M(): A<B<T>>
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Recursive generics are not allowed.",
+                """
+    abstract M(): A<B<T>>
+                  ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Recursive generics should error 2``() =
+    let src =
+        """
+class B<T>
+
+class A<T> =
+
+    M(): A<B<T>> =
+        this.M()
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Recursive generics are not allowed.",
+                """
+        this.M()
+             ^
+"""
+            )
+            ("Recursive generics are not allowed.",
+                """
+    M(): A<B<T>> =
+         ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Recursive generics should error 3``() =
+    let src =
+        """
+class B<T>
+
+class A =
+
+    M<T>(): () =
+        this.M<B<T>>()
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Recursive generics are not allowed.",
+                """
+        this.M<B<T>>()
+        ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Recursive generics should error 4``() =
+    let src =
+        """
+class B<T>
+
+module M1A =
+
+    M<T>(): () =
+        M2A.M<B<T>>()
+
+module M2A =
+
+    M<U>(): () =
+        M1A.M<B<U>>()
+        """
+    src
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Recursive generics are not allowed.",
+                """
+        this.M<B<T>>()
+             ^
+"""
+            )
+            ("Recursive generics are not allowed.",
+                """
+        this.M<B<T>>()
+               ^^^^
+"""
+            )
+        ]
+    |> ignore

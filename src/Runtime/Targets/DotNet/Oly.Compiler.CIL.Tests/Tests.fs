@@ -20923,3 +20923,30 @@ module M =
     OlyThree src src1 src2
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact(Skip = "infinite loop")>]
+let ``Recursive generics (should not work, infinite recursion for AOT)``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class B<T>
+
+class A =
+
+    M<T>(): () =
+        this.M2<B<T>>()
+
+    M2<U>(): () =
+        this.M<B<U>>()
+
+main(): () =
+    A().M<int32>()
+    print("123456")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123456"

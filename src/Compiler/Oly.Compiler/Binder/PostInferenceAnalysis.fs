@@ -61,6 +61,7 @@ type aenv =
         limits: Limits
         currentNonLocalFunctionOpt: IFunctionSymbol option
         currentFunctionOpt: IFunctionSymbol option
+        currentNonLocalValueOpt: IValueSymbol option
     }
 
     member this.IsInUnmanagedAllocationOnlyContext =
@@ -128,6 +129,32 @@ let analyzeTypeParameterUse (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlag
         | _ ->
             ()
 
+
+let analyzeRecursiveGenerics (acenv: acenv) (syntaxNode: OlySyntaxNode) (tyPars: TypeParameterSymbol imarray) (rootTy: TypeSymbol) =
+    if not rootTy.IsFormal then
+        let rec check (ty: TypeSymbol) =
+            if not ty.IsFormal then
+                ty.TypeArguments
+                |> ImArray.iter check
+            let exists =
+                tyPars
+                |> ImArray.exists (fun tyPar -> areTypesEqual tyPar.AsType ty)
+            if exists then
+                acenv.cenv.diagnostics.Error("Recursive generics are not allowed.", 10, syntaxNode)
+        rootTy.TypeArguments
+        |> ImArray.iter check
+
+let analyzeRecursiveGenericsOnEntity (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
+    if not ent.IsFormal then
+        match aenv.currentNonLocalValueOpt with
+        | Some(currentValue) when currentValue.AllTypeParameterCount <> 0 && areEntitiesEqual ent.Formal currentValue.Enclosing.AsEntity ->
+            ent.TypeArguments
+            |> ImArray.iter (fun ty ->
+                analyzeRecursiveGenerics acenv syntaxNode currentValue.Enclosing.AsEntity.TypeParameters ty             
+            )
+        | _ ->
+            ()
+
 let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
@@ -143,6 +170,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
     match stripTypeEquations partiallyStrippedTy with
     | TypeSymbol.Entity(ent) ->
         analyzeTypeEntity acenv aenv syntaxNode ent
+        analyzeRecursiveGenericsOnEntity acenv aenv syntaxNode ent
 
     | TypeSymbol.InferenceVariable(Some tyPar, _)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
@@ -496,7 +524,7 @@ let handleLambda acenv aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSym
     aenv
 
 let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsExprOpt: E voption) (value: IValueSymbol) =
-    let scopeResult =
+    let aenv, scopeResult =
         match rhsExprOpt with
         | ValueSome(E.Lambda(flags=lambdaFlags;pars=pars;body=lazyBodyExpr)) when value.IsFunction ->
             let aenv = handleLambda acenv aenv lambdaFlags pars
@@ -515,20 +543,29 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
                 else
                     aenv.limits
 
-            if value.IsLocal then
-                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
-            else
-                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentNonLocalFunctionOpt = Some value.AsFunction; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
-            { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
+            let aenv =
+                if value.IsLocal then
+                    let aenv = { aenv with currentFunctionOpt = Some value.AsFunction }
+                    analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits } lazyBodyExpr.Expression |> ignore
+                    aenv
+                else
+                    let aenv = { aenv with currentNonLocalFunctionOpt = Some value.AsFunction; currentFunctionOpt = Some value.AsFunction; currentNonLocalValueOpt = Some value }
+                    analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits } lazyBodyExpr.Expression |> ignore
+                    aenv
+            aenv, { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
         | ValueSome(rhsExpr) ->
             if value.IsLocal then
-                analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
+                aenv, analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
             else
-                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
+                let aenv = { aenv with currentNonLocalValueOpt = Some value }
+                aenv, analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
 
         | _ ->
-            { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
+            if value.IsLocal then
+                aenv, { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
+            else
+                { aenv with currentNonLocalValueOpt = Some value }, { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
     let aenv = 
         if value.Enclosing.IsLocalEnclosing then
@@ -842,7 +879,7 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
     | _ ->
         { ScopeValue = scopeValue; ScopeLimits = scopeLimits }
 
-and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
+and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) : ScopeResult =
     analyzeExpressionWithTypeAux acenv aenv expr false expectedTy
     analyzeExpression acenv aenv expr
 
@@ -1075,6 +1112,12 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                         acenv.cenv.diagnostics.Error("Value cannot be captured.", 10, syntaxInfo.SyntaxNameOrDefault)
                 | _ ->
                     ()
+
+            // Check recursive generics
+            value.TypeArguments
+            |> ImArray.iter (fun tyArg ->
+                analyzeRecursiveGenerics acenv syntaxNode value.TypeParameters tyArg
+            )
                 
         let argCount =
             match receiverArgExprOpt with
@@ -1330,6 +1373,7 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
             limits = Limits.None
             currentNonLocalFunctionOpt = None
             currentFunctionOpt = None
+            currentNonLocalValueOpt = None
             isReturnable = false
         }
     analyzeRoot acenv aenv tree.Root
