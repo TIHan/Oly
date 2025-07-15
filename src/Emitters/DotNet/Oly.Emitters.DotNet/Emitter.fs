@@ -84,6 +84,7 @@ module rec ClrCodeGen =
             irTier: OlyIRFunctionTier
             debugLocalsInScope: System.Collections.Generic.Dictionary<int, ClrDebugLocal>
             newUniqueId: unit -> int64
+            functionName: string
             mutable localCount: int ref
             mutable nextLabelId: int32 ref
             mutable seqPointCount: int ref
@@ -614,7 +615,6 @@ module rec ClrCodeGen =
 
         | O.LoadArrayLength(irReceiver, rank, resultTy) ->
             GenArgumentExpression cenv env irReceiver
-
             if rank > 1 then
                 failwith "clr emit rank greater than zero not yet supported."
             else
@@ -774,7 +774,6 @@ module rec ClrCodeGen =
 
         | O.Cast(irArg, resultTy) ->
             GenArgumentExpression cenv env irArg
-
             if resultTy.IsTypeVariable then
                 I.Box(irArg.ResultType.Handle) |> emitInstruction cenv
                 I.Unbox_any(resultTy.Handle) |> emitInstruction cenv
@@ -810,16 +809,8 @@ module rec ClrCodeGen =
             I.Throw |> emitInstruction cenv
 
         | O.Ignore(irArg, _) ->
-            GenArgumentExpression cenv env irArg
-            match irArg with
-            | E.Value(textRange, _) ->
-                // TODO: This is almost correct for debugging. For
-                //       For some reason we can't place a breakpoint on 'this',
-                //       but we can step to it.
-                if emitSequencePointIfPossible cenv env &textRange then
-                    emitDebugNopIfPossible cenv env
-            | _ ->
-                ()
+            GenExpression cenv env irArg
+
             match irArg with
             | E.Operation(op=O.Throw _) -> () // do not emit a pop for a Throw.
             | _ ->
@@ -831,16 +822,19 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irArg2
             I.Add |> emitInstruction cenv
             emitConvForOp cenv resultTy
+
         | O.Subtract(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
             I.Sub |> emitInstruction cenv
             emitConvForOp cenv resultTy
+
         | O.Multiply(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
             I.Mul |> emitInstruction cenv
             emitConvForOp cenv resultTy
+
         | O.Divide(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -849,6 +843,7 @@ module rec ClrCodeGen =
             else
                 I.Div |> emitInstruction cenv
             emitConvForOp cenv resultTy
+
         | O.Remainder(irArg1, irArg2, resultTy) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -871,6 +866,7 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
             I.Ceq |> emitInstruction cenv
+
         | O.NotEqual(irArg1, irArg2, _) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -894,6 +890,7 @@ module rec ClrCodeGen =
                 I.Cgt |> emitInstruction cenv
             else
                 I.Cgt_un |> emitInstruction cenv
+
         | O.GreaterThanOrEqual(irArg1, irArg2, _) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -908,6 +905,7 @@ module rec ClrCodeGen =
                 I.Clt_un |> emitInstruction cenv
                 I.LdcI4 0 |> emitInstruction cenv
                 I.Ceq |> emitInstruction cenv
+
         | O.LessThan(irArg1, irArg2, _) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -918,6 +916,7 @@ module rec ClrCodeGen =
                 I.Clt |> emitInstruction cenv
             else
                 I.Clt_un |> emitInstruction cenv
+
         | O.LessThanOrEqual(irArg1, irArg2, _) ->
             GenArgumentExpression cenv env irArg1
             GenArgumentExpression cenv env irArg2
@@ -1019,6 +1018,7 @@ module rec ClrCodeGen =
             GenArgumentExpression cenv env irArg1
             I.LdcI4 0 |> emitInstruction cenv
             GenArgumentExpression cenv env irArg2
+
             I.Stelem(tyHandle) |> emitInstruction cenv
 
         | O.Store(n, irArg1, _) ->
@@ -1411,47 +1411,29 @@ module rec ClrCodeGen =
     let canEmitDebugNop cenv env =
         cenv.irTier.HasMinimalOptimizations
 
-    let createSequencePointInstruction (textRange: inref<OlyIRDebugSourceTextRange>) =
-        if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
-            I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1)
-        else
-            I.HiddenSequencePoint
-
     let emitSequencePointIfPossible cenv (env: env) (textRange: inref<OlyIRDebugSourceTextRange>) =
         match env.spb with
-        | EnableSequencePoint ->
-            if not(String.IsNullOrWhiteSpace (textRange.Path.ToString())) then
+        | EnableSequencePoint when canEmitDebugNop cenv env ->
+            if not textRange.IsEmpty then
                 I.SequencePoint(textRange.Path.ToString(), textRange.StartLine + 1, textRange.EndLine + 1, textRange.StartColumn + 1, textRange.EndColumn + 1) |> emitInstruction cenv
                 cenv.IncrementSequencePointCount()
+                emitInstruction cenv I.Nop
             else
-                I.HiddenSequencePoint |> emitInstruction cenv
-                cenv.IncrementSequencePointCount()
-            true
+#if DEBUG || CHECKED
+                OlyTrace.Log $"[DotNet] Emitting sequence point failed as text range is empty."
+#endif
+                ()
         | _ ->
-            false
+            ()
 
     let emitHiddenSequencePointIfPossible cenv (env: env) =
         match env.spb with
-        | EnableSequencePoint ->
+        | EnableSequencePoint when canEmitDebugNop cenv env ->
             I.HiddenSequencePoint |> emitInstruction cenv
             cenv.IncrementSequencePointCount()
             true
         | _ ->
             false
-
-    let emitDebugNopIfPossible cenv env : unit =
-        if canEmitDebugNop cenv env then
-            match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
-            | ValueSome(I.Nop) -> ()
-            | _ ->
-                emitInstruction cenv I.Nop
-
-    let emitDebugNopIfTypeVoid cenv env (ty: ClrTypeInfo) =
-        if canEmitDebugNop cenv env then
-            match tryGetLastInstructionSkipLabelsAndSequencePoints cenv with
-            | ValueSome(I.Nop) -> ()
-            | _ ->
-                emitInstruction cenv I.Nop
 
     let GenConditionExpressionForFalseTarget (cenv: cenv) env falseTargetLabelId (conditionExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         OlyAssert.False(env.isReturnable)
@@ -1541,8 +1523,7 @@ module rec ClrCodeGen =
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
         | E.None(textRange, _) ->
-            if emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange then
-                emitDebugNopIfPossible cenv env
+            emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
 
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
@@ -1579,17 +1560,20 @@ module rec ClrCodeGen =
                 I.EndLocalScope |> emitInstruction cenv
 
         | E.Value(textRange, irValue) ->
-            if emitSequencePointIfPossible cenv env &textRange then
-                emitDebugNopIfPossible cenv env
+            emitSequencePointIfPossible cenv env &textRange
             GenValue cenv env irValue
 
         | E.Operation(textRange, irOp) ->
-            if emitSequencePointIfPossible cenv env &textRange then
-                emitDebugNopIfPossible cenv env
-
-            GenOperation cenv env irOp
-
-            emitDebugNopIfTypeVoid cenv env irOp.ResultType
+            emitSequencePointIfPossible cenv env &textRange
+            GenOperation cenv env irOp      
+            if cenv.IsDebuggable && env.isReturnable && irOp.ResultType.Handle <> cenv.assembly.TypeReferenceVoid then
+                let tmpLocal = cenv.NewLocal(irOp.ResultType)
+                let debugLocals = ImArray.createOne(ClrDebugLocal("@returning", tmpLocal))
+                I.Stloc tmpLocal |> emitInstruction cenv
+                I.BeginLocalScope debugLocals |> emitInstruction cenv
+                emitSequencePointIfPossible cenv env &textRange
+                I.EndLocalScope |> emitInstruction cenv
+                I.Ldloc tmpLocal |> emitInstruction cenv
 
         | E.Sequential(irExpr1, irExpr2) ->
             GenExpression cenv (setNotReturnable env) irExpr1
@@ -1655,8 +1639,9 @@ module rec ClrCodeGen =
 
             match debugTmpOpt with
             | Some(debugTmp) ->
-                if emitHiddenSequencePointIfPossible cenv env then
-                    emitDebugNopIfPossible cenv env
+                emitHiddenSequencePointIfPossible cenv env |> ignore
+                //if emitHiddenSequencePointIfPossible cenv env && canEmitDebugNop cenv env then
+                //    I.Nop |> emitInstruction cenv
                 I.Stloc debugTmp |> emitInstruction cenv
             | _ ->
                 ()
@@ -1957,8 +1942,18 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             addGenericInstanceTypeReference(formalTyHandle, tyArgHandles)
         )
 
-    member this.Write(stream, pdbStream, isDebuggable) =
+    member _.Write(stream, pdbStream, isDebuggable) =
         asmBuilder.Write(stream, pdbStream, isDebuggable)
+
+    member _.GetMethodDefinitionBuilder(
+            vm: IOlyVirtualMachine<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>, 
+            enclosingTypeName: string,
+            functionName: string,
+            parameterCount: int,
+            kind: OlyFunctionKind): ClrMethodDefinitionBuilder =
+        match vm.TryFindFunction((enclosingTypeName, 0), functionName, 0, parameterCount, kind) with
+        | None -> invalidOp $"Unable to find function '{enclosingTypeName}.{functionName}'."
+        | Some(func) -> func.AsDefinition.builder.Value
 
     interface IOlyRuntimeEmitter<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo> with
 
@@ -3107,6 +3102,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     dups = System.Collections.Generic.HashSet()
                     debugLocalsInScope = System.Collections.Generic.Dictionary()
                     newUniqueId = newUniqueId
+                    functionName = func.AsDefinition.name
                     localCount = ref bodyResult.LocalCount
                     nextLabelId = ref 0
                     seqPointCount = ref 0

@@ -83,7 +83,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
     | E.SetValue(syntaxInfo, value, rhsExpr) ->
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
-            StoreRefCellContents (E.Value(syntaxInfo, newValue)) rhsExpr
+            StoreRefCellContents syntaxInfo (E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), newValue)) rhsExpr
         | _ ->
             origExpr
 

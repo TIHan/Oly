@@ -867,7 +867,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
 [<Struct>]
 [<DebuggerDisplay("{ToString()}")>]
-type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, endLine: int, endColumn: int) =
+type OlyIRDebugSourceTextRange private (path: OlyPath, startLine: int, startColumn: int, endLine: int, endColumn: int) =
 
     member _.Path = path
     member _.StartLine = startLine
@@ -883,6 +883,13 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
 
     member this.IsEmpty =
         this.Path.IsEmpty
+
+    static member Create(path: OlyPath, startLine, startColumn, endLine, endColumn) =
+#if DEBUG || CHECKED
+        if startLine = 0 && startColumn = 0 && endLine = 0 && endColumn = 0 && not path.IsEmpty then
+            OlyAssert.Fail("Expected path to be empty.")
+#endif
+        OlyIRDebugSourceTextRange(path, startLine, startColumn, endLine, endColumn)
 
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]

@@ -279,6 +279,25 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             | _ ->
                 InternalUser(syntaxNode, benv)
 
+and [<RequireQualifiedAccess;Struct;NoComparison;NoEquality;DebuggerDisplay("{ToDebugString()}")>] BoundSyntaxInfo<'T when 'T :> OlySyntaxNode and 'T : not struct> =
+    private {
+        inner: BoundSyntaxInfo
+    }
+
+    member this.Inner = this.inner
+
+    member this.Syntax: 'T voption =
+        match this.inner with
+        | BoundSyntaxInfo.InternalGenerated _ -> ValueNone
+        | BoundSyntaxInfo.InternalUser(syntax, _)
+        | BoundSyntaxInfo.InternalUserWithName(syntax, _, _, _) -> ValueSome(System.Runtime.CompilerServices.Unsafe.As syntax)
+
+    static member Generated(syntaxTree: OlySyntaxTree) =
+        { inner = BoundSyntaxInfo.Generated(syntaxTree) }
+
+    static member User(syntaxNode: 'T, benv) =
+        { inner = BoundSyntaxInfo.User(syntaxNode, benv) }
+
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of syntaxInfo: BoundSyntaxInfo * ILocalParameterSymbol * catchBodyExpr: BoundExpression
 

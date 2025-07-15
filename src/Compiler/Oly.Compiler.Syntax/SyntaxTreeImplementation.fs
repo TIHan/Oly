@@ -708,15 +708,6 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxPropertyBinding -> true
             | _ -> false
 
-        /// If possible, returns the root name if there is any.
-        /// Otherwise, returns the same given node.
-        member this.GetRootNameIfPossible() =
-            match this.Parent with
-            | :? OlySyntaxName as name ->
-                name.GetRootNameIfPossible()
-            | _ ->
-                this
-
         /// If possible, returns a plausible OlySyntaxName if it exists as one of the immediate children of the given node.
         /// Otherwise, returns the same given node.
         /// TODO: We could expand this a bit more.

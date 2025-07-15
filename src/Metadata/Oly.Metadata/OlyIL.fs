@@ -902,7 +902,7 @@ type OlyILDebugSource(path: OlyPath) =
     member _.Path = path
 
 [<Struct>]
-type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startLine: int, startColumn: int, endLine: int, endColumn: int) =
+type OlyILDebugSourceTextRange private (debugSourceHandle: OlyILDebugSourceHandle, startLine: int, startColumn: int, endLine: int, endColumn: int) =
 
     member _.DebugSourceHandle = debugSourceHandle
     member _.StartLine = startLine
@@ -912,6 +912,13 @@ type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startL
 
     static member Empty =
         OlyILDebugSourceTextRange(OlyILTableIndex(OlyILTableKind.DebugSource, -1), 0, 0, 0, 0)
+
+    static member Create(debugSourceHandle: OlyILDebugSourceHandle, startLine, startColumn, endLine, endColumn) =
+#if DEBUG || CHECKED
+        if startLine = 0 && startColumn = 0 && endLine = 0 && endColumn = 0 && not debugSourceHandle.IsNil then
+            OlyAssert.Fail("Expected debug source handle to be nil.")
+#endif
+        OlyILDebugSourceTextRange(debugSourceHandle, startLine, startColumn, endLine, endColumn)
 
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]

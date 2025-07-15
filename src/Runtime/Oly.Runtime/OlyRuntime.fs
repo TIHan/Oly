@@ -4,14 +4,13 @@ module rec Oly.Runtime.Implementation
 open System
 open System.Collections.Generic
 open System.Collections.Immutable
-open System.Diagnostics
+
+open Oly.Core
+open Oly.Metadata
 open Oly.Runtime
 open Oly.Runtime.CodeGen
 open Oly.Runtime.CodeGen.Patterns
 open Oly.Runtime.CodeGen.Internal.Optimizer
-open Oly.Metadata
-open Oly.Core
-open Oly.Core.TaskExtensions
 
 let FailExpectedInstanceForFunctionSignature() =
     failwith "Function signature should have been an instance."
@@ -498,7 +497,7 @@ let readTextRange (ilAsm: OlyILReadOnlyAssembly) (ilTextRange: OlyILDebugSourceT
         else
             let ilDbgSrc = ilAsm.GetDebugSource(ilTextRange.DebugSourceHandle)
             ilDbgSrc.Path
-    OlyIRDebugSourceTextRange(path, ilTextRange.StartLine, ilTextRange.StartColumn, ilTextRange.EndLine, ilTextRange.EndColumn)
+    OlyIRDebugSourceTextRange.Create(path, ilTextRange.StartLine, ilTextRange.StartColumn, ilTextRange.EndLine, ilTextRange.EndColumn)
 
 let createDefaultExpression irTextRange (resultTy: RuntimeType, emittedTy: 'Type) =
     let asExpr irValue =
@@ -2791,10 +2790,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         this.Emitter.EmitFunctionBody(body, irTier, emittedFunc)
 
-
-    let tryFindType(fullyQualifiedTypeName: string, tyParCount: int32) =
-        // TODO: This should be optimized.
-        let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
+    let rec tryFindTypeAux(splitted: string imarray, tyParCount: int32): RuntimeType option =
         let enclosingTargetNames = splitted.RemoveAt(splitted.Length - 1)
         let targetName = splitted[splitted.Length - 1]
         let rec collect (enclosingTargetNames: string imarray) targetName =
@@ -2814,8 +2810,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             else
                                 false
                         | OlyILEnclosing.Entity _ ->
-                            // TODO: Handle nested types.
-                            false
+                            if enclosingTargetNames.IsEmpty then
+                                false
+                            else
+                                let tyParCount = tyParCount - ilEntDef.TypeParameters.Length
+                                tryFindTypeAux(enclosingTargetNames, tyParCount).IsSome
                         | _ ->
                             false
                     else
@@ -2828,6 +2827,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             |> Seq.concat
         collect enclosingTargetNames targetName
         |> Seq.tryExactlyOne
+
+    let tryFindType(fullyQualifiedTypeName: string, tyParCount: int32): RuntimeType option =
+        // TODO: This should be optimized.
+        let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
+        tryFindTypeAux(splitted, tyParCount)
 
     member val TypeVoid: _ Lazy =       lazy emitter.EmitTypeVoid()
     member val TypeUnit: _ Lazy  =       lazy emitter.EmitTypeUnit()

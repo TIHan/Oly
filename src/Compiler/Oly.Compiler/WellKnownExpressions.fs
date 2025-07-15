@@ -147,6 +147,31 @@ let InlineOr (expr1: BoundExpression) (expr2: BoundExpression) =
         TypeSymbol.Bool
     )
 
+let private createCallExpression syntaxInfo (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+    OlyAssert.True(formalValue.IsFormal)
+    let value =
+        let tyArgs =
+            (formalValue.TypeParameters, tyArgs)
+            ||> ImArray.map2 (fun tyPar tyArg -> 
+#if DEBUG || CHECKED
+                match tyArg.TryImmedateTypeParameter with
+                | ValueSome(tyPar2) ->
+                    OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
+                | _ ->
+                    ()
+#endif
+                mkSolvedInferenceVariableType tyPar tyArg
+            )
+        formalValue.Apply(tyArgs)
+    BoundExpression.Call(
+        syntaxInfo,
+        None,
+        witnessArgs,
+        args,
+        value,
+        isVirtualCall
+    )
+
 let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
     OlyAssert.True(formalValue.IsFormal)
     let value =
@@ -218,13 +243,13 @@ let LoadRefCellContents (expr: BoundExpression) =
     | _ ->
         failwith "Invalid expression."
 
-let StoreRefCellContents (receiver: BoundExpression) (rhs: BoundExpression) =
+let StoreRefCellContents syntaxInfo (receiver: BoundExpression) (rhs: BoundExpression) =
     let syntaxTree = rhs.Syntax.Tree
     let refCellArgTy = receiver.Type
     match refCellArgTy.TryGetReferenceCellElement with
     | ValueSome elementTy ->
-        createGeneratedCallExpression
-            syntaxTree
+        createCallExpression
+            syntaxInfo
             WellKnownFunctions.StoreRefCellContents
             (ImArray.createOne elementTy)
             ImArray.empty
