@@ -180,6 +180,17 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
         | _ ->
             let formalTy = runtime.ResolveTypeDefinition(ilAsm, handle)
             let res = formalTy.Apply(fullTyArgs)
+
+            let rec recursiveGenericCheck depth (ty: RuntimeType) =
+                if depth > 16 then
+                    raise(GenericRecursionLimitReached($"Generic recursion limit reached: {res.DebugText}"))
+
+                ty.TypeArguments
+                |> ImArray.iter (fun tyArg ->
+                    recursiveGenericCheck (depth + 1) tyArg
+                )
+            recursiveGenericCheck 0 res
+
             instances.[fullTyArgs] <- res
             res            
 
@@ -1582,7 +1593,19 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Function, 'Field>) (expectedTyOpt: RuntimeType option) (ilExpr: OlyILExpression) : E<'Type, 'Function, 'Field> * RuntimeType =
     let (irExpr, actualTy) as result = 
         StackGuard.Do(fun () ->
-            importExpressionAux cenv env expectedTyOpt ilExpr
+            try
+                importExpressionAux cenv env expectedTyOpt ilExpr
+            with
+            | :? GenericRecursionLimitReached as ex ->
+                let textRange =
+                    let getILTextRange ilExpr =
+                        match ilExpr with
+                        | OlyILExpression.None(ilTextRange)
+                        | OlyILExpression.Value(ilTextRange, _)
+                        | OlyILExpression.Operation(ilTextRange, _) -> readTextRange env.ILAssembly ilTextRange
+                        | _ -> OlyIRDebugSourceTextRange.Empty
+                    getILTextRange ilExpr
+                raise(OlyGenericRecursionLimitReached(ex.message, textRange))
         )
 
     match expectedTyOpt with

@@ -1303,3 +1303,5 @@ module Dump =
 
         | E.Phi _ ->
             "PHI"
+
+exception OlyGenericRecursionLimitReached of message: string * textRange: OlyIRDebugSourceTextRange

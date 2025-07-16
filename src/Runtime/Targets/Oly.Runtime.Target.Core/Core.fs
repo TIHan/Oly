@@ -1,9 +1,59 @@
 ﻿namespace Oly.Targets.Core
 
+open System
+
 open Oly.Core
 open Oly.Runtime
 open Oly.Runtime.CodeGen
+open Oly.Compiler.Text
+open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
+
+module OlyTarget =
+
+    let CheckedEmit (hasEntryPoint: bool, project: OlyProject, runtime: OlyRuntime<_, _, _>, ct) =
+        try
+            if hasEntryPoint then
+                runtime.EmitEntryPoint()
+                None
+            else
+                runtime.EmitAheadOfTime()
+                None
+        with
+        | :? AggregateException as ex when ex.InnerExceptions.Count = 1 ->
+            let rec innerMost (ex: Exception) =
+                match ex with
+                | :? AggregateException as ex when ex.InnerExceptions.Count = 1 ->
+                    innerMost ex.InnerExceptions[0]
+                | _ ->
+                    ex
+            match innerMost ex with
+            | :? Oly.Runtime.CodeGen.OlyGenericRecursionLimitReached as ex ->
+                let solution = project.Solution
+                let docs = solution.GetDocuments(ex.textRange.Path)
+                if docs.IsEmpty then
+                    Some(OlyDiagnostic.CreateError(ex.message))
+                else
+                    let doc = docs[0]
+                    let syntaxNode =
+                        doc.SyntaxTree.TryFindNode(
+                            OlyTextRange(
+                                OlyTextPosition(
+                                    ex.textRange.StartLine, 
+                                    ex.textRange.StartColumn
+                                ), 
+                                OlyTextPosition(
+                                    ex.textRange.EndLine, 
+                                    ex.textRange.EndColumn
+                                )
+                            ),
+                            ct
+                        )
+                    let syntaxNode = syntaxNode |> Option.defaultValue doc.SyntaxTree.DummyNode
+                    Some(OlyDiagnostic.CreateError(ex.message, OlyDiagnostic.CodePrefixOLY, 9999, syntaxNode))
+            | _ ->
+                reraise()
+
 
 [<AbstractClass>]
 type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOlyRuntimeEmitter<'Type, 'Function, 'Field>>(platformName) =
@@ -68,10 +118,9 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
 
         runtime.InitializeEmitter()
 
-        if asm.EntryPoint.IsSome then
-            runtime.EmitEntryPoint()
-        else
-            runtime.EmitAheadOfTime()
+        match OlyTarget.CheckedEmit(asm.EntryPoint.IsSome, proj, runtime, ct) with
+        | Some(diag) -> return Error(ImArray.createOne diag)
+        | _ ->
 
         let binDir = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
         this.EmitOutput(proj, binDir, emitter, asm.IsDebuggable)

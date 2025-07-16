@@ -1962,3 +1962,5 @@ type RuntimeFieldReferenceCache<'Type, 'Function, 'Field>() =
         | _ ->
             table[field] <- field
             field
+
+exception GenericRecursionLimitReached of message: string

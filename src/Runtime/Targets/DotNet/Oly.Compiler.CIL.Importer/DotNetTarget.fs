@@ -29,6 +29,7 @@ open Microsoft.CodeAnalysis.MSBuild
 open Microsoft.CodeAnalysis.CSharp
 
 open Oly.Targets.DotNet.MSBuild
+open Oly.Targets.Core
 
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
@@ -513,10 +514,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
         runtime.InitializeEmitter()
 
-        if asm.EntryPoint.IsSome then
-            runtime.EmitEntryPoint()
-        else
-            runtime.EmitAheadOfTime()
+        match OlyTarget.CheckedEmit(asm.EntryPoint.IsSome, proj, runtime, ct) with
+        | Some(diag) -> return Error(ImArray.createOne diag)
+        | _ ->
         
         let outputPath = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
         let dirInfo = outputPath.ToDirectoryInfo()

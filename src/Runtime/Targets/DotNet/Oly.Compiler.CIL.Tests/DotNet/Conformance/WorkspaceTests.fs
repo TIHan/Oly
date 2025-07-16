@@ -46,6 +46,21 @@ let build (workspace: OlyWorkspace, proj: OlyProject) =
         |> ImArray.iter (fun diag -> builder.AppendLine(diag.ToString()) |> ignore)
         failwith (builder.ToString())
 
+let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj: OlyProject) =
+    let result = workspace.BuildProjectAsync(rs, proj.Path, CancellationToken.None).Result
+    match result with
+    | Ok(_) -> failwith "Expected build error."
+    | Error(diags) ->
+        OlyAssert.False(diags.IsEmpty)
+        let builder = System.Text.StringBuilder()
+        diags
+        |> ImArray.iteri (fun i diag ->
+            if i = diags.Length - 1 then
+                builder.Append(diag.ToString()) |> ignore
+            else
+                builder.AppendLine(diag.ToString()) |> ignore
+        ) 
+        Assert.Equal(expectedOutput.ReplaceLineEndings(), builder.ToString().ReplaceLineEndings())
 
 let run (expectedOutput: string) (program: OlyProgram) =
     Assert.Equal(expectedOutput + Environment.NewLine, program.Run([||]))
@@ -92,3 +107,31 @@ main(): () =
     |> createProject src
     |> build
     |> run "Hello World!"
+
+[<Fact>]
+let ``Recursive generics should give a build error``() =
+    let src = """
+#target "dotnet: net8"
+
+class B<T>
+
+class D<T>
+
+class E
+
+class A =
+
+    M<T>(): () =
+        this.M2<D<T>>()
+
+    M2<U>(): () =
+        this.M<B<U>>()
+
+main(): () =
+    A().M<E>()
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(13,9): error OLY9999: Generic recursion limit reached: D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<E>>>>>>>>>>>>>>>>>
+        this.M2<D<T>>()
+        ^^^^^^^^^^^^^^^"""
