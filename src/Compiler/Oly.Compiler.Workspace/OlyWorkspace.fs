@@ -1000,6 +1000,11 @@ type WorkspaceMessage =
     | ClearSolution of ct: CancellationToken
     | Clean of OlyWorkspaceResourceSnapshot * AsyncReplyChannel<unit>
 
+    | FileCreated of filePath: OlyPath
+    | FileChanged of filePath: OlyPath
+    | FileDeleted of filePath: OlyPath
+    | FileRenamed of oldFilePath: OlyPath * newFilePath: OlyPath
+
 type IOlyWorkspaceProgress =
 
     abstract OnBeginWork: unit -> unit
@@ -1421,6 +1426,19 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                          reply.Reply(())
 
                     do! onEndWork CancellationToken.None
+
+                // File handling, these cannot be cancelled
+                | FileCreated(filePath) ->
+                    ()
+
+                | FileChanged(filePath) ->
+                    ()
+
+                | FileDeleted(filePath) ->
+                    ()
+
+                | FileRenamed(oldFilePath, newFilePath) ->
+                    ()
 
                 return! loop()
             }
@@ -1991,6 +2009,18 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     member _.CleanAsync(rs) = backgroundTask {
         do! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.Clean(rs, reply))
     }      
+
+    member _.FileCreated(filePath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FileCreated(filePath))
+    
+    member _.FileChanged(filePath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FileChanged(filePath))
+
+    member _.FileDeleted(filePath: OlyPath)=
+        mbp.Post(WorkspaceMessage.FileDeleted(filePath))
+
+    member _.FileRenamed(oldFilePath: OlyPath, newFilePath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FileRenamed(oldFilePath, newFilePath))
 
     static member Create(targets) =
         let progress =
