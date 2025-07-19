@@ -1,16 +1,9 @@
 ﻿namespace Oly.Compiler.Workspace
 
-open System
-open System.Collections.Generic
 open System.Collections.Immutable
+
 open Oly.Core
 open Oly.Compiler.Text
-
-[<NoEquality;NoComparison>]
-type internal OlyWorkspaceResourceEvent =
-    | Added of OlyPath
-    | Deleted of OlyPath
-    | Changed of OlyPath
 
 [<Sealed>]
 type OlySourceTextManager private (openedTexts: ImmutableDictionary<OlyPath, IOlySourceText>) =

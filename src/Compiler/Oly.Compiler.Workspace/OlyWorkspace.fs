@@ -790,22 +790,6 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         | true, (_, _, storedDt) -> storedDt <> dt
         | _ -> true
 
-    member this.GetDeltaEvents(prevRs: OlyWorkspaceResourceSnapshot) =
-        let events = ImArray.builder()
-        let deferChangedEvents = List()
-        let result = System.Linq.Enumerable.Except(prevRs.State.files, state.files, deltaComparer)
-        for x in result do
-            if (prevRs.State.files.ContainsKey(x.Key) && state.files.ContainsKey(x.Key)) then
-                OlyTrace.Log($"[Workspace] {x.Key.ToString()} changed")
-                deferChangedEvents.Add(OlyWorkspaceResourceEvent.Changed x.Key)
-            else
-                events.Add(OlyWorkspaceResourceEvent.Deleted x.Key)
-        let result = System.Linq.Enumerable.Except(state.files.Keys, prevRs.State.files.Keys, OlyPathEqualityComparer.Instance)
-        for x in result do
-            events.Add(OlyWorkspaceResourceEvent.Added x)
-        events.AddRange(deferChangedEvents)
-        events.ToImmutable()
-
     member _.Version = state.version
 
     member this.SetResourceAsCopy(filePath: OlyPath) =
@@ -972,18 +956,12 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
         builder.ToImmutable()
 
-    member this.GetAllProjectConfigurations(projectFilePath: OlyPath) =
-        let configs = ProjectConfigurations.Default
-        configs.Configurations
-        |> Array.map (fun x -> configs.GetConfiguration(x.Name))
-        |> ImArray.ofSeq
-
     member this.GetProjectConfiguration(projectFilePath: OlyPath) =
         let configName = this.GetActiveConfigurationName()
         ProjectConfigurations.Default.GetConfiguration(configName)
 
-    member _.GetActiveConfigurationName() =
-        match state.files.TryGetValue(OlyPath.ChangeExtension(activeConfigPath, ".json")) with
+    member this.GetActiveConfigurationName() =
+        match state.files.TryGetValue activeConfigPath with
         | true, (length, mmap, _) ->
             let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
             try
@@ -992,7 +970,13 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             finally
                 view.Dispose()
         | _ ->
-            "Release" // Default to Release
+            try
+                let newThis = this.SetResourceAsCopy(activeConfigPath)
+                state.files <- newThis.State.files
+                this.GetActiveConfigurationName()
+            with
+            | _ ->
+                "Release" // Default to Release
 
     member _.ActiveConfigurationPath = activeConfigPath
 
@@ -1114,68 +1098,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             |> OlySolution
 
     let mutable currentRs = initialRs
-    let _removegetRs (rs: OlyWorkspaceResourceSnapshot) (ct: CancellationToken) =
-        async {
-            let prevSolution = solutionRef.contents
-            let prevRs = currentRs
-            try
-                if isNull(currentRs: obj) then
-                    clearSolution()
-                    currentRs <- rs
-                elif rs.Version > currentRs.Version then
-                    let deltaEvents = rs.GetDeltaEvents(currentRs)
-
-                    for deltaEvent in deltaEvents do
-                        match deltaEvent with
-                        | OlyWorkspaceResourceEvent.Added filePath ->
-                            solutionRef.contents.GetProjects()
-                            |> ImArray.iter (fun project ->
-                                let projConfig = project.Configuration
-                                let platformName = project.PlatformName
-
-                                let projectDir = OlyPath.GetDirectory(project.Path)
-                                let syntaxTree = project.Compilation.GetSyntaxTree(project.Path)
-                                let config = syntaxTree.GetCompilationUnitConfiguration(ct)
-
-                                if filePath.HasExtension(ProjectExtension) |> not then
-                                    config.Loads
-                                    |> ImArray.iter (fun (_, loadPath) ->
-                                        let loadPath = OlyPath.Combine(projectDir, loadPath)
-                                        if loadPath.ContainsDirectoryOrFile(filePath) then
-                                            let sourceText = rs.GetSourceText(filePath)
-                                            let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
-                                            let syntaxTree = OlySyntaxTree.Parse(filePath, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
-                                            let (newSolution, _, _) = solutionRef.contents.UpdateDocument(project.Path, filePath, syntaxTree, ImArray.empty)
-                                            solutionRef.contents <- newSolution
-                                    )
-                            )
-                        | OlyWorkspaceResourceEvent.Deleted filePath ->
-                            if filePath.HasExtension(ProjectExtension) then
-                                solutionRef.contents <- solutionRef.contents.RemoveProject(filePath)
-                            else
-                                let docs = solutionRef.contents.GetDocuments(filePath)
-                                docs
-                                |> ImArray.iter (fun doc ->
-                                    solutionRef.contents <- solutionRef.contents.RemoveDocument(doc.Project.Path, doc.Path)
-                                )
-                        | OlyWorkspaceResourceEvent.Changed filePath ->
-                            ()
-                           // do! checkProjectsThatContainDocument rs filePath ct
-
-                    currentRs <- rs
-                return currentRs
-            with
-            | :? OperationCanceledException ->
-                solutionRef.contents <- prevSolution
-                if isNull(currentRs: obj) then
-                    clearSolution()
-                    currentRs <- rs
-                    return currentRs
-                else
-                    return prevRs
-        }
-
-
     let onBeginWork _ct = 
         async {
             state.progress.OnBeginWork()
@@ -1251,8 +1173,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 | ClearSolution(ct) ->
                     do! onBeginWork ct
-
-                    currentRs <- Unchecked.defaultof<_>
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - ClearSolution")
 #endif
@@ -1328,20 +1248,62 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 | FileCreated(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileCreated - {filePath.ToString()}")
-                    currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)  
+                        documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                    elif filePath.HasExtension(".json") then
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)
 
                 | FileChanged(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileChanged - {filePath.ToString()}")
-                    currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)  
+                        documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                    elif filePath.HasExtension(".json") then
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)       
+                        if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            let projects = solutionRef.contents.GetProjects()
+                            clearSolution()
 
                 | FileDeleted(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileDeleted - {filePath.ToString()}")
-                    currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.RemoveResource(filePath)
+                        let mutable newSolution = solutionRef.contents
+                        let docs = newSolution.GetDocuments(filePath)
+                        for doc in docs do
+                            if doc.IsProjectDocument then
+                                newSolution <- newSolution.RemoveProject(doc.Project.Path)
+                            else
+                                newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
+                        solutionRef.contents <- newSolution
+                    elif filePath.HasExtension(".json") then
+                        currentRs <- currentRs.RemoveResource(filePath)
 
                 | FileRenamed(oldFilePath, newFilePath) ->
                     OlyTrace.Log($"[Workspace] - FileRenamed - {oldFilePath.ToString()} => {newFilePath.ToString()}")
-                    currentRs <- currentRs.RemoveInMemorySourceText(oldFilePath)
-                    currentRs <- currentRs.RemoveInMemorySourceText(newFilePath)
+
+                    if oldFilePath.HasExtension(".oly") || oldFilePath.HasExtension(".olyx") then
+                        currentRs <- currentRs.RemoveInMemorySourceText(oldFilePath)
+                        currentRs <- currentRs.RemoveResource(oldFilePath)
+                        let mutable newSolution = solutionRef.contents
+                        let docs = newSolution.GetDocuments(oldFilePath)
+                        for doc in docs do
+                            if doc.IsProjectDocument then
+                                newSolution <- newSolution.RemoveProject(doc.Project.Path)
+                            else
+                                newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
+                        solutionRef.contents <- newSolution
+                    elif oldFilePath.HasExtension(".json") then
+                        currentRs <- currentRs.RemoveResource(oldFilePath)
+                            
+                    if newFilePath.HasExtension(".oly") || newFilePath.HasExtension(".olyx") then
+                        documentsToUpdate.Enqueue(newFilePath, CancellationToken.None)
+                    elif newFilePath.HasExtension(".json") then
+                        currentRs <- currentRs.SetResourceAsCopy(newFilePath)
 
                 return! loop()
             }
@@ -1914,7 +1876,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             if docs.IsEmpty then
                 failwith $"Project '{projectPath.ToString()}' not found"
             if docs.Length > 1 then
-                failwith "Ambiguous projects found."
+                failwith $"Ambiguous projects found for '{projectPath.ToString()}'"
 
             let proj = docs[0].Project
             let target = proj.SharedBuild

@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\CLI\olylib\olylib.fsproj" />
     <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Targets.DotNet.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />

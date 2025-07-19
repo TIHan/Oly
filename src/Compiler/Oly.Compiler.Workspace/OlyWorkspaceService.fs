@@ -1,5 +1,6 @@
 ﻿namespace Oly.Compiler.Workspace.Service
 
+open System
 open System.IO
 open System.Reflection
 
@@ -15,7 +16,7 @@ type OlyWorkspaceListener(workspace: OlyWorkspace) =
     let dirWatch = new DirectoryWatcher()
 
     do
-        dirWatch.WatchFiles(workspace.WorkspaceStateDirectory.ToString(), "*.oly")
+        dirWatch.WatchFiles(workspace.WorkspaceDirectory.ToString(), "*.oly")
         dirWatch.WatchFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.oly")
         dirWatch.WatchFiles(workspace.WorkspaceDirectory.ToString(), "*.olyx")
         dirWatch.WatchFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.olyx")
@@ -51,6 +52,13 @@ type OlyWorkspaceListener(workspace: OlyWorkspace) =
                 if isValidFileToListenFor oldFilePath || isValidFileToListenFor newFilePath then
                     workspace.FileRenamed(oldFilePath, newFilePath)
         )
+
+    override this.Finalize (): unit = 
+        (this: IDisposable).Dispose()
+
+    interface IDisposable with
+        member _.Dispose() =
+            (dirWatch: IDisposable).Dispose()
 
     static member GetProjectsFromDirectory(rootPath: OlyPath) =
         let projects = ImArray.builder()
