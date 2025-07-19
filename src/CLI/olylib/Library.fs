@@ -28,7 +28,7 @@ module Oly =
         let rootPath = OlyPath.GetDirectory(projectPath)
         let activeConfigPath = OlyPath.Combine(rootPath, ".olyworkspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
-        let rs = OlyWorkspaceResourceSnapshot.CreateForced(activeConfigPath, ms)
+        let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
         createWorkspace().BuildProjectAsync(rs, projectPath, ct)
 
     let rec Clean (dir) =

@@ -577,7 +577,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     match rawToken with
                     | DirectiveFlag(_, identToken) ->
                         let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        if identToken.Text = "library" then
+                        if identToken.Text = directive then
                             checkConfigDirective textSpan
                             true
                         else

@@ -253,8 +253,6 @@ type OlyWorkspaceResourceSnapshot =
 
     static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 
-    static member CreateForced : activeConfigPath: OlyPath * activeConfigStream: System.IO.Stream -> OlyWorkspaceResourceSnapshot
-
 type IOlyWorkspaceProgress =
 
     abstract OnBeginWork: unit -> unit

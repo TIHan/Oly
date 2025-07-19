@@ -680,6 +680,7 @@ type OlySolution (state: SolutionState) =
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
+        OlyTrace.Log($"[Solution] Updating document - {documentPath.ToString()}")
         OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
         let newProject, newDocument = project.UpdateDocument(newSolutionLazy, documentPath, syntaxTree, extraDiagnostics)
         let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
@@ -758,13 +759,14 @@ type OlySolution (state: SolutionState) =
 [<NoEquality;NoComparison>]
 type internal ResourceState =
     {
-        files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
+        mutable files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
+        mutable subPaths: ImmutableHashSet<OlyPath>
         textEditors: OlySourceTextManager
         version: DateTime
     }
 
 [<Sealed>]
-type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeConfigPath: OlyPath) =
+type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
     static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
 
@@ -784,8 +786,6 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
     member private this.State = state
 
     member private this.HasResourceChanged(filePath: OlyPath, dt: DateTime): bool =
-        if isForced then
-            invalidOp "Snapshot is forced"
         match state.files.TryGetValue filePath with
         | true, (_, _, storedDt) -> storedDt <> dt
         | _ -> true
@@ -793,13 +793,12 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
     member _.TextEditors = state.textEditors
 
     member this.GetDeltaEvents(prevRs: OlyWorkspaceResourceSnapshot) =
-        if isForced then
-            invalidOp "Snapshot is forced"
         let events = ImArray.builder()
         let deferChangedEvents = List()
         let result = System.Linq.Enumerable.Except(prevRs.State.files, state.files, deltaComparer)
         for x in result do
             if (prevRs.State.files.ContainsKey(x.Key) && state.files.ContainsKey(x.Key)) then
+                OlyTrace.Log($"[Workspace] {x.Key.ToString()} changed")
                 deferChangedEvents.Add(OlyWorkspaceResourceEvent.Changed x.Key)
             else
                 events.Add(OlyWorkspaceResourceEvent.Deleted x.Key)
@@ -812,8 +811,6 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
     member _.Version = state.version
 
     member this.SetResourceAsCopy(filePath: OlyPath) =
-        if isForced then
-            invalidOp "Snapshot is forced"
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
@@ -826,13 +823,9 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             this
 
     member this.SetResourceAsCopy(filePath: OlyPath, stream: Stream) =
-        if isForced then
-            invalidOp "Snapshot is forced"
         this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
 
     member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
-        if isForced then
-            invalidOp "Snapshot is forced"
         let length = streamToCopy.Length - streamToCopy.Position
         if length > 0 then
             let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
@@ -847,30 +840,28 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             this.SetResource(filePath, length, mmap, dt)
 
     member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
-        if isForced then
-            invalidOp "Snapshot is forced"
         OlyWorkspaceResourceSnapshot(
-            false,
             { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = DateTime.UtcNow },
             activeConfigPath
         )
 
     member _.RemoveResource(filePath: OlyPath) =
-        if isForced then
-            invalidOp "Snapshot is forced"
-        OlyWorkspaceResourceSnapshot(false, { state with files = state.files.Remove(filePath); version = DateTime.UtcNow }, activeConfigPath)
+        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = DateTime.UtcNow }, activeConfigPath)
 
-    member _.GetSourceText(filePath) =
+    member this.GetSourceText(filePath) =
         match state.textEditors.TryGet filePath with
         | Some(sourceText) -> sourceText
         | _ ->
 
-        if isForced then
-            OlySourceText.FromFile(filePath)
-        else
-
         match state.files.TryGetValue(filePath) with
-        | false, _ -> raise(OlyWorkspaceFileDoesNotExist(filePath))
+        | false, _ -> 
+            try
+                let newThis = this.SetResourceAsCopy(filePath)
+                state.files <- newThis.State.files
+                this.GetSourceText(filePath)
+            with
+            | _ ->
+                raise(OlyWorkspaceFileDoesNotExist(filePath))
         | _, (length, mmap, _) ->
 
         if length = 0 then
@@ -922,19 +913,17 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
                         view.Dispose()
             )
 
-    member _.GetTimeStamp(filePath) =
-        if isForced then
-            File.GetLastAccessTimeUtc(filePath.ToString())
-        else
-            let (_, _, dt) = state.files[filePath]
-            dt
+    member this.GetTimeStamp(filePath) =
+        match state.files.TryGetValue(filePath) with
+        | true, (_, _, dt) -> dt
+        | _ ->
+            let newThis = this.SetResourceAsCopy(filePath)
+            state.files <- newThis.State.files
+            this.GetTimeStamp(filePath)
 
-    member _.FindSubPaths(dirPath: OlyPath) =
-        if isForced then
-            Directory.EnumerateFiles(dirPath.ToString(), "*.*", SearchOption.TopDirectoryOnly)
-            |> Seq.map (fun x -> OlyPath.Create(x))
-            |> ImArray.ofSeq
-        else
+    member this.FindSubPaths(dirPath: OlyPath) =
+        let subPaths = state.subPaths
+        if subPaths.Contains(dirPath) then
             let builder = ImArray.builder()
 
             // TODO: This isn't optimal. We iterate through every resource to find the ones with the dfirectory.
@@ -945,6 +934,11 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
                     builder.Add(pair.Key)
 
             builder.ToImmutable()
+        else
+            state.subPaths <- subPaths.Add(dirPath)
+            Directory.EnumerateFiles(dirPath.ToString(), "*.*", SearchOption.TopDirectoryOnly)
+            |> Seq.map (fun x -> OlyPath.Create(x))
+            |> ImArray.ofSeq
 
     member this.GetAllProjectConfigurations(projectFilePath: OlyPath) =
         let configs = ProjectConfigurations.Default
@@ -969,21 +963,20 @@ type OlyWorkspaceResourceSnapshot(isForced: bool, state: ResourceState, activeCo
             "Release" // Default to Release
 
     member this.WithTextEditors(textEditors: OlySourceTextManager) =
-        if isForced then
-            invalidOp "Snapshot is forced"
         if obj.ReferenceEquals(state.textEditors, textEditors) then
             this
         else
-            OlyWorkspaceResourceSnapshot(false, { state with textEditors = textEditors }, activeConfigPath)
+            OlyWorkspaceResourceSnapshot({ state with textEditors = textEditors }, activeConfigPath)
 
     member _.ActiveConfigurationPath = activeConfigPath
 
     static member Create(activeConfigPath: OlyPath) =
-        OlyWorkspaceResourceSnapshot(false, { files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance); version = DateTime(); textEditors = OlySourceTextManager.Empty }, activeConfigPath)
-
-    static member CreateForced(activeConfigPath: OlyPath, activeConfigStream: Stream) =
-        let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, activeConfigStream);
-        OlyWorkspaceResourceSnapshot(true, rs.State, activeConfigPath)
+        OlyWorkspaceResourceSnapshot({ 
+            files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
+            subPaths = ImmutableHashSet.Create(equalityComparer = OlyPathEqualityComparer.Instance)
+            version = DateTime()
+            textEditors = OlySourceTextManager.Empty 
+        }, activeConfigPath)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =
@@ -1053,13 +1046,8 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     let checkProject rs (proj: OlyProject) ct =
         async {
-            let syntaxTree = proj.DocumentLookup[proj.Path].SyntaxTree
-            let! newSolutionOpt = OlyWorkspace.UpdateProjectAsync(solutionRef, rs, state, solutionRef.contents, syntaxTree, proj.Path, proj.Configuration, ct) |> Async.AwaitTask
-            match newSolutionOpt with
-            | Some(newSolution) ->
-                solutionRef.contents <- newSolution
-            | _ ->
-                ()
+            OlyTrace.Log($"[Workspace] Checking project {proj.Name}")
+            do! this.UpdateDocumentAsyncCore(rs, proj.Path, rs.GetSourceText(proj.Path), ct) |> Async.AwaitTask
         }
 
     let checkProjectsByDocuments rs (docs: OlyDocument imarray) ct =
@@ -1076,8 +1064,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
     let checkProjectsThatContainDocument rs (documentPath: OlyPath) ct =
         async {
-            let docs = solutionRef.contents.GetDocuments(documentPath)
-            do! checkProjectsByDocuments rs docs ct
+            do! this.UpdateDocumentAsyncCore(rs, documentPath, rs.GetSourceText(documentPath), ct) |> Async.AwaitTask
         }
 
     let checkAllProjects rs ct =
