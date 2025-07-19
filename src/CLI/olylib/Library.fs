@@ -14,14 +14,14 @@ open Oly.Targets.Spirv
 
 module Oly =
 
-    let private createWorkspace() =
+    let private createWorkspace(rootPath: OlyPath, rs) =
         let targets = 
             [
                 InterpreterTarget() :> OlyBuild
                 DotNetTarget()
                 SpirvTarget()
             ] |> ImArray.ofSeq
-        OlyWorkspace.Create(targets)
+        OlyWorkspace.Create(targets, rootPath, rs)
 
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         let projectPath = OlyPath.Combine(OlyPath.Create(System.Environment.CurrentDirectory), projectPath)
@@ -29,15 +29,16 @@ module Oly =
         let activeConfigPath = OlyPath.Combine(rootPath, ".olyworkspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
         let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
-        createWorkspace().BuildProjectAsync(rs, projectPath, ct)
+        createWorkspace(rootPath, rs).BuildProjectAsync(projectPath, ct)
 
-    let rec Clean (dir) =
-        // TODO: Handle recursive projects even though they should not exist.
+    let rec Clean (dir: string) =
 
+        // TODO: Handle recursive projects if they occur.
+
+        let projects = OlyWorkspaceListener.GetProjectsFromDirectory(OlyPath.Create(dir))
         let cacheDirectoryName = ".olycache"
         let binDirectoryName = "bin"
 
-        let _rs, projects = OlyWorkspaceListener.GetProjectsFromDirectory(OlyPath.Create(""), OlyPath.Create(dir))
         projects
         |> ImArray.iter (fun projPath ->
             let syntaxTree = OlySyntaxTree.Parse(projPath, OlySourceText.FromFile(projPath), OlyParsingOptions.Default)

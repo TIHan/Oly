@@ -226,11 +226,13 @@ type OlyWorkspaceResourceSnapshot =
 
     member Version : DateTime
 
-    member TextEditors : OlySourceTextManager
-
     member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceSnapshot
 
     member SetResourceAsCopy : OlyPath * System.IO.Stream -> OlyWorkspaceResourceSnapshot
+
+    member SetInMemorySourceText : OlyPath * IOlySourceText -> OlyWorkspaceResourceSnapshot
+
+    member RemoveInMemorySourceText : OlyPath -> OlyWorkspaceResourceSnapshot
 
     member RemoveResource : OlyPath -> OlyWorkspaceResourceSnapshot
 
@@ -246,8 +248,6 @@ type OlyWorkspaceResourceSnapshot =
     member GetProjectConfiguration: projectFilePath: OlyPath -> OlyProjectConfiguration
 
     member GetActiveConfigurationName: unit -> string
-
-    member WithTextEditors: OlySourceTextManager -> OlyWorkspaceResourceSnapshot
 
     member ActiveConfigurationPath: OlyPath
 
@@ -266,39 +266,37 @@ type OlyWorkspace =
 
     member CancelCurrentWork : unit -> unit
 
-    member GetSolutionAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlySolution>
-
-    /// Updates documents by path with the given source text.
-    member UpdateDocumentAsync : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
-
-    /// Updates documents by path.
-    /// Non-blocking.
-    member UpdateDocuments : OlyWorkspaceResourceSnapshot * documentPaths: OlyPath imarray * ct: CancellationToken -> unit
+    member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
 
     /// Update a document by path with the given source text.
     /// Non-blocking.
-    member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
+    member UpdateDocument : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
-    /// Update a documents by path.
-    /// Non-blocking.
-    member UpdateDocument : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken -> unit
-
-    member RemoveProject : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> unit
+    member RemoveProject : projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
-    member GetDocumentsAsync : OlyWorkspaceResourceSnapshot * documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetDocumentsAsync : documentPath: OlyPath * ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// Get all the documents in the workspace's solution.
-    member GetAllDocumentsAsync : OlyWorkspaceResourceSnapshot * ct: CancellationToken -> Task<OlyDocument imarray>
+    member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
 
     /// TODO: We should make this API better.
-    member BuildProjectAsync : OlyWorkspaceResourceSnapshot * projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
+    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     /// Clears the entire solution.
     /// Non-blocking.
     member ClearSolution : ct: CancellationToken -> unit
 
-    member CleanAsync : OlyWorkspaceResourceSnapshot -> Task<unit>
+    member FileCreated : OlyPath -> unit
+    member FileChanged : OlyPath -> unit
+    member FileDeleted : OlyPath -> unit
+    member FileRenamed : oldFilePath: OlyPath * newFilePath: OlyPath -> unit
 
-    static member Create : targets: OlyBuild seq -> OlyWorkspace
-    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress -> OlyWorkspace
+    member WorkspaceDirectory : OlyPath
+    member WorkspaceStateDirectory : OlyPath
+    member WorkspaceStateFileName : OlyPath
+
+    static member Create : targets: OlyBuild seq * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * workspaceDirectory: OlyPath -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress * workspaceDirectory: OlyPath -> OlyWorkspace

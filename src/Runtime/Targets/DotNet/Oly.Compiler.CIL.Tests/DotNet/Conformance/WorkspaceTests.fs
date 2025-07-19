@@ -17,27 +17,20 @@ let rs =
     let fileInfo = System.IO.FileInfo("numerics_dotnet.oly")
     rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
 
-let updateText (path: OlyPath) (src: string) (rs: OlyWorkspaceResourceSnapshot) =
-    let ms = new System.IO.MemoryStream()
-    ms.Write(System.Text.Encoding.Default.GetBytes(src))
-    ms.Position <- 0
-    let result = rs.SetResourceAsCopy(path, ms)
-    ms.Dispose()
-    result
-
 let createWorkspace() =
-    OlyWorkspace.Create([DotNetTarget()])
+    OlyWorkspace.Create(([DotNetTarget()]: OlyBuild seq), OlyPath.Empty, rs)
 
 let createProject src (workspace: OlyWorkspace) =
     let path = OlyPath.Create "olytest.olyx"
-    (workspace, workspace.UpdateDocumentAsync(rs, path, OlySourceText.Create(src), CancellationToken.None).Result[0].Project)
+    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
+    (workspace, workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project)
 
 let shouldCompile (proj: OlyProject) =
     let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
     Assert.Empty(diags)
 
 let build (workspace: OlyWorkspace, proj: OlyProject) =
-    let result = workspace.BuildProjectAsync(rs, proj.Path, CancellationToken.None).Result
+    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result
     match result with
     | Ok(program) -> program
     | Error(diags) ->
@@ -47,7 +40,7 @@ let build (workspace: OlyWorkspace, proj: OlyProject) =
         failwith (builder.ToString())
 
 let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj: OlyProject) =
-    let result = workspace.BuildProjectAsync(rs, proj.Path, CancellationToken.None).Result
+    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result
     match result with
     | Ok(_) -> failwith "Expected build error."
     | Error(diags) ->

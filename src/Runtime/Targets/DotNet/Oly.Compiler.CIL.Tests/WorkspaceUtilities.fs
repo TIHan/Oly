@@ -8,7 +8,7 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open TestFramework
 
-let private createWorkspace target isDebug =
+let private createWorkspace (target: OlyBuild) isDebug =
     let preludeDirName = System.IO.Path.GetDirectoryName(typeof<OlyWorkspace>.Assembly.Location)
     let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
     let preludeDir =
@@ -17,36 +17,31 @@ let private createWorkspace target isDebug =
         else
             OlyPath.Create(preludeDirName + "/")
 
-    let workspace = OlyWorkspace.Create([target])
-
-    let projectName = Guid.NewGuid().ToString()
-
-    let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
-
     let configPath = OlyPath.Create("state.json")
+    let rs = OlyWorkspaceResourceSnapshot.Create(configPath)
     use configMs = 
         if isDebug then
             new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Debug" }"""))
         else
             new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Release" }"""))
-
-    let textManager = OlySourceTextManager.Empty
-    let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
-
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
+    let rs = rs.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
+    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
+    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
+    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
 
-    (resourceSnapshot, workspace, documentPath)
+    let workspace = OlyWorkspace.Create(([target]: OlyBuild seq), OlyPath.Empty, rs)
+    let projectName = Guid.NewGuid().ToString()
+    let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
+
+    (workspace, documentPath)
 
 let lockObj = obj()
 let buildLookup = System.Collections.Concurrent.ConcurrentDictionary()
 let cachedBuildWith (target: OlyBuild) (isDebug: bool) src =
 
-    let (resourceSnapshot, workspace, documentPath) =
+    let (workspace, documentPath) =
         let key = (target.PlatformName, isDebug)
         match buildLookup.TryGetValue(key) with
         | true, result -> result
@@ -61,7 +56,8 @@ let cachedBuildWith (target: OlyBuild) (isDebug: bool) src =
             )
         
     let srcText = OlySourceText.Create(src)
-    let doc = workspace.UpdateDocumentAsync(resourceSnapshot, documentPath, srcText, Threading.CancellationToken.None).Result[0]
+    workspace.UpdateDocument(documentPath, srcText, Threading.CancellationToken.None)
+    let doc = workspace.GetDocumentsAsync(documentPath, Threading.CancellationToken.None).Result[0]
 
     match target.BuildProjectAsync(doc.Project, Threading.CancellationToken.None).Result with
     | Error(diags) ->
@@ -70,41 +66,9 @@ let cachedBuildWith (target: OlyBuild) (isDebug: bool) src =
         program
 
 let private buildWithAux target isDebug src =
-    let preludeDirName = System.IO.Path.GetDirectoryName(typeof<OlyWorkspace>.Assembly.Location)
-    let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
-    let preludeDir =
-        if preludeDir.IsDirectory then
-            preludeDir
-        else
-            OlyPath.Create(preludeDirName + "/")
-
-    let workspace = OlyWorkspace.Create([target])
-
-    let projectName = Guid.NewGuid().ToString()
-
-    let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
-    let srcText = OlySourceText.Create(src)
-
-    let configPath = OlyPath.Create("state.json")
-    use configMs = 
-        if isDebug then
-            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Debug" }"""))
-        else
-            new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Release" }"""))
-
-    let textManager = OlySourceTextManager.Empty.Set(documentPath, srcText)
-    let resourceSnapshot = OlyWorkspaceResourceSnapshot.Create(configPath).WithTextEditors(textManager)
-
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(configPath, configMs)
-
-    // Set up prelude
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
-    let resourceSnapshot = resourceSnapshot.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
-
-    let _doc = workspace.UpdateDocumentAsync(resourceSnapshot, documentPath, srcText, Threading.CancellationToken.None).Result[0]
-
-    workspace.BuildProjectAsync(resourceSnapshot, documentPath, Threading.CancellationToken.None).Result
+    let (workspace, documentPath) = createWorkspace target isDebug
+    workspace.UpdateDocument(documentPath, OlySourceText.Create(src), Threading.CancellationToken.None)
+    workspace.BuildProjectAsync(documentPath, Threading.CancellationToken.None).Result
 
 let buildWith target isDebug src =
     match buildWithAux target isDebug src with

@@ -11,6 +11,34 @@ open Oly.Compiler.Workspace
 
 module OlyTarget =
 
+    let private handleException (project: OlyProject) (ex: Exception) ct =
+        match ex with
+        | :? Oly.Runtime.CodeGen.OlyGenericRecursionLimitReached as ex ->
+            let solution = project.Solution
+            let docs = solution.GetDocuments(ex.textRange.Path)
+            if docs.IsEmpty then
+                Some(OlyDiagnostic.CreateError(ex.message))
+            else
+                let doc = docs[0]
+                let syntaxNode =
+                    doc.SyntaxTree.TryFindNode(
+                        OlyTextRange(
+                            OlyTextPosition(
+                                ex.textRange.StartLine, 
+                                ex.textRange.StartColumn
+                            ), 
+                            OlyTextPosition(
+                                ex.textRange.EndLine, 
+                                ex.textRange.EndColumn
+                            )
+                        ),
+                        ct
+                    )
+                let syntaxNode = syntaxNode |> Option.defaultValue doc.SyntaxTree.DummyNode
+                Some(OlyDiagnostic.CreateError(ex.message, OlyDiagnostic.CodePrefixOLY, 9999, syntaxNode))
+        | _ ->
+            None
+
     let CheckedEmit (hasEntryPoint: bool, project: OlyProject, runtime: OlyRuntime<_, _, _>, ct) =
         try
             if hasEntryPoint then
@@ -20,38 +48,24 @@ module OlyTarget =
                 runtime.EmitAheadOfTime()
                 None
         with
-        | :? AggregateException as ex when ex.InnerExceptions.Count = 1 ->
+        | :? AggregateException as ex when ex.InnerExceptions.Count >= 1 ->
             let rec innerMost (ex: Exception) =
                 match ex with
-                | :? AggregateException as ex when ex.InnerExceptions.Count = 1 ->
+                | :? AggregateException as ex when ex.InnerExceptions.Count >= 1 ->
                     innerMost ex.InnerExceptions[0]
                 | _ ->
                     ex
-            match innerMost ex with
-            | :? Oly.Runtime.CodeGen.OlyGenericRecursionLimitReached as ex ->
-                let solution = project.Solution
-                let docs = solution.GetDocuments(ex.textRange.Path)
-                if docs.IsEmpty then
-                    Some(OlyDiagnostic.CreateError(ex.message))
-                else
-                    let doc = docs[0]
-                    let syntaxNode =
-                        doc.SyntaxTree.TryFindNode(
-                            OlyTextRange(
-                                OlyTextPosition(
-                                    ex.textRange.StartLine, 
-                                    ex.textRange.StartColumn
-                                ), 
-                                OlyTextPosition(
-                                    ex.textRange.EndLine, 
-                                    ex.textRange.EndColumn
-                                )
-                            ),
-                            ct
-                        )
-                    let syntaxNode = syntaxNode |> Option.defaultValue doc.SyntaxTree.DummyNode
-                    Some(OlyDiagnostic.CreateError(ex.message, OlyDiagnostic.CodePrefixOLY, 9999, syntaxNode))
-            | _ ->
+            let innerEx =  innerMost ex
+            let res = handleException project innerEx ct
+            if res.IsSome then
+                res
+            else
+                reraise()
+        | ex ->
+            let res = handleException project ex ct
+            if res.IsSome then
+                res
+            else
                 reraise()
 
 
