@@ -245,16 +245,37 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
         else
             match tyArgs1[0] with
             |  TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
-                 // SPECIAL CASE: Handle variadic type variables with tuple solutions.
-                 // TODO:
-                //if not externalSolution.HasSolution && not solution.HasSolution && tyArgs.Length = 1 then
-                //    match tyArgs[0] with
-                //    | TypeSymbol.InferenceVariable(Some tyPar, innerSolution) 
-                //            when tyPar.IsVariadic && innerSolution.HasSolution && innerSolution.Solution.IsAnyTuple ->
-                //        externalSolution.Solution <- Types.Tuple
-                //        solution.Solution <- tyArgs[0]
-                //        true
-                //    | _ ->
+                // SPECIAL CASE: Handle variadic type variables with tuple solutions for higher kinds.
+                // REVIEW: This is rather complicated, is there a way to simplify this?
+                if externalSolution.HasSolution && 
+                   solution.HasSolution &&  
+                   tyArgs.Length = 1 then
+                    match stripTypeEquations externalSolution.Solution with
+                    | TypeSymbol.InferenceVariable(_, externalSolution) when not externalSolution.HasSolution ->
+                        match stripTypeEquations solution.Solution with
+                        | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) 
+                                when not externalSolution.HasSolution && not solution.HasSolution ->
+                            match tyArgs[0] with
+                            | TypeSymbol.InferenceVariable(Some tyPar, innerSolution) 
+                                    when tyPar.IsVariadic && innerSolution.HasSolution && innerSolution.Solution.IsAnyTuple ->
+                                let isValid =
+                                    if tyArgs.Length = 1 && tyArgs2.Length = 1 && 
+                                       tyArgs[0].IsAnyTuple && tyArgs2[0].IsAnyTuple then
+                                        (tyArgs, tyArgs2)
+                                        ||> ImArray.forall2 (UnifyTypes rigidity)
+                                    else
+                                        false
+                                if isValid then
+                                    externalSolution.Solution <- Types.Tuple
+                                    solution.Solution <- tyArgs2[0]
+                                    true
+                                else
+                                    false
+                            | _ ->
+                                false
+                        | _ ->
+                            false
+                    | _ ->
                         false
                 else
                     false
