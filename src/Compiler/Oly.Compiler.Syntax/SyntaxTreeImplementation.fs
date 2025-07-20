@@ -505,7 +505,7 @@ module OlySyntaxTreeExtensions =
             | _ -> false
 
         member this.IsDummy: bool =
-            if obj.ReferenceEquals(this.InternalNode, syntaxTerminal) then
+            if obj.ReferenceEquals(this, this.Tree.DummyNode) then
                 true
             else
                 if this.InternalNode.IsToken then
