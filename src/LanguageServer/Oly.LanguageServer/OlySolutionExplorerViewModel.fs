@@ -40,7 +40,7 @@ type OlySolutionTreeNodeViewModel =
         let groups =
             docs
             |> Seq.groupBy (fun x -> 
-                OlyPath.GetRelativePath(projectDir.GetDirectory(), x.Path.GetDirectory()).ToString()
+                x.Path.GetDirectory().GetRelative(projectDir.GetDirectory()).ToString()
             )
 
         let lookup = System.Collections.Generic.Dictionary<string, obj>(System.StringComparer.OrdinalIgnoreCase)       
