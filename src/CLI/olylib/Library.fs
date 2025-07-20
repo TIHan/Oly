@@ -53,9 +53,9 @@ module Oly =
             |> ImArray.iter (fun (_, refPath) ->
                 if refPath.EndsWith(".olyx") then
                     if refPath.IsRooted then
-                        Clean(refPath.ToString())
+                        Clean(OlyPath.GetDirectory(refPath).ToString())
                     else
-                        Clean(OlyPath.Combine(projDir, refPath).ToString())
+                        Clean(OlyPath.GetDirectory(OlyPath.Combine(projDir, refPath)).ToString())
             )
 
             try Directory.Delete(OlyPath.Combine(projDir, cacheDirectoryName).ToString(), true) with | _ -> ()

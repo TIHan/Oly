@@ -1058,14 +1058,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let cts = getCts documentPath
             let ct = cts.Token
             let work =
-                backgroundTask {
+                async {
                     try
-                        do! publishDiagnostics(documentPath, version, ct)
+                        do! publishDiagnostics(documentPath, version, ct) |> Async.AwaitTask
                     with
                     | :? OperationCanceledException ->
                         ()
                 }
-            try work.Start() with | _ -> ()
+            work |> Async.Start
             return MediatR.Unit.Value
         }
 
@@ -1077,16 +1077,44 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let ct = cts.Token
             workspace.UpdateDocument(documentPath, sourceText, ct)
             let work =
-                backgroundTask {
+                async {
                     try
-                        do! publishDiagnostics(documentPath, version, ct)
+                        do! publishDiagnostics(documentPath, version, ct) |> Async.AwaitTask
                     with
                     | :? OperationCanceledException ->
                         ()
                 }
-            try work.Start() with | _ -> ()
+            work |> Async.Start
             return MediatR.Unit.Value
         }
+
+    interface IOnLanguageServerInitialize with
+        member _.OnInitialize (_server: ILanguageServer, _request: InitializeParams, _ct: CancellationToken): Task = 
+            let workspace = getWorkspace()
+            workspace.WorkspaceChanged.Add(function
+                | OlyWorkspaceChangedEvent.DocumentChanged(documentPath, false) ->
+                    let solution = workspace.StaleSolution
+                    let docs = solution.GetDocuments(documentPath)
+                    docs
+                    |> ImArray.iter (fun doc ->
+                        let work =
+                            async {
+                                try
+                                    // This is exactly what we want to do, but it only refreshes diagnostics.
+                                    // What about semantic classification? How can we refresh that?
+                                    let cts = cancelAndGetCts doc.Path
+                                    let ct = cts.Token
+                                    do! publishDiagnostics(doc.Path, Nullable(), ct) |> Async.AwaitTask
+                                with
+                                | :? OperationCanceledException ->
+                                    ()
+                            }
+                        work |> Async.Start
+                    )
+                | _ ->
+                    ()
+            )
+            Task.CompletedTask
     
     interface IDocumentRangeFormattingHandler with
         member this.GetRegistrationOptions(capability: DocumentRangeFormattingCapability, clientCapabilities: ClientCapabilities): DocumentRangeFormattingRegistrationOptions = 

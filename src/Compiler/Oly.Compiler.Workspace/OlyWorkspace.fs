@@ -18,6 +18,11 @@ open System.Diagnostics.CodeAnalysis
 
 exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
 
+type OlyWorkspaceChangedEvent =
+    | DocumentCreated of documentPath: OlyPath
+    | DocumentChanged of documentPath: OlyPath * isInMemory: bool
+    | DocumentDeleted of documentPath: OlyPath
+
 [<Sealed>]
 type OlyProgram(path: OlyPath, run: string[] -> string) =
 
@@ -1124,6 +1129,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             ct.ThrowIfCancellationRequested()
     }
 
+    let events = Event<OlyWorkspaceChangedEvent>()
+
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
@@ -1245,6 +1252,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 #endif
                     currentRs <- currentRs.SetInMemorySourceText(documentPath, sourceText)
                     documentsToUpdate.Enqueue(documentPath, ct)
+                    events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(documentPath, true))
 
                 | FileCreated(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileCreated - {filePath.ToString()}")
@@ -1252,6 +1260,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)  
                         documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                        events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(filePath))
                     elif filePath.HasExtension(".json") then
                         currentRs <- currentRs.SetResourceAsCopy(filePath)
 
@@ -1261,6 +1270,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)  
                         documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                        events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(filePath, false))
                     elif filePath.HasExtension(".json") then
                         currentRs <- currentRs.SetResourceAsCopy(filePath)       
                         if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
@@ -1280,6 +1290,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                             else
                                 newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
                         solutionRef.contents <- newSolution
+                        events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(filePath))
                     elif filePath.HasExtension(".json") then
                         currentRs <- currentRs.RemoveResource(filePath)
 
@@ -1297,11 +1308,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                             else
                                 newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
                         solutionRef.contents <- newSolution
+                        events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(oldFilePath))
                     elif oldFilePath.HasExtension(".json") then
                         currentRs <- currentRs.RemoveResource(oldFilePath)
                             
                     if newFilePath.HasExtension(".oly") || newFilePath.HasExtension(".olyx") then
                         documentsToUpdate.Enqueue(newFilePath, CancellationToken.None)
+                        events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(newFilePath))
                     elif newFilePath.HasExtension(".json") then
                         currentRs <- currentRs.SetResourceAsCopy(newFilePath)
 
@@ -1946,6 +1959,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     member _.WorkspaceDirectory = state.workspaceDirectory
     member _.WorkspaceStateDirectory = state.workspaceStateDirectory
     member _.WorkspaceStateFileName = state.workspaceStateFileName
+    member _.WorkspaceChanged = events.Publish
 
     static member Create(targets, workspaceDirectory: OlyPath, initialRs: OlyWorkspaceResourceSnapshot) =
         let progress =

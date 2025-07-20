@@ -8,6 +8,11 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Core
 
+type OlyWorkspaceChangedEvent =
+    | DocumentCreated of documentPath: OlyPath
+    | DocumentChanged of documentPath: OlyPath * isInMemory: bool
+    | DocumentDeleted of documentPath: OlyPath
+
 /// TODO: This shouldn't be public, but it is to make Text.Json work.
 [<Sealed>]
 type ActiveConfigurationState =
@@ -293,6 +298,7 @@ type OlyWorkspace =
     member WorkspaceDirectory : OlyPath
     member WorkspaceStateDirectory : OlyPath
     member WorkspaceStateFileName : OlyPath
+    member WorkspaceChanged : IEvent<OlyWorkspaceChangedEvent>
 
     static member Create : targets: OlyBuild seq * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
     static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
