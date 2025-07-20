@@ -1092,6 +1092,27 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.OnInitialize (_server: ILanguageServer, _request: InitializeParams, _ct: CancellationToken): Task = 
             let workspace = getWorkspace()
             workspace.WorkspaceChanged.Add(function
+                | OlyWorkspaceChangedEvent.DocumentCreated(documentPath)
+                | OlyWorkspaceChangedEvent.DocumentDeleted(documentPath) ->
+                    let solution = workspace.StaleSolution
+                    solution.GetProjects()
+                    |> ImArray.iter (fun proj ->
+                        let exists = proj.CouldHaveDocument(documentPath, CancellationToken.None)
+                        if exists then
+                            let work =
+                                async {
+                                    try
+                                        // This is exactly what we want to do, but it only refreshes diagnostics.
+                                        // What about semantic classification? How can we refresh that?
+                                        let cts = cancelAndGetCts proj.Path
+                                        let ct = cts.Token
+                                        do! publishDiagnostics(proj.Path, Nullable(), ct) |> Async.AwaitTask
+                                    with
+                                    | :? OperationCanceledException ->
+                                        ()
+                                }
+                            work |> Async.Start
+                    )
                 | OlyWorkspaceChangedEvent.DocumentChanged(documentPath, false) ->
                     let solution = workspace.StaleSolution
                     let docs = solution.GetDocuments(documentPath)
@@ -1114,7 +1135,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 | _ ->
                     ()
             )
-            Task.CompletedTask
+            backgroundTask {
+                let projects = OlyWorkspaceListener.GetProjectsFromDirectory(workspace.WorkspaceDirectory)
+                for proj in projects do
+                    let cts = cancelAndGetCts proj
+                    let ct = cts.Token
+                    workspace.LoadProject(proj, ct)
+            }
     
     interface IDocumentRangeFormattingHandler with
         member this.GetRegistrationOptions(capability: DocumentRangeFormattingCapability, clientCapabilities: ClientCapabilities): DocumentRangeFormattingRegistrationOptions = 

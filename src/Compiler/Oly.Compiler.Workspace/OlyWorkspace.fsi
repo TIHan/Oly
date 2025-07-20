@@ -192,6 +192,8 @@ type OlyProject =
     member GetDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
     member GetAnalyzerDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
 
+    member CouldHaveDocument : documentPath: OlyPath * CancellationToken -> bool
+
 [<Sealed>]
 type OlySolution =
 
@@ -289,6 +291,8 @@ type OlyWorkspace =
     /// Clears the entire solution.
     /// Non-blocking.
     member ClearSolution : ct: CancellationToken -> unit
+
+    member LoadProject : OlyPath * CancellationToken -> unit
 
     member FileCreated : OlyPath -> unit
     member FileChanged : OlyPath -> unit

@@ -415,6 +415,33 @@ type OlyProject (
         )
         builder.ToImmutable()
 
+    member this.CouldHaveDocument(documentPath: OlyPath, ct) : bool =
+        if documentPath.HasExtension(".oly") then
+            let syntaxTree = this.Compilation.GetSyntaxTree(this.Path)
+            let unitConfig = syntaxTree.GetCompilationUnitConfiguration(ct)
+            let loads =
+                unitConfig.Loads
+                |> ImArray.map (fun (_, path) ->
+                    if path.IsRooted then
+                        path
+                    else
+                        OlyPath.Combine(OlyPath.GetDirectory(this.Path), path)
+                )
+
+            loads
+            |> ImArray.exists (fun x ->
+                match x.TryGetGlob() with
+                | Some(dir, ext) ->
+                    if documentPath.HasExtension(ext) then
+                        OlyPath.Equals(dir, OlyPath.GetDirectory(documentPath))
+                    else
+                        false
+                | _ ->
+                    OlyPath.Equals(x, documentPath)
+            )
+        else
+            false
+
 [<NoEquality;NoComparison>]
 type ProjectChanged =
     {
@@ -770,23 +797,11 @@ type internal ResourceState =
         version: DateTime
     }
 
+/// TODO: We should not make this public.
 [<Sealed>]
 type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
     static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
-
-    static let deltaComparer =
-        {
-            new IEqualityComparer<KeyValuePair<OlyPath, (int64 * MemoryMappedFile * DateTime)>> with
-                member _.GetHashCode(pair) = pair.Key.GetHashCode()
-                member _.Equals(pair1, pair2) =
-                    if OlyPath.Equals(pair1.Key, pair2.Key) then
-                        match pair1.Value, pair2.Value with
-                        | (length1, mmap1, dt1), (length2, mmap2, dt2) ->
-                            length1 = length2 && obj.ReferenceEquals(mmap1, mmap2) && dt1 = dt2
-                    else
-                        false
-        }
 
     member private this.State = state
 
@@ -1014,6 +1029,7 @@ type WorkspaceMessage =
     | ClearSolution of ct: CancellationToken
 
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
+    | LoadProject of projectPath: OlyPath * ct: CancellationToken
     | FileCreated of filePath: OlyPath
     | FileChanged of filePath: OlyPath
     | FileDeleted of filePath: OlyPath
@@ -1254,11 +1270,26 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     documentsToUpdate.Enqueue(documentPath, ct)
                     events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(documentPath, true))
 
+                | LoadProject(projectPath, ct) ->
+#if DEBUG || CHECKED
+                    OlyTrace.Log($"[Workspace] - LoadProject({projectPath.ToString()})")
+#endif
+                    if projectPath.HasExtension(".olyx") then
+                        documentsToUpdate.Enqueue(projectPath, ct)
+
                 | FileCreated(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileCreated - {filePath.ToString()}")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
-                        currentRs <- currentRs.SetResourceAsCopy(filePath)  
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)
+
+                        let mutable newSolution = solutionRef.contents
+                        newSolution.GetProjects()
+                        |> ImArray.iter (fun proj ->
+                            if proj.CouldHaveDocument(filePath, CancellationToken.None) then
+                                documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
+                        )
+                        solutionRef.contents <- newSolution
                         documentsToUpdate.Enqueue(filePath, CancellationToken.None)
                         events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(filePath))
                     elif filePath.HasExtension(".json") then
@@ -1313,6 +1344,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         currentRs <- currentRs.RemoveResource(oldFilePath)
                             
                     if newFilePath.HasExtension(".oly") || newFilePath.HasExtension(".olyx") then
+                        let mutable newSolution = solutionRef.contents
+                        newSolution.GetProjects()
+                        |> ImArray.iter (fun proj ->
+                            if proj.CouldHaveDocument(newFilePath, CancellationToken.None) then
+                                documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
+                        )
+                        solutionRef.contents <- newSolution
                         documentsToUpdate.Enqueue(newFilePath, CancellationToken.None)
                         events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(newFilePath))
                     elif newFilePath.HasExtension(".json") then
@@ -1331,36 +1369,15 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             (documentPath: OlyPath) 
             ct = backgroundTask {
         let projectsThatWillHaveThisDocument =
+            // REVIEW: Could this be a bottleneck at 500+ projects?
+            //         We have to do this everytime a document has been updated.
             solution.GetProjects()
             |> ImArray.choose (fun proj ->
                 // Document is already part of the project, we are done.
                 if proj.DocumentLookup.ContainsKey(documentPath) then None
-                else
-
-                let syntaxTree = proj.Compilation.GetSyntaxTree(proj.Path)
-                let unitConfig = syntaxTree.GetCompilationUnitConfiguration(ct)
-                let loads =
-                    unitConfig.Loads
-                    |> ImArray.map (fun (_, path) ->
-                        if path.IsRooted then
-                            path
-                        else
-                            OlyPath.Combine(OlyPath.GetDirectory(proj.Path), path)
-                    )
-
-                let exists =
-                    loads
-                    |> ImArray.exists (fun x ->
-                        match x.TryGetGlob() with
-                        | Some(dir, ext) ->
-                            if documentPath.HasExtension(ext) then
-                                OlyPath.Equals(dir, OlyPath.GetDirectory(dir))
-                            else
-                                false
-                        | _ ->
-                            OlyPath.Equals(x, documentPath)
-                    )
-
+                else 
+                
+                let exists = proj.CouldHaveDocument(documentPath, ct)
                 if exists then
                     Some proj
                 else
@@ -1902,7 +1919,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
         }
 
     member this.ClearSolution(ct) =
-        mbp.Post(WorkspaceMessage.ClearSolution(ct))    
+        mbp.Post(WorkspaceMessage.ClearSolution(ct))
+
+    member this.LoadProject(documentPath: OlyPath, ct: CancellationToken): unit =
+        mbp.Post(WorkspaceMessage.LoadProject(documentPath, ct))
 
     member _.FileCreated(filePath: OlyPath) =
         mbp.Post(WorkspaceMessage.FileCreated(filePath))
