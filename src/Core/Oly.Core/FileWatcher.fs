@@ -106,8 +106,8 @@ type DirectoryWatcher() =
                 lock eventGate <| fun () ->
                 let path = OlyPath.Create(args.FullPath)
                 let mutable result = Unchecked.defaultof<_>
-                if files.TryRemove(path, &result) then
-                    fileDeleted.Trigger(args.FullPath)
+                files.TryRemove(path, &result) |> ignore
+                fileDeleted.Trigger(args.FullPath)
         )
         watcher.Renamed.Add(fun args ->
             if not(Directory.Exists(args.FullPath)) then

@@ -1,6 +1,4 @@
 #target "dotnet: net8"
 
-#load "*.oly"
-
 main(): () =
     print("Hello World!")
