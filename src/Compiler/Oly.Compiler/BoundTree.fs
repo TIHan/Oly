@@ -197,6 +197,13 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     | InternalGenerated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
 
+    // We define these dummies to trick the F# compiler to use tags for equality.
+    | __Dummy1
+    | __Dummy2
+    | __Dummy3
+    | __Dummy4
+    | __Dummy5
+
     member this.TryEnvironment =
         match this with
         | InternalUser(_, benv)
@@ -208,6 +215,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | InternalUser(syntax, _) 
         | InternalUserWithName(syntax, _, _, _) -> syntax
         | InternalGenerated(syntaxTree) -> syntaxTree.DummyNode
+        | _ -> invalidOp "invalid syntax info"
 
     member this.SyntaxNameOrDefault =
         match this.TrySyntaxName with
@@ -291,6 +299,7 @@ and [<RequireQualifiedAccess;Struct;NoComparison;NoEquality;DebuggerDisplay("{To
         | BoundSyntaxInfo.InternalGenerated _ -> ValueNone
         | BoundSyntaxInfo.InternalUser(syntax, _)
         | BoundSyntaxInfo.InternalUserWithName(syntax, _, _, _) -> ValueSome(System.Runtime.CompilerServices.Unsafe.As syntax)
+        | _ -> invalidOp "invalid syntax info"
 
     static member Generated(syntaxTree: OlySyntaxTree) =
         { inner = BoundSyntaxInfo.Generated(syntaxTree) }

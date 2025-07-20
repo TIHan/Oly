@@ -14,14 +14,14 @@ type OlyPath private (innerPath: string) =
     member _.IsEmpty = innerPath = ""
 
     /// Does no computation, just simply returns the underlying path as a string.
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
     override _.ToString() = innerPath
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
     override _.GetHashCode() = innerPath.GetHashCode()
 
-    override this.Equals(o) =
-        match o with
-        | :? OlyPath as o -> OlyPath.Equals(this, o)
-        | _ -> false
+    [<Obsolete("This is slow, do not call this.", true)>]
+    override this.Equals(_) = invalidOp $"Cannot call '{nameof(Object.Equals)}' on '{nameof(OlyPath)}' as it is not optimal."
 
     /// Not case sensitive.
     member this.StartsWith(str: string) =
@@ -128,6 +128,11 @@ type OlyPath private (innerPath: string) =
         else
             OlyPath.Create(Environment.CurrentDirectory).Join(this)
 
+    interface IEquatable<OlyPath> with
+        [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
+        member _.Equals (other: OlyPath): bool = 
+            innerPath.Equals(other.ToString(), StringComparison.OrdinalIgnoreCase)
+
     static member private NormalizeDirectory(dir: string) =
         if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
             if String.IsNullOrWhiteSpace dir then
@@ -170,11 +175,9 @@ type OlyPath private (innerPath: string) =
         let newPath = Path.Combine(dir, path)
         OlyPath.Normalize(newPath)
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
     static member Equals(path1: OlyPath, path2: OlyPath) =
-        path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
-
-    //static member (==)(path1: OlyPath, path2: OlyPath) =
-    //    path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
+        path1 = path2
 
     static member Create(path: string) : OlyPath =
         OlyPath.Normalize(path)
@@ -191,6 +194,8 @@ type OlyPathEqualityComparer private () =
     
     interface System.Collections.Generic.IEqualityComparer<OlyPath> with
 
-        member this.GetHashCode(path) = path.ToString().GetHashCode()
+        [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
+        member this.GetHashCode(path) = path.GetHashCode()
 
-        member this.Equals(path1, path2) = OlyPath.Equals(path1, path2)
+        [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
+        member this.Equals(path1, path2) = path1 = path2

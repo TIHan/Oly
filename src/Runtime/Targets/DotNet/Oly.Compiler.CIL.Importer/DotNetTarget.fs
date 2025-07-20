@@ -179,8 +179,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
     let referenceChanged = Event<OlyPath>()
 
+    let directoryWatcherEquality =
+        { new IEqualityComparer<OlyPath * string> with
+            member _.GetHashCode (obj: OlyPath * string): int = 
+               (fst obj).GetHashCode()
+            member _.Equals ((path1, filter1): OlyPath * string, (path2, filter2): OlyPath * string): bool = 
+                path1 = path2 && filter1 = filter2
+        }
+
     let dirGate = obj()
-    let directoryWatchers = ConcurrentDictionary<OlyPath * string, FileSystemWatcher>()
+    let directoryWatchers = ConcurrentDictionary<OlyPath * string, FileSystemWatcher>(directoryWatcherEquality)
     let addDirectoryWatcher (dir: OlyPath) (filter: string) =
         // fast route
         match directoryWatchers.TryGetValue((dir, filter)) with

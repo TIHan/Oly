@@ -505,11 +505,11 @@ module OlySyntaxTreeExtensions =
             | _ -> false
 
         member this.IsDummy: bool =
-            if obj.ReferenceEquals(this.Tree.DummyNode, this) then true
+            if this.InternalNode.Tag = Tags.Token then
+                let mutable node = this.InternalNode
+                System.Runtime.CompilerServices.Unsafe.As<_, SyntaxToken>(&node).IsDummy
             else
-                match this.InternalNode with
-                | :? SyntaxToken as token -> token.IsDummy
-                | _ -> false
+                false
 
         member this.IsParenthesisExpression =
             match this.InternalNode with
