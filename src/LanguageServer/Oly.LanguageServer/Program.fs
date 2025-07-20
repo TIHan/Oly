@@ -881,7 +881,7 @@ module ExtensionHelpers =
             |]
 
     let tryGetActiveProject (workspace: OlyWorkspace) ct = backgroundTask {
-        let settingsPath = OlyPath.Combine(workspace.WorkspaceStateDirectory, "settings.json")
+        let settingsPath = workspace.WorkspaceStateDirectory.Join("settings.json")
         try
             let jsonOptions = Json.JsonSerializerOptions()
             jsonOptions.PropertyNameCaseInsensitive <- true
@@ -1573,9 +1573,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         let uri =
                             match relativePath.TryGetGlob() with
                             | Some(dirPath, _) ->
-                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, dirPath).ToString())
+                                Protocol.DocumentUri.From(doc.Project.Path.Join(dirPath).ToString())
                             | _ ->
-                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, relativePath).ToString())
+                                Protocol.DocumentUri.From(doc.Project.Path.Join(relativePath).ToString())
                         let range = doc.SyntaxTree.GetSourceText(ct).GetTextRange(textSpan).ToLspRange()
                         builder.Add(DocumentLink(Range = range, Target = uri))
 
@@ -1654,9 +1654,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         let uri =
                             match relativePath.TryGetGlob() with
                             | Some(dirPath, _) ->
-                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, dirPath).ToString())
+                                Protocol.DocumentUri.From(doc.Project.Path.Join(dirPath).ToString())
                             | _ ->
-                                Protocol.DocumentUri.From(OlyPath.Combine(doc.Project.Path, relativePath).ToString())
+                                Protocol.DocumentUri.From(doc.Project.Path.Join(relativePath).ToString())
                         let location = Location(Range = Range(0, 0, 0, 0), Uri = uri)
                         return LocationOrLocationLinks.From([|LocationOrLocationLink(location)|])
                     | _ ->

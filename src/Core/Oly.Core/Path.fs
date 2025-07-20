@@ -59,6 +59,14 @@ type OlyPath private (innerPath: string) =
     member _.GetRelative(relativeTo: OlyPath) =
         OlyPath.Create(Path.GetRelativePath(relativeTo.ToString(), innerPath))
 
+    member _.Join(path: string) =
+        OlyPath.NormalizeCombine(innerPath, path)
+        |> OlyPath
+
+    member _.Join(path: OlyPath) =
+        OlyPath.NormalizeCombine(innerPath, path.ToString())
+        |> OlyPath
+
     member this.IsDirectory =
         innerPath.EndsWith('/')
 
@@ -118,7 +126,7 @@ type OlyPath private (innerPath: string) =
         if Path.IsPathRooted(this.ToString()) then
             this
         else
-            OlyPath.Combine(OlyPath.Create(Environment.CurrentDirectory), this)
+            OlyPath.Create(Environment.CurrentDirectory).Join(this)
 
     static member private NormalizeDirectory(dir: string) =
         if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
@@ -165,13 +173,8 @@ type OlyPath private (innerPath: string) =
     static member Equals(path1: OlyPath, path2: OlyPath) =
         path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
 
-    static member Combine(path1: OlyPath, path2: string) =
-        OlyPath.NormalizeCombine(path1.ToString(), path2)
-        |> OlyPath
-
-    static member Combine(path1: OlyPath, path2: OlyPath) =
-        OlyPath.NormalizeCombine(path1.ToString(), path2.ToString())
-        |> OlyPath
+    //static member (==)(path1: OlyPath, path2: OlyPath) =
+    //    path1.ToString().Equals(path2.ToString(), StringComparison.OrdinalIgnoreCase)
 
     static member Create(path: string) : OlyPath =
         OlyPath.Normalize(path)

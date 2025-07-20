@@ -27,13 +27,13 @@ let private createWorkspace (target: OlyBuild) isDebug =
     let rs = rs.SetResourceAsCopy(configPath, configMs)
 
     // Set up prelude
-    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, "prelude.oly"))
-    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"numerics_{target.PlatformName}.oly"))
-    let rs = rs.SetResourceAsCopy(OlyPath.Combine(preludeDir, $"prelude_{target.PlatformName}.olyx"))
+    let rs = rs.SetResourceAsCopy(preludeDir.Join("prelude.oly"))
+    let rs = rs.SetResourceAsCopy(preludeDir.Join($"numerics_{target.PlatformName}.oly"))
+    let rs = rs.SetResourceAsCopy(preludeDir.Join($"prelude_{target.PlatformName}.olyx"))
 
     let workspace = OlyWorkspace.Create(([target]: OlyBuild seq), OlyPath.Empty, rs)
     let projectName = Guid.NewGuid().ToString()
-    let documentPath = OlyPath.Combine(preludeDir, $"{projectName}.olyx")
+    let documentPath = preludeDir.Join($"{projectName}.olyx")
 
     (workspace, documentPath)
 

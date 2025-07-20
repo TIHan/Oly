@@ -24,9 +24,9 @@ module Oly =
         OlyWorkspace.Create(targets, rootPath, rs)
 
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
-        let projectPath = OlyPath.Combine(OlyPath.Create(System.Environment.CurrentDirectory), projectPath)
+        let projectPath = OlyPath.Create(System.Environment.CurrentDirectory).Join(projectPath)
         let rootPath = projectPath.GetDirectory()
-        let activeConfigPath = OlyPath.Combine(rootPath, ".olyworkspace/state.json")
+        let activeConfigPath = rootPath.Join(".olyworkspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
         let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
         let workspace = createWorkspace(rootPath, rs)
@@ -55,11 +55,11 @@ module Oly =
                     if refPath.IsRooted then
                         Clean(refPath.GetDirectory().ToString())
                     else
-                        Clean(OlyPath.Combine(projDir, refPath).GetDirectory().ToString())
+                        Clean(projDir.Join(refPath).GetDirectory().ToString())
             )
 
-            try Directory.Delete(OlyPath.Combine(projDir, cacheDirectoryName).ToString(), true) with | _ -> ()
-            try Directory.Delete(OlyPath.Combine(projDir, binDirectoryName).ToString(), true) with | _ -> ()
+            try Directory.Delete(projDir.Join(cacheDirectoryName).ToString(), true) with | _ -> ()
+            try Directory.Delete(projDir.Join(binDirectoryName).ToString(), true) with | _ -> ()
 
             OlyTrace.Log($"[Compilation] - Cleaned '{projName}'")
         )

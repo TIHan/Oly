@@ -107,7 +107,7 @@ type OlyBuild(platformName: string) =
         if projectPath.IsFile then
             let fileName = projectPath.GetFileNameWithoutExtension()
             let dir = projectPath.GetDirectory()
-            OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            dir.Join(OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
 
@@ -115,7 +115,7 @@ type OlyBuild(platformName: string) =
         if projectPath.IsFile then
             let fileName = projectPath.GetFileNameWithoutExtension()
             let dir = projectPath.GetDirectory()
-            OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            dir.Join(OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
 
@@ -425,7 +425,7 @@ type OlyProject (
                     if path.IsRooted then
                         path
                     else
-                        OlyPath.Combine(this.Path.GetDirectory(), path)
+                        this.Path.GetDirectory().Join(path)
                 )
 
             loads
@@ -540,7 +540,7 @@ module WorkspaceHelpers =
         |> ImArray.map (fun (textSpan, referencePath) ->
             let dir = syntaxTree.Path.GetDirectory()
             let newReferencePath =
-                OlyPath.Combine(dir, referencePath.ToString())
+                dir.Join(referencePath.ToString())
             (textSpan, newReferencePath)
         )
     
@@ -1050,12 +1050,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     [<Literal>]
     static let WorkspaceStateFileNameLiteral = "state.json"
 
-    static let getStortedPaths (rs: OlyWorkspaceResourceSnapshot) absoluteDir (paths: (OlyTextSpan * OlyPath) seq) =
+    static let getStortedPaths (rs: OlyWorkspaceResourceSnapshot) (absoluteDir: OlyPath) (paths: (OlyTextSpan * OlyPath) seq) =
         paths
         |> Seq.map (fun (textSpan, path) ->
             match path.TryGetGlob() with
             | Some(dir, ext) ->
-                let dir = OlyPath.Combine(absoluteDir, dir.ToString())
+                let dir = absoluteDir.Join(dir.ToString())
                 rs.FindSubPaths(dir)
                 |> ImArray.choose (fun path ->
                     if path.ToString().EndsWith(ext, StringComparison.OrdinalIgnoreCase) then
@@ -1481,7 +1481,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
             let chooseReference textSpan (path: OlyPath) =
                 backgroundTask {
-                    let path = OlyPath.Combine(absoluteDir, path.ToString())
+                    let path = absoluteDir.Join(path.ToString())
                     if targetPlatform.CanImportReference path then
                         match! targetPlatform.ImportReferenceAsync(projPath, targetInfo, path, ct) with
                         | Ok r -> 
@@ -1511,7 +1511,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             let referenceInfos = 
                 getSortedReferencesFromConfig rs absoluteDir config
                 |> ImArray.map (fun (textSpan, path) ->
-                    OlyReferenceInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
+                    OlyReferenceInfo(absoluteDir.Join(path.ToString()), textSpan)
                 )
 
             let packageInfos =
@@ -1523,7 +1523,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             let copyFileInfos =
                 config.CopyFiles
                 |> ImArray.map (fun (textSpan, path) ->
-                    OlyCopyFileInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
+                    OlyCopyFileInfo(absoluteDir.Join(path.ToString()), textSpan)
                 )
 
             let olyxReferenceInfos =
@@ -1531,7 +1531,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
 
             let olyxReferenceInfos =
-                let preludeProjectPath = OlyPath.Combine(state.preludeDirectory, $"prelude_{platformName}.olyx")
+                let preludeProjectPath = state.preludeDirectory.Join($"prelude_{platformName}.olyx")
                 if OlyPath.Equals(projPath, preludeProjectPath) then
                     olyxReferenceInfos
                 else
@@ -1557,7 +1557,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                             let (syntaxTree: OlySyntaxTree), _ = OlyWorkspace.ParseProject(rs, absolutePath, rs.GetSourceText(absolutePath))
                             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
                             let absoluteDir = absolutePath.GetDirectory()
-                            let count = config.References.Length + (config.References |> ImArray.sumBy (fun (_, x) -> getProjectReferenceCount (OlyPath.Combine(absoluteDir, x))))
+                            let count = config.References.Length + (config.References |> ImArray.sumBy (fun (_, x) -> getProjectReferenceCount (absoluteDir.Join(x))))
                             visited.Add(absolutePath, count)
                             count
                         else
@@ -1685,7 +1685,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", OlySourceLocation.Create(textSpan, syntaxTree)))
                         solution
                     else
-                        let path = OlyPath.Combine(absoluteDir, path.ToString())
+                        let path = absoluteDir.Join(path.ToString())
                         if OlyPath.Equals(filePath, path) then
                             solution
                         else
@@ -1927,7 +1927,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     member _.FileRenamed(oldFilePath: OlyPath, newFilePath: OlyPath) =
         mbp.Post(WorkspaceMessage.FileRenamed(oldFilePath, newFilePath))
 
-    static member CreateCore(targetPlatforms: OlyBuild seq, progress, initialRs, workspaceDirectory) =
+    static member CreateCore(targetPlatforms: OlyBuild seq, progress, initialRs, workspaceDirectory: OlyPath) =
         let targetPlatforms =
             targetPlatforms
             |> ImArray.ofSeq
@@ -1951,8 +1951,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             else
                 OlyPath.Create(preludeDirName + "/")
 
-        let workspaceStateDirectory = OlyPath.Combine(workspaceDirectory, WorkspaceStateDirectoryLiteral)
-        let workspaceStateFileName = OlyPath.Combine(workspaceStateDirectory, WorkspaceStateFileNameLiteral)
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
 
         let workspace =
             OlyWorkspace({
@@ -1994,11 +1994,11 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
         OlyWorkspace.CreateCore(targets, progress, initialRs, workspaceDirectory)
 
     static member Create(targets, workspaceDirectory: OlyPath) =
-        let workspaceStateDirectory = OlyPath.Combine(workspaceDirectory, WorkspaceStateDirectoryLiteral)
-        let workspaceStateFileName = OlyPath.Combine(workspaceStateDirectory, WorkspaceStateFileNameLiteral)
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
         OlyWorkspace.Create(targets, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceStateFileName))
 
     static member Create(targets, progress, workspaceDirectory: OlyPath) =
-        let workspaceStateDirectory = OlyPath.Combine(workspaceDirectory, WorkspaceStateDirectoryLiteral)
-        let workspaceStateFileName = OlyPath.Combine(workspaceStateDirectory, WorkspaceStateFileNameLiteral)
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
         OlyWorkspace.Create(targets, progress, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceStateFileName))

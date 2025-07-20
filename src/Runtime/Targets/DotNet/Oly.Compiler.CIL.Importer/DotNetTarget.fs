@@ -71,7 +71,7 @@ module private DotNet =
             dotnetPackages 
             (ct: CancellationToken) =
         backgroundTask {
-            let cachedBuildInfoJson = OlyPath.Combine(cacheDir, $"__oly_cached_build_info.json")
+            let cachedBuildInfoJson = cacheDir.Join($"__oly_cached_build_info.json")
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
