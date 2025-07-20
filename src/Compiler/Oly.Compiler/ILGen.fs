@@ -466,14 +466,24 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyAssert.Fail("Unable to code-gen an eager inference variable type.")
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
-        if innerTy.IsBuiltIn then
-            raise(System.NotSupportedException("For all types are not supported in IL."))
-        else
-            let ent = innerTy.TryEntity.Value
+        let innerTy =
+            if canStripBuiltIn then
+                stripTypeEquationsAndBuiltIn innerTy
+            else
+                innerTy
+        match innerTy with
+        | TypeSymbol.ByRef _ ->
+            OlyILTypeForAll(
+                emitILTypeParameters cenv env tyPars,
+                emitILType cenv env innerTy
+            )
+        | TypeSymbol.Entity(ent) ->
             OlyILTypeForAll(
                 emitILTypeParameters cenv env tyPars,
                 OlyILTypeEntity(GenEntityAsILEntityInstance cenv env ent)
             )
+        | _ ->
+            raise(System.NotSupportedException("These kinds of ForAll types are not supported in IL."))
 
     | TypeSymbol.Error _ ->
         failwithf "Unable to code-gen an error type. Current context: %A" env.context

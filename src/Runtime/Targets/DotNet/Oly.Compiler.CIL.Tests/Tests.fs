@@ -20795,6 +20795,34 @@ let ``Higher-kind with byref types``() =
 #[intrinsic("int32")]
 alias int32
 
+#[intrinsic("address_of")]
+(&)<T>(T): __oly_by_ref_read_only<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): __oly_by_ref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
+    ()
+
+main(): () =
+    M<_, int32>((_, x: __oly_by_ref_read_only<int32>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with byref types 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
 #[intrinsic("by_ref")]
 alias byref<T>
 
@@ -20816,6 +20844,31 @@ M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scop
 
 main(): () =
     M<_, int32>((_, x: inref<int32>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with tuple type``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
+    ()
+
+main(): () =
+    M<_, (int32, float32)>((x: __oly_tuple<(int32, float32)>) -> ())
     print("hello")
         """
     Oly src

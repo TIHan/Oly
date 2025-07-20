@@ -183,8 +183,8 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         | ty ->
             printTypeAux benv isDefinition isTyCtor ty
 
-and private printIntrinsicType benv isDefinition isInner ty =
-    match benv.TryFindAliasTypeByIntrinsicType(ty) with
+and private printIntrinsicType benv isDefinition isInner (ty: TypeSymbol) =
+    match benv.TryFindAliasTypeByIntrinsicType(ty.Formal) with
     | ValueSome aliasTy -> printTypeAux benv isDefinition isInner (applyType aliasTy ty.TypeArguments)
     | _ -> 
         match ty with

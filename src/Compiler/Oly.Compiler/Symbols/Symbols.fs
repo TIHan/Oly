@@ -439,12 +439,28 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
         OlyAssert.False(innerTy.IsFormal)
 
-        let tyArgs =
-            (tyArgs, tyPars)
-            ||> ImArray.map2 (fun tyArg tyPar ->
-                mkSolvedInferenceVariableType tyPar tyArg
-            )
-        substituteType tyArgs innerTy
+        match stripTypeEquations innerTy with
+        | TypeSymbol.Tuple _ ->
+            OlyAssert.True(tyArgs.Length > 0)
+
+            if tyArgs.Length = 1 then
+                match stripTypeEquationsAndBuiltIn tyArgs[0] with
+                | TypeSymbol.Unit ->
+                    OlyAssert.Fail("'applyType' tuple with single type argument of 'Unit'")
+                | TypeSymbol.Variable(tyPar)
+                | TypeSymbol.HigherVariable(tyPar, _) when tyPar.IsVariadic ->
+                    TypeSymbol.Tuple(ImArray.createOne tyPar.AsType, ImArray.empty)
+                | _ ->
+                    tyArgs[0]
+            else
+                TypeSymbol.CreateTuple(tyArgs)
+        | _ ->
+            let tyArgs =
+                (tyArgs, tyPars)
+                ||> ImArray.map2 (fun tyArg tyPar ->
+                    mkSolvedInferenceVariableType tyPar tyArg
+                )
+            substituteType tyArgs innerTy
 
     | TypeSymbol.Entity(ent) -> 
         OlyAssert.True(ent.IsTypeConstructor)
@@ -456,11 +472,6 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false, false))
 
-    | TypeSymbol.ByRef(_, kind) ->
-        if tyArgs.Length <> 1 then
-            failwith "Expected only one type instantiation."
-        TypeSymbol.CreateByRef(tyArgs.[0], kind)
-
     | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
         TypeSymbol.Function(tyArgs[0], tyArgs[1], kind)
@@ -471,21 +482,6 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     | TypeSymbol.NativePtr _ ->
         TypeSymbol.NativePtr(tyArgs[0])
-
-    | TypeSymbol.Tuple _ ->
-        OlyAssert.True(tyArgs.Length > 0)
-
-        if tyArgs.Length = 1 then
-            match stripTypeEquationsAndBuiltIn tyArgs[0] with
-            | TypeSymbol.Unit ->
-                OlyAssert.Fail("'applyType' tuple with single type argument of 'Unit'")
-            | TypeSymbol.Variable(tyPar)
-            | TypeSymbol.HigherVariable(tyPar, _) when tyPar.IsVariadic ->
-                TypeSymbol.Tuple(ImArray.createOne tyPar.AsType, ImArray.empty)
-            | _ ->
-                tyArgs[0]
-        else
-            TypeSymbol.CreateTuple(tyArgs)
 
     | TypeSymbol.Array(_, rank, kind) ->
         TypeSymbol.Array(tyArgs[0], rank, kind)
@@ -3442,7 +3438,10 @@ let private FormalTupleTypeParameters: TypeParameterSymbol imarray =
     ImArray.createOne tyPar
 
 let private FormalTupleType =
-    TypeSymbol.Tuple(ImArray.createOne FormalTupleTypeParameters[0].AsType, ImArray.empty)
+    TypeSymbol.ForAll(
+        FormalTupleTypeParameters, 
+        TypeSymbol.Tuple(ImArray.createOne FormalTupleTypeParameters[0].AsType, ImArray.empty)
+    )
 
 let private FormalDependentIndexerTypeParameters =
     let inputValueTyPar = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
@@ -3453,9 +3452,9 @@ let private FormalDependentIndexerType =
     TypeSymbol.DependentIndexer(FormalDependentIndexerTypeParameters[0].AsType, FormalDependentIndexerTypeParameters[1].AsType)
 
 let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
-let private FormalReadWriteByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite)
-let private FormalReadOnlyByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadOnly)
-let private FormalWriteOnlyByRef = TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.WriteOnly)
+let private FormalReadWriteByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite))
+let private FormalReadOnlyByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadOnly))
+let private FormalWriteOnlyByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.WriteOnly))
 
 let TypeSymbolError =
     TypeSymbol.Error(None, None)
