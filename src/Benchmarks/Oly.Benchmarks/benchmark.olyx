@@ -1,6 +1,0 @@
-#target "dotnet: net8"
-
-#reference "../../../../../../../../managed/AssetManager/AssetManager.olyx"
-
-main(): () =
-	()

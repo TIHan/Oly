@@ -19,43 +19,18 @@ open Oly.Runtime.CodeGen
 [<MemoryDiagnoser>]
 type DotNetCompile() =
 
-    let benchmarkPath = OlyPath.Create("benchmark.olyx")
-    let workspace = OlyWorkspace.Create([DotNetTarget(true)])
-    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
-    let rs = rs.SetResourceAsCopy(benchmarkPath, new MemoryStream(File.ReadAllBytes(benchmarkPath.ToString())))
-    do
-        workspace.UpdateDocument(rs, benchmarkPath, OlySourceText.FromFile(benchmarkPath.ToString()), System.Threading.CancellationToken.None)
-
-    let text =
-        OlySourceText.FromFile("""..\..\..\..\..\..\..\..\..\..\..\Evergreen\src\managed\Database\EntityDatabase.oly""")
-
-    let test (text: IOlySourceText) =
-        let root = OlySyntaxTree.Parse(OlyPath.Create("benchmark"), text).GetRoot(Unchecked.defaultof<_>)
-        if root.Tree.GetDiagnostics(System.Threading.CancellationToken.None).IsEmpty |> not then
-            failwith "Errors"
-        let rec loop (node: OlySyntaxNode) =
-            node.Children
-            |> ImArray.iter loop
-        loop root
-        root.FullTextSpan
-        |> ignore
-
     [<GlobalSetup>]
-    member _.Setup() = ()
+    member _.Setup() = 
+        ()
 
     [<Benchmark>]
     member _.Benchmark() =
-        test text
-        //let task = workspace.BuildProjectAsync(benchmarkPath, System.Threading.CancellationToken.None)
-        //let result = task.Result
-        //match result with
-        //| Ok _ -> ()
-        //| Error(diags) -> failwithf "Errors %A" diags
-        //for _ = 1 to 10 do
-        //    test vulkanText
+        // TODO: Actually implement a good benchmark.
+        ()
 
     [<IterationCleanup>]
-    member _.Cleanup() = ()
+    member _.Cleanup() = 
+        ()
 
 module Program =
 

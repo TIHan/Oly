@@ -5,18 +5,18 @@ open System.IO
 
 /// A self-normalizing path for files and directories.
 [<Struct;CustomEquality;NoComparison>]
-type OlyPath private (path: string) =
+type OlyPath private (innerPath: string) =
 
     static let empty = OlyPath("")
 
     static member Empty = empty
 
-    member _.IsEmpty = path = ""
+    member _.IsEmpty = innerPath = ""
 
     /// Does no computation, just simply returns the underlying path as a string.
-    override _.ToString() = path
+    override _.ToString() = innerPath
 
-    override _.GetHashCode() = path.GetHashCode()
+    override _.GetHashCode() = innerPath.GetHashCode()
 
     override this.Equals(o) =
         match o with
@@ -25,22 +25,42 @@ type OlyPath private (path: string) =
 
     /// Not case sensitive.
     member this.StartsWith(str: string) =
-        path.StartsWith(str, StringComparison.OrdinalIgnoreCase)
+        innerPath.StartsWith(str, StringComparison.OrdinalIgnoreCase)
 
     /// Not case sensitive.
     member this.StartsWith(path2: OlyPath) =
-        path.StartsWith(path2.ToString(), StringComparison.OrdinalIgnoreCase)
+        innerPath.StartsWith(path2.ToString(), StringComparison.OrdinalIgnoreCase)
 
     /// Not case sensitive.
     member this.EndsWith(str: string) =
-        path.EndsWith(str, StringComparison.OrdinalIgnoreCase)
+        innerPath.EndsWith(str, StringComparison.OrdinalIgnoreCase)
 
     /// Not case sensitive.
     member this.HasExtension(ext: string) =
-        Path.GetExtension(path).Equals(ext, StringComparison.OrdinalIgnoreCase)
+        Path.GetExtension(innerPath).Equals(ext, StringComparison.OrdinalIgnoreCase)
+
+    member _.GetExtension() =
+        Path.GetExtension(innerPath)
+
+    member _.GetFileNameWithoutExtension() =
+        Path.GetFileNameWithoutExtension(innerPath)
+
+    member _.GetFileName() =
+        Path.GetFileName(innerPath)
+
+    member _.ChangeExtension(ext: string) =
+        Path.ChangeExtension(innerPath, ext)
+        |> OlyPath.Create
+
+    member _.GetDirectory() =
+        (Path.GetDirectoryName(innerPath) + "/")
+        |> OlyPath.Create
+
+    member _.GetRelative(relativeTo: OlyPath) =
+        OlyPath.Create(Path.GetRelativePath(relativeTo.ToString(), innerPath))
 
     member this.IsDirectory =
-        path.EndsWith('/')
+        innerPath.EndsWith('/')
 
     member this.IsFile =
         not this.IsDirectory
@@ -50,10 +70,10 @@ type OlyPath private (path: string) =
     member this.TryGetGlob() =
         if this.IsDirectory then
             None
-        elif path.Contains("*.") then
-            let index = path.IndexOf("*")
-            let dir = path.Substring(0, index)
-            let ext = path.Substring(index + 1)
+        elif innerPath.Contains("*.") then
+            let index = innerPath.IndexOf("*")
+            let dir = innerPath.Substring(0, index)
+            let ext = innerPath.Substring(index + 1)
             Some(OlyPath.Create(dir), ext)
         else
             None
@@ -91,8 +111,8 @@ type OlyPath private (path: string) =
 
     member this.ToDirectoryInfo() =
         if this.IsFile then
-            failwith $"'{path}' is not a directory."
-        DirectoryInfo(path)
+            failwith $"'{innerPath}' is not a directory."
+        DirectoryInfo(innerPath)
 
     member this.ToAbsolute() =
         if Path.IsPathRooted(this.ToString()) then
@@ -141,9 +161,6 @@ type OlyPath private (path: string) =
                 (OlyPath.Create rootPath).ToString()
         let newPath = Path.Combine(dir, path)
         OlyPath.Normalize(newPath)
-
-    static member HasExtension(path: OlyPath) =
-        Path.HasExtension(path.ToString())
 
     static member GetExtension(path: OlyPath) =
         Path.GetExtension(path.ToString())

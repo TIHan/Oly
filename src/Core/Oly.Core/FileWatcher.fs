@@ -39,7 +39,6 @@ type DirectoryWatcher() =
     let dirFilesWatchers = ConcurrentDictionary<DirectoryFileKey, FileSystemWatcher * ConcurrentDictionary<OlyPath, DateTime>>()
 
     let dirWatcherGate = obj()
-    let eventGate = obj()
 
     let updateLastWriteTime filePath (files: ConcurrentDictionary<OlyPath, DateTime>) =
         try
@@ -88,7 +87,6 @@ type DirectoryWatcher() =
         let watcher = new FileSystemWatcher(dir, filter)
         watcher.Changed.Add(fun args -> 
             if not(Directory.Exists(args.FullPath)) then
-                lock eventGate <| fun () ->
                 if (args.ChangeType = WatcherChangeTypes.Changed) then
                     let path = OlyPath.Create(args.FullPath)
                     if updateLastWriteTime path files then
@@ -96,14 +94,12 @@ type DirectoryWatcher() =
         )
         watcher.Created.Add(fun args ->
             if not(Directory.Exists(args.FullPath)) then
-                lock eventGate <| fun () ->
                 let path = OlyPath.Create(args.FullPath)
                 if updateLastWriteTime path files then
                     fileCreated.Trigger(path.ToString())
         )
         watcher.Deleted.Add(fun args ->
             if not(Directory.Exists(args.FullPath)) then
-                lock eventGate <| fun () ->
                 let path = OlyPath.Create(args.FullPath)
                 let mutable result = Unchecked.defaultof<_>
                 files.TryRemove(path, &result) |> ignore
@@ -111,7 +107,6 @@ type DirectoryWatcher() =
         )
         watcher.Renamed.Add(fun args ->
             if not(Directory.Exists(args.FullPath)) then
-                lock eventGate <| fun () ->
                 let oldPath = OlyPath.Create(args.OldFullPath)
                 let path = OlyPath.Create(args.FullPath)
                 if updateLastWriteTime (OlyPath.Create(args.OldFullPath)) files || updateLastWriteTime (OlyPath.Create(args.FullPath)) files then
