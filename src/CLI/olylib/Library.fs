@@ -25,7 +25,7 @@ module Oly =
 
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
         let projectPath = OlyPath.Combine(OlyPath.Create(System.Environment.CurrentDirectory), projectPath)
-        let rootPath = OlyPath.GetDirectory(projectPath)
+        let rootPath = projectPath.GetDirectory()
         let activeConfigPath = OlyPath.Combine(rootPath, ".olyworkspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
         let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
@@ -46,16 +46,16 @@ module Oly =
             let syntaxTree = OlySyntaxTree.Parse(projPath, OlySourceText.FromFile(projPath), OlyParsingOptions.Default)
             let config = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
 
-            let projDir = OlyPath.GetDirectory(projPath)
-            let projName = OlyPath.GetFileNameWithoutExtension(projPath)
+            let projDir = projPath.GetDirectory()
+            let projName = projPath.GetFileNameWithoutExtension()
 
             config.References
             |> ImArray.iter (fun (_, refPath) ->
                 if refPath.EndsWith(".olyx") then
                     if refPath.IsRooted then
-                        Clean(OlyPath.GetDirectory(refPath).ToString())
+                        Clean(refPath.GetDirectory().ToString())
                     else
-                        Clean(OlyPath.GetDirectory(OlyPath.Combine(projDir, refPath)).ToString())
+                        Clean(OlyPath.Combine(projDir, refPath).GetDirectory().ToString())
             )
 
             try Directory.Delete(OlyPath.Combine(projDir, cacheDirectoryName).ToString(), true) with | _ -> ()

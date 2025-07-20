@@ -13,14 +13,14 @@ let build isDebug src =
     buildWith (SpirvTarget()) isDebug src
 
 let shouldRunFragment (program: OlyProgram) =
-    let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
+    let fs = System.IO.File.OpenRead(program.Path.ChangeExtension(".spv").ToString())
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
     fragment(sm)
 
 let shouldRunVertex (program: OlyProgram) =
-    let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
+    let fs = System.IO.File.OpenRead(program.Path.ChangeExtension(".spv").ToString())
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())
@@ -41,7 +41,7 @@ let shouldRunVertex (program: OlyProgram) =
 //    draw_quad(sm, glsl_to_fragment(defaultFragmentCode))
 
 let shouldRunCompute input (program: OlyProgram) =
-    let fs = System.IO.File.OpenRead(OlyPath.ChangeExtension(program.Path, ".spv").ToString())
+    let fs = System.IO.File.OpenRead(program.Path.ChangeExtension(".spv").ToString())
     let sm = Spirv.SpirvModule.SpirvModule.Deserialize(fs)
     fs.Dispose()
     System.IO.File.Delete(program.Path.ToString())

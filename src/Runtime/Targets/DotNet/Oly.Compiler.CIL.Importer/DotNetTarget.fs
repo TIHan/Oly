@@ -261,7 +261,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
     override _.CanImportReference path = 
         let isValid =
-            let ext = OlyPath.GetExtension(path)
+            let ext = path.GetExtension()
             ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
             ext.Equals(".cs", StringComparison.OrdinalIgnoreCase) ||
             ext.EndsWith("proj", StringComparison.OrdinalIgnoreCase)
@@ -278,14 +278,14 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             let netInfo = netInfos[projPath]
             try
                 let pathStr = path.ToString()
-                let dir = OlyPath.GetDirectory(path)
+                let dir = path.GetDirectory()
                 let name = this.GetReferenceAssemblyName(path)
                 let ext = Path.GetExtension(pathStr).ToLower()
 
                 let isTransitive =
                     // This is ok to check because, at this point, 'netInfo' only has framework references.
                     // We do not want to make the framework references transitive for dotnet.
-                    not(netInfo.ReferenceNames.Contains(OlyPath.GetFileName(path)))
+                    not(netInfo.ReferenceNames.Contains(path.GetFileName()))
 
                 match assemblyCache.TryGetValue(path) with
                 | true, (path, version, ilAsm, _) -> 
@@ -358,7 +358,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
-                let! netInfo = DotNet.getBuildInfo (OlyPath.GetFileNameWithoutExtension(projPath)) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
+                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -527,7 +527,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             proj.CopyFileInfos
             |> ImArray.iter (fun info ->
                 let file = FileInfo(info.Path.ToString())
-                let destFile = FileInfo(Path.Combine(outputPath, OlyPath.GetFileName(info.Path)))
+                let destFile = FileInfo(Path.Combine(outputPath, info.Path.GetFileName()))
 
                 if destFile.Exists then
                     if file.LastWriteTimeUtc <> destFile.LastWriteTimeUtc then
@@ -571,7 +571,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 pdbFile.Close()
                 copyFiles()
 
-                let projectName = OlyPath.GetFileNameWithoutExtension(proj.Path)
+                let projectName = proj.Path.GetFileNameWithoutExtension()
 
                 let entryPoint = (runtime : Oly.Runtime.CodeGen.IOlyVirtualMachine<_, _, _>).TryGetEntryPoint().Value
 

@@ -173,10 +173,10 @@ type MSBuild() =
 
                     let equality = 
                         { new System.Collections.Generic.IEqualityComparer<OlyPath> with
-                            member _.GetHashCode o = OlyPath.GetFileName(o).ToString().GetHashCode()
+                            member _.GetHashCode o = o.GetFileName().GetHashCode()
                                 
                             member _.Equals(x, y) =
-                                x.EndsWith(OlyPath.GetFileName(y).ToString())
+                                x.EndsWith(y.GetFileName().ToString())
                         }
                     let hashRefs = System.Collections.Generic.HashSet<OlyPath>(equality)
 
@@ -184,10 +184,10 @@ type MSBuild() =
                         refs
                         |> Seq.map (fun x -> 
                             hashRefs.Add(x) |> ignore
-                            hashRefs.Add(OlyPath.ChangeExtension(x, ".pdb")) |> ignore
-                            hashRefs.Add(OlyPath.ChangeExtension(x, ".xml")) |> ignore
-                            hashRefs.Add(OlyPath.ChangeExtension(x, ".deps.json")) |> ignore
-                            OlyPath.GetFileName(x)
+                            hashRefs.Add(x.ChangeExtension(".pdb")) |> ignore
+                            hashRefs.Add(x.ChangeExtension(".xml")) |> ignore
+                            hashRefs.Add(x.ChangeExtension(".deps.json")) |> ignore
+                            x.GetFileName()
                         )
                         |> ImmutableHashSet.CreateRange
 

@@ -521,7 +521,7 @@ module private CompilationPhases =
                 ImArray.map f
 
         let outputTree (tree: BoundTree) =
-            System.IO.File.WriteAllText(OlyPath.ChangeExtension(tree.SyntaxTree.Path, ".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
+            System.IO.File.WriteAllText(tree.SyntaxTree.Path.ChangeExtension(".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
             tree
 
         // Lowering is REQUIRED before codegen, 

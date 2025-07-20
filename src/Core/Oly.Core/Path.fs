@@ -162,23 +162,6 @@ type OlyPath private (innerPath: string) =
         let newPath = Path.Combine(dir, path)
         OlyPath.Normalize(newPath)
 
-    static member GetExtension(path: OlyPath) =
-        Path.GetExtension(path.ToString())
-
-    static member GetFileNameWithoutExtension(path: OlyPath) =
-        Path.GetFileNameWithoutExtension(path.ToString())
-
-    static member GetFileName(path: OlyPath) =
-        Path.GetFileName(path.ToString())
-
-    static member ChangeExtension(path: OlyPath, ext: string) =
-        Path.ChangeExtension(path.ToString(), ext)
-        |> OlyPath.Create
-
-    static member GetDirectory(path: OlyPath) =
-        (Path.GetDirectoryName(path.ToString()) + "/")
-        |> OlyPath.Create
-
     static member GetRelativePath(relativeTo: OlyPath, path: OlyPath) =
         OlyPath.Create(Path.GetRelativePath(relativeTo.ToString(), path.ToString()))
 

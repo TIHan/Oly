@@ -27,7 +27,7 @@ type OlySolutionTreeNodeViewModel =
     static member FromDocument(doc: OlyDocument): OlySolutionTreeNodeViewModel =
         {
             id = doc.Path.ToString() + $"({doc.Project.SharedBuild.PlatformName})({doc.Project.TargetInfo.Name})({doc.Project.Name})"
-            label = OlyPath.GetFileName(doc.Path)
+            label = doc.Path.GetFileName()
             description = ""
             resourcePath = doc.Path.ToString()
             tooltip = ""
@@ -40,7 +40,7 @@ type OlySolutionTreeNodeViewModel =
         let groups =
             docs
             |> Seq.groupBy (fun x -> 
-                OlyPath.GetRelativePath(OlyPath.GetDirectory(projectDir), OlyPath.GetDirectory(x.Path)).ToString()
+                OlyPath.GetRelativePath(projectDir.GetDirectory(), x.Path.GetDirectory()).ToString()
             )
 
         let lookup = System.Collections.Generic.Dictionary<string, obj>(System.StringComparer.OrdinalIgnoreCase)       
@@ -113,11 +113,11 @@ type OlySolutionTreeNodeViewModel =
         |> Array.ofSeq
 
     static member FromProject(project: OlyProject): OlySolutionTreeNodeViewModel =
-        let children = OlySolutionTreeNodeViewModel.FromDocuments(OlyPath.GetDirectory(project.Path),  project.Documents)
+        let children = OlySolutionTreeNodeViewModel.FromDocuments(project.Path.GetDirectory(), project.Documents)
         let platformString = $"({project.SharedBuild.PlatformName}: {project.TargetInfo.Name})"
         {
             id = project.Path.ToString() + platformString
-            label = OlyPath.GetFileName(project.Path)
+            label = project.Path.GetFileName()
             description = ""
             resourcePath = project.Path.ToString()
             tooltip = project.Name + " " + platformString

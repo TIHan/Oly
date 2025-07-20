@@ -105,16 +105,16 @@ type OlyBuild(platformName: string) =
 
     member _.GetProjectCacheDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
         if projectPath.IsFile then
-            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
-            let dir = OlyPath.GetDirectory(projectPath)
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
             OlyPath.Combine(dir, OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
 
     member _.GetProjectBinDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
         if projectPath.IsFile then
-            let fileName = Path.GetFileNameWithoutExtension(OlyPath.GetFileName(projectPath))
-            let dir = OlyPath.GetDirectory(projectPath)
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
             OlyPath.Combine(dir, OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
         else
             invalidOp "Expected file"
@@ -425,7 +425,7 @@ type OlyProject (
                     if path.IsRooted then
                         path
                     else
-                        OlyPath.Combine(OlyPath.GetDirectory(this.Path), path)
+                        OlyPath.Combine(this.Path.GetDirectory(), path)
                 )
 
             loads
@@ -433,7 +433,7 @@ type OlyProject (
                 match x.TryGetGlob() with
                 | Some(dir, ext) ->
                     if documentPath.HasExtension(ext) then
-                        OlyPath.Equals(dir, OlyPath.GetDirectory(documentPath))
+                        OlyPath.Equals(dir, documentPath.GetDirectory())
                     else
                         false
                 | _ ->
@@ -538,7 +538,7 @@ module WorkspaceHelpers =
     let getReferenceDirectives (syntaxTree: OlySyntaxTree) ct =
         syntaxTree.GetCompilationUnitConfiguration(ct).References
         |> ImArray.map (fun (textSpan, referencePath) ->
-            let dir = OlyPath.GetDirectory(syntaxTree.Path)
+            let dir = syntaxTree.Path.GetDirectory()
             let newReferencePath =
                 OlyPath.Combine(dir, referencePath.ToString())
             (textSpan, newReferencePath)
@@ -693,9 +693,9 @@ type OlySolution (state: SolutionState) =
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
+    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
+        let projectName = projectPath.GetFileNameWithoutExtension()
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
         let newProject = createProject newSolutionLazy projectPath projectName ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
@@ -944,11 +944,11 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         //       We should introduce a side-table that has this information instead of having to do this iteration.
         //       For now, it works.
         for key in state.files.Keys do
-            if (OlyPath.Equals(OlyPath.GetDirectory(key), dirPath)) then
+            if (OlyPath.Equals(key.GetDirectory(), dirPath)) then
                 builder.Add(key)
                 set.Add(key) |> ignore
         for key in state.inMemorySourceTexts.Keys do
-            if (OlyPath.Equals(OlyPath.GetDirectory(key), dirPath)) then
+            if (OlyPath.Equals(key.GetDirectory(), dirPath)) then
                 builder.Add(key)
                 set.Add(key) |> ignore
 
@@ -1429,7 +1429,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
         backgroundTask {
             let diags = ImArray.builder ()
 
-            let absoluteDir = OlyPath.GetDirectory(filePath)
+            let absoluteDir = filePath.GetDirectory()
 
             let platformName, targetName = 
                 match config.Target with
@@ -1556,7 +1556,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         if absolutePath.HasExtension(ProjectExtension) then
                             let (syntaxTree: OlySyntaxTree), _ = OlyWorkspace.ParseProject(rs, absolutePath, rs.GetSourceText(absolutePath))
                             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
-                            let absoluteDir = OlyPath.GetDirectory(absolutePath)
+                            let absoluteDir = absolutePath.GetDirectory()
                             let count = config.References.Length + (config.References |> ImArray.sumBy (fun (_, x) -> getProjectReferenceCount (OlyPath.Combine(absoluteDir, x))))
                             visited.Add(absolutePath, count)
                             count

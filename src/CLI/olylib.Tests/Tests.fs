@@ -14,7 +14,7 @@ let project relativePath =
 
 let build configName relativePath =
     let projPath = project relativePath
-    Oly.Clean(OlyPath.GetDirectory(projPath).ToString())
+    Oly.Clean(projPath.GetDirectory().ToString())
     Oly.Build(configName, projPath, CancellationToken.None).Result
 
 let run configName relativePath =

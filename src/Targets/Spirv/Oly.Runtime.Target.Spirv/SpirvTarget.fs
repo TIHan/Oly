@@ -104,7 +104,7 @@ type SpirvTarget() =
 
     override this.EmitOutput(project, _binDirectory, emitter, isDebuggable) = 
         let output = emitter.EmitOutput(isDebuggable)
-        let outputFilePath = OlyPath.ChangeExtension(project.Path, ".spv")
+        let outputFilePath = project.Path.ChangeExtension(".spv")
         use fs = File.Open(outputFilePath.ToString(), FileMode.Create)
         SpirvModule.Serialize(fs, output.Module)
 
