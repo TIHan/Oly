@@ -273,15 +273,24 @@ type OlyILEntityInstance =
     | OlyILEntityInstance of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle * tyArgs: OlyILType imarray
     | OlyILEntityConstructor of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle
 
+    // We define these dummies to trick the F# compiler to use tags for equality.
+    | DoNotCallDummy1
+    | DoNotCallDummy2
+    | DoNotCallDummy3
+    | DoNotCallDummy4
+    | DoNotCallDummy5
+
     member this.DefinitionOrReferenceHandle =
         match this with
         | OlyILEntityInstance(defOrRefHandle=defOrRefHandle)
         | OlyILEntityConstructor(defOrRefHandle=defOrRefHandle) -> defOrRefHandle
+        | _ -> unreached()
 
     member this.TypeArguments =
         match this with
         | OlyILEntityInstance(tyArgs=tyArgs) -> tyArgs
         | OlyILEntityConstructor _ -> ImArray.empty
+        | _ -> unreached()
 
     member this.AsType = OlyILTypeEntity(this)
 
@@ -1272,6 +1281,8 @@ type OlyILAssembly =
             else
                 let ilEntRef = this.GetEntityReference(ilDefOrRefHandle)
                 this.GetAssemblyIdentity(ilEntRef)
+        | _ ->
+            unreached()
 
     member this.SetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle, doc: string) =
         this.entDefDocs.Set(ilEntDefHandle, doc)
@@ -1396,6 +1407,9 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
 
         | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
             OlyAssert.Fail("Invalid IL.")
+
+        | OlyILEnclosing.Entity(_) ->
+            unreached()
                 
         builder.Append("::") |> ignore
         builder.Append(this.GetStringOrEmpty(ilEntDef.NameHandle)) |> ignore
@@ -1423,6 +1437,9 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
 
         | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
             OlyAssert.Fail("Invalid IL.")
+
+        | OlyILEnclosing.Entity(_) ->
+            unreached()
                 
         builder.Append("::") |> ignore
         builder.Append(this.GetStringOrEmpty(ilEntRef.NameHandle)) |> ignore

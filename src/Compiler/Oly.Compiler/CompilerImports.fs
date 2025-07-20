@@ -989,6 +989,8 @@ let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEnt
             ilAsm.GetEntityDefinition(defOrRefHandle).Enclosing
         else
             ilAsm.GetEntityReference(defOrRefHandle).Enclosing
+    | _ ->
+        unreached()
 
 let private getNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) =
     let name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
@@ -1016,6 +1018,8 @@ let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) 
                         else
                             ilAsm.GetEntityReference(ilDefOrRefHandle).NameHandle
                         |> ilAsm.GetStringOrEmpty
+                    | _ ->
+                        unreached()
                 (loop (getEnclosingOfILEntityInstance ilAsm ilEntInst)).Add(enclosingName).Add("::")
             | _ ->
                 ImArray.empty
@@ -1051,6 +1055,8 @@ let private getQualifiedNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (
                     else
                         ilAsm.GetEntityReference(ilDefOrRefHandle).NameHandle
                     |> ilAsm.GetStringOrEmpty
+                | _ ->
+                    unreached()
             (loop (getEnclosingOfILEntityInstance ilAsm ilEntInst)).Add(enclosingName).Add("::")
         | _ ->
             ImArray.empty
@@ -1130,6 +1136,9 @@ let private importEntitySymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbo
             importEntitySymbolFromDefinition cenv ilEntDefOrSpecHandle
         else
             importEntitySymbolFromReference cenv ilEntDefOrSpecHandle
+
+    | _ ->
+        unreached()
 
 let private importNamespace (namespaceEnv: NamespaceEnvironment) (path: string imarray) =
     if path.IsEmpty then failwith "Path cannot be empty."

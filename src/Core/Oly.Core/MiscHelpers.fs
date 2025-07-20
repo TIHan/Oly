@@ -6,7 +6,7 @@ open System.Diagnostics
 open System.Runtime.CompilerServices
 
 [<DebuggerHidden>]
-[<MethodImpl(MethodImplOptions.NoInlining)>]
-let unreached() =
+[<MethodImpl(MethodImplOptions.AggressiveInlining)>]
+let inline unreached() =
     raise(UnreachableException())
 

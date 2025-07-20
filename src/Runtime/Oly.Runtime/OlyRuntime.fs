@@ -49,6 +49,8 @@ let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEnt
             ilAsm.GetEntityDefinition(defOrRefHandle).Enclosing
         else
             ilAsm.GetEntityReference(defOrRefHandle).Enclosing
+    | _ ->
+        unreached()
 
 let areSimpleILExpressions depth (ilExprs: OlyILExpression imarray) =
     ilExprs
@@ -3690,11 +3692,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     asm.entRefCache.[ilEntDefOrRefHandle] <- ty
                     ty
 
-    member this.ResolveType(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) : RuntimeType =
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.ResolveType_ILHigherVariable(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) =
         match ilTy with
-        | OlyILTypeVariable(index, ilKind) when genericContext.CanErase(index, ilKind) ->
-            genericContext.GetErasedTypeArgument(index, ilKind)
-        | OlyILTypeHigherVariable(index, ilTyArgs, ilKind) when genericContext.CanErase(index, ilKind) ->
+        | OlyILTypeHigherVariable(index, ilTyArgs, ilKind) ->
             let tyArgs =
                 ilTyArgs
                 |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
@@ -3706,7 +3707,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
             else
                 failwith "Invalid type constructor."
+        | _ ->
+            unreached()
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.ResolveType_ILEntity(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) =
+        match ilTy with
         | OlyILTypeEntity(ilEntInst) ->
             match ilEntInst with
             | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs) ->
@@ -3722,7 +3728,43 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(genericContext.PassedWitnesses)
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
                 this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
+            | _ ->
+                unreached()
+        | _ ->
+            unreached()
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.ResolveType_ILNativeFunctionPtr(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) =
+        match ilTy with
+        | OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy) ->
+            let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
+            let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
+            RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy)
+        | _ ->
+            unreached()
+
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.ResolveType_ILTuple(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) =
+        match ilTy with
+        | OlyILTypeTuple(ilTyArgs, ilNameHandles) ->
+            if ilTyArgs.Length < 2 then
+                OlyAssert.Fail("Invalid tuple type")
+            let tyArgs =
+                ilTyArgs
+                |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
+            let names =
+                ilNameHandles
+                |> ImArray.map (fun x ->
+                    ilAsm.GetStringOrEmpty(x)
+                )
+            RuntimeType.Tuple(tyArgs, names)
+        | _ ->
+            unreached()
+
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.ResolveType_ILForAll(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) =
+        // TODO: Should we be using the generic context?
+        match ilTy with
         | OlyILTypeForAll(ilTyPars, ilInnerTy) ->
             let tyPars =
                 ilTyPars
@@ -3758,6 +3800,22 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 )
             let innerTy = this.ResolveType(ilAsm, ilInnerTy, GenericContext.Default)
             RuntimeType.ForAll(tyPars, innerTy)
+        | _ ->
+            unreached()
+
+    member this.ResolveType(ilAsm: OlyILReadOnlyAssembly, ilTy: OlyILType, genericContext: GenericContext) : RuntimeType =
+        match ilTy with
+        | OlyILTypeVariable(index, ilKind) when genericContext.CanErase(index, ilKind) ->
+            genericContext.GetErasedTypeArgument(index, ilKind)
+
+        | OlyILTypeHigherVariable(index, _, ilKind) when genericContext.CanErase(index, ilKind) ->
+            this.ResolveType_ILHigherVariable(ilAsm, ilTy, genericContext)
+
+        | OlyILTypeEntity _ ->
+            this.ResolveType_ILEntity(ilAsm, ilTy, genericContext)
+
+        | OlyILTypeForAll _ ->
+            this.ResolveType_ILForAll(ilAsm, ilTy, genericContext)
 
         | _ ->
             match ilTy with
@@ -3791,23 +3849,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeUtf16 -> RuntimeType.Utf16
             | OlyILTypeNativeInt -> RuntimeType.NativeInt
             | OlyILTypeNativeUInt -> RuntimeType.NativeUInt
-            | OlyILTypeNativePtr(ilElementTy) -> RuntimeType.NativePtr(this.ResolveType(ilAsm, ilElementTy, genericContext))
-            | OlyILTypeNativeFunctionPtr(ilCc, ilArgTys, ilReturnTy) ->
-                let argTys = this.ResolveTypes(ilAsm, ilArgTys, genericContext)
-                let returnTy = this.ResolveType(ilAsm, ilReturnTy, genericContext)
-                RuntimeType.NativeFunctionPtr(ilCc, argTys, returnTy)
-            | OlyILTypeTuple(ilTyArgs, ilNameHandles) ->
-                if ilTyArgs.Length < 2 then
-                    OlyAssert.Fail("Invalid tuple type")
-                let tyArgs =
-                    ilTyArgs
-                    |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
-                let names =
-                    ilNameHandles
-                    |> ImArray.map (fun x ->
-                        ilAsm.GetStringOrEmpty(x)
-                    )
-                RuntimeType.Tuple(tyArgs, names)
+
+            | OlyILTypeNativePtr(ilElementTy) -> 
+                RuntimeType.NativePtr(this.ResolveType(ilAsm, ilElementTy, genericContext))
+            | OlyILTypeNativeFunctionPtr _ ->
+                this.ResolveType_ILNativeFunctionPtr(ilAsm, ilTy, genericContext)
+
+            | OlyILTypeTuple _ ->
+                this.ResolveType_ILTuple(ilAsm, ilTy, genericContext)
+
             | OlyILTypeRefCell(ilElementTy) ->
                 RuntimeType.ReferenceCell(this.ResolveType(ilAsm, ilElementTy, genericContext))
             | OlyILTypeArray(ilElementTy, rank, ilKind) ->
