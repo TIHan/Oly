@@ -472,7 +472,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             else
                 innerTy
         match innerTy with
-        | TypeSymbol.ByRef _ ->
+        | TypeSymbol.ByRef _
+        | TypeSymbol.Tuple _ ->
             OlyILTypeForAll(
                 emitILTypeParameters cenv env tyPars,
                 emitILType cenv env innerTy

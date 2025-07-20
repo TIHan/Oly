@@ -20806,7 +20806,7 @@ print(__oly_object): ()
 
 #[inline]
 M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
-    ()
+    f(0, unchecked default)
 
 main(): () =
     M<_, int32>((_, x: __oly_by_ref_read_only<int32>) -> ())
@@ -20840,7 +20840,7 @@ print(__oly_object): ()
 
 #[inline]
 M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
-    ()
+    f(0, unchecked default)
 
 main(): () =
     M<_, int32>((_, x: inref<int32>) -> ())
@@ -20865,10 +20865,140 @@ print(__oly_object): ()
 
 #[inline]
 M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
-    ()
+    f(unchecked default)
 
 main(): () =
     M<_, (int32, float32)>((x: __oly_tuple<(int32, float32)>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with tuple type 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_, _>, T...>(#[inline] f: (Ref1<int32, T...>) -> ()): () =
+    f(unchecked default)
+
+class C<R, T...>
+
+main(): () =
+    M<_, (int32, float32)>((x: C<int32, __oly_tuple<(int32, float32)>>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+
+[<Fact>]
+let ``Higher-kind with tuple type 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
+    f(unchecked default)
+
+main(): () =
+    M<_, (int32, float32)>((x: (int32, float32)) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with tuple type 4``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
+    f(unchecked default)
+
+main(): () =
+    M<_, int32, float32>((x: (int32, float32)) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with tuple type 5``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () where Ref1<_>: __oly_tuple =
+    f(unchecked default)
+
+main(): () =
+    M<_, (int32, float32)>((x: __oly_tuple<(int32, float32)>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind against class with variadic type parameter``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class C<T...>
+
+#[inline]
+M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
+    f(unchecked default)
+
+main(): () =
+    M<_, (int32, float32)>((x: C<(int32, float32)>) -> ())
     print("hello")
         """
     Oly src

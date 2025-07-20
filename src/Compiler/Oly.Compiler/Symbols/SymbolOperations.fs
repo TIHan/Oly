@@ -239,8 +239,27 @@ let private unifyVariadicInferenceVariable rigidity (variadicTyVar: TypeSymbol) 
 
 let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: TypeSymbol imarray) : bool =
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    if tyArgs1.Length = 1 && tyArgs1[0].IsVariadicInferenceVariable then
-        unifyVariadicInferenceVariable rigidity tyArgs1[0] tyArgs2
+    if tyArgs1.Length = 1 then
+        if tyArgs1[0].IsVariadicInferenceVariable then
+            unifyVariadicInferenceVariable rigidity tyArgs1[0] tyArgs2
+        else
+            match tyArgs1[0] with
+            |  TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
+                 // SPECIAL CASE: Handle variadic type variables with tuple solutions.
+                 // TODO:
+                //if not externalSolution.HasSolution && not solution.HasSolution && tyArgs.Length = 1 then
+                //    match tyArgs[0] with
+                //    | TypeSymbol.InferenceVariable(Some tyPar, innerSolution) 
+                //            when tyPar.IsVariadic && innerSolution.HasSolution && innerSolution.Solution.IsAnyTuple ->
+                //        externalSolution.Solution <- Types.Tuple
+                //        solution.Solution <- tyArgs[0]
+                //        true
+                //    | _ ->
+                        false
+                else
+                    false
+            | _ ->
+                false
     else
         false
 

@@ -3703,8 +3703,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let ty = genericContext.GetErasedTypeArgument(index, ilKind)
             if ty.IsTypeConstructor then
                 let ty = ty.Apply(tyArgs)
-                let asm = assemblies.[ty.AssemblyIdentity]
-                asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
+                if ty.IsEntity_t then
+                    let asm = assemblies.[ty.AssemblyIdentity]
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, ty.TypeArguments)
+                else
+                    ty
             else
                 failwith "Invalid type constructor."
         | _ ->
