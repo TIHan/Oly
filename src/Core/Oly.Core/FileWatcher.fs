@@ -118,17 +118,12 @@ type DirectoryWatcher() =
                     fileRenamed.Trigger(oldPath.ToString(), path.ToString())
         )
         watcher.IncludeSubdirectories <- true
-        watcher.EnableRaisingEvents <- true
         watcher.NotifyFilter <- 
             NotifyFilters.CreationTime |||
             NotifyFilters.LastWrite |||
             NotifyFilters.FileName |||
             NotifyFilters.Size
-
-        Directory.EnumerateFiles(dir, filter)
-        |> Seq.iter (fun filePath ->
-            updateLastWriteTime (OlyPath.Create(filePath)) files |> ignore
-        )      
+        watcher.EnableRaisingEvents <- true
 
         watcher
 

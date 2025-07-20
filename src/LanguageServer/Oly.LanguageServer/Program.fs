@@ -1088,8 +1088,18 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             return MediatR.Unit.Value
         }
 
+    member this.Refresh(workspace: OlyWorkspace) = backgroundTask {
+        workspace.CancelCurrentWork()
+        workspace.ClearSolution()
+        let projects = OlyWorkspaceListener.GetProjectsFromDirectory(workspace.WorkspaceDirectory)
+        for proj in projects do
+            let cts = cancelAndGetCts proj
+            let ct = cts.Token
+            workspace.LoadProject(proj, ct)
+    }
+
     interface IOnLanguageServerInitialize with
-        member _.OnInitialize (_server: ILanguageServer, _request: InitializeParams, _ct: CancellationToken): Task = 
+        member this.OnInitialize (_server: ILanguageServer, _request: InitializeParams, _ct: CancellationToken): Task = 
             let workspace = getWorkspace()
             workspace.WorkspaceChanged.Add(function
                 | OlyWorkspaceChangedEvent.DocumentCreated(documentPath)
@@ -1097,7 +1107,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     let solution = workspace.StaleSolution
                     solution.GetProjects()
                     |> ImArray.iter (fun proj ->
-                        let exists = proj.CouldHaveDocument(documentPath, CancellationToken.None)
+                        let exists = proj.CouldHaveDocument(documentPath)
                         if exists then
                             let work =
                                 async {
@@ -1135,13 +1145,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 | _ ->
                     ()
             )
-            backgroundTask {
-                let projects = OlyWorkspaceListener.GetProjectsFromDirectory(workspace.WorkspaceDirectory)
-                for proj in projects do
-                    let cts = cancelAndGetCts proj
-                    let ct = cts.Token
-                    workspace.LoadProject(proj, ct)
-            }
+            this.Refresh(workspace)
     
     interface IDocumentRangeFormattingHandler with
         member this.GetRegistrationOptions(capability: DocumentRangeFormattingCapability, clientCapabilities: ClientCapabilities): DocumentRangeFormattingRegistrationOptions = 
@@ -2097,13 +2101,13 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     interface IJsonRpcRequestHandler<OlyCleanWorkspaceRequest> with
 
-        member _.Handle(_request, ct) =
+        member this.Handle(_request, ct) =
             backgroundTask {
                 ct.ThrowIfCancellationRequested()
+                let workspace = getWorkspace()
                 // TODO: Maybe we should just do a command line call 'oly clean'.
-                olylib.Oly.Clean(getWorkspace().WorkspaceDirectory.ToString())
-                getWorkspace().CancelCurrentWork()
-                getWorkspace().ClearSolution(CancellationToken.None)
+                olylib.Oly.Clean(workspace.WorkspaceDirectory.ToString())
+                do! this.Refresh(workspace)
                 return Unit()
             }
 

@@ -415,10 +415,10 @@ type OlyProject (
         )
         builder.ToImmutable()
 
-    member this.CouldHaveDocument(documentPath: OlyPath, ct) : bool =
+    member this.CouldHaveDocument(documentPath: OlyPath) : bool =
         if documentPath.HasExtension(".oly") then
             let syntaxTree = this.Compilation.GetSyntaxTree(this.Path)
-            let unitConfig = syntaxTree.GetCompilationUnitConfiguration(ct)
+            let unitConfig = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
             let loads =
                 unitConfig.Loads
                 |> ImArray.map (fun (_, path) ->
@@ -1026,7 +1026,7 @@ type WorkspaceMessage =
     | GetAllDocuments of ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | RemoveProject of projectPath: OlyPath * ct: CancellationToken
     | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
-    | ClearSolution of ct: CancellationToken
+    | ClearSolution
 
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
     | LoadProject of projectPath: OlyPath * ct: CancellationToken
@@ -1114,7 +1114,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             {
                 workspace = this
                 projects = ImmutableDictionary.Empty
-                version = solutionRef.contents.Version
+                version = solutionRef.contents.Version + 1UL
             }
             |> OlySolution
 
@@ -1147,6 +1147,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     let events = Event<OlyWorkspaceChangedEvent>()
 
+    let refresh() = async {
+        let projects = solutionRef.contents.GetProjects()
+        clearSolution()
+        for proj in projects do
+            documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
+    }
+
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
@@ -1156,14 +1163,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - GetSolution()")
 #endif
-                    do! processDocumentUpdates ct
-
                     let prevSolution = solutionRef.contents
                     
                     try
                         let! ctr, ct = mapCtToCtr ct
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
+                        do! processDocumentUpdates ct
                         reply.Reply(solutionRef.contents)
                     with
                     | ex ->
@@ -1194,25 +1200,11 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                     do! onEndWork ct
 
-                | ClearSolution(ct) ->
-                    do! onBeginWork ct
+                | ClearSolution ->
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - ClearSolution")
 #endif
-                    let prevSolution = solutionRef.contents
-                    try
-                        let! ctr, ct = mapCtToCtr ct
-                        use _ = ctr
-                        ct.ThrowIfCancellationRequested()
-                        clearSolution()
-                    with
-                    | ex ->
-                        match ex with
-                        | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.LogError($"[Workspace] - ClearSolution:\n" + ex.ToString())
-                        solutionRef.contents <- prevSolution
-
-                    do! onEndWork ct
+                    clearSolution()
 
                 | GetDocuments(documentPath, ct, reply) ->
                     do! onBeginWork ct
@@ -1286,7 +1278,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         let mutable newSolution = solutionRef.contents
                         newSolution.GetProjects()
                         |> ImArray.iter (fun proj ->
-                            if proj.CouldHaveDocument(filePath, CancellationToken.None) then
+                            if proj.CouldHaveDocument(filePath) then
                                 documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
                         )
                         solutionRef.contents <- newSolution
@@ -1305,8 +1297,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     elif filePath.HasExtension(".json") then
                         currentRs <- currentRs.SetResourceAsCopy(filePath)       
                         if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
-                            let projects = solutionRef.contents.GetProjects()
-                            clearSolution()
+                            do! refresh()
 
                 | FileDeleted(filePath) ->
                     OlyTrace.Log($"[Workspace] - FileDeleted - {filePath.ToString()}")
@@ -1347,7 +1338,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         let mutable newSolution = solutionRef.contents
                         newSolution.GetProjects()
                         |> ImArray.iter (fun proj ->
-                            if proj.CouldHaveDocument(newFilePath, CancellationToken.None) then
+                            if proj.CouldHaveDocument(newFilePath) then
                                 documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
                         )
                         solutionRef.contents <- newSolution
@@ -1377,7 +1368,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 if proj.DocumentLookup.ContainsKey(documentPath) then None
                 else 
                 
-                let exists = proj.CouldHaveDocument(documentPath, ct)
+                let exists = proj.CouldHaveDocument(documentPath)
                 if exists then
                     Some proj
                 else
@@ -1918,8 +1909,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
         }
 
-    member this.ClearSolution(ct) =
-        mbp.Post(WorkspaceMessage.ClearSolution(ct))
+    member this.ClearSolution() =
+        mbp.Post(WorkspaceMessage.ClearSolution)
 
     member this.LoadProject(documentPath: OlyPath, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.LoadProject(documentPath, ct))

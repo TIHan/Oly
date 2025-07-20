@@ -192,7 +192,7 @@ type OlyProject =
     member GetDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
     member GetAnalyzerDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
 
-    member CouldHaveDocument : documentPath: OlyPath * CancellationToken -> bool
+    member CouldHaveDocument : documentPath: OlyPath -> bool
 
 [<Sealed>]
 type OlySolution =
@@ -269,6 +269,8 @@ type OlyWorkspace =
 
     member StaleSolution : OlySolution
 
+    /// Try to cancel any current long-running work.
+    /// Will not cancel LoadProject, ClearSolution, FileCreated, FileChanged, FileDeleted, FileRenamed.
     member CancelCurrentWork : unit -> unit
 
     member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
@@ -277,6 +279,7 @@ type OlyWorkspace =
     /// Non-blocking.
     member UpdateDocument : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
+    /// Non-blocking.
     member RemoveProject : projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
@@ -290,7 +293,7 @@ type OlyWorkspace =
 
     /// Clears the entire solution.
     /// Non-blocking.
-    member ClearSolution : ct: CancellationToken -> unit
+    member ClearSolution : unit -> unit
 
     member LoadProject : OlyPath * CancellationToken -> unit
 
