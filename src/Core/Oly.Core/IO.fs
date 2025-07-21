@@ -90,3 +90,16 @@ type OlyIO private () =
 
         files.ToImmutable()
 
+    static member OpenFileRead(filePath: string) =
+        try
+            File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
+        with
+        | _ ->
+            try
+                Threading.Thread.Sleep(100)
+                File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
+            with
+            | _ ->
+                Threading.Thread.Sleep(100)
+                File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)                
+

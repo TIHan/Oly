@@ -1,6 +1,7 @@
 ﻿namespace rec Oly.Compiler.Workspace
 
 open Oly.Core
+open Oly.Core.IO
 open Oly.Core.TaskExtensions
 open Oly.Compiler
 open Oly.Compiler.Text
@@ -816,11 +817,8 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
-            let streamToCopy = File.Open(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read)
-            try
-                this.SetResourceAsCopy(filePath, streamToCopy, dt)
-            finally
-                streamToCopy.Dispose()
+            use streamToCopy = OlyIO.OpenFileRead(fileInfo.FullName)
+            this.SetResourceAsCopy(filePath, streamToCopy, dt)
         else
             this
 
@@ -1349,7 +1347,18 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 return! loop()
             }
-        loop()
+
+        let start() =
+            async {
+                try
+                    do! loop()
+                with
+                | ex ->
+                    OlyTrace.LogError($"[Workspace] - Shutdown - Reason:\n{ex.ToString()}")
+                    raise ex
+            }
+
+        start()
     )
 
     static let checkProjectsDependentOnDocument 
