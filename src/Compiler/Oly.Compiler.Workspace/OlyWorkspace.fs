@@ -816,7 +816,7 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
-            let streamToCopy = File.Open(fileInfo.FullName, IO.FileMode.Open, IO.FileAccess.ReadWrite, IO.FileShare.ReadWrite ||| IO.FileShare.Delete)
+            let streamToCopy = File.Open(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read)
             try
                 this.SetResourceAsCopy(filePath, streamToCopy, dt)
             finally
