@@ -308,6 +308,70 @@ and checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
             checkTypeConstructorDepth env syntaxName syntaxTyArgsRoot.Values ty
         | _ ->
             checkTypeConstructorDepth env syntaxName ImArray.empty ty
+    | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) 
+    | OlySyntaxType.FunctionPtr(_, _, syntaxInputTy, _, syntaxOutputTy) 
+    | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
+        match ty.TryFunction with
+        | ValueSome(inputTy, outputTy) ->
+            let syntaxInputTy =
+                match syntaxInputTy with
+                | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+                    if syntaxTupleItemList.ChildrenOfType.Length = 1 then
+                        match syntaxTupleItemList.ChildrenOfType[0] with
+                        | OlySyntaxTupleElement.Type(syntaxInputTy)
+                        | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxInputTy) ->
+                            syntaxInputTy
+                        | _ ->
+                            syntaxInputTy
+                    else
+                        syntaxInputTy
+                | _ ->
+                    syntaxInputTy
+            let syntaxOutputTy =
+                match syntaxOutputTy with
+                | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+                    if syntaxTupleItemList.ChildrenOfType.Length = 1 then
+                        match syntaxTupleItemList.ChildrenOfType[0] with
+                        | OlySyntaxTupleElement.Type(syntaxOutputTy)
+                        | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxOutputTy) ->
+                            syntaxOutputTy
+                        | _ ->
+                            syntaxOutputTy
+                    else
+                        syntaxOutputTy
+                | _ ->
+                    syntaxOutputTy
+            checkTypeConstructorDepthWithType env syntaxInputTy inputTy
+            checkTypeConstructorDepthWithType env syntaxOutputTy outputTy
+        | _ ->
+            ()
+    | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+        match ty.TryGetTupleItemTypes() with
+        | ValueSome(itemTys) ->
+            let syntaxTupleItems = syntaxTupleItemList.ChildrenOfType
+            (syntaxTupleItems, itemTys)
+            ||> ImArray.tryIter2 (fun syntaxTupleItem itemTy ->
+                match syntaxTupleItem with
+                | OlySyntaxTupleElement.Type(syntaxTy)
+                | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxTy) ->
+                    checkTypeConstructorDepthWithType env syntaxTy itemTy
+                | _ ->
+                    ()
+            )
+        | _ ->
+            ()
+    | OlySyntaxType.Array(syntaxElementTy, _)
+    | OlySyntaxType.MutableArray(_, syntaxElementTy, _)
+    | OlySyntaxType.FixedArray(syntaxElementTy, _)
+    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, _) ->
+        match ty.TryGetArrayElementType() with
+        | ValueSome(elementTy) -> checkTypeConstructorDepthWithType env syntaxElementTy elementTy
+        | _ ->
+
+        match ty.TryGetFixedArrayElementType() with
+        | ValueSome(elementTy) -> checkTypeConstructorDepthWithType env syntaxElementTy elementTy
+        | _ -> ()
+
     | _ ->
         ()
 

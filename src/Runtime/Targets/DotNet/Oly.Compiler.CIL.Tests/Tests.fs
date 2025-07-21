@@ -20979,6 +20979,60 @@ main(): () =
     |> shouldRunWithExpectedOutput "hello"
 
 [<Fact>]
+let ``Higher-kind with tuple type 6``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class C<T...>
+
+#[inline]
+M<Ref1<_>, T>(#[inline] f: Ref1<T> -> ()): () =
+    f(unchecked default)
+
+main(): () =
+    M<_, (int32, float32)>((x: C<(int32, float32)>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Higher-kind with tuple type 7``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class C<T>
+
+#[inline]
+M<Ref1<_>, T>(#[inline] f: Ref1<T> -> ()): () =
+    f(unchecked default)
+
+main(): () =
+    M<_, (int32, float32)>((x: C<(int32, float32)>) -> ())
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
 let ``Higher-kind against class with variadic type parameter``() =
     let src =
         """

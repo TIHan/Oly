@@ -244,7 +244,7 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
             unifyVariadicInferenceVariable rigidity tyArgs1[0] tyArgs2
         else
             match tyArgs1[0] with
-            |  TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
+            | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) ->
                 // SPECIAL CASE: Handle variadic type variables with tuple solutions for higher kinds.
                 // REVIEW: This is rather complicated, is there a way to simplify this?
                 if externalSolution.HasSolution && 

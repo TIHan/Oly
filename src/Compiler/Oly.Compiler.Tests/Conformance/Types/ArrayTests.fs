@@ -2,7 +2,6 @@
 
 open Xunit
 open TestUtilities
-open Oly.Compiler
 
 [<Fact>]
 let ``Fixed array type should compile``() =

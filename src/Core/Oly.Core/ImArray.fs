@@ -97,6 +97,10 @@ module ImArray =
         for i = 0 to (min arr1.Length arr2.Length) - 1 do
             f arr1.[i] arr2.[i]
 
+    let inline tryIter3 f (arr1: imarray<'T1>) (arr2: imarray<'T2>) (arr3: imarray<'T3>) =
+        for i = 0 to (min (min arr1.Length arr2.Length) arr3.Length) - 1 do
+            f arr1.[i] arr2.[i] arr3.[i]
+
     let inline map (mapper: 'T -> 'U) (arr: imarray<'T>) : imarray<_> =
         match arr.Length with
         | 0 -> ImmutableArray.Empty

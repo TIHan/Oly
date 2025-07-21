@@ -444,11 +444,6 @@ and solveConstraints
 
 #if DEBUG || CHECKED
     OlyAssert.Equal(tyPars.Length, tyArgs.Length)
-    match syntaxTyArgsOpt with
-    | Some(syntaxTyArgs) ->
-        OlyAssert.Equal(tyArgs.Length, syntaxTyArgs.Length)
-    | _ ->
-        ()
 
     match env.pass with
     | Pass3
@@ -466,7 +461,7 @@ and solveConstraints
                 OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
                 let syntaxNode: OlySyntaxNode =
                     match syntaxTyArgsOpt with
-                    | Some syntaxTyArgs ->
+                    | Some syntaxTyArgs when i < syntaxTyArgs.Length ->
                         syntaxTyArgs[i]
                     | _ ->
                         syntaxNode
