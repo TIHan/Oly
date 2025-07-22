@@ -231,7 +231,14 @@
                     "conditionalDirectiveBody": "#9B9B9B"
                 }
             },
-			"debug.allowBreakpointsEverywhere": true
+			"debug.allowBreakpointsEverywhere": true,
+			"files.watcherExclude": {
+				"**/.git/objects/**": true,
+				"**/.git/subtree-cache/**": true,
+				"**/.hg/store/**": true,
+				"**/.olycache/**": true,
+				"**/bin/**": true
+			}
         }
 	}
 }

@@ -6,8 +6,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="numerics_spirv.oly">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="prelude_spirv.olyx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Compile Include="SpirvTarget.fs" />
   </ItemGroup>
+
+  <ItemGroup />
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Emitters\Spirv\Oly.Emitters.Spirv\Oly.Emitters.Spirv.fsproj" />
