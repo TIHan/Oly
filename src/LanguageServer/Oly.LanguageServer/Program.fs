@@ -729,16 +729,11 @@ type ITextDocumentIdentifierParams with
             progress.ForAnalyzingProgress(ct,
                 fun ct ->
                     backgroundTask {
-                        match rs.TryGet(documentPath) with
-                        | Some (sourceText) ->
-                            workspace.UpdateDocument(documentPath, sourceText, ct)
-                            let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                            if docs.Length >= 1 then
-                                let doc = docs.[0]
-                                return! f doc ct
-                            else
-                                return Unchecked.defaultof<_>
-                        | _ ->
+                        let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
                             return Unchecked.defaultof<_>
                     }
             )
@@ -908,16 +903,11 @@ module ExtensionHelpers =
                         cts.Token.ThrowIfCancellationRequested()
                         let ct = handleCts.Token
 
-                        match rs.TryGet(documentPath) with
-                        | Some (sourceText) ->
-                            workspace.UpdateDocument(documentPath, sourceText, ct)
-                            let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                            if docs.Length >= 1 then
-                                let doc = docs.[0]
-                                return! f doc ct
-                            else
-                                return raise(OperationCanceledException())
-                        | _ ->
+                        let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+                        if docs.Length >= 1 then
+                            let doc = docs.[0]
+                            return! f doc ct
+                        else
                             return raise(OperationCanceledException())
                     }
             )
@@ -1766,11 +1756,11 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     | None -> return CodeLensContainer.From([||])
                     | Some location ->
 
-                        let cmd = Command(Title = "Run", Name = "workbench.action.debug.run")
+                        let cmd = Command(Title = "$(run) Run", Name = "workbench.action.debug.run")
                         let clRun = CodeLens(Command = cmd, Range = location.GetTextRange(ct).ToLspRange())
 
                         if doc.Project.Configuration.Debuggable then
-                            let cmd = Command(Title = "Debug", Name = "workbench.action.debug.start")
+                            let cmd = Command(Title = "$(debug-alt-small) Debug", Name = "workbench.action.debug.start")
                             let clDebug = CodeLens(Command = cmd, Range = location.GetTextRange(ct).ToLspRange())
 
                             return CodeLensContainer.From([|clRun;clDebug|])
@@ -1895,27 +1885,22 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             backgroundTask {
                 try
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
-                    match textManager.TryGet(documentPath) with
-                    | Some (sourceText) ->
-                        let workspace = getWorkspace()
-                        workspace.UpdateDocument(documentPath, sourceText, ct)
-                        let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                        if docs.IsEmpty then
-                            return null
-                        else
-                            let doc = docs[0]
-                            let items =
-                                doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
-                                |> Seq.distinctBy (fun x -> x.Label)
-                                |> Seq.map (fun x ->
-                                    ct.ThrowIfCancellationRequested()
-                                    let kind = x.ClassificationKind.ToLspCompletionItemKind()
-                                    CompletionItem(Label = x.Label, Detail = x.Detail, InsertText = x.InsertText, Kind = kind)
-                                )
-                                |> ImArray.ofSeq
-                            return CompletionList(items)
-                    | _ ->
+                    let workspace = getWorkspace()
+                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+                    if docs.IsEmpty then
                         return null
+                    else
+                        let doc = docs[0]
+                        let items =
+                            doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
+                            |> Seq.distinctBy (fun x -> x.Label)
+                            |> Seq.map (fun x ->
+                                ct.ThrowIfCancellationRequested()
+                                let kind = x.ClassificationKind.ToLspCompletionItemKind()
+                                CompletionItem(Label = x.Label, Detail = x.Detail, InsertText = x.InsertText, Kind = kind)
+                            )
+                            |> ImArray.ofSeq
+                        return CompletionList(items)
                 with
                 | _ ->
                     return null
