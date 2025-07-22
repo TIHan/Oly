@@ -1020,8 +1020,6 @@ type private WorkspaceState =
 
 [<NoComparison;NoEquality>]
 type WorkspaceMessage =
-    | GetDocuments of documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
-    | GetAllDocuments of ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | RemoveProject of projectPath: OlyPath * ct: CancellationToken
     | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
     | ClearSolution
@@ -1125,7 +1123,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             state.progress.OnEndWork()
         }
 
-    let documentsToUpdate = Queue<OlyPath * CancellationToken>()
+    let documentsToUpdate = System.Collections.Concurrent.ConcurrentQueue<OlyPath * CancellationToken>()
     let processDocumentUpdates(ct: CancellationToken) = async {
         let mutable item = Unchecked.defaultof<_>
         while documentsToUpdate.TryDequeue(&item) do
@@ -1202,52 +1200,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     OlyTrace.Log($"[Workspace] - ClearSolution")
 #endif
                     clearSolution()
-
-                | GetDocuments(documentPath, ct, reply) ->
-                    do! onBeginWork ct
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - GetDocuments({documentPath.ToString()})")
-#endif
-                    let prevSolution = solutionRef.contents
-                    try
-                        let! ctr, ct = mapCtToCtr ct
-                        use _ = ctr
-                        ct.ThrowIfCancellationRequested()
-                        do! processDocumentUpdates ct
-                        let docs = solutionRef.contents.GetDocuments(documentPath)
-                        reply.Reply(docs)
-                    with
-                    | ex ->
-                        match ex with
-                        | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.LogError($"[Workspace] - GetDocuments({documentPath.ToString()})\n" + ex.ToString())
-                        solutionRef.contents <- prevSolution
-                        reply.Reply(ImArray.empty)
-
-                    do! onEndWork ct
-
-                | GetAllDocuments(ct, reply) ->
-                    do! onBeginWork ct
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - GetAllDocuments")
-#endif
-                    let prevSolution = solutionRef.contents
-                    try
-                        let! ctr, ct = mapCtToCtr ct
-                        use _ = ctr
-                        ct.ThrowIfCancellationRequested()
-                        do! processDocumentUpdates ct
-                        let docs = solutionRef.contents.GetAllDocuments()
-                        reply.Reply(docs)
-                    with
-                    | ex ->
-                        match ex with
-                        | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.LogError($"[Workspace] - GetAllDocuments:\n" + ex.ToString())
-                        solutionRef.contents <- prevSolution
-                        reply.Reply(ImArray.empty)
-
-                    do! onEndWork ct
 
                 // File handling, these cannot be cancelled
 
@@ -1856,13 +1808,15 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     member this.GetDocumentsAsync(documentPath: OlyPath, ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetDocuments(documentPath, ct, reply))
+            let! solution = this.GetSolutionAsync(ct)
+            return solution.GetDocuments(documentPath)
         }
 
     member this.GetAllDocumentsAsync(ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetAllDocuments(ct, reply))
+            let! solution = this.GetSolutionAsync(ct)
+            return solution.GetAllDocuments()
         }
 
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ActiveConfigurationState>)>]
