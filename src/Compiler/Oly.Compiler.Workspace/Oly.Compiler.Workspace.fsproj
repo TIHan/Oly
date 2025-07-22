@@ -10,7 +10,7 @@
     <Compile Include="OlyWorkspace.fsi" />
     <Compile Include="OlyWorkspace.fs" />
     <Compile Include="OlyWorkspaceExtensions.fs" />
-    <Compile Include="OlyWorkspaceService.fs" />
+    <Compile Include="OlyWorkspaceListener.fs" />
   </ItemGroup>
 
   <ItemGroup>

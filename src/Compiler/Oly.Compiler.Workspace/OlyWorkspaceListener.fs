@@ -1,4 +1,4 @@
-﻿namespace Oly.Compiler.Workspace.Service
+﻿namespace Oly.Compiler.Workspace
 
 open System
 open System.IO

@@ -7,7 +7,6 @@ open Oly.Core
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
-open Oly.Compiler.Workspace.Service
 open Oly.Targets.DotNet
 open Oly.Targets.Interpreter
 open Oly.Targets.Spirv
