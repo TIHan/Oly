@@ -960,12 +960,10 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         ] |> ImArray.ofSeq
     let lazyWorkspace =
         lazy
-            let workspace = OlyWorkspace.Create(targets, progress, lazyGetRootPath.Value)
-            let workspaceListener = new OlyWorkspaceListener(workspace)
-            (workspace, workspaceListener)
+            OlyWorkspace.Create(targets, progress, lazyGetRootPath.Value)
 
     let getWorkspace() =
-        lazyWorkspace.Value |> fst
+        lazyWorkspace.Value
 
     let documentSelector = TextDocumentSelector(TextDocumentFilter(Scheme = "file", Language = "oly"))
 
@@ -1097,6 +1095,25 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let ct = cts.Token
             workspace.LoadProject(proj, ct)
     }
+
+    interface IDidChangeWatchedFilesHandler with
+        member _.GetRegistrationOptions (capability: DidChangeWatchedFilesCapability, clientCapabilities: ClientCapabilities): DidChangeWatchedFilesRegistrationOptions = 
+            DidChangeWatchedFilesRegistrationOptions()
+
+        member _.Handle (request: DidChangeWatchedFilesParams, cancellationToken: CancellationToken): Task<Unit> = backgroundTask {
+            let workspace = getWorkspace()
+            for change in request.Changes do
+                match change.Type with
+                | FileChangeType.Created ->
+                    workspace.FileCreated(OlyPath.Create(change.Uri.Path))
+                | FileChangeType.Changed ->
+                    workspace.FileChanged(OlyPath.Create(change.Uri.Path))
+                | FileChangeType.Deleted ->
+                    workspace.FileDeleted(OlyPath.Create(change.Uri.Path))
+                | _ ->
+                    ()
+            return Unit.Value
+        }
 
     interface IOnLanguageServerInitialize with
         member this.OnInitialize (_server: ILanguageServer, _request: InitializeParams, _ct: CancellationToken): Task = 

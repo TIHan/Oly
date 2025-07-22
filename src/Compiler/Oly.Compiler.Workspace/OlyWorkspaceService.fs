@@ -49,8 +49,10 @@ type OlyWorkspaceListener(workspace: OlyWorkspace) =
             fun (oldFilePath, filePath) ->
                 let oldFilePath = OlyPath.CreateAbsolute(oldFilePath)
                 let newFilePath = OlyPath.CreateAbsolute(filePath)
-                if isValidFileToListenFor oldFilePath || isValidFileToListenFor newFilePath then
-                    workspace.FileRenamed(oldFilePath, newFilePath)
+                if isValidFileToListenFor oldFilePath then
+                    workspace.FileDeleted(oldFilePath)
+                if isValidFileToListenFor newFilePath then
+                    workspace.FileCreated(newFilePath)
         )
 
     override this.Finalize (): unit = 

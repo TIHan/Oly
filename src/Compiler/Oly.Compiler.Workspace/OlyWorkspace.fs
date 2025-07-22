@@ -1031,7 +1031,6 @@ type WorkspaceMessage =
     | FileCreated of filePath: OlyPath
     | FileChanged of filePath: OlyPath
     | FileDeleted of filePath: OlyPath
-    | FileRenamed of oldFilePath: OlyPath * newFilePath: OlyPath
 
 type IOlyWorkspaceProgress =
 
@@ -1313,37 +1312,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(filePath))
                     elif filePath.HasExtension(".json") then
                         currentRs <- currentRs.RemoveResource(filePath)
-
-                | FileRenamed(oldFilePath, newFilePath) ->
-                    OlyTrace.Log($"[Workspace] - FileRenamed - {oldFilePath.ToString()} => {newFilePath.ToString()}")
-
-                    if oldFilePath.HasExtension(".oly") || oldFilePath.HasExtension(".olyx") then
-                        currentRs <- currentRs.RemoveInMemorySourceText(oldFilePath)
-                        currentRs <- currentRs.RemoveResource(oldFilePath)
-                        let mutable newSolution = solutionRef.contents
-                        let docs = newSolution.GetDocuments(oldFilePath)
-                        for doc in docs do
-                            if doc.IsProjectDocument then
-                                newSolution <- newSolution.RemoveProject(doc.Project.Path)
-                            else
-                                newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
-                        solutionRef.contents <- newSolution
-                        events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(oldFilePath))
-                    elif oldFilePath.HasExtension(".json") then
-                        currentRs <- currentRs.RemoveResource(oldFilePath)
-                            
-                    if newFilePath.HasExtension(".oly") || newFilePath.HasExtension(".olyx") then
-                        let mutable newSolution = solutionRef.contents
-                        newSolution.GetProjects()
-                        |> ImArray.iter (fun proj ->
-                            if proj.CouldHaveDocument(newFilePath) then
-                                documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
-                        )
-                        solutionRef.contents <- newSolution
-                        documentsToUpdate.Enqueue(newFilePath, CancellationToken.None)
-                        events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(newFilePath))
-                    elif newFilePath.HasExtension(".json") then
-                        currentRs <- currentRs.SetResourceAsCopy(newFilePath)
 
                 return! loop()
             }
@@ -1932,9 +1900,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     member _.FileDeleted(filePath: OlyPath)=
         mbp.Post(WorkspaceMessage.FileDeleted(filePath))
-
-    member _.FileRenamed(oldFilePath: OlyPath, newFilePath: OlyPath) =
-        mbp.Post(WorkspaceMessage.FileRenamed(oldFilePath, newFilePath))
 
     static member CreateCore(targetPlatforms: OlyBuild seq, progress, initialRs, workspaceDirectory: OlyPath) =
         let targetPlatforms =

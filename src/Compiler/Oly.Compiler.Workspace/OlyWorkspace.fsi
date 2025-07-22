@@ -270,7 +270,7 @@ type OlyWorkspace =
     member StaleSolution : OlySolution
 
     /// Try to cancel any current long-running work.
-    /// Will not cancel LoadProject, ClearSolution, FileCreated, FileChanged, FileDeleted, FileRenamed.
+    /// Will not cancel LoadProject, ClearSolution, FileCreated, FileChanged, FileDeleted.
     member CancelCurrentWork : unit -> unit
 
     member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
@@ -300,7 +300,6 @@ type OlyWorkspace =
     member FileCreated : OlyPath -> unit
     member FileChanged : OlyPath -> unit
     member FileDeleted : OlyPath -> unit
-    member FileRenamed : oldFilePath: OlyPath * newFilePath: OlyPath -> unit
 
     member WorkspaceDirectory : OlyPath
     member WorkspaceStateDirectory : OlyPath

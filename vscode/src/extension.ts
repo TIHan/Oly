@@ -65,14 +65,15 @@ export function activate(context: ExtensionContext) {
 	};
 
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
-	let olyxFileWatcher = workspace.createFileSystemWatcher('**/*.olyx')
+	let olyxFileWatcher = workspace.createFileSystemWatcher('**/*.olyx');
+	let jsonFileWatcher = workspace.createFileSystemWatcher('**/**.json');
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for plain text documents
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
-			fileEvents: [olyFileWatcher, olyxFileWatcher]
+			fileEvents: [olyFileWatcher, olyxFileWatcher, jsonFileWatcher]
 		}
 	};
 
