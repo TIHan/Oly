@@ -1081,7 +1081,7 @@ type private WorkspaceState =
 [<NoComparison;NoEquality>]
 type WorkspaceMessage =
     | RemoveProject of projectPath: OlyPath * ct: CancellationToken
-    | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
+    | GetSolution of ct: CancellationToken * AsyncReplyChannel<Result<OlySolution, Exception>>
     | ClearSolution
 
     | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
@@ -1222,13 +1222,14 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         use _ = ctr
                         ct.ThrowIfCancellationRequested()
                         do! processDocumentUpdates ct
-                        reply.Reply(solutionRef.contents)
+                        reply.Reply(Ok(solutionRef.contents))
                     with
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
                         | _ -> OlyTrace.LogError($"[Workspace] - GetSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
+                        reply.Reply(Error(ex))
 
                 | RemoveProject(projectPath, ct) ->
                     use _progress = onBeginWork()
@@ -1844,7 +1845,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     member this.GetSolutionAsync(ct) =
         backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply))
+            match! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply)) with
+            | Ok(solution) -> return solution
+            | Error(ex) -> return raise ex
         }
 
     member this.UpdateDocument(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): unit =
