@@ -128,10 +128,6 @@ type OlyBuild(platformName: string) =
 
     abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
 
-    abstract OnBeforeReferencesImportedAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * ct: CancellationToken -> Task<unit>
-    
-    abstract OnAfterReferencesImported : unit -> unit
-
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
@@ -1400,12 +1396,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             if String.IsNullOrWhiteSpace(platformName) |> not && targetPlatform.IsValidTargetName(targetInfo) |> not then
                 diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))
 
-            try
-                do! targetPlatform.OnBeforeReferencesImportedAsync(projPath, targetInfo, ct)
-            with
-            | ex ->
-                diags.Add(OlyDiagnostic.CreateError(ex.Message))
-
             let projPath = OlyPath.Create(filePath.ToString())
 
             let chooseReference textSpan (path: OlyPath) =
@@ -1596,12 +1586,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 |> ImArray.distinct
 
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
-
-            try
-                targetPlatform.OnAfterReferencesImported()
-            with
-            | ex ->
-                diags.Add(OlyDiagnostic.CreateError(ex.Message))
 
             let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, ct)
 

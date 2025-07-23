@@ -255,15 +255,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
     abstract GetReferenceAssemblyName : OlyPath -> string
     default _.GetReferenceAssemblyName(path) =
         let pathStr = path.ToString()
-        Path.GetFileNameWithoutExtension(pathStr)   
-
-    override this.OnBeforeReferencesImportedAsync(projPath: OlyPath, targetInfo: OlyTargetInfo, ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<unit> =
-        backgroundTask {
-            ()
-        }
-
-    override this.OnAfterReferencesImported() =
-        ()
+        Path.GetFileNameWithoutExtension(pathStr)
 
     override _.IsValidTargetName _ = true 
 

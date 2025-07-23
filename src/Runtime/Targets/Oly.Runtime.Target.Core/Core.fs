@@ -77,13 +77,6 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
 
     abstract EmitOutput : OlyProject * binDirectory: OlyPath * 'Emitter * isDebuggable: bool -> unit
 
-    override this.OnBeforeReferencesImportedAsync(_, _, _) = 
-        backgroundTask {
-            return ()
-        }
-        
-    override this.OnAfterReferencesImported() = ()
-
     override this.BuildProjectAsync(proj, ct: System.Threading.CancellationToken) = backgroundTask { 
         let diags = proj.GetDiagnostics(ct)
         if diags |> ImArray.exists (fun x -> x.IsError) then
