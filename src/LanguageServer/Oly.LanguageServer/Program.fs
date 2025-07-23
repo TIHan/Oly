@@ -683,8 +683,8 @@ type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
 
     member this.ForAnalyzingProgress(ct: CancellationToken, f) = backgroundTask {
         ct.ThrowIfCancellationRequested()
-        this.OnBeginAnalysisProgress()
         try
+            this.OnBeginAnalysisProgress()
             return! f(ct)
         finally
             this.OnEndAnalysisProgress()

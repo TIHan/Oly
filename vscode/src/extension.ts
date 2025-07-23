@@ -105,22 +105,29 @@ export function activate(context: ExtensionContext) {
 	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
 	let olyWorkspaceStatusSyncText = "$(loading~spin) Oly Workspace"
 	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
-	olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
-	olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
 	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 
-	function beginOlyWorkspaceStatus() {
+	function showOlyWorkspaceStatusCleanTooltip() {
+			olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
+		olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
+		olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
+	}
+
+	function beginOlyWorkspaceStatus(title: string) {
 		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusSyncText;
 		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
 		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
+		olyWorkspaceStatusBarItem.tooltip = title;
 	}
 
 	function endOlyWorkspaceStatus() {
 		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
 		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
+		showOlyWorkspaceStatusCleanTooltip();
 	}
+
+	showOlyWorkspaceStatusCleanTooltip();
 
 	endOlyWorkspaceStatus();
 	olyWorkspaceStatusBarItem.show();
@@ -144,7 +151,7 @@ export function activate(context: ExtensionContext) {
 				}
 				else
 				{
-					beginOlyWorkspaceStatus();
+					beginOlyWorkspaceStatus(params.title);
 				}
 				break;
 			case 'end':

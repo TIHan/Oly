@@ -1174,13 +1174,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             |> OlySolution
 
     let mutable currentRs = initialRs
-    let onBeginWork _ct = 
-        async {
-            state.progress.OnBeginWork()
-        }
-    let onEndWork _ct = 
-        async {
-            state.progress.OnEndWork()
+    let onBeginWork() = 
+        state.progress.OnBeginWork()
+        { new IDisposable with
+            member _.Dispose() = state.progress.OnEndWork()
         }
 
     let documentsToUpdate = System.Collections.Concurrent.ConcurrentQueue<OlyPath * CancellationToken>()
@@ -1214,7 +1211,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             async {
                 match! mbp.Receive() with
                 | GetSolution(ct, reply) ->
-                    do! onBeginWork ct
+                    use _progress = onBeginWork()
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - GetSolution()")
 #endif
@@ -1233,10 +1230,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         | _ -> OlyTrace.LogError($"[Workspace] - GetSolution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
-                    do! onEndWork ct
-
                 | RemoveProject(projectPath, ct) ->
-                    do! onBeginWork ct
+                    use _progress = onBeginWork()
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - RemoveProject({projectPath.ToString()})")
 #endif
@@ -1253,9 +1248,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         | _ -> OlyTrace.LogError($"[Workspace] - RemoveProject({projectPath.ToString()}):\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
-                    do! onEndWork ct
-
                 | ClearSolution ->
+                    use _progress = onBeginWork()
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - ClearSolution")
 #endif
@@ -1264,6 +1258,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 // File handling, these cannot be cancelled
 
                 | UpdateDocument(documentPath, sourceText, ct) ->
+                    use _progress = onBeginWork()
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - UpdateDocument({documentPath.ToString()})")
 #endif
@@ -1272,6 +1267,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(documentPath, true))
 
                 | LoadProject(projectPath, ct) ->
+                    use _progress = onBeginWork()
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - LoadProject({projectPath.ToString()})")
 #endif
@@ -1279,6 +1275,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         documentsToUpdate.Enqueue(projectPath, ct)
 
                 | FileCreated(filePath) ->
+                    use _progress = onBeginWork()
+
                     OlyTrace.Log($"[Workspace] - FileCreated - {filePath.ToString()}")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
@@ -1297,6 +1295,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         currentRs <- currentRs.SetResourceAsCopy(filePath)
 
                 | FileChanged(filePath) ->
+                    use _progress = onBeginWork()
+
                     OlyTrace.Log($"[Workspace] - FileChanged - {filePath.ToString()}")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
@@ -1309,6 +1309,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                             do! refresh()
 
                 | FileDeleted(filePath) ->
+                    use _progress = onBeginWork()
+
                     OlyTrace.Log($"[Workspace] - FileDeleted - {filePath.ToString()}")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
