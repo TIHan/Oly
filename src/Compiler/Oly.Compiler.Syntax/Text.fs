@@ -111,6 +111,12 @@ type OlyTextLine(index: int, span: OlyTextSpan) =
         sourceText.CopyTo(span.Start, Span(ptr |> NativePtr.toVoidPtr, span.Width))
         str.ReplaceLineEndings("")
 
+    member _.ToStringWithLineEndings(sourceText: IOlySourceText) =
+        let mutable str = String.init span.Width (fun _ -> string Char.MinValue)
+        use ptr = fixed str
+        sourceText.CopyTo(span.Start, Span(ptr |> NativePtr.toVoidPtr, span.Width))
+        str
+
 and IOlySourceText =
 
     abstract Item : int -> char with get

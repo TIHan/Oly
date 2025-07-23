@@ -83,8 +83,18 @@ let buildHasErrorsWithPrefix target (expected: (string * string) list) src =
         let errorMsgs = 
             diags 
             |> ImArray.filter (fun x -> x.IsError) 
-            |> Seq.map (fun x -> ($"{x.CodePrefix}: {x.Message}", "\r\n" + x.GetHelperText() + "\r\n")) 
-            |> Array.ofSeq
+            |> Seq.map (fun x -> ($"{x.CodePrefix}: {x.Message}", "\n" + x.GetHelperText() + "\n"))
+
+        let expected =
+            expected
+            |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+            |> ImArray.ofSeq
+
+        let errorMsgs =
+            errorMsgs
+            |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+            |> ImArray.ofSeq
+
         Assert.Equal(expected, errorMsgs)
     | _ ->
         failwith "Expected errors."

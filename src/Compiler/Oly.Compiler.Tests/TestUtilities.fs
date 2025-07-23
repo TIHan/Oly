@@ -238,15 +238,25 @@ let withNoSyntaxDiagnostics (c: TestCompilation) =
 
 let withSyntaxErrorDiagnostics (expected: string list) (c: TestCompilation) =
     let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message)
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+        |> Array.ofSeq
+
     Assert.Equal(expected, errorMsgs)
     c
 
 let withSyntaxErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, Environment.NewLine + x.GetHelperText() + Environment.NewLine)) |> Array.ofSeq
+    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\n" + x.GetHelperText() + "\n")) |> Array.ofSeq
     (expected, errorMsgs)
     ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
-        Assert.Equal(expectedMsg, msg)
-        Assert.Equal(expectedText.Replace("\r", ""), text.Replace("\r", ""))
+        Assert.Equal(expectedMsg.ReplaceLineEndings("\n"), msg.ReplaceLineEndings("\n"))
+        Assert.Equal(expectedText.ReplaceLineEndings("\n"), text.ReplaceLineEndings("\n"))
     )
     Assert.Equal(expected.Length, errorMsgs.Length)
     c
@@ -257,6 +267,16 @@ let withNoDiagnostics (c: TestCompilation) =
 
 let withErrorDiagnostics (expected: string list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+        |> Array.ofSeq
+
     Assert.Equal(expected, errorMsgs)
     c
 
@@ -267,8 +287,18 @@ let hasErrorDiagnostics (c: TestCompilation) =
 let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, Environment.NewLine + x.GetHelperText() + Environment.NewLine)) |> Array.ofSeq
 
+    let expected =
+        expected
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
     let builder = Text.StringBuilder()
-    (expected |> ImArray.ofSeq, errorMsgs |> ImArray.ofSeq)
+    (expected, errorMsgs)
     ||> ImArray.tryIter2 (fun expected actual ->
         try
             Assert.Equal(expected, actual)
@@ -307,12 +337,23 @@ let withErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAu
 let hasErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAux expected c |> ignore
 
 let containsErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\n" + x.GetHelperText() + "\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
     let result =
         expected
-        |> Seq.forall (fun (expectedMsg, expectedText) ->
+        |> ImArray.forall (fun (expectedMsg, expectedText) ->
             errorMsgs
-            |> Array.exists (fun (msg, text) ->
+            |> ImArray.exists (fun (msg, text) ->
                 expectedMsg = msg && expectedText = text
             )
         )

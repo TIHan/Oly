@@ -53,7 +53,7 @@ let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj
             else
                 builder.AppendLine(diag.ToString()) |> ignore
         ) 
-        Assert.Equal(expectedOutput.ReplaceLineEndings(), builder.ToString().ReplaceLineEndings())
+        Assert.Equal(expectedOutput, builder.ToString())
 
 let run (expectedOutput: string) (program: OlyProgram) =
     Assert.Equal(expectedOutput + Environment.NewLine, program.Run([||]))

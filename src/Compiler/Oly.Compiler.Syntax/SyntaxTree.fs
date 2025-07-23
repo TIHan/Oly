@@ -118,7 +118,7 @@ type OlyDiagnostic internal () =
                             width
                     let b = String.init width (fun _ -> "^")
                     a + b
-                lineText + Environment.NewLine + locationText
+                lineText + "\n" + locationText
             else
                 // TODO: Fix support for multi-line diagnostic location
                 let startI = textSpan.Start - line.Span.Start
@@ -128,7 +128,7 @@ type OlyDiagnostic internal () =
                     let a = String.init startI (fun _ -> " ")
                     let b = String.init textSpan.Width (fun _ -> "^")
                     a + b
-                lineText + Environment.NewLine + locationText
+                lineText + "\n" + locationText
         | _ ->
             String.Empty
 
