@@ -312,6 +312,43 @@ type OlyProject (
         this.Documents
         |> ImArray.filter (fun doc -> not(OlyPath.Equals(doc.Path, documentPath)))
 
+    member this.Set(newSolutionLazy: Lazy<OlySolution>, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
+        let mutable newProject = this
+        let newProjectLazy = lazy newProject
+        let newDocuments =
+            documents
+            |> ImArray.map (fun (documentPath, syntaxTree, extraDiagnostics) ->
+                OlyDocument(newProjectLazy, documentPath, syntaxTree, extraDiagnostics)
+            )
+        let syntaxTrees =
+            documents
+            |> ImArray.map (fun (_, syntaxTree, _) -> syntaxTree)
+
+        let newCompilation = 
+            CacheValue(fun ct ->
+                OlyAssert.True(newSolutionLazy.IsValueCreated)
+                ct.ThrowIfCancellationRequested()
+                let solution = newSolutionLazy.Value
+                let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
+                OlyCompilation.Create(
+                    projName,
+                    syntaxTrees,
+                    transitiveReferences,
+                    compilationOptions
+                )
+            )
+
+        let newDocuments = 
+            newDocuments
+            |> Seq.map (fun newDocument ->
+                KeyValuePair(newDocument.Path, newDocument)
+            )
+            |> ImmutableDictionary.CreateRange
+
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
+        newProjectLazy.Force() |> ignore
+        newProject
+
     member this.UpdateDocument(newSolutionLazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree, extraDiagnostics) =
         let mutable newProject = this
         let newProjectLazy = lazy newProject
@@ -704,6 +741,33 @@ type OlySolution (state: SolutionState) =
 
     member this.CreateProject(projectPath, platformName, targetInfo, ct: CancellationToken) =
         this.CreateProject(projectPath, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
+
+    member this.SetProject(projectPath: OlyPath, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
+        let project = this.GetProject(projectPath)
+        let mutable newSolution = this
+        let newSolutionLazy = lazy newSolution
+        OlyTrace.Log($"[Solution] Setting project - {projectPath.ToString()}")
+        OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
+        let newProject = project.Set(newSolutionLazy, documents, projectReferences)
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
+        newSolution <- updateSolution newSolution newSolutionLazy
+        newSolutionLazy.Force() |> ignore
+
+#if DEBUG || CHECKED
+        let checkProj (newProject: OlyProject) =
+            OlyAssert.Equal(newSolution, newProject.Solution)
+            newProject.Documents
+            |> ImArray.iter (fun doc ->
+                OlyAssert.Equal(newProject, doc.Project)
+                OlyAssert.Equal(newSolution, doc.Project.Solution)
+            )
+        checkProj newProject
+        newSolution.GetProjects()
+        |> ImArray.iter checkProj
+#endif
+
+        newSolution, newProject     
 
     member this.UpdateDocument(projectPath: OlyPath, documentPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
         let project = this.GetProject(projectPath)
@@ -1591,35 +1655,33 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
             let loads = getSortedLoadsFromConfig rs absoluteDir config
 
-            let solution =
-                (solution, loads)
-                ||> ImArray.fold (fun solution (textSpan, path) ->
-                    if path.HasExtension(ProjectExtension) then
-                        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", OlySourceLocation.Create(textSpan, syntaxTree)))
-                        solution
-                    else
-                        let path = absoluteDir.Join(path.ToString())
-                        if OlyPath.Equals(filePath, path) then
-                            solution
-                        else
-                            try
-                                let sourceText = rs.GetSourceText(path)
-                                let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
-                                let syntaxTree = 
-                                    OlySyntaxTree.Parse(path, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
-                                let solution, _, _ = solution.UpdateDocument(projPath, path, syntaxTree, ImArray.empty)
-                                solution
-                            with
-                            | :? OlyWorkspaceFileDoesNotExist as ex ->
-                                diags.Add(OlyDiagnostic.CreateError($"'{path.ToString()}' does not exist.", OlySourceLocation.Create(textSpan, syntaxTree)))
-                                solution
-                            | ex ->
-                                diags.Add(OlyDiagnostic.CreateError($"Internal error: {ex.Message}", OlySourceLocation.Create(textSpan, syntaxTree)))
-                                solution
-                )
+            let documents = ImArray.builder()
 
-            let solution, _, _ = solution.UpdateDocument(projPath, filePath, syntaxTree, diags.ToImmutable())
-            let solution, _ = solution.UpdateReferences(projPath, projectReferences, ct)
+            loads
+            |> ImArray.iter (fun (textSpan, path) ->
+                if path.HasExtension(ProjectExtension) then
+                    diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                else
+                    let path = absoluteDir.Join(path.ToString())
+                    if OlyPath.Equals(filePath, path) then
+                        ()
+                    else
+                        try
+                            let sourceText = rs.GetSourceText(path)
+                            let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
+                            let syntaxTree = 
+                                OlySyntaxTree.Parse(path, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
+                            documents.Add(path, syntaxTree, ImArray.empty)
+                        with
+                        | :? OlyWorkspaceFileDoesNotExist as ex ->
+                            diags.Add(OlyDiagnostic.CreateError($"'{path.ToString()}' does not exist.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                        | ex ->
+                            diags.Add(OlyDiagnostic.CreateError($"Internal error: {ex.Message}", OlySourceLocation.Create(textSpan, syntaxTree)))
+            )
+
+            documents.Add(filePath, syntaxTree, diags.ToImmutable())
+
+            let solution, _ = solution.SetProject(projPath, documents.ToImmutable(), projectReferences)
             return solution
         }
 
