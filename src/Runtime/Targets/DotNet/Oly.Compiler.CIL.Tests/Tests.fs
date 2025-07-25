@@ -21160,3 +21160,35 @@ module M =
     OlyThree src src1 src2
     |> withCompile
     |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``'new' should work on the concrete implementation``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IExample =
+
+    M(): int32
+
+abstract class BaseExample =
+
+    M(): int32 = 123
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new M(): int32 = 456
+
+main(): () =
+    let example: IExample = Example()
+    print(example.M())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"

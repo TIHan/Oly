@@ -1215,7 +1215,7 @@ class Test =
         """
     Oly src
     |> withErrorDiagnostics [
-        "Imported types cannot have members with implementations."
+        "Value has an 'import' attribute and must not be given an implementation."
     ]
     |> ignore
 
@@ -10731,7 +10731,7 @@ module MAttribute =
     |> ignore
 
 [<Fact>]
-let ``Explicit argument name should pass as the name does match with the parameter name``() =
+let ``Named arguments are not supported yet``() =
     let src =
         """
 #[intrinsic("int32")]
@@ -10743,61 +10743,22 @@ main(): () =
     Call(x = 1)
         """
     Oly src
-    |> shouldCompile
-
-[<Fact>]
-let ``Explicit argument name should fail as the name does not match with the parameter name``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-Call(x: int32): () = ()
-
-main(): () =
-    Call(y = 1)
-        """
-    Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO: Invalid name",
+            ("Named arguments are not supported yet.",
                 """
-    Call(y = 1)
+    Call(x = 1)
          ^
+"""
+            )
+            ("Expected 1 argument(s) but only given 0.",
+                """
+    Call(x = 1)
+    ^^^^^^^^^^^
 """
             )
         ]
     |> ignore
-
-[<Fact>]
-let ``Explicit argument names should pass as the names do match with the parameter names``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-Call(x: int32, y: int32): () = ()
-
-main(): () =
-    Call(x = 1, y = 2)
-        """
-    Oly src
-    |> shouldCompile
-
-[<Fact>]
-let ``Explicit argument names should pass as the names do match with the parameter names in a different order``() =
-    let src =
-        """
-#[intrinsic("int32")]
-alias int32
-
-Call(x: int32, y: int32): () = ()
-
-main(): () =
-    Call(y = 2, x = 1)
-        """
-    Oly src
-    |> shouldCompile
 
 [<Fact>]
 let ``Use of import attribute should not allow an implementation``() =
@@ -10809,10 +10770,32 @@ Doot(): () = ()
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO:",
+            ("Value has an 'import' attribute and must not be given an implementation.",
                 """
 Doot(): () = ()
 ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+
+[<Fact>]
+let ``Use of import attribute should not allow an implementation 2``() =
+    let src =
+        """
+#[import("doot", "doot", "doot")]
+class Doot =
+
+    Zoot(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Value has an 'import' attribute and must not be given an implementation.",
+                """
+    Zoot(): () = ()
+    ^^^^
 """
             )
         ]

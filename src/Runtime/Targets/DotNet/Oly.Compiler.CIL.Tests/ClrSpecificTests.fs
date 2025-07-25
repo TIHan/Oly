@@ -1582,9 +1582,9 @@ public interface IExample2
 open System
 
 #[export]
-test<T>(x: T): () where T: IExample =
+test<Z>(x: Z): () where Z: IExample =
   Console.Write("test")
-  x.GenericExample<T>(x)
+  x.GenericExample<Z>(x)
 
 #[export]
 class Example =
@@ -9479,3 +9479,111 @@ main(): () =
                 |> withCompile
                 |> shouldRunWithExpectedOutput "hello"
         )
+
+[<Fact>]
+let ``Regression - defined exports with interfaces should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(x: T): () where T: IExample
+
+#[export]
+test<Z>(x: Z): () where Z: IExample =
+  Console.Write("test")
+  x.GenericExample<Z>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Regression - defined exports with interfaces but reversed should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[export]
+test<Z>(x: Z): () where Z: IExample =
+  Console.Write("test")
+  x.GenericExample<Z>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(x: T): () where T: IExample
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"

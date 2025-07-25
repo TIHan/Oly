@@ -16,6 +16,54 @@ open Oly.Compiler.Internal.Checker
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Binder.EarlyAttributes
 
+let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs =
+    let mutable hasImport = false
+    let newAttrs =
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) ->
+            match ent.TryImportedInfo with
+            | Some(platform, path, name) ->
+                hasImport <- true
+                if attributesContainImport attrs then attrs
+                else
+                    attrs.Add(AttributeSymbol.Import(platform, path.Add(name), importName))
+            | _ ->
+                attrs
+        | _ ->
+            attrs
+
+    // An explicit 'import' will always take precedence over an attribute importer.
+    if hasImport then
+        newAttrs
+    else
+        let mutable hasImporter = false
+        newAttrs
+        |> ImArray.iter (fun attr ->
+            match attr with
+            | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
+                hasImporter <- true
+            | _ ->
+                ()
+        )
+        if hasImporter then
+            newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
+        else
+            newAttrs
+
+let addExportAttributeIfNecessary (cenv: cenv) syntaxNode (enclosing: EnclosingSymbol) attrs =
+    match enclosing with
+    | EnclosingSymbol.Entity(ent) ->
+        if ent.IsExported then
+            if attributesContainExport attrs then 
+                cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+                attrs
+            else
+                attrs.Add(AttributeSymbol.Export)
+        else
+            attrs
+    | _ ->
+        attrs
+
 [<Sealed>]
 type private PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness, memberFlags: MemberFlags) =
     member _.Name = name
@@ -832,6 +880,12 @@ let bindAnonymousShapeType (cenv: cenv) (env: BinderEnvironment) (tyPars: TypePa
 (********************************************************************************************************************************************************************************************)
 (********************************************************************************************************************************************************************************************)
 
+let private reportIntrinsicAttributeImplementationError (cenv: cenv) syntaxNode =
+    cenv.diagnostics.Error("Value has an 'intrinsic' attribute and must not be given an implementation.", 10, syntaxNode)
+
+let private reportImportAttributeImplementationError (cenv: cenv) syntaxNode =
+    cenv.diagnostics.Error("Value has an 'import' attribute and must not be given an implementation.", 10, syntaxNode)
+
 let private bindTopLevelBindingDeclaration cenv env syntaxBinding (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBindingDecl =
     let binding = bindMemberBindingDeclaration cenv env (syntaxAttrs, attrs) false memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
     checkEnumForInvalidFieldOrFunction cenv syntaxBindingDecl binding
@@ -841,11 +895,21 @@ let private bindTopLevelBindingDeclaration cenv env syntaxBinding (syntaxAttrs, 
 
     match tryFindIntrinsicAttribute syntaxAttrs attrs with
     | ValueSome _ ->
-        cenv.diagnostics.Error("Value has an 'intrinsic' attribute and must not be given an implementation.", 10, syntaxBindingDecl.Identifier)
+        reportIntrinsicAttributeImplementationError cenv syntaxBindingDecl.Identifier
     | _ ->
         match enclosing with
         | EnclosingSymbol.Entity(ent) when ent.TryCompilerIntrinsic.IsSome ->
-            cenv.diagnostics.Error("Values has an 'intrinsic' attribute and must not be given an implementation.", 10, syntaxBindingDecl.Identifier)
+            reportIntrinsicAttributeImplementationError cenv syntaxBindingDecl.Identifier
+        | _ ->
+            ()
+
+    match tryFindImportAttribute syntaxAttrs attrs with
+    | ValueSome _ ->
+        reportImportAttributeImplementationError cenv syntaxBindingDecl.Identifier
+    | _ ->
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) when ent.IsImported ->
+            reportImportAttributeImplementationError cenv syntaxBindingDecl.Identifier
         | _ ->
             ()
 
@@ -1148,6 +1212,8 @@ let private bindTopLevelValueDeclaration
     let memberFlags = memberFlags ||| (Pass1.bindAccessorAsMemberFlags valueExplicitness.IsExplicitField syntaxAccessor)
 
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
+    let attrs = addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs
+    let attrs = addExportAttributeIfNecessary cenv syntaxBinding enclosing attrs
 
     bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding
 
@@ -1278,9 +1344,17 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         entBuilder.SetFields(cenv.pass, fieldConstants)
 
 /// Pass 2 - Type declaration.
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxIdent (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
+
+    let attrs = bindEarlyAttributes cenv env syntaxAttrs
+
+    // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
+    //            In this case, it is OK because we always populate the attributes for the parent first before the children.
+    let attrs = Pass2.addExportAttributeIfNecessary cenv syntaxIdent entBuilder.Entity.Enclosing attrs
+    // IMPORTANT: These attributes are temporarily set, they get re-set in Pass3.
+    entBuilder.SetAttributes(cenv.pass, attrs)
 
     bindTypeDeclarationBody cenv env entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
 
@@ -1345,7 +1419,7 @@ let bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (supers: Immuta
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
         let prevEntityDefIndex = cenv.entityDefIndex
-        bindTypeDeclaration cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody
+        bindTypeDeclaration cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         bindings, env
 

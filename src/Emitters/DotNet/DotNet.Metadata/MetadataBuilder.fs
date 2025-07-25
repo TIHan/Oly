@@ -218,6 +218,21 @@ module private MetadataHelpers =
                 encodeParameters(encoder, parTys, asmBuilder))
         )
 
+    let addConstraints (asmBuilder: ClrAssemblyBuilder) (handle: GenericParameterHandle) (constrs: ClrTypeConstraint imarray) =
+        constrs
+        |> ImArray.iter (fun constr ->
+            match constr with
+            | ClrTypeConstraint.SubtypeOf(tyHandle) ->
+                let entHandle =
+                    match tyHandle with
+                    | ClrTypeHandle.ModReq(modifierHandle, tyHandle) ->
+                        asmBuilder.AddModReq(modifierHandle, tyHandle)
+                    | _ ->
+                        tyHandle.EntityHandle
+                asmBuilder.MetadataBuilder.AddGenericParameterConstraint(handle, entHandle)
+                |> ignore
+        )
+
 [<Sealed>]
 type ClrLocal(name: string, ty: ClrTypeHandle, isPinned: bool) =
 
@@ -805,7 +820,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     let signatureBuilder = BlobBuilder()
 
-    member internal _.MetadataBuilder = metadataBuilder
+    member internal _.MetadataBuilder: MetadataBuilder = metadataBuilder
     member internal _.ILBuilder = ilBuilder
 
     member _.PdbBuilder = pdbBuilder
@@ -2555,20 +2570,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 for i = 0 to tyPars.Length - 1 do
                     let tyPar = tyPars.[i]
                     let name = metadataBuilder.GetOrAddString(tyPar.Name)
-                    let handle = metadataBuilder.AddGenericParameter(castedHandle, tyPar.Flags, name, enclosingTyParCount + i)
-                    tyPar.Constraints
-                    |> ImArray.iter (fun constr ->
-                        match constr with
-                        | ClrTypeConstraint.SubtypeOf(tyHandle) ->
-                            let entHandle =
-                                match tyHandle with
-                                | ClrTypeHandle.ModReq(modifierHandle, tyHandle) ->
-                                    asmBuilder.AddModReq(modifierHandle, tyHandle)
-                                | _ ->
-                                    tyHandle.EntityHandle
-                            metadataBuilder.AddGenericParameterConstraint(handle, entHandle)
-                            |> ignore
-                    )
+                    let handle = metadataBuilder.AddGenericParameter(castedHandle, tyPar.Flags, name, enclosingTyParCount + i)                 
+                    MetadataHelpers.addConstraints asmBuilder handle tyPar.Constraints
+                    
             if not tyPars.IsEmpty then
                 asmBuilder.GenericParameterQueue.Enqueue(f, index)
 
@@ -2796,9 +2800,10 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
 
             let f = fun () ->
                 for i = 0 to tyPars.Length - 1 do
-                    let name = metadataBuilder.GetOrAddString(tyPars.[i].Name)
-                    metadataBuilder.AddGenericParameter(castedTyDefHandle, GenericParameterAttributes.None, name, i)
-                    |> ignore
+                    let tyPar = tyPars[i]
+                    let name = metadataBuilder.GetOrAddString(tyPar.Name)
+                    let handle = metadataBuilder.AddGenericParameter(castedTyDefHandle, tyPar.Flags, name, i)
+                    MetadataHelpers.addConstraints asmBuilder handle tyPar.Constraints
             if not tyPars.IsEmpty then
                 asmBuilder.GenericParameterQueue.Enqueue(f, tyDefIndex)
 

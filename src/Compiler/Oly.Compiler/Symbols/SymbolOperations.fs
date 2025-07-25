@@ -1163,6 +1163,9 @@ type FunctionSignatureMutableSet private (set: HashSet<IFunctionSymbol>) =
         match set.TryGetValue key with
         | true, value -> ValueSome value
         | _ -> ValueNone
+
+    member _.Contains(key) =
+        set.Contains(key)
    
     static member Create(collection: IEnumerable<_>) =     
         let set = HashSet<IFunctionSymbol>(collection, FunctionSignatureSymbolComparer())

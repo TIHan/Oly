@@ -1113,7 +1113,7 @@ abstract class BaseExample =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO:",
+            ("The function 'GenericExample' must have an implementation.",
                 """
     GenericExample<T>(T): ()
     ^^^^^^^^^^^^^^
@@ -1136,7 +1136,7 @@ abstract class BaseExample =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO:",
+            ("The function 'GenericExample' must have an implementation.",
                 """
     GenericExample<T>(T): ()
     ^^^^^^^^^^^^^^
@@ -1167,7 +1167,7 @@ class Example =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO:",
+            ("'GenericExample<T>(x: T): ()' has duplicate member definitions.",
                 """
     GenericExample<T>(x: T): () =
     ^^^^^^^^^^^^^^
@@ -1175,6 +1175,29 @@ class Example =
             )
         ]
     |> ignore
+
+
+[<Fact>]
+let ``'new' should work on the concrete implementation``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        base.GenericExample(x)
+        """
+    Oly src
+    |> shouldCompile
 
 [<Fact>]
 let ``Must implement the interface member even though it is provided in the base class``() =

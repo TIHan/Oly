@@ -35,11 +35,11 @@ let createGenericContextFromFunction (func: RuntimeFunction) =
         if isTyErased then
             GenericContext.CreateErasing(func.Enclosing.TypeArguments)
         else
-            GenericContext.Create(func.Enclosing.TypeArguments)
+            GenericContext.Create(func.Enclosing.AsType.Formal.TypeArguments)
     if isFuncErased then
         genericContext.AddErasingFunctionTypeArguments(func.TypeArguments)
     else
-        genericContext.AddFunctionTypeArguments(func.TypeArguments)
+        genericContext.AddFunctionTypeArguments(func.Formal.TypeArguments)
 
 let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
     match ilEntInst with
@@ -831,7 +831,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | OlyILByRefKind.ReadWrite -> OlyIRByRefKind.ReadWrite
                 | OlyILByRefKind.ReadOnly -> OlyIRByRefKind.ReadOnly
                 | OlyILByRefKind.WriteOnly -> OlyIRByRefKind.WriteOnly
-            let elementTy = cenv.EmitType(field.Type)
+            let _elementTy = cenv.EmitType(field.Type)
             let resultTy = createByReferenceRuntimeType irByRefKind field.Type
 
             let irField = OlyIRField(cenv.EmitField(field), field)

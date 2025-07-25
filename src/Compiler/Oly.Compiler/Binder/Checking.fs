@@ -42,8 +42,6 @@ let checkSyntaxDeclarationBinding (cenv: cenv) (enclosing: EnclosingSymbol) memb
     | EnclosingSymbol.Entity(ent) ->
         if ent.IsShape then
             cenv.diagnostics.Error("Shapes cannot have members with implementations.", 10, syntaxBinding.Declaration.Identifier)
-        elif ent.IsImported then
-            cenv.diagnostics.Error("Imported types cannot have members with implementations.", 10, syntaxBinding.Declaration.Identifier)
     | _ ->
         ()
 
@@ -57,12 +55,12 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
                 (memberFlags &&& MemberFlags.Sealed = MemberFlags.Sealed)
 
             if mustHaveImpl && bindingInfo.Value.IsFunction then
-                match enclosing with
-                | EnclosingSymbol.Entity(ent) ->
-                    (not ent.IsShape && (ent.IsInterface || (not ent.IsAbstract || ent.IsSealed))) &&
+                if enclosing.IsEntity then
+                    // REVIEW: Instead of relying on a list of attributes, we could have an imported/intrinsic flag on MemberFlags.
+                    //         That way we will not have to compute this (potentially) multiple times.
                     not (attributesContainImport attrs) && 
                     not (attributesContainIntrinsic attrs)
-                | _ ->
+                else
                     true
             else
                 false

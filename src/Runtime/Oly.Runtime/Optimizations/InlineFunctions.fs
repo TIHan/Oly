@@ -72,106 +72,6 @@ let isPassthroughExpression argCount irExpr =
 let tryGetFunctionBody optenv func =
     optenv.tryGetFunctionBody func
 
-let transformClosureConstructorCallToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) optenv (irCtor: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) resultTy =
-    OlyAssert.True(irCtor.IsClosureInstanceConstructor)
-
-    let ctor = irCtor.RuntimeFunction
-    let enclosingTy = ctor.EnclosingType
-    let enclosingTyArgs = enclosingTy.TypeArguments
-
-    // No type arguments to transform.
-    if enclosingTyArgs.IsEmpty then
-        (irCtor, argExprs, resultTy, false)
-    else
-        let mutable didChangeTyArg = false
-
-        let enclosingTyArgs = enclosingTyArgs.ToBuilder()
-        let newArgExprs =
-            argExprs
-            |> ImArray.mapi (fun i argExpr ->
-                match argExpr with
-                | E.Value(_, V.Local(localIndex, _)) ->
-                    match forwardSubLocals.TryGetValue(localIndex) with
-                    | true, ForwardSubValue.LoadInlineableFunction(_, irFunc, funcReceiverExpr, _) when irFunc.HasEnclosingClosureType && canInline optenv irFunc.RuntimeFunction ->
-                        enclosingTyArgs[i] <- irFunc.RuntimeFunction.EnclosingType
-                        didChangeTyArg <- true
-                        funcReceiverExpr
-                    | _ ->
-                        argExpr
-                | _ ->
-                    argExpr
-            )
-            
-        if didChangeTyArg then
-            let ctor = ctor.Formal.MakeInstance(enclosingTy.Formal.Apply(enclosingTyArgs.MoveToImmutable()).SetWitnesses(enclosingTy.Witnesses), ctor.TypeArguments).SetWitnesses(ctor.Witnesses)
-
-            let emittedCtor = optenv.emitFunction(ctor)
-            let resultTy = optenv.emitType(ctor.EnclosingType)
-
-            let irCtor = OlyIRFunction(emittedCtor, ctor)
-
-            (irCtor, newArgExprs, resultTy, true)
-        else
-            (irCtor, argExprs, resultTy, false)
-
-let transformClosureInvokeToUseMoreSpecificTypeArgument (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>) (optenv: optenv<_, _, _>) (irFunc: OlyIRFunction<_, _, _>) (argExprs: E<_, _, _> imarray) =
-    OlyAssert.True(irFunc.IsClosureInstanceInvoke)
-
-    // TODO: This has a minor issue in that we could substitute multiple locals with a new closure.
-    //       Instead, we should find a way to simply create a tmp local for the new closure and use that.
-    //       Then we let dead code elimination take care of the rest.
-
-    if optenv.IsDebuggable then
-        (irFunc, argExprs)
-    else
-
-    let newArgExprs =
-        argExprs
-        |> ImArray.mapi (fun i argExpr ->
-            if i = 0 then
-                match argExpr with
-                | E.Value(textRange, V.Local(localIndex, _)) ->
-                    match forwardSubLocals.TryGetValue(localIndex) with
-                    | true, ForwardSubValue.NewClosure(_, cloCtor, cloArgExprs, cloResultTy) ->
-                        let cloCtor, cloArgExprs, cloResultTy, didChange = 
-                            transformClosureConstructorCallToUseMoreSpecificTypeArgument
-                                forwardSubLocals
-                                optenv
-                                cloCtor
-                                cloArgExprs
-                                cloResultTy
-                        if didChange then
-                            E.Operation(textRange, O.New(cloCtor, cloArgExprs, cloResultTy))
-                        else
-                            argExpr
-                    | _ ->
-                        argExpr
-                | _ ->
-                    argExpr
-            else
-                argExpr
-        )
-    let func, didChange =
-        if newArgExprs.Length > 0 then
-            match newArgExprs[0] with
-            | E.Operation(_, O.New(cloCtor, _, _)) when cloCtor.HasEnclosingClosureType ->
-                if irFunc.RuntimeFunction.EnclosingType <> cloCtor.RuntimeFunction.EnclosingType then
-                    let rfunc = irFunc.RuntimeFunction.Formal.MakeInstance(cloCtor.RuntimeFunction.EnclosingType, irFunc.RuntimeFunction.TypeArguments).SetWitnesses(irFunc.RuntimeFunction.Witnesses)
-                    let emittedFunc = optenv.emitFunction(rfunc)
-                    OlyIRFunction(emittedFunc, rfunc), true
-                else
-                    irFunc, false
-
-            | _ ->
-                irFunc, false
-        else
-            irFunc, false
-
-    if didChange then
-        (func, newArgExprs)
-    else
-        (func, argExprs)
-
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type ForwardSubValue<'Type, 'Function, 'Field> =
     | Local of localIndex: int * isNew: bool
@@ -857,11 +757,6 @@ let inlineFunction (forwardSubLocals: Dictionary<int, ForwardSubValue<_, _, _>>)
                 | _ -> 
                     handleOperation origTextRange origExpr origOp
 
-            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType && irFunc.RuntimeFunction.Flags.IsInstance ->
-                let newArgExprs = argExprs |> ImArray.map (handleExpression)
-                let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc newArgExprs
-                E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
-
             // Arguments
 
             | O.LoadField(field, E.Value(value=V.Argument(argIndex, _)), _) when field.RuntimeEnclosingType.IsClosure ->
@@ -995,10 +890,6 @@ let InlineFunctions optenv (irExpr: E<_, _, _>) =
                 | Some(expr) -> expr
                 | _ -> 
                     irExpr
-
-            | O.Call(irFunc, argExprs, resultTy) when irFunc.HasEnclosingClosureType && irFunc.RuntimeFunction.Flags.IsInstance ->
-                let (func, newArgExprs) = transformClosureInvokeToUseMoreSpecificTypeArgument forwardSubLocals optenv irFunc argExprs
-                E.Operation(origTextRange, O.Call(func, newArgExprs, resultTy))
 
             | _ ->
 

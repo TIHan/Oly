@@ -229,7 +229,16 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
 
 let tryFindIntrinsicAttribute (syntaxAttrs: OlySyntaxAttributes) (attrs: AttributeSymbol imarray) =
     match attrs |> ImArray.tryFindIndex (function AttributeSymbol.Intrinsic _ -> true | _ -> false) with
-    | Some i ->
+    | Some i  when i < syntaxAttrs.Values.Length ->
+        let attr = attrs.[i]
+        let syntaxAttr = syntaxAttrs.Values.[i]
+        ValueSome(syntaxAttr, attr)
+    | _ ->
+        ValueNone
+
+let tryFindImportAttribute (syntaxAttrs: OlySyntaxAttributes) (attrs: AttributeSymbol imarray) =
+    match attrs |> ImArray.tryFindIndex (function AttributeSymbol.Import _ -> true | _ -> false) with
+    | Some i when i < syntaxAttrs.Values.Length ->
         let attr = attrs.[i]
         let syntaxAttr = syntaxAttrs.Values.[i]
         ValueSome(syntaxAttr, attr)

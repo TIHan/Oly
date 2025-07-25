@@ -18,54 +18,6 @@ open Oly.Compiler.Internal.SymbolQuery.Extensions
 open Oly.Compiler.Internal.Binder.OpenDeclarations
 open Oly.Compiler.Internal.Binder.Attributes
 
-let private addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs =
-    let mutable hasImport = false
-    let newAttrs =
-        match enclosing with
-        | EnclosingSymbol.Entity(ent) ->
-            match ent.TryImportedInfo with
-            | Some(platform, path, name) ->
-                hasImport <- true
-                if attributesContainImport attrs then attrs
-                else
-                    attrs.Add(AttributeSymbol.Import(platform, path.Add(name), importName))
-            | _ ->
-                attrs
-        | _ ->
-            attrs
-
-    // An explicit 'import' will always take precedence over an attribute importer.
-    if hasImport then
-        newAttrs
-    else
-        let mutable hasImporter = false
-        newAttrs
-        |> ImArray.iter (fun attr ->
-            match attr with
-            | AttributeSymbol.Constructor(ctor=ctor) when ctor.Enclosing.AsEntity.IsAttributeImporter ->
-                hasImporter <- true
-            | _ ->
-                ()
-        )
-        if hasImporter then
-            newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
-        else
-            newAttrs
-
-let private addExportAttributeIfNecessary (cenv: cenv) syntaxNode (enclosing: EnclosingSymbol) attrs =
-    match enclosing with
-    | EnclosingSymbol.Entity(ent) ->
-        if ent.IsExported then
-            if attributesContainExport attrs then 
-                cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
-                attrs
-            else
-                attrs.Add(AttributeSymbol.Export)
-        else
-            attrs
-    | _ ->
-        attrs
-
 type private FakeUnit = FakeUnit
 
 let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, bindings: (BindingInfoSymbol * bool) imarray) =
@@ -142,7 +94,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
     //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = addExportAttributeIfNecessary cenv syntaxIdent ent.Enclosing attrs
+    let attrs = Pass2.addExportAttributeIfNecessary cenv syntaxIdent ent.Enclosing attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
 
     if not ent.Extends.IsEmpty then
@@ -172,13 +124,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
     let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.All ent
 
-    let funcs = 
+    let inheritedFuncs = 
         ent.FindMostSpecificIntrinsicFunctions(env.benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
-        |> ImArray.filter (fun x ->
-            if x.IsConstructor || (x.IsStatic && not x.IsNewSlot) then
+        |> ImArray.filter (fun inheritedFunc ->
+            if inheritedFunc.IsConstructor || (inheritedFunc.IsStatic && not inheritedFunc.IsNewSlot) then
                 false
             else
-                match x.Enclosing.TryEntity with
+                match inheritedFunc.Enclosing.TryEntity with
                 | Some ent2 -> 
                     if ent2.FormalId = ent.FormalId then
                         false
@@ -220,7 +172,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
         fieldOrPropSet.Add(x.Name) |> ignore
     )
 
-    let inheritedFuncSet = FunctionSignatureMutableSet.Create(funcs)
+    let inheritedFuncSet = FunctionSignatureMutableSet.Create(inheritedFuncs)
     let funcSet = FunctionSignatureMutableSet.Create([])
 
     let implicitDefaultCtors =
@@ -239,14 +191,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
         if (funcSet.Add(func) |> not) then
             true
         else
-            match inheritedFuncSet.TryGet func with
-            | ValueSome inheritedFunc ->
-                if func.IsNewSlot then
-                    false
-                else
-                    true
-            | _ ->
-                false
+            inheritedFuncSet.Contains(func)
 
     let env =
         match syntaxTyDeclBody with
@@ -279,8 +224,8 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
 
     let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
         let attrs = bindAttributes cenv env syntaxAttrs
-        let attrs = addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
-        let attrs = addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
+        let attrs = Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
+        let attrs = Pass2.addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
 
         // IPatternSymbol should not show up here, only the function of it.
         OlyAssert.False(binding.Value.IsPattern)
@@ -452,6 +397,8 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
                 | _ -> ()
 
             if tryOverride func then
+                if doesFuncAlreadyExist func then
+                    duplicateError func syntax.Identifier
                 if not func.IsExplicitOverrides then
                     checkFunc func
                 else

@@ -34,7 +34,9 @@ type EntitySymbolBuilder private (
     member _.SetAttributes(pass: CompilerPass, attrs) = 
         match pass with
         | Pass0
-        | Pass3 ->
+        | Pass2
+        | Pass3
+        | LambdaLifting ->
             attrsHole.contents <- attrs
         | _ ->
             failwith "Invalid pass."

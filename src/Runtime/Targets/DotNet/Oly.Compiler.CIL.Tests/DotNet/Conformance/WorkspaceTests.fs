@@ -53,10 +53,10 @@ let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj
             else
                 builder.AppendLine(diag.ToString()) |> ignore
         ) 
-        Assert.Equal(expectedOutput, builder.ToString())
+        Assert.Equal(expectedOutput.ReplaceLineEndings("\n"), builder.ToString().ReplaceLineEndings("\n"))
 
 let run (expectedOutput: string) (program: OlyProgram) =
-    Assert.Equal(expectedOutput + Environment.NewLine, program.Run([||]))
+    Assert.Equal(expectedOutput.ReplaceLineEndings("\n"), program.Run([||]).ReplaceLineEndings("\n"))
 
 [<Fact>]
 let ``Simple hello world project should compile`` () =
@@ -70,7 +70,7 @@ main(): () =
     createWorkspace()
     |> createProject src
     |> build
-    |> run "Hello World!"
+    |> run "Hello World!\n"
 
 [<Fact>]
 let ``Simple ReadyToRun hello world project should compile`` () =
@@ -84,7 +84,7 @@ main(): () =
     createWorkspace()
     |> createProject src
     |> build
-    |> run "Hello World!"
+    |> run "Hello World!\n"
 
 
 [<Fact>]
@@ -99,7 +99,7 @@ main(): () =
     createWorkspace()
     |> createProject src
     |> build
-    |> run "Hello World!"
+    |> run "Hello World!\n"
 
 [<Fact>]
 let ``Recursive generics should give a build error``() =
