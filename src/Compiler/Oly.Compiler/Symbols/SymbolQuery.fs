@@ -67,24 +67,24 @@ let private canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
         | Some ent1, Some ent2 when not ent2.IsNamespace ->
             match ent1.ContainingAssembly, ent2.ContainingAssembly with
             | Some asm1, Some asm2 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
+                asm1.Identity.Name = asm2.Identity.Name
             | _ ->
                 false
         | _, Some ent1 ->
             match ent1.ContainingAssembly with
             | Some asm1 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
+                asm1.Identity.Name = ac.AssemblyIdentity.Name
             | _ ->
                 false
         | _ -> 
             false
     elif value.IsProtected then
         match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> subsumesType ent1.AsType ent2.AsType || subsumesType ent2.AsType ent1.AsType
+        | Some ent1, Some ent2 -> subsumesType ent2.Formal.AsType ent1.Formal.AsType
         | _ -> false
     else
         match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> areEntitiesEqual ent1 ent2
+        | Some ent1, Some ent2 -> areEntitiesEqual ent1.Formal ent2.Formal
         | _ -> false
 
 let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =

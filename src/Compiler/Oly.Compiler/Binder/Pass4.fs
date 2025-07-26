@@ -117,7 +117,9 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (entBuilder: E
             // TODO: Implement
             env
         else
-            env       
+            env
+            
+    let env = scopeInInstanceConstructors true true env ent
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr) ->
@@ -1349,7 +1351,10 @@ let private bindLocalValueDeclaration
         (syntaxAttrs, syntaxValueDeclPremodifierList: OlySyntaxList<_>, syntaxValueDeclKind, syntaxValueDeclPostmodifierList: OlySyntaxList<_>, syntaxBinding, syntaxBindingDeclExpr: OlySyntaxExpression)
         (syntaxBodyExprOpt: OlySyntaxExpression option) =
 
-    let memberFlags, valueExplicitness = bindValueModifiersAndKindAsMemberFlags cenv env false syntaxValueDeclPremodifierList.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifierList.ChildrenOfType
+    let memberFlags, valueExplicitness = bindValueModifiersAndKindAsMemberFlags cenv env None syntaxValueDeclPremodifierList.ChildrenOfType syntaxValueDeclKind syntaxValueDeclPostmodifierList.ChildrenOfType
+    OlyAssert.Equal(MemberFlags.None, memberFlags &&& MemberFlags.AccessorMask)
+    let memberFlags = memberFlags ||| MemberFlags.Private // Local values are always "private".
+
     let isExplicitStatic = valueExplicitness.IsExplicitStatic
     let isExplicitLetBind =
         match syntaxValueDeclKind with
@@ -1784,7 +1789,9 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let innerEnv = scopeInEntity innerEnv entBuilder.Entity
         let innerEnv = Pass1.bindTypeDeclaration { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         Pass2.bindTypeDeclaration { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxTyPars syntaxTyDefBody
-        let innerEnv = scopeInInstanceConstructors true innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
+
+        // REVIEW: Do we need to scope the instance ctors in case the instance ctors are used as attributes?
+        let innerEnv = scopeInInstanceConstructors true false innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
         let innerEnv = Pass3.bindTypeDeclaration { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         let innerEnv, expr = bindTypeDeclaration { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
 
@@ -1797,7 +1804,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let enclosingTyParTys = innerEnv.GetEnclosingTypeParametersAsTypes()
         // ---------
         let env = env.SetEnclosingTypeArguments(entBuilder.Entity.FormalId, enclosingTyParTys)
-        let env = scopeInInstanceConstructors true env entBuilder.Entity
+        let env = scopeInInstanceConstructors true false env entBuilder.Entity
         scopeInEntity env entBuilder.Entity, expr
 
     | OlySyntaxExpression.None _ ->

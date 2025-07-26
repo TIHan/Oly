@@ -1182,19 +1182,15 @@ let private bindTopLevelValueDeclaration
         syntaxBinding =
     let enclosing = currentEnclosing env
 
-    let isStaticProp =
-        match propInfoOpt with
-        | Some propInfo -> propInfo.Explicitness.IsExplicitStatic
-        | _ -> false
-
     let memberFlags, valueExplicitness = 
         bindValueModifiersAndKindAsMemberFlags 
             cenv 
             env 
-            isStaticProp 
+            (propInfoOpt |> Option.map (fun x -> x.Explicitness))
             syntaxValueDeclPremodifiers 
             syntaxValueDeclKind 
             syntaxValueDeclPostmodifiers
+    OlyAssert.Equal(MemberFlags.None, memberFlags &&& MemberFlags.AccessorMask)
 
     let valueExplicitness =
         match syntaxBinding with
@@ -1209,7 +1205,20 @@ let private bindTopLevelValueDeclaration
         | _ ->
             valueExplicitness
 
-    let memberFlags = memberFlags ||| (Pass1.bindAccessorAsMemberFlags valueExplicitness.IsExplicitField syntaxAccessor)
+    let defaultAccessorFlags =
+        if valueExplicitness.IsExplicitField then 
+            MemberFlags.Private 
+        else 
+            MemberFlags.Public
+
+    let defaultAccessorFlags = 
+        propInfoOpt
+        |> Option.map (fun x -> x.MemberFlags &&& MemberFlags.AccessorMask)
+        |> Option.defaultValue defaultAccessorFlags
+
+    let memberFlags = 
+        memberFlags ||| 
+            (Pass1.bindAccessorAsMemberFlags defaultAccessorFlags syntaxAccessor)
 
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
     let attrs = addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs

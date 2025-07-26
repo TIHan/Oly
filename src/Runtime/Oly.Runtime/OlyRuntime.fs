@@ -18,6 +18,48 @@ let FailExpectedInstanceForFunctionSignature() =
 let FailExpectedStaticForFunctionSignature() =
     failwith "Function signature should have been static."
 
+let rec verifyPrivate (enclosing: RuntimeEnclosing) name (accessingTy: RuntimeType) =
+    match enclosing with
+    | RuntimeEnclosing.Type(ty) ->
+        if ty <> accessingTy then
+            verifyPrivate ty.Enclosing name accessingTy
+    | _ ->
+        failwith $"'{name}' is private and cannot be accessed."
+
+let rec verifyProtected (enclosing: RuntimeEnclosing) name (accessingTy: RuntimeType) =
+    match enclosing with
+    | RuntimeEnclosing.Type(ty) ->
+        if not (subsumesType accessingTy ty) then
+            verifyProtected ty.Enclosing name accessingTy
+    | _ ->
+        failwith $"'{name}' is protected and cannot be accessed."
+
+let rec verifyInternal (enclosing: RuntimeEnclosing) name (accessingTy: RuntimeType) =
+    match enclosing with
+    | RuntimeEnclosing.Type(ty) ->
+        // Note: If we ever want to introduce our own 'internals-visible-to',
+        //       this is where the check would be.
+        if ty.AssemblyIdentity.Name <> accessingTy.AssemblyIdentity.Name then
+            failwith $"'{name}' is protected and cannot be accessed."
+    | _ ->
+        failwith $"'{name}' is internal and cannot be accessed."
+
+let verifyFieldAccess (enclosing: RuntimeEnclosing) (field: RuntimeField) =
+    if field.Flags.IsPrivate then
+        verifyPrivate enclosing field.Name field.EnclosingType
+    if field.Flags.IsProtected then
+        verifyProtected enclosing field.Name field.EnclosingType
+    if field.Flags.IsInternal then
+        verifyInternal enclosing field.Name field.EnclosingType
+
+let verifyFunctionAccess (enclosing: RuntimeEnclosing) (func: RuntimeFunction) =
+    if func.Flags.IsPrivate then
+        verifyPrivate enclosing func.Name func.EnclosingType
+    if func.Flags.IsProtected then
+        verifyProtected enclosing func.Name func.EnclosingType
+    if func.Flags.IsInternal then
+        verifyInternal enclosing func.Name func.EnclosingType
+
 let getAllILTypeParameters (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) : OlyILTypeParameter imarray =
     let enclosingTyPars =
         match ilEntDef.Enclosing with
@@ -631,6 +673,9 @@ let importOperationNew
     OlyAssert.True(func.Flags.IsConstructor)
     OlyAssert.True(func.Flags.IsInstance)
 
+    // VERIFY: Accessors
+    verifyFunctionAccess env.Function.Enclosing func
+
     let parTys =
         func.Parameters
         |> ImArray.map (fun x -> x.Type)
@@ -802,6 +847,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILValue.StaticField(ilFieldRef) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
+
+            // VERIFY: Accessors
+            verifyFieldAccess env.Function.Enclosing field
+
             match field.ILConstant with
             | Some(ilConst) when not(env.Function.Flags.IsStatic && env.Function.Flags.IsConstructor)  ->
                 let irConst, ty = cenv.EmitILConstant(env.ILAssembly, ilConst, env.GenericContext)
@@ -1272,6 +1321,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
             if field.ILConstant.IsSome then
                 OlyAssert.Fail("Cannot modify a constant.")
+
+            // VERIFY: Accessors
+            verifyFieldAccess env.Function.Enclosing field
+
             let expectedArgTy1 = 
                 if field.EnclosingType.IsAnyStruct then
                     createByReferenceRuntimeType OlyIRByRefKind.ReadWrite field.EnclosingType
@@ -1299,6 +1352,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.StoreStaticField(ilFieldRef, ilArg) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
+
+            // VERIFY: Accessors
+            verifyFieldAccess env.Function.Enclosing field
             
             // TODO: Add this check for non-constructors.
             //if not field.IsMutable then
@@ -1321,6 +1377,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
         | OlyILOperation.LoadField(ilFieldRef, ilArg) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
             OlyAssert.True(field.ILConstant.IsNone)
+
+            // VERIFY: Accessors
+            verifyFieldAccess env.Function.Enclosing field
 
             let irArg, argTy = importExpression cenv env (Some field.EnclosingType) ilArg
 
@@ -1348,6 +1407,9 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
         | OlyILOperation.LoadFieldAddress(ilFieldRef, ilArg, ilByRefKind) ->
             let field = cenv.ResolveField(env.ILAssembly, ilFieldRef, env.GenericContext)
+
+            // VERIFY: Accessors
+            verifyFieldAccess env.Function.Enclosing field
 
             if field.ILConstant.IsSome then
                 failwith "Cannot take the address of a constant."
@@ -1550,6 +1612,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
+
+            // VERIFY: Accessors
+            verifyFunctionAccess env.Function.Enclosing func
+
 #if DEBUG || CHECKED
             OlyTrace.Log(
                 let witnesses = func.Witnesses
@@ -1573,6 +1639,10 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                 | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
                 | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
+
+            // VERIFY: Accessors
+            verifyFunctionAccess env.Function.Enclosing func
+
 #if DEBUG || CHECKED
             OlyTrace.Log(
                 let witnesses = func.Witnesses

@@ -2232,8 +2232,8 @@ let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstr
 /// Performs validation on the modifiers and kind.
 let bindValueModifiersAndKindAsMemberFlags 
         (cenv: cenv) 
-        (env: BinderEnvironment) 
-        isStaticProp
+        (env: BinderEnvironment)
+        (parentExplicitnessOpt: ValueExplicitness option)
         (syntaxValueDeclPremodifiers: OlySyntaxValueDeclarationPremodifier imarray) 
         (syntaxValueDeclKind: OlySyntaxValueDeclarationKind) 
         (syntaxValueDeclPostmodifiers: OlySyntaxValueDeclarationPostmodifier imarray) : _ * ValueExplicitness =
@@ -2242,7 +2242,7 @@ let bindValueModifiersAndKindAsMemberFlags
 
     let mutable isExplicitConstant = false
     let mutable isExplicitField = false
-    let mutable isExplicitStatic = isStaticProp
+    let mutable isExplicitStatic = false
     let mutable isExplicitAbstract = false
     let mutable isExplicitOverrides = false
     let mutable isExplicitDefault = false
@@ -2252,6 +2252,16 @@ let bindValueModifiersAndKindAsMemberFlags
     let mutable isExplicitSet = false
     let mutable isExplicitPattern = false
     let mutable isExplicitNew = false
+
+    // TODO: Add checks.
+    match parentExplicitnessOpt with
+    | Some(parentExplicitness) ->
+        if parentExplicitness.IsExplicitStatic then
+            isExplicitStatic <- true
+        if parentExplicitness.IsExplicitNew then
+            isExplicitNew <- true
+    | _ ->
+        ()
 
     match syntaxValueDeclKind with
     | OlySyntaxValueDeclarationKind.Constant _ ->
@@ -2459,7 +2469,7 @@ let bindValueModifiersAndKindAsMemberFlags
             if not isExplicitLet then
                 cenv.diagnostics.Error("Invalid local value.", 10, syntaxValueDeclKind)
 
-            MemberFlags.Private, valueExplicitness
+            MemberFlags.None, valueExplicitness
         | _ ->
             if isExplicitLet then
                 cenv.diagnostics.Error("Types can never have let-bound members (yet).", 10, syntaxValueDeclKind)

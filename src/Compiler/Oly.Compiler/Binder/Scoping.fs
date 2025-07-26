@@ -17,26 +17,49 @@ type OpenContent =
     | Entities
     | Values
 
-let private scopeInValue canOverride (env: BinderEnvironment) (value: IValueSymbol) =
-    if canOverride then
+/// 'canReplace' means it will replace values with the same signature.
+let private scopeInValue canReplace (env: BinderEnvironment) (value: IValueSymbol) =
+    if canReplace then
         env.AddUnqualifiedValue(value)
     else
         env.TryAddUnqualifiedValue(value)
 
-let scopeInInstanceConstructors canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
+let private getAccessibleInstanceConstructors onlyPrivateOrProtected env (ent: EntitySymbol) =
+    ent.InstanceConstructors
+    |> ImArray.filter (fun x -> 
+        if onlyPrivateOrProtected then
+            if x.IsPrivate || x.IsProtected then
+                x.IsAccessible(env.benv.ac)
+            else
+                false
+        else
+            x.IsAccessible(env.benv.ac)
+    )
+
+/// 'canReplace' means it will replace constructors with the same signature.
+let scopeInInstanceConstructors canReplace onlyPrivateOrProtected (env: BinderEnvironment) (ent: EntitySymbol) =
     let instanceCtors = 
         if ent.IsAlias then
             match (stripTypeEquations ent.AsType).TryEntity with
-            | ValueSome(ent) -> ent.InstanceConstructors
-            | _ -> ImArray.empty
+            | ValueSome(ent) -> 
+                getAccessibleInstanceConstructors
+                    onlyPrivateOrProtected
+                    env
+                    ent
+            | _ -> 
+                ImArray.empty
         else
-            ent.InstanceConstructors
+            getAccessibleInstanceConstructors
+                onlyPrivateOrProtected
+                env
+                ent
     if instanceCtors.IsEmpty then
         env
     else
-        scopeInValue canOverride env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
+        scopeInValue canReplace env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
 
-let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
+/// 'canReplace' means it will replace entities with the same name and arity.
+let private scopeInEntityAux canReplace (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
         // REVIEW: This will not partially open namespaces. We should consider doing this as a feature.
         env
@@ -46,7 +69,7 @@ let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySy
                 ent.LogicalTypeParameterCount - env.EnclosingTypeParameters.Length
             else
                 ent.LogicalTypeParameterCount
-        if canOverride then
+        if canReplace then
             env.SetUnqualifiedType(ent.Name, arity, ent.AsType)
         else
             env.AddUnqualifiedType(ent.Name, arity, ent.AsType)
@@ -63,7 +86,7 @@ let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySy
                 ent.LogicalTypeParameterCount - env.EnclosingTypeParameters.Length
             else
                 ent.LogicalTypeParameterCount
-        if canOverride then
+        if canReplace then
             env.SetUnqualifiedType(ent.Name, arity, ent.AsType)
         else
             env.AddUnqualifiedType(ent.Name, arity, ent.AsType)
@@ -149,7 +172,7 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
                 match openContent with
                 | OpenContent.All
                 | OpenContent.Values ->
-                    scopeInInstanceConstructors canOverride env ent  
+                    scopeInInstanceConstructors canOverride false env ent  
                 | _ ->
                     env
             )

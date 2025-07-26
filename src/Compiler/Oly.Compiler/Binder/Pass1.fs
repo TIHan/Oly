@@ -21,19 +21,16 @@ let private stripNewtype (ty: TypeSymbol) =
     else
         underlyingTy
 
-let bindAccessorAsMemberFlags isExplicitField (syntaxAccessor: OlySyntaxAccessor) =
+let bindAccessorAsMemberFlags (defaultAccessorFlags: MemberFlags) (syntaxAccessor: OlySyntaxAccessor) =
+    OlyAssert.Equal(MemberFlags.AccessorMask, defaultAccessorFlags ||| MemberFlags.AccessorMask)
     match syntaxAccessor with
     | OlySyntaxAccessor.Private _ -> MemberFlags.Private
     | OlySyntaxAccessor.Internal _ -> MemberFlags.Internal
     | OlySyntaxAccessor.Protected _ -> MemberFlags.Protected
     | OlySyntaxAccessor.Public _ -> MemberFlags.Public
     | _ ->
-        if isExplicitField then
-            // Fields, by default, are private.
-            MemberFlags.Private
-        else
-            // Everything else, by default, is public.
-            MemberFlags.Public
+        // Everything else is the specified default.
+        defaultAccessorFlags
 
 (********************************************************************************************************************************************************************************************)
 (********************************************************************************************************************************************************************************************)
@@ -185,16 +182,17 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                         cenv.diagnostics.Error($"Attributes are not allowed on the principal field for a newtype.", 10, syntaxAttrs)
 
                     let extendTy = bindReturnTypeAnnotation cenv env syntaxReturnTyAnnot
-                    let memberAccessFlags = bindAccessorAsMemberFlags true syntaxAccessor
+                    let memberAccessFlags = bindAccessorAsMemberFlags MemberFlags.Private syntaxAccessor
 
-                    let _memberFlags, valueExplicitness = 
+                    let memberFlags, valueExplicitness = 
                         bindValueModifiersAndKindAsMemberFlags 
                             cenv 
                             env 
-                            false 
+                            None
                             syntaxValueDeclPremodifiers.ChildrenOfType
                             syntaxValueDeclKind 
                             syntaxValueDeclPostmodifiers.ChildrenOfType
+                    OlyAssert.Equal(MemberFlags.None, memberFlags &&& MemberFlags.AccessorMask)
 
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then

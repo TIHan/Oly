@@ -4388,7 +4388,7 @@ struct DefaultMemory<T> where T: struct =
 
     private field Buffer: mutable T[]
 
-    private new(buffer: mutable T[]) =
+    new(buffer: mutable T[]) =
         this {
             Buffer = buffer
         }
@@ -4518,7 +4518,7 @@ struct DefaultMemory<T> =
 
     private field Buffer: mutable T[]
 
-    private new(buffer: mutable T[]) =
+    new(buffer: mutable T[]) =
         this {
             Buffer = buffer
         }

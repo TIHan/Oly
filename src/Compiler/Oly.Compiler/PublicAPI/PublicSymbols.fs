@@ -2603,7 +2603,16 @@ type OlyBoundModel internal (
                 location
                 |> Some
             | _ ->
-                None
+                // If we cannot find the constructor, go to the type definition.
+                // This can happen for implicit default ctors.
+                if value.IsInstanceConstructor then
+                    match value.Enclosing with
+                    | EnclosingSymbol.Entity(ent) ->
+                        this.TryFindDefinition(ent, ct)
+                    | _ ->
+                        None
+                else
+                    None
 
     member internal _.TryFindDefinition(ent: EntitySymbol, ct) : OlySourceLocation option =
         let declTable = getPartialDeclTable ct
