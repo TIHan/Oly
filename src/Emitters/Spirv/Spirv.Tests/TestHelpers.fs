@@ -22,7 +22,11 @@ type GPU =
                 match GPU.gpuTestService with
                 | Some gpuTestService -> gpuTestService
                 | _ ->
-                    let gpuTest = """..\..\..\..\..\..\..\..\..\Evergreen\src\managed\Engine\bin\dotnet\gpu_test\gpu_test.dll"""
+                    let gpuTest = Environment.GetEnvironmentVariable("EVERGREEN_GPU_TEST_PATH", EnvironmentVariableTarget.User)
+                    if isNull gpuTest then
+                        failwith "User environment variable 'EVERGREEN_GPU_TEST_PATH' not set."
+                    if File.Exists(gpuTest) |> not then
+                        failwith "Unable to find gpu_test program."
                     let result =
                         new Oly.Core.ExternalProcess(
                             "dotnet",
