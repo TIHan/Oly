@@ -74,7 +74,13 @@ let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCa
         )
         bindingInfosBuilder.ToImmutable()
 
-    let boundExpr = bindTypeDeclarationBody cenv env entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
+    let envBody =
+        if entBuilder.Entity.IsExported && not env.isInExport then
+            { env with isInExport = true }
+        else
+            env
+
+    let boundExpr = bindTypeDeclarationBody cenv envBody entBuilder entBuilder.NestedEntityBuilders bindingInfos false syntaxTyDeclBody
 
     // Interfaces
     if ent.IsInterface then
@@ -265,7 +271,13 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNod
             (env2, bindingInfo.Value.TypeParameters)
             ||> ImArray.fold scopeInTypeParameter
 
-        let rhsExpr = bindMemberValueRightSideExpression cenv { env3 with implicitThisOpt = implicitThisOpt } syntaxEqualToken bindingInfo syntaxRhs
+        let envRhs =
+            if bindingInfo.Value.IsExported && not env3.isInExport then
+                { env3 with implicitThisOpt = implicitThisOpt; isInExport = true }
+            else
+                { env3 with implicitThisOpt = implicitThisOpt }
+
+        let rhsExpr = bindMemberValueRightSideExpression cenv envRhs syntaxEqualToken bindingInfo syntaxRhs
         let bindingInfo, rhsExpr = checkMemberBindingDeclaration (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxBinding bindingInfo rhsExpr
         let binding =
             OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)

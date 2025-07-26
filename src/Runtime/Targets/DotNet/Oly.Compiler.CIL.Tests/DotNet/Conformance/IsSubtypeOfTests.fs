@@ -162,7 +162,22 @@ main(): () =
     |> shouldRunWithExpectedOutput "True"
 
 [<Fact>]
-let ``Tuple18``() =
+let ``Tuple10``() =
+    let src =
+        $"""
+open System
+
+{PreludeSrc}
+
+main(): () =
+    print(DotNet.IsSubtypeOf<ValueTuple<int32, int32, int32, int32, int32, int32, int32, ValueTuple<int32, uint32, uint32>>>((1, 2, 3, 4, 5, 6, 7, 8, 9: uint32, 10: uint32)))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+
+[<Fact>]
+let ``Tuple19``() =
     let src =
         $"""
 open System

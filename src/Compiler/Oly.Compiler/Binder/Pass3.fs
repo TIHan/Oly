@@ -94,8 +94,14 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
     //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = Pass2.addExportAttributeIfNecessary cenv syntaxIdent ent.Enclosing attrs
+    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxIdent attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
+
+    let envBody =
+        if entBuilder.Entity.IsExported && not envBody.isInExport then
+            { envBody with isInExport = true }
+        else
+            envBody
 
     if not ent.Extends.IsEmpty then
         let superTy = ent.Extends.[0]
@@ -225,7 +231,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
     let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
         let attrs = bindAttributes cenv env syntaxAttrs
         let attrs = Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
-        let attrs = Pass2.addExportAttributeIfNecessary cenv syntax binding.Value.Enclosing attrs
+        let attrs = Pass2.addExportAttributeIfNecessary cenv env syntax attrs
+
+        let env =
+            if binding.Value.IsExported && not env.isInExport then
+                { env with isInExport = true }
+            else
+                env
 
         // IPatternSymbol should not show up here, only the function of it.
         OlyAssert.False(binding.Value.IsPattern)

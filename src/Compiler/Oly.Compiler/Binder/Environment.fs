@@ -56,6 +56,7 @@ type BinderEnvironment =
        isInConstraint: bool
        isInOpenDeclaration: bool
        isInLocalLambda: bool
+       isInExport: bool
        resolutionMustSolveTypes: bool
        skipCheckTypeConstructor: bool
        skipTypeExtensionBinding: bool

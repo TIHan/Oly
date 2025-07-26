@@ -364,7 +364,7 @@ and analyzeTypeTuple acenv aenv (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol 
 and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol) =
     match witness with
     | WitnessSymbol.TypeExtension(tyExt, specificAbstractFuncOpt) ->
-        checkEntity acenv aenv syntaxNode tyExt
+        analyzeTypeEntity acenv aenv syntaxNode tyExt
         specificAbstractFuncOpt
         |> Option.iter (fun x -> checkValue acenv aenv syntaxNode x)
 
@@ -375,22 +375,18 @@ and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol)
 
 and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
     OlyAssert.True(witness.HasSolution)
-    checkEntity acenv aenv syntaxNode witness.Entity
+    analyzeTypeEntity acenv aenv syntaxNode witness.Entity
     match witness.Solution with
     | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()
 
-and checkEntity acenv aenv syntaxNode (ent: EntitySymbol) =
-    ent.TypeArguments
-    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
-
 and checkEnclosing acenv aenv syntaxNode (enclosing: EnclosingSymbol) =
     match enclosing with
     | EnclosingSymbol.Entity(ent) ->
-        checkEntity acenv aenv syntaxNode ent
+        analyzeTypeEntity acenv aenv syntaxNode ent
     | EnclosingSymbol.Witness(concreteTy, abstractEnt) ->
         analyzeType acenv aenv syntaxNode concreteTy
-        checkEntity acenv aenv syntaxNode abstractEnt
+        analyzeTypeEntity acenv aenv syntaxNode abstractEnt
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace ->
         ()

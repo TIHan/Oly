@@ -2725,6 +2725,17 @@ let invalidTypeArguments () : TypeSymbol list =
 
 // Freshen
 
+let private unifyHiddenLinks (enclosingTyInst: IdMap<TypeSymbol imarray>) (tyPar: TypeParameterSymbol) inferenceTy =
+    let linkedTyOpt = 
+        match tyPar.HiddenLink with
+        | Some tyPar ->
+            Some tyPar.AsType
+        | _ ->
+            None
+    match linkedTyOpt with
+    | Some linkedTy -> UnifyTypes Flexible inferenceTy linkedTy |> ignore
+    | _ -> ()
+
 let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<TypeSymbol imarray>) isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty (cache: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) : TypeSymbol =
     let tyArgOffset = tyPars.Length - explicitTyArgs.Length
     if tyArgOffset < 0 then
@@ -2762,10 +2773,13 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                     match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                     | Some ty -> ty
                     | _ -> 
-                        if isStrict then
-                            mkStrictInferenceVariableType (Some tyPar)
-                        else
-                            mkInferenceVariableType (Some tyPar)
+                        let inferenceTy =
+                            if isStrict then
+                                mkStrictInferenceVariableType (Some tyPar)
+                            else
+                                mkInferenceVariableType (Some tyPar)
+                        unifyHiddenLinks enclosingTyInst tyPar inferenceTy
+                        inferenceTy
                 tys.Add(tyPar, ty)
                 ty
 
@@ -2778,10 +2792,13 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                         match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                         | Some ty -> ty
                         | _ -> 
-                            if isStrict then
-                                mkStrictInferenceVariableType (Some tyPar)
-                            else
-                                mkInferenceVariableType (Some tyPar)
+                            let inferenceTy =
+                                if isStrict then
+                                    mkStrictInferenceVariableType (Some tyPar)
+                                else
+                                    mkInferenceVariableType (Some tyPar)
+                            unifyHiddenLinks enclosingTyInst tyPar inferenceTy
+                            inferenceTy
                     tys.Add(tyPar, ty)
                     ty
             applyType inferenceTy (tyArgs |> ImArray.map (freshen tys explicitTyArgs))

@@ -455,6 +455,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
 
     let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (EntityHandle * EntityHandle), EntityHandle>()
+    let typeCache_ValueTuple = System.Collections.Generic.Dictionary<EntityHandle imarray, ClrTypeHandle>()
+    let ctorCache_ValueTuple = System.Collections.Generic.Dictionary<EntityHandle, ClrMethodHandle>()
 
     // TODO: This assembly name equality is probably not entirely correct.
     let asmRefComparer =
@@ -1455,35 +1457,48 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         ClrTypeHandle.NativePointer(elementTy)
 
     member this.AddValueTupleType(tyInst: ClrTypeHandle imarray) =
-        match tyInst.Length with
-        | 1 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`1``, tyInst)
-        | 2 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`2``, tyInst)
-        | 3 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`3``, tyInst)
-        | 4 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`4``, tyInst)
-        | 5 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`5``, tyInst)
-        | 6 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`6``, tyInst)
-        | 7 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`7``, tyInst)
-        | 8 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`8``, tyInst)
+        let key = tyInst |> ImArray.map (fun x -> x.EntityHandle)
+        match typeCache_ValueTuple.TryGetValue key with
+        | true, result -> result
         | _ ->
-            raise(System.NotSupportedException("Tuple item count larger than 8 or zero."))
+            let result =
+                match tyInst.Length with
+                | 1 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`1``, tyInst)
+                | 2 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`2``, tyInst)
+                | 3 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`3``, tyInst)
+                | 4 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`4``, tyInst)
+                | 5 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`5``, tyInst)
+                | 6 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`6``, tyInst)
+                | 7 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`7``, tyInst)
+                | 8 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`8``, tyInst)
+                | _ ->
+                    raise(System.NotSupportedException("Tuple item count larger than 8 or zero."))
+            typeCache_ValueTuple[key] <- result
+            result
 
     member this.AddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =
         let valueTupleTy = this.AddValueTupleType(tyInst)
 
-        let methTyInst =
-            ImArray.init tyInst.Length (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
+        match ctorCache_ValueTuple.TryGetValue valueTupleTy.EntityHandle with
+        | true, result -> valueTupleTy, result
+        | _ ->
+            let result =
+                let methTyInst =
+                    ImArray.init tyInst.Length (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
 
-        let name = metadataBuilder.GetOrAddString(".ctor")
-        let signature = this.CreateMethodSignature(SignatureCallingConvention.Default, 0, true, methTyInst, this.TypeReferenceVoid)
+                let name = metadataBuilder.GetOrAddString(".ctor")
+                let signature = this.CreateMethodSignature(SignatureCallingConvention.Default, 0, true, methTyInst, this.TypeReferenceVoid)
 
-        let realHandle =
-            metadataBuilder.AddMemberReference(
-                valueTupleTy.EntityHandle,
-                name,
-                signature
-            )
+                let realHandle =
+                    metadataBuilder.AddMemberReference(
+                        valueTupleTy.EntityHandle,
+                        name,
+                        signature
+                    )
 
-        valueTupleTy, createMemRef realHandle name signature
+                createMemRef realHandle name signature
+            ctorCache_ValueTuple[valueTupleTy.EntityHandle] <- result
+            valueTupleTy, result
 
     member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct, baseTypeHandle) =
         let tyDefBuilder = ClrTypeDefinitionBuilder(this, enclosingTyHandle, namespac, name, tyParCount, isStruct, false, baseTypeHandle)

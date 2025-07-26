@@ -1212,7 +1212,7 @@ main(): () =
         )
 
 [<Fact>]
-let ``Complex test and csharp source 10 - using a non-exported class inside a function that cannot be erased``() =
+let ``Complex test and csharp source 10 - cannot use a non-exported class inside a function that cannot be erased``() =
     let csSrc =
         """
 public interface IExample
@@ -1270,6 +1270,12 @@ main(): () =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
         let x = NonExportedClass(x)
+                ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let x = NonExportedClass(x)
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
@@ -1277,6 +1283,12 @@ main(): () =
                 """
         Console.Write(x.Value)
                       ^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        Console.Write(x.Value)
+                      ^^^^^^^
 """
             )
                     ]
@@ -8996,7 +9008,7 @@ module Main =
     |> shouldRunWithExpectedOutput "14"
 
 [<Fact>]
-let ``Able to use non-exported type inside an exported function``() =
+let ``Not able to use non-exported type inside an exported function``() =
     let src =
         """
 namespace Test
@@ -9053,6 +9065,12 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
         let xs = NonExportedClass<T>(input)
+                 ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let xs = NonExportedClass<T>(input)
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
@@ -9062,86 +9080,17 @@ module Main =
         ^^
 """
             )
-        ]
-    |> ignore
-
-[<Fact>]
-let ``Able to use non-exported type inside an exported function 2``() =
-    let src =
-        """
-namespace Test
-
-#[open]
-module OlyPrelude =
-    #[intrinsic("int32")]
-    alias int32
-
-    #[intrinsic("print")]
-    print(__oly_object): ()
-
-    #[intrinsic("get_element")]
-    (`[]`)<T>(mutable T[], index: int32): T
-
-#[export]
-module TestModule =
-
-    Run<T>(input: mutable T[]): mutable T[] =
-        class NonExportedClass =
-
-            Value: mutable T[] get
-
-            new(xs: mutable T[]) =
-                this {
-                    Value = xs
-                }
-        let xs = NonExportedClass(input)
-        xs.Value
-
-module Main =
-
-    main(): () =
-        let result = TestModule.Run(mutable [1;2;3;4])
-        print(result[0])
-        print(result[3])
-        """
-    Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-            new(xs: mutable T[]) =
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-        let xs = NonExportedClass(input)
-                 ^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-        let xs = NonExportedClass(input)
-                 ^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-        let xs = NonExportedClass(input)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-"""
-            )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
         xs.Value
-        ^^
+        ^^^^^^^^
 """
             )
         ]
     |> ignore
 
 [<Fact>]
-let ``Able to use non-exported type inside an exported function 3``() =
+let ``Not able to use non-exported type inside an exported function 2``() =
     let src =
         """
 namespace Test
@@ -9200,77 +9149,6 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
             let xs = NonExportedClass(input)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-            xs.Value
-            ^^
-"""
-            )
-        ]
-    |> ignore
-
-[<Fact>]
-let ``Able to use non-exported type inside an exported function 4``() =
-    let src =
-        """
-namespace Test
-
-#[open]
-module OlyPrelude =
-    #[intrinsic("int32")]
-    alias int32
-
-    #[intrinsic("print")]
-    print(__oly_object): ()
-
-    #[intrinsic("get_element")]
-    (`[]`)<T>(mutable T[], index: int32): T
-
-#[export]
-module TestModule =
-
-    Run<T>(input: mutable T[]): mutable T[] =
-        class NonExportedClass =
-
-            Value: mutable T[] get
-
-            new(xs: mutable T[]) =
-                this {
-                    Value = xs
-                }
-        let f() =
-            let xs = NonExportedClass(input)
-            xs.Value
-        f()
-
-module Main =
-
-    main(): () =
-        let result = TestModule.Run(mutable [1;2;3;4])
-        print(result[0])
-        print(result[3])
-        """
-    Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-            new(xs: mutable T[]) =
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-            let xs = NonExportedClass(input)
-                     ^^^^^^^^^^^^^^^^
-"""
-            )
-            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
-                """
-            let xs = NonExportedClass(input)
                      ^^^^^^^^^^^^^^^^
 """
             )
@@ -9284,6 +9162,12 @@ module Main =
                 """
             xs.Value
             ^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            xs.Value
+            ^^^^^^^^
 """
             )
         ]

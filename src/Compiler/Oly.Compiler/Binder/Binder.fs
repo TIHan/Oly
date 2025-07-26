@@ -610,6 +610,7 @@ let CreateDefaultBinderEnvironment asmIdent =
         isInConstraint = false
         isInOpenDeclaration = false
         isInLocalLambda = false
+        isInExport = false
         resolutionMustSolveTypes = false
         skipCheckTypeConstructor = false
         skipTypeExtensionBinding = false

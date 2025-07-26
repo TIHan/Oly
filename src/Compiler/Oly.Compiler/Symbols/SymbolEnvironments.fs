@@ -340,7 +340,7 @@ type BoundEnvironment =
         | TypeSymbol.Variable(tyPar)
         | TypeSymbol.HigherVariable(tyPar, _) ->
             match this.TryFindTypeParameter tyPar.Name with
-            | Some tyPar2 when tyPar2.Id = tyPar.Id -> true
+            | Some tyPar2 -> tyPar2.Id = tyPar.Id
             | _ -> false
         | _ ->
             false
