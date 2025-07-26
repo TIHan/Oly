@@ -2725,7 +2725,7 @@ let invalidTypeArguments () : TypeSymbol list =
 
 // Freshen
 
-let private unifyHiddenLinks (enclosingTyInst: IdMap<TypeSymbol imarray>) (tyPar: TypeParameterSymbol) inferenceTy =
+let private unifyHiddenLinks (tyPar: TypeParameterSymbol) inferenceTy =
     let linkedTyOpt = 
         match tyPar.HiddenLink with
         | Some tyPar ->
@@ -2778,7 +2778,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                                 mkStrictInferenceVariableType (Some tyPar)
                             else
                                 mkInferenceVariableType (Some tyPar)
-                        unifyHiddenLinks enclosingTyInst tyPar inferenceTy
+                        unifyHiddenLinks tyPar inferenceTy
                         inferenceTy
                 tys.Add(tyPar, ty)
                 ty
@@ -2797,7 +2797,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                                     mkStrictInferenceVariableType (Some tyPar)
                                 else
                                     mkInferenceVariableType (Some tyPar)
-                            unifyHiddenLinks enclosingTyInst tyPar inferenceTy
+                            unifyHiddenLinks tyPar inferenceTy
                             inferenceTy
                     tys.Add(tyPar, ty)
                     ty
