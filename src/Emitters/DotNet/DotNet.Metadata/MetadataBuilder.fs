@@ -558,7 +558,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             )
         res
 
-    let createMethDef (realWork: Lazy<_>) name signature =
+    let createMethDef(realWork: Lazy<_>, name, signature, argCount, isVoidReturnTy) =
         let res = 
             ClrMethodHandle.LazyMethodDefinition(
                 realWork, 
@@ -574,12 +574,14 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                         n
                 ),
                 name,
-                signature
+                signature,
+                argCount,
+                isVoidReturnTy
             )
         res
 
-    let createMemRef handle name signature =
-        ClrMethodHandle.MemberReference(handle, name, signature)
+    let createMemRef(handle, name, signature, argCount, isVoidReturnTy) =
+        ClrMethodHandle.MemberReference(handle, name, signature, argCount, isVoidReturnTy)
 
     let createTyRef qualifiedName isValueType handle =
         ClrTypeHandle.TypeReference(handle, isValueType, qualifiedName)
@@ -680,7 +682,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 2, false)
 
     let createDebuggerStepperBoundaryAttributeConstructor() =
         let signature = BlobBuilder()
@@ -702,7 +704,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 2, false)
 
     let createConsoleWriteMethod() =
         let consoleTy = consoleSysTy "Console" false
@@ -725,7 +727,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 1, true)
 
     let createConsoleWriteMethod_Int32() =
         let consoleTy = consoleSysTy "Console" false
@@ -748,7 +750,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 1, true)
 
     let createConsoleWriteMethod_String() =
         let consoleTy = consoleSysTy "Console" false
@@ -771,7 +773,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 1, true)
 
     let createGetTypeFromHandleMethod () =
         let typeTy = sysTy "Type" false
@@ -795,7 +797,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 1, false)
 
     let createStringEqualsMethod () =
         let typeTy = sysTy "String" false
@@ -821,7 +823,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 2, false)
 
     let signatureBuilder = BlobBuilder()
 
@@ -945,7 +947,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(realHandle, name, signature, 1, false)
 
     member this.CreateMethodHandle(enclosingTy: ClrTypeHandle, methodName: string, isInstance: bool, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
         let signature = BlobBuilder()
@@ -972,7 +974,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        let argCount =
+            if isInstance then
+                1 + parTys.Length
+            else
+                parTys.Length
+        let isVoidReturnTy = this.IsVoidType(returnTy)
+        createMemRef(realHandle, name, signature, argCount, isVoidReturnTy)
 
     member this.EncodeAttributeElementType (encoder: CustomAttributeElementTypeEncoder, handle: ClrTypeHandle) =
         match handle with
@@ -1164,7 +1172,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
         let entryPoint =
             match this.EntryPoint with 
-            | ClrMethodHandle.LazyMethodDefinition(realHandle, _, _, _) ->
+            | ClrMethodHandle.LazyMethodDefinition(realHandle, _, _, _, _, _) ->
                 if not realHandle.IsValueCreated then
                     failwith "Handle not evaluated."
                 realHandle.Value
@@ -1262,7 +1270,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 name,
                 signature
             )
-        createMemRef realHandle name signature
+        let argCount =
+            if isInstance then
+                1 + parTys.Length
+            else
+                parTys.Length
+        let isVoidReturnTy = this.IsVoidType(returnTy)
+        createMemRef(realHandle, name, signature, argCount, isVoidReturnTy)
 
     member this.AddMethodSpecification(methHandle: ClrMethodHandle, tyArgs: ClrTypeHandle imarray) =
         match methHandle with
@@ -1284,7 +1298,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
             let handleSig = metadataBuilder.GetOrAddBlob(encoder.Builder)
 
-            ClrMethodHandle.MethodSpecification(lazy metadataBuilder.AddMethodSpecification(methHandle.UnsafeLazilyEvaluateEntityHandle(), handleSig), methHandle.Name, handleSig)
+            ClrMethodHandle.MethodSpecification(
+                lazy metadataBuilder.AddMethodSpecification(
+                    methHandle.UnsafeLazilyEvaluateEntityHandle(), 
+                    handleSig
+                ), 
+                methHandle.Name, 
+                handleSig,
+                methHandle.ArgumentCount,
+                methHandle.IsVoidReturnType
+            )
 
     member this.CreateMethodSpecification(enclosingTyHandle: ClrTypeHandle, methHandle: ClrMethodHandle, tyArgs: ClrTypeHandle imarray) =
         match methHandle with
@@ -1300,7 +1323,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                     methHandle.Signature
                 )
 
-            createMemRef handle methHandle.Name methHandle.Signature
+            createMemRef(
+                handle,
+                methHandle.Name,
+                methHandle.Signature,
+                methHandle.ArgumentCount,
+                methHandle.IsVoidReturnType
+            )
 
         if tyArgs.IsEmpty then
             memRefHandle
@@ -1315,7 +1344,16 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             )
 
             let handleSig = metadataBuilder.GetOrAddBlob(encoder.Builder)
-            ClrMethodHandle.MethodSpecification(lazy metadataBuilder.AddMethodSpecification(memRefHandle.UnsafeLazilyEvaluateEntityHandle(), handleSig), methHandle.Name, handleSig)
+            ClrMethodHandle.MethodSpecification(
+                lazy metadataBuilder.AddMethodSpecification(
+                    memRefHandle.UnsafeLazilyEvaluateEntityHandle(),
+                    handleSig
+                 ), 
+                 methHandle.Name, 
+                 handleSig,
+                 methHandle.ArgumentCount,
+                 methHandle.IsVoidReturnType
+            )
 
     member this.AddAnonymousFunctionType(argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) : ClrTypeHandle * ClrTypeHandle imarray =
         if returnTy = this.TypeReferenceVoid then
@@ -1417,7 +1455,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(
+            realHandle,
+            name,
+            signature,
+            3, // instance + 2 parameters,
+            false
+        )
 
     member this.AddAnonymousFunctionInvoke(parent: ClrTypeHandle, tyInst: ClrTypeHandle imarray, argTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
         let returnsVoid = returnTy.HasEntityHandle && returnTy.EntityHandle = this.TypeReferenceVoid.EntityHandle
@@ -1448,7 +1492,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 signature
             )
 
-        createMemRef realHandle name signature
+        createMemRef(
+            realHandle,
+            name,
+            signature,
+            1 + argTys.Length, // instance + arg type count,
+            this.IsVoidType(returnTy)
+        )
 
     member this.EncodeType(encoder, handle) =
         MetadataHelpers.encodeType(encoder, handle, this)
@@ -1520,7 +1570,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                         signature
                     )
 
-                createMemRef realHandle name signature
+                createMemRef(
+                    realHandle, 
+                    name, 
+                    signature,
+                    1 + tyInst.Length, // instance + type instantiation count
+                    false
+                )
             ctorCache_ValueTuple[valueTupleTy] <- result
             valueTupleTy, result
 
@@ -1585,8 +1641,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             metadataBuilder.AddCustomAttribute(asmDefHandle, ctor.UnsafeLazilyEvaluateEntityHandle(), blobHandle) |> ignore
         )
 
-    member internal this.CreateMethodDefinitionHandle(f, name, signature) =
-        createMethDef f name signature
+    member internal this.CreateMethodDefinitionHandle(f, name, signature, argCount, isVoidReturnTy) =
+        createMethDef(f, name, signature, argCount, isVoidReturnTy)
 
     member internal this.CreateTypeDefinitionHandle(f, isValueType, qualifiedName) =
         if tyDefsByQualifiedName.TryAdd(qualifiedName, null) then
@@ -1640,7 +1696,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let f = lazy this.Build()
         let nameHandle = asmBuilder.MetadataBuilder.GetOrAddString(name)
         let signature = asmBuilder.CreateMethodSignature(SignatureCallingConvention.Default, tyPars.Length, isInstance, parTys, returnTy)
-        asmBuilder.CreateMethodDefinitionHandle(f, nameHandle, signature)
+        let argCount =
+            if isInstance then
+                1 + pars.Length
+            else
+                pars.Length
+        let isVoidReturnTy = asmBuilder.IsVoidType(returnTy)
+        asmBuilder.CreateMethodDefinitionHandle(f, nameHandle, signature, argCount, isVoidReturnTy)
 
     static let getBranchOpCode instr =
         match instr with
@@ -1707,11 +1769,20 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
     static let pop (stackCount: byref<int32>) =
         stackCount <- stackCount - 1
-        // Because this is just used for estimates, sometimes the stack can be below zero when dealing with exceptions/branches/etc.
+        // Because this is just used for estimates.
+        // Sometimes the stack can be below zero when dealing with exceptions/branches/etc.
         if stackCount < 0 then
             stackCount <- 0
 
-    static let emitInstr (asmBuilder: ClrAssemblyBuilder) (estimatedStackCount: byref<int32>) (il: byref<InstructionEncoder>) instr =
+#if DEBUG || CHECKED
+    static let debugLog (stackDiffCount: int32) (currentStackCount: int32) (instr: I) =
+        Debug.WriteLine($"stack diff: {stackDiffCount}\tcurrent stack: {currentStackCount}\t - {instr}")
+#endif
+
+    static let emitInstr (asmBuilder: ClrAssemblyBuilder) _isVoidReturnTy (estimatedStackCount: byref<int32>) (il: byref<InstructionEncoder>) instr =
+#if DEBUG || CHECKED
+        let oldStackCount = estimatedStackCount
+#endif
         match instr with
 
         // stack transition: ..., value -> ..., result
@@ -1758,6 +1829,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         // stack transition: ..., arg0, arg1 ... argN, ftn -> ..., retVal (not always returned)
         | I.Calli(cc, parTys, returnTy) ->
+
+            // TODO: We should cache this.
             let signature = BlobBuilder()
             let mutable encoder = BlobEncoder(signature)
             let mutable parEncoder = Unchecked.defaultof<_>
@@ -1768,8 +1841,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             let handle = asmBuilder.MetadataBuilder.AddStandaloneSignature(asmBuilder.MetadataBuilder.GetOrAddBlob(signature))
             il.CallIndirect(handle)
 
+            // arg0, arg1 ... argN
             for _ = 1 to parTys.Length do
-                // arg0, arg1 ... argN
                 pop &estimatedStackCount
 
             // ftn
@@ -1832,10 +1905,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Nop ->
             il.OpCode(ILOpCode.Nop)
 
-        // stack transition: retVal on callee evaluation stack (not always present) -> ..., retVal on caller evaluation stack (not always present)
+        // stack transition: ..., retVal on callee evaluation stack (not always present) -> ..., retVal on caller evaluation stack (not always present)
         | I.Ret ->
             il.OpCode(ILOpCode.Ret)
-            // Note: Because we are estimating, assume it does not pop the stack.
 
         // stack transition: ..., val -> ..., obj
         | I.Box handle ->
@@ -1998,45 +2070,56 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         // ..., arg0, arg1 ... argN -> ..., retVal (not always returned)
         | I.Call(handle) ->
             match handle with
-            | ClrMethodHandle.None -> failwith "Invalid member handle."
-            | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
+            | ClrMethodHandle.None 
+            | ClrMethodHandle.Intrinsic _ -> failwith "Invalid member handle."
+            | ClrMethodHandle.MemberReference(memRefHandle, _, _, _, _) ->
                 il.Call(memRefHandle)
-            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
+            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _, _, _) ->
                 il.Call(methDefHandle.Value)
-            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
+            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _, _, _) ->
                 il.Call(methSpecHandle.Value)
 
-            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
-            //        We also assume this pushes a value onto the stack.
-            //        But if the return type is 'void', it technically **will not** push a value onto the stack.
-            //        To make this more precise, we need to know if the return type is 'void' and the number of parameters, including the instance parameter.
-            push &estimatedStackCount
+            // arg0, arg1 ... argN
+            for _ = 1 to handle.ArgumentCount do              
+                pop &estimatedStackCount
+
+            // retVal (not always returned)
+            if not handle.IsVoidReturnType then
+                push &estimatedStackCount
 
         // ..., arg0, arg1 ... argN -> ..., retVal (not always returned)
         | I.Callvirt(handle) ->
             il.OpCode(ILOpCode.Callvirt)
             match handle with
-            | ClrMethodHandle.None -> failwith "Invalid member handle."
-            | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
+            | ClrMethodHandle.None 
+            | ClrMethodHandle.Intrinsic _ -> failwith "Invalid member handle."
+            | ClrMethodHandle.MemberReference(memRefHandle, _, _, _, _) ->
                 il.Token(MemberReferenceHandle.op_Implicit memRefHandle : EntityHandle)
-            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _) ->
+            | ClrMethodHandle.LazyMethodDefinition(_, methDefHandle, _, _, _, _) ->
                 il.Token(MethodDefinitionHandle.op_Implicit methDefHandle.Value : EntityHandle)
-            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
+            | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _, _, _) ->
                 il.Token(MethodSpecificationHandle.op_Implicit methSpecHandle.Value : EntityHandle)
 
-            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
-            //        We also assume this pushes a value onto the stack.
-            //        But if the return type is 'void', it technically **will not** push a value onto the stack.
-            //        To make this more precise, we need to know if the return type is 'void' and the number of parameters, including the instance parameter.
-            push &estimatedStackCount
+            // arg0, arg1 ... argN
+            for _ = 1 to handle.ArgumentCount do              
+                pop &estimatedStackCount
+
+            // retVal (not always returned)
+            if not handle.IsVoidReturnType then
+                push &estimatedStackCount
 
         // stack transition: ..., arg1, ... argN -> ..., obj
         | I.Newobj(handle) ->
             il.OpCode(ILOpCode.Newobj)
             il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
 
-            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
-            //        To make this more precise, we need to know the number of parameters, including the instance parameter.
+            OlyAssert.True((handle.ArgumentCount - 1) >= 0)
+
+            // arg1, ... argN
+            // TODO: Is this accurate?
+            //for _ = 1 to handle.ArgumentCount - 1 do
+            //    pop &estimatedStackCount
+
             push &estimatedStackCount
 
         // stack transition: ..., numElems -> ..., array
@@ -2155,6 +2238,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.Leave _
         | I.Skip ->
             failwith "Unexpected instruction."
+
+#if DEBUG || CHECKED
+        debugLog (estimatedStackCount - oldStackCount) estimatedStackCount instr
+#endif
 
     static let sizeOfInstr instr =
         match instr with
@@ -2453,6 +2540,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             -1, ImArray.empty // no body - this makes the RVA zero
         else
 
+        let isVoidReturnTy = asmBuilder.IsVoidType(returnTy)
         let instrs = this.BodyInstructions
 
         //---------------------------------------------------------
@@ -2528,7 +2616,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             | _ ->
                 let originalOffset = dummyIL.Offset
-                emitInstr asmBuilder &dummyStackCount &dummyIL instr
+                emitInstr asmBuilder isVoidReturnTy &dummyStackCount &dummyIL instr
                 let offset = dummyIL.Offset
                 if originalOffset = offset then
                     failwithf "IL emitter should have emitted instruction %A" instr
@@ -2727,7 +2815,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 ()
 
             | _ ->
-                emitInstr asmBuilder &estimatedStackCount &il instr
+                emitInstr asmBuilder isVoidReturnTy &estimatedStackCount &il instr
                 if estimatedStackCount > maxStackCount then
                     maxStackCount <- estimatedStackCount
 
@@ -3019,7 +3107,7 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
                 else
                     let handle = methDefs.[0].Handle 
                     match handle with
-                    | ClrMethodHandle.LazyMethodDefinition(realHandle, fakeHandle, _, _) ->
+                    | ClrMethodHandle.LazyMethodDefinition(realHandle, fakeHandle, _, _, _, _) ->
                         if realHandle.IsValueCreated then
                             failwith "Handle already evaluated."
                         fakeHandle.Value

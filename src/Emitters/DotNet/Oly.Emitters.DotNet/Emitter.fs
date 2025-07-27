@@ -2904,7 +2904,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 | ClrTypeInfo.TypeDefinition(tyDefBuilder, _, _, _, _, info) ->
                     let tyExtInfoOpt = info.typeExtensionInfo
                     if flags.IsExternal && (externalInfoOpt.IsNone || externalInfoOpt.Value.Platform <> "C") then
-                        ClrMethodHandle.None, None
+                        let argCount =
+                            if isInstance then
+                                1 + parTys.Length
+                            else
+                                parTys.Length
+                        let isVoidReturnTy = asmBuilder.IsVoidType(returnTy.Handle)
+                        ClrMethodHandle.Intrinsic(argCount, isVoidReturnTy), None
                     else
                         let methDefBuilder = 
                             tyDefBuilder.CreateMethodDefinitionBuilderEx(

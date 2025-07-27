@@ -224,14 +224,16 @@ type ClrFieldHandle =
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type ClrMethodHandle =
     | None
-    | MemberReference of handle: MemberReferenceHandle * name: StringHandle * signature: BlobHandle
-    | MethodSpecification of handle: Lazy<MethodSpecificationHandle> * name: StringHandle * signature: BlobHandle
-    | LazyMethodDefinition of realHandle: Lazy<MethodDefinitionHandle> * handle: Lazy<MethodDefinitionHandle> * name: StringHandle * signature: BlobHandle
+    | Intrinsic of argCount: int32 * isVoidReturnTy: bool
+    | MemberReference of handle: MemberReferenceHandle * name: StringHandle * signature: BlobHandle * argCount: int32 * isVoidReturnTy: bool
+    | MethodSpecification of handle: Lazy<MethodSpecificationHandle> * name: StringHandle * signature: BlobHandle * argCount: int32 * isVoidReturnTy: bool
+    | LazyMethodDefinition of realHandle: Lazy<MethodDefinitionHandle> * handle: Lazy<MethodDefinitionHandle> * name: StringHandle * signature: BlobHandle * argCount: int32 * isVoidReturnTy: bool
 
     /// Only call this right before we add the entity handle to the SRM metadata.
     member internal this.UnsafeLazilyEvaluateEntityHandle() =
         match this with
-        | None -> EntityHandle()
+        | None 
+        | Intrinsic _ -> EntityHandle()
         | MemberReference(handle=handle) -> 
             MemberReferenceHandle.op_Implicit handle
         | MethodSpecification(handle=handle) ->
@@ -241,17 +243,35 @@ type ClrMethodHandle =
 
     member internal this.Signature: BlobHandle =
         match this with
-        | None -> BlobHandle()
+        | None 
+        | Intrinsic _ -> BlobHandle()
         | MemberReference(signature=s) -> s 
         | MethodSpecification(signature=s) -> s
         | LazyMethodDefinition(signature=s) -> s 
 
     member internal this.Name: StringHandle =
         match this with
-        | None -> StringHandle()
+        | None 
+        | Intrinsic _ -> StringHandle()
         | MemberReference(name=name) 
         | MethodSpecification(name=name)
         | LazyMethodDefinition(name=name) -> name 
+
+    member internal this.ArgumentCount =
+        match this with
+        | None -> invalidOp "Invalid method handle."
+        | Intrinsic(argCount=argCount)
+        | MemberReference(argCount=argCount)
+        | MethodSpecification(argCount=argCount)
+        | LazyMethodDefinition(argCount=argCount) -> argCount
+
+    member internal this.IsVoidReturnType =
+        match this with
+        | None -> invalidOp "Invalid method handle."
+        | Intrinsic(isVoidReturnTy=isVoidReturnTy)
+        | MemberReference(isVoidReturnTy=isVoidReturnTy)
+        | MethodSpecification(isVoidReturnTy=isVoidReturnTy)
+        | LazyMethodDefinition(isVoidReturnTy=isVoidReturnTy) -> isVoidReturnTy
 
 [<Sealed>]
 type ClrDebugLocal(name: string, index: int) =
