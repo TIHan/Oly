@@ -1775,7 +1775,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
 #if DEBUG || CHECKED
     static let debugLogInstruction (stackDiffCount: int32) (currentStackCount: int32) (instr: I) =
-        Debug.WriteLine($"stack diff: {stackDiffCount}\tcurrent stack: {currentStackCount}\t - {instr}")
+        // Commented out Debug.WriteLine as it makes it really really really slow.
+        ()
+    //    Debug.WriteLine($"stack diff: {stackDiffCount}\tcurrent stack: {currentStackCount}\t - {instr}")
 #endif
 
     static let emitInstr (asmBuilder: ClrAssemblyBuilder) _isVoidReturnTy (estimatedStackCount: byref<int32>) (il: byref<InstructionEncoder>) instr =

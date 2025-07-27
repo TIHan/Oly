@@ -37,10 +37,10 @@ module Helpers =
     let ProjectExtension = ".olyx"
 
     [<Literal>]
-    let CacheDirectoryName = ".olycache"
+    let CacheDirectoryName = ".oly/cache"
 
     [<Literal>]
-    let BinDirectoryName = "bin"
+    let BinDirectoryName = ".oly/bin"
 
     let inline internal getInlineCache (valueCache: byref<'T voption>) (f: unit -> 'T) =
         match valueCache with
@@ -1100,7 +1100,7 @@ type IOlyWorkspaceProgress =
 type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourceSnapshot) as this =
 
     [<Literal>]
-    static let WorkspaceStateDirectoryLiteral = ".olyworkspace/"
+    static let WorkspaceStateDirectoryLiteral = ".oly/workspace/"
 
     [<Literal>]
     static let WorkspaceStateFileNameLiteral = "state.json"

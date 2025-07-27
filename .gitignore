@@ -55,8 +55,7 @@ build
 .fake
 .vs
 .vscode
-.olycache
-.olyworkspace
+.oly
 
 # Node
 \node_modules

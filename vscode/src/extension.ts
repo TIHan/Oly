@@ -217,7 +217,7 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(vscode.commands.registerCommand(OlyClientCommands.build, buildCommandHandler));
 
 		// Oly Workspace Settings
-		let olyWorkspaceSettingsPath = '.olyworkspace/settings.json';
+		let olyWorkspaceSettingsPath = '.oly/workspace/settings.json';
 		let olyWorkspaceSettingsUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceSettingsPath));
 		async function readOlyWorkspaceSettings() {
 			// TODO: How do we handle a blank active project?
@@ -246,7 +246,7 @@ export function activate(context: ExtensionContext) {
 		}
 
 		// Oly Workspace State
-		let olyWorkspaceStatePath = '.olyworkspace/state.json';
+		let olyWorkspaceStatePath = '.oly/workspace/state.json';
 		let olyWorkspaceStateUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceStatePath));
 		async function readOlyWorkspaceState() {
 			try
