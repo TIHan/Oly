@@ -27,7 +27,7 @@ type ClrTypeVariableKind =
     | Type
     | Method
 
-[<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
+[<RequireQualifiedAccess;NoComparison;CustomEquality>]
 type ClrTypeHandle =
     | None
     | AssemblyReference of AssemblyReferenceHandle * qualifiedName: string
@@ -49,8 +49,8 @@ type ClrTypeHandle =
     static member CreateByRef(ty) =
         ByRef(ty)
 
-    static member CreateArray(elementTy) =
-        Array(elementTy)
+    static member CreateArray(elementTy, rank) =
+        Array(elementTy, rank)
 
     member this.StripModifiers() =
         match this with
@@ -158,6 +158,40 @@ type ClrTypeHandle =
         | ModReq _ ->
             failwith "ModReq does not have a handle."
 
+    override this.GetHashCode(): int = 
+        match this with
+        | None -> 0
+        | AssemblyReference(handle, _) -> handle.GetHashCode()
+        | TypeVariable(index, _) -> index
+        | Array(_, rank) -> 1000 + rank
+        | ByRef(elementTy) -> 2000 + elementTy.GetHashCode()
+        | ModReq(modifierTy, ty) -> modifierTy.GetHashCode() + ty.GetHashCode()
+        | NativePointer(ty) -> 3000 + ty.GetHashCode()
+        | FunctionPointer(cc, parTys, returnTy) -> 4000 + cc.GetHashCode() + parTys.Length + returnTy.GetHashCode()
+        | TypeReference(handle, _, _) -> handle.GetHashCode()
+        | TypeSpecification(handle, _, _, _) -> handle.GetHashCode()
+        | LazyTypeDefinition(fakeHandle=fakeHandle) -> fakeHandle.GetHashCode()
+
+    override this.Equals (o: obj): bool = 
+        if obj.ReferenceEquals(this, o) then true
+        else
+            match o with
+            | :? ClrTypeHandle as ty ->
+                match this, ty with
+                | None, None -> true
+                | AssemblyReference(handle1, _), AssemblyReference(handle2, _) -> handle1.Equals(handle2)
+                | TypeVariable(index1, kind1), TypeVariable(index2, kind2) -> index1 = index2 && kind1 = kind2
+                | Array(elementTy1, rank1), Array(elementTy2, rank2) -> elementTy1.Equals(elementTy2) && rank1 = rank2
+                | ByRef(elementTy1), ByRef(elementTy2) -> elementTy1.Equals(elementTy2)
+                | ModReq(modifierTy1, ty1), ModReq(modifierTy2, ty2) -> modifierTy1.Equals(modifierTy2) && ty1.Equals(ty2)
+                | NativePointer(elementTy1), NativePointer(elementTy2) -> elementTy1.Equals(elementTy2)
+                | TypeReference(handle1, _, _), TypeReference(handle2, _, _) -> handle1.Equals(handle2)
+                | TypeSpecification(handle1, _, _, _), TypeSpecification(handle2, _, _, _) -> handle1.Equals(handle2)
+                | LazyTypeDefinition(fakeHandle=handle1), LazyTypeDefinition(fakeHandle=handle2) -> handle1.Equals(handle2)
+                | _ -> false
+            | _ ->
+                false
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type ClrFieldHandle =
     | None
@@ -240,12 +274,12 @@ type ClrInstruction =
     | Ldarga of int32
     | Ldind_i4
     | Ldind_i8
-    | LdindRef
+    | Ldind_ref
 
-    | LdcI4 of int32
-    | LdcI8 of int64
-    | LdcR4 of float32
-    | LdcR8 of float
+    | Ldc_i4 of int32
+    | Ldc_i8 of int64
+    | Ldc_r4 of float32
+    | Ldc_r8 of float
     | Ldstr of string
 
     | Conv_i
@@ -284,10 +318,10 @@ type ClrInstruction =
     | Rem
     | Rem_un
     | Tail
-    | Call of ClrMethodHandle * argCount: int
+    | Call of ClrMethodHandle
     | Calli of cc: SignatureCallingConvention * parTys: ClrTypeHandle imarray * returnTy: ClrTypeHandle
-    | Callvirt of ClrMethodHandle * argCount: int
-    | Newobj of ClrMethodHandle * argCount: int
+    | Callvirt of ClrMethodHandle
+    | Newobj of ClrMethodHandle
     | Initobj of ClrTypeHandle
     | Ldtoken of ClrTypeHandle
     | Ldnull

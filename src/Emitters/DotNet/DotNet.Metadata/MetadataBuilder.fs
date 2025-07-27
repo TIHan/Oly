@@ -226,7 +226,7 @@ module private MetadataHelpers =
                 let entHandle =
                     match tyHandle with
                     | ClrTypeHandle.ModReq(modifierHandle, tyHandle) ->
-                        asmBuilder.AddModReq(modifierHandle, tyHandle)
+                        asmBuilder.GetOrAddModReq(modifierHandle, tyHandle)
                     | _ ->
                         tyHandle.EntityHandle
                 asmBuilder.MetadataBuilder.AddGenericParameterConstraint(handle, entHandle)
@@ -454,9 +454,12 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     let asmDefHandle = MetadataHelpers.addAssembly assemblyName metadataBuilder
 
-    let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (EntityHandle * EntityHandle), EntityHandle>()
-    let typeCache_ValueTuple = System.Collections.Generic.Dictionary<EntityHandle imarray, ClrTypeHandle>()
-    let ctorCache_ValueTuple = System.Collections.Generic.Dictionary<EntityHandle, ClrMethodHandle>()
+    let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (ClrTypeHandle * ClrTypeHandle), EntityHandle>()
+    let typeCache_ValueTuple = System.Collections.Generic.Dictionary<ClrTypeHandle imarray, ClrTypeHandle>()
+    let typeCache_Array = System.Collections.Generic.Dictionary<struct (ClrTypeHandle * int32), ClrTypeHandle>()
+    let typeCache_FunctionPointer = System.Collections.Generic.Dictionary<struct (ClrTypeHandle imarray * ClrTypeHandle), ClrTypeHandle>()
+    let typeCache_NativePointer = System.Collections.Generic.Dictionary<ClrTypeHandle, ClrTypeHandle>()
+    let ctorCache_ValueTuple = System.Collections.Generic.Dictionary<ClrTypeHandle, ClrMethodHandle>()
 
     // TODO: This assembly name equality is probably not entirely correct.
     let asmRefComparer =
@@ -919,6 +922,9 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
 
     member val EntryPoint = ClrMethodHandle.None with get, set
 
+    member this.IsVoidType(ty: ClrTypeHandle) =
+        ty = this.TypeReferenceVoid
+
     member this.CreateConstructor(enclosingTy: ClrTypeHandle): ClrMethodHandle =
         let signature = BlobBuilder()
         let mutable encoder = BlobEncoder(signature)
@@ -1102,8 +1108,8 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 metadataBuilder.AddTypeSpecification(metadataBuilder.GetOrAddBlob(signature))
         handle
 
-    member internal this.AddModReq(modifierHandle: ClrTypeHandle, tyHandle: ClrTypeHandle) : EntityHandle =
-        let key = struct(modifierHandle.EntityHandle, tyHandle.EntityHandle)
+    member internal this.GetOrAddModReq(modifierHandle: ClrTypeHandle, tyHandle: ClrTypeHandle) : EntityHandle =
+        let key = struct(modifierHandle, tyHandle)
         match typeCache_ModReq.TryGetValue(key) with
         | true, result -> result
         | _ ->
@@ -1447,20 +1453,38 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     member this.EncodeType(encoder, handle) =
         MetadataHelpers.encodeType(encoder, handle, this)
 
-    member this.AddArrayType(elementTy: ClrTypeHandle, rank) =
-        ClrTypeHandle.Array(elementTy, rank)
+    member this.GetOrAddArrayType(elementTy: ClrTypeHandle, rank) =
+        //let key = struct(elementTy, rank)
+        //match typeCache_Array.TryGetValue key with
+        //| true, result -> result
+        //| _ ->
+            let result = ClrTypeHandle.CreateArray(elementTy, rank)
+            //typeCache_Array[key] <- result
+            result
 
-    member this.AddFunctionPointer(cc, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        ClrTypeHandle.FunctionPointer(cc, parTys, returnTy)
+    member this.GetOrAddFunctionPointer(cc, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
+        //let key = struct(parTys, returnTy)
+        //match typeCache_FunctionPointer.TryGetValue key with
+        //| true, result -> result
+        //| _ ->
+            let result = ClrTypeHandle.FunctionPointer(cc, parTys, returnTy)
+        //    typeCache_FunctionPointer[key] <- result
+            result
 
-    member this.AddNativePointer(elementTy: ClrTypeHandle) =
-        ClrTypeHandle.NativePointer(elementTy)
+    member this.GetOrAddNativePointer(elementTy: ClrTypeHandle) =
+        //let key = elementTy
+        //match typeCache_NativePointer.TryGetValue key with
+        //| true, result -> result
+        //| _ ->
+            let result = ClrTypeHandle.NativePointer(elementTy)
+        //    typeCache_NativePointer[key] <- result
+            result
 
-    member this.AddValueTupleType(tyInst: ClrTypeHandle imarray) =
-        let key = tyInst |> ImArray.map (fun x -> x.EntityHandle)
-        match typeCache_ValueTuple.TryGetValue key with
-        | true, result -> result
-        | _ ->
+    member this.GetOrAddValueTupleType(tyInst: ClrTypeHandle imarray) =
+        //let key = tyInst
+        //match typeCache_ValueTuple.TryGetValue key with
+        //| true, result -> result
+        //| _ ->
             let result =
                 match tyInst.Length with
                 | 1 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`1``, tyInst)
@@ -1473,13 +1497,13 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 | 8 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`8``, tyInst)
                 | _ ->
                     raise(System.NotSupportedException("Tuple item count larger than 8 or zero."))
-            typeCache_ValueTuple[key] <- result
+            //typeCache_ValueTuple[key] <- result
             result
 
-    member this.AddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =
-        let valueTupleTy = this.AddValueTupleType(tyInst)
+    member this.GetOrAddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =
+        let valueTupleTy = this.GetOrAddValueTupleType(tyInst)
 
-        match ctorCache_ValueTuple.TryGetValue valueTupleTy.EntityHandle with
+        match ctorCache_ValueTuple.TryGetValue valueTupleTy with
         | true, result -> valueTupleTy, result
         | _ ->
             let result =
@@ -1497,7 +1521,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                     )
 
                 createMemRef realHandle name signature
-            ctorCache_ValueTuple[valueTupleTy.EntityHandle] <- result
+            ctorCache_ValueTuple[valueTupleTy] <- result
             valueTupleTy, result
 
     member this.CreateTypeDefinitionBuilder(enclosingTyHandle, namespac, name, tyParCount: int, isStruct, baseTypeHandle) =
@@ -1677,39 +1701,63 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | _ ->
                 il.Token(handle.EntityHandle)
 
-    static let emitInstr (asmBuilder: ClrAssemblyBuilder) (maxStack: byref<int32>) (il: byref<InstructionEncoder>) instr =
+    static let push (stackCount: byref<int32>) =
+        stackCount <- stackCount + 1
+        OlyAssert.True(stackCount >= 0)
+
+    static let pop (stackCount: byref<int32>) =
+        stackCount <- stackCount - 1
+        // Because this is just used for estimates, sometimes the stack can be below zero when dealing with exceptions/branches/etc.
+        if stackCount < 0 then
+            stackCount <- 0
+
+    static let emitInstr (asmBuilder: ClrAssemblyBuilder) (estimatedStackCount: byref<int32>) (il: byref<InstructionEncoder>) instr =
         match instr with
+
+        // stack transition: ..., value -> ..., result
         | I.Conv_i ->
             il.OpCode(ILOpCode.Conv_i)
+        // stack transition: ..., value -> ..., result
         | I.Conv_i1 ->
             il.OpCode(ILOpCode.Conv_i1)
+        // stack transition: ..., value -> ..., result
         | I.Conv_i2 ->
             il.OpCode(ILOpCode.Conv_i2)
+        // stack transition: ..., value -> ..., result
         | I.Conv_i4 ->
             il.OpCode(ILOpCode.Conv_i4)
+        // stack transition: ..., value -> ..., result
         | I.Conv_i8 ->
             il.OpCode(ILOpCode.Conv_i8)
 
+        // stack transition: ..., value -> ..., result
         | I.Conv_u ->
             il.OpCode(ILOpCode.Conv_u)
+        // stack transition: ..., value -> ..., result
         | I.Conv_u1 ->
             il.OpCode(ILOpCode.Conv_u1)
+        // stack transition: ..., value -> ..., result
         | I.Conv_u2 ->
             il.OpCode(ILOpCode.Conv_u2)
+        // stack transition: ..., value -> ..., result
         | I.Conv_u4 ->
             il.OpCode(ILOpCode.Conv_u4)
+        // stack transition: ..., value -> ..., result
         | I.Conv_u8 ->
             il.OpCode(ILOpCode.Conv_u8)
 
+        // stack transition: ..., value -> ..., result
         | I.Conv_r_un ->
             il.OpCode(ILOpCode.Conv_r_un)
+        // stack transition: ..., value -> ..., result
         | I.Conv_r4 ->
             il.OpCode(ILOpCode.Conv_r4)
+        // stack transition: ..., value -> ..., result
         | I.Conv_r8 ->
             il.OpCode(ILOpCode.Conv_r8)
 
+        // stack transition: ..., arg0, arg1 ... argN, ftn -> ..., retVal (not always returned)
         | I.Calli(cc, parTys, returnTy) ->
-            maxStack <- max maxStack (parTys.Length + 1)
             let signature = BlobBuilder()
             let mutable encoder = BlobEncoder(signature)
             let mutable parEncoder = Unchecked.defaultof<_>
@@ -1720,17 +1768,34 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             let handle = asmBuilder.MetadataBuilder.AddStandaloneSignature(asmBuilder.MetadataBuilder.GetOrAddBlob(signature))
             il.CallIndirect(handle)
 
+            for _ = 1 to parTys.Length do
+                // arg0, arg1 ... argN
+                pop &estimatedStackCount
+
+            // ftn
+            pop &estimatedStackCount
+
+            // retVal (not always returned)
+            if not (asmBuilder.IsVoidType(returnTy)) then
+                push &estimatedStackCount
+
+        // stack transition: ..., array -> ..., length
         | I.Ldlen ->
             il.OpCode(ILOpCode.Ldlen)
 
+        // stack transition: ... -> ..., RuntimeHandle
         | I.Ldtoken(handle) ->
             il.OpCode(ILOpCode.Ldtoken)
             emitTypeToken asmBuilder &il handle
+            push &estimatedStackCount
 
+        // stack transition: ... -> ..., size (4 bytes, unsigned)
         | I.Sizeof(handle) ->
             il.OpCode(ILOpCode.Sizeof)
             emitTypeToken asmBuilder &il handle
+            push &estimatedStackCount
 
+        // stack transition: ..., dest -> ...
         | I.Initobj(handle) ->
             match handle with
             | ClrTypeHandle.NativePointer _
@@ -1739,117 +1804,199 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | _ ->
                 il.OpCode(ILOpCode.Initobj)
                 emitTypeToken asmBuilder &il handle
+                pop &estimatedStackCount
 
+        // stack transition: ..., ptr, arg1, ... argN -> ..., ptr, arg1, ... argN
         | I.Constrained(handle) ->
             il.OpCode(ILOpCode.Constrained)
             emitTypeToken asmBuilder &il handle
 
+        // stack transition: ..., object -> ...,
         | I.Throw ->
             il.OpCode(ILOpCode.Throw)
+            pop &estimatedStackCount
 
+        // stack transition: ..., addr, val -> ...
         | I.Stind_ref ->
             il.OpCode(ILOpCode.Stind_ref)
+            pop &estimatedStackCount
+            pop &estimatedStackCount
+        // stack transition: ..., dest, src -> ...
         | I.Stobj(handle) ->
             il.OpCode(ILOpCode.Stobj) 
             emitTypeToken asmBuilder &il handle
+            pop &estimatedStackCount
+            pop &estimatedStackCount
 
+        // stack transition: ..., -> ...,
         | I.Nop ->
             il.OpCode(ILOpCode.Nop)
+
+        // stack transition: retVal on callee evaluation stack (not always present) -> ..., retVal on caller evaluation stack (not always present)
         | I.Ret ->
             il.OpCode(ILOpCode.Ret)
+            // Note: Because we are estimating, assume it does not pop the stack.
+
+        // stack transition: ..., val -> ..., obj
         | I.Box handle ->
             il.OpCode(ILOpCode.Box)
             emitTypeToken asmBuilder &il handle
+        // stack transition: ..., obj -> ..., valueTypePtr
         | I.Unbox handle ->
             il.OpCode(ILOpCode.Unbox)
             emitTypeToken asmBuilder &il handle
+        // stack transition: ..., obj -> ..., value or obj
         | I.Unbox_any handle ->
             il.OpCode(ILOpCode.Unbox_any)
             emitTypeToken asmBuilder &il handle
 
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Add ->
             il.OpCode(ILOpCode.Add)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Sub ->
             il.OpCode(ILOpCode.Sub)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Mul ->
             il.OpCode(ILOpCode.Mul)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Div ->
             il.OpCode(ILOpCode.Div)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Div_un ->
             il.OpCode(ILOpCode.Div_un)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Rem ->
             il.OpCode(ILOpCode.Rem)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Rem_un ->
             il.OpCode(ILOpCode.Rem_un)
+            pop &estimatedStackCount
+
+        // stack transition: ..., value -> ..., result
         | I.Neg ->
             il.OpCode(ILOpCode.Neg)
 
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Ceq ->
             il.OpCode(ILOpCode.Ceq)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Cgt ->
             il.OpCode(ILOpCode.Cgt)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Cgt_un ->
             il.OpCode(ILOpCode.Cgt_un)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Clt ->
             il.OpCode(ILOpCode.Clt)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result 
         | I.Clt_un ->
             il.OpCode(ILOpCode.Clt_un)
+            pop &estimatedStackCount
 
+        // stack transition: ... -> ..., value
         | I.Ldarg n ->
             il.LoadArgument(n)
+            push &estimatedStackCount
+        // stack transition: ..., -> ..., address of argument number argNum
         | I.Ldarga n ->
             il.LoadArgumentAddress(n)
-        | I.LdindRef ->
+            push &estimatedStackCount
+        // stack transition: ..., addr -> ..., value
+        | I.Ldind_ref ->
             il.OpCode(ILOpCode.Ldind_ref)
+        // stack transition: ... -> ..., value
         | I.Ldloc n ->
             il.LoadLocal(n)
+            push &estimatedStackCount
+        // stack transition: ... -> ..., address
         | I.Ldloca n ->
             il.LoadLocalAddress(n)
+            push &estimatedStackCount
+        // stack transition: ..., value -> ...
         | I.Starg n ->
             il.StoreArgument(n)
+            pop &estimatedStackCount
+        // stack transition: ..., value -> ...
         | I.Stloc n ->
             il.StoreLocal n
+            pop &estimatedStackCount
 
+        // stack transition: ..., addr -> ..., value
         | I.Ldind_i4 ->
             il.OpCode(ILOpCode.Ldind_i4)
+        // stack transition: ..., addr -> ..., value
         | I.Ldind_i8 ->
             il.OpCode(ILOpCode.Ldind_i8)
 
+        // stack transition: ..., addr, val -> ...
         | I.Stind_i4 ->
             il.OpCode(ILOpCode.Stind_i4)
+            pop &estimatedStackCount
+            pop &estimatedStackCount
+        // stack transition: ..., addr, val -> ...
         | I.Stind_i8 ->
             il.OpCode(ILOpCode.Stind_i8)
+            pop &estimatedStackCount
+            pop &estimatedStackCount
 
+        // stack transition: ..., array, index -> ..., value 
         | I.Ldelem handle ->
             il.OpCode(ILOpCode.Ldelem)
             emitTypeToken asmBuilder &il handle
+            pop &estimatedStackCount
+        // stack transition: ..., array, index -> ..., address
         | I.Ldelema handle ->
             il.OpCode(ILOpCode.Ldelema)
             emitTypeToken asmBuilder &il handle
+            pop &estimatedStackCount
+        // stack transition: ..., array, index, value -> ...
         | I.Stelem handle ->
             il.OpCode(ILOpCode.Stelem)
             emitTypeToken asmBuilder &il handle
-
+            pop &estimatedStackCount
+            pop &estimatedStackCount
+            pop &estimatedStackCount
+        // stack transition: ... -> ..., ftn
         | I.Ldftn handle ->
             il.OpCode(ILOpCode.Ldftn)
             il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
+            push &estimatedStackCount
+        // stack transition: ... -> ..., null value
         | I.Ldnull ->
             il.OpCode(ILOpCode.Ldnull)
+            push &estimatedStackCount
+        // stack transition: ..., src -> ..., val
         | I.Ldobj handle ->
             il.OpCode(ILOpCode.Ldobj)
             emitTypeToken asmBuilder &il handle
 
+        // stack transition: ..., value -> ...
         | I.Pop ->
             il.OpCode(ILOpCode.Pop)
+            pop &estimatedStackCount
 
+        // stack transition: ..., value -> ..., value, value
         | I.Dup ->
             il.OpCode(ILOpCode.Dup)
+            push &estimatedStackCount
 
+        // stack transition: n/a
         | I.Tail ->
             il.OpCode(ILOpCode.Tail)
 
-        | I.Call(handle, argCount) ->
-            maxStack <- max maxStack argCount
+        // ..., arg0, arg1 ... argN -> ..., retVal (not always returned)
+        | I.Call(handle) ->
             match handle with
             | ClrMethodHandle.None -> failwith "Invalid member handle."
             | ClrMethodHandle.MemberReference(memRefHandle, _, _) ->
@@ -1858,8 +2005,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 il.Call(methDefHandle.Value)
             | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
                 il.Call(methSpecHandle.Value)
-        | I.Callvirt(handle, argCount) ->
-            maxStack <- max maxStack argCount
+
+            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
+            //        We also assume this pushes a value onto the stack.
+            //        But if the return type is 'void', it technically **will not** push a value onto the stack.
+            //        To make this more precise, we need to know if the return type is 'void' and the number of parameters, including the instance parameter.
+            push &estimatedStackCount
+
+        // ..., arg0, arg1 ... argN -> ..., retVal (not always returned)
+        | I.Callvirt(handle) ->
             il.OpCode(ILOpCode.Callvirt)
             match handle with
             | ClrMethodHandle.None -> failwith "Invalid member handle."
@@ -1869,62 +2023,111 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 il.Token(MethodDefinitionHandle.op_Implicit methDefHandle.Value : EntityHandle)
             | ClrMethodHandle.MethodSpecification(methSpecHandle, _, _) ->
                 il.Token(MethodSpecificationHandle.op_Implicit methSpecHandle.Value : EntityHandle)
-        | I.Newobj(handle, argCount) ->
-            maxStack <- max maxStack argCount
+
+            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
+            //        We also assume this pushes a value onto the stack.
+            //        But if the return type is 'void', it technically **will not** push a value onto the stack.
+            //        To make this more precise, we need to know if the return type is 'void' and the number of parameters, including the instance parameter.
+            push &estimatedStackCount
+
+        // stack transition: ..., arg1, ... argN -> ..., obj
+        | I.Newobj(handle) ->
             il.OpCode(ILOpCode.Newobj)
             il.Token(handle.UnsafeLazilyEvaluateEntityHandle())
+
+            // Notes: Because this is estimating, we are not popping the stack based on the number of parameters.
+            //        To make this more precise, we need to know the number of parameters, including the instance parameter.
+            push &estimatedStackCount
+
+        // stack transition: ..., numElems -> ..., array
         | I.Newarr handle ->
             il.OpCode(ILOpCode.Newarr)
             emitTypeToken asmBuilder &il handle
 
+        // stack transition: ... -> ..., string
         | I.Ldstr str ->
             il.LoadString(asmBuilder.MetadataBuilder.GetOrAddUserString(str))
-        | I.LdcI4 value ->
+            push &estimatedStackCount
+        // stack transition: ... -> ..., num
+        | I.Ldc_i4 value ->
             il.LoadConstantI4(value)
-        | I.LdcI8 value ->
+            push &estimatedStackCount
+        // stack transition: ... -> ..., num
+        | I.Ldc_i8 value ->
             il.LoadConstantI8(value)
-        | I.LdcR4(value) ->
+            push &estimatedStackCount
+        // stack transition: ... -> ..., num
+        | I.Ldc_r4(value) ->
             il.LoadConstantR4(value)
-        | I.LdcR8 value ->
+            push &estimatedStackCount
+        // stack transition: ... -> ..., num
+        | I.Ldc_r8 value ->
             il.LoadConstantR8(value)
+            push &estimatedStackCount
 
+        // stack transition: ..., obj -> ..., value
         | I.Ldfld handle ->
             il.OpCode(ILOpCode.Ldfld)
             il.Token(handle.EntityHandle)
+        // stack transition: ..., obj -> ..., value
         | I.Ldflda handle ->
             il.OpCode(ILOpCode.Ldflda)
             il.Token(handle.EntityHandle)
+        // stack transition: ..., obj, value -> ...
         | I.Stfld handle ->
             il.OpCode(ILOpCode.Stfld)
             il.Token(handle.EntityHandle)
+            pop &estimatedStackCount
+            pop &estimatedStackCount
+        // stack transition: ... -> ..., value
         | I.Ldsfld handle ->
             il.OpCode(ILOpCode.Ldsfld)
             il.Token(handle.EntityHandle)
+            push &estimatedStackCount
+        // stack transition: ... -> ..., value
         | I.Ldsflda handle ->
             il.OpCode(ILOpCode.Ldsflda)
             il.Token(handle.EntityHandle)
+            push &estimatedStackCount
+        // stack transition: ..., val -> ...
         | I.Stsfld handle ->
             il.OpCode(ILOpCode.Stsfld)
             il.Token(handle.EntityHandle)
+            pop &estimatedStackCount
 
+        // stack transition: ..., value1, value2 -> ..., result
         | I.And ->
             il.OpCode(ILOpCode.And)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result
         | I.Or ->
             il.OpCode(ILOpCode.Or)
+            pop &estimatedStackCount
+        // stack transition: ..., value1, value2 -> ..., result
         | I.Xor ->
             il.OpCode(ILOpCode.Xor)
+            pop &estimatedStackCount
+        // stack transition: ..., value -> ..., result
         | I.Not ->
             il.OpCode(ILOpCode.Not)
+        // stack transition: ..., value, shiftAmount -> ..., result
         | I.Shl ->
             il.OpCode(ILOpCode.Shl)
+            pop &estimatedStackCount
+        // stack transition: ..., value, shiftAmount -> ..., result
         | I.Shr ->
             il.OpCode(ILOpCode.Shr)
+            pop &estimatedStackCount
+        // stack transition: ..., value, shiftAmount -> ..., result
         | I.Shr_un ->
             il.OpCode(ILOpCode.Shr_un)
+            pop &estimatedStackCount
 
+        // stack transition: ... -> ...
         | I.Endfinally ->
             il.OpCode(ILOpCode.Endfinally)
 
+        // stack transition: ..., obj -> ..., result
         | I.Isinst handle ->
             il.OpCode(ILOpCode.Isinst)
             emitTypeToken asmBuilder &il handle
@@ -2062,7 +2265,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 1 + 1
             else
                 4 + 2
-        | I.LdindRef ->
+        | I.Ldind_ref ->
             1
         | I.Ldloc value ->
             if value <= int Byte.MaxValue && value >= int Byte.MinValue then
@@ -2137,7 +2340,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
         | I.Ldstr _ ->
             1 + 4
-        | I.LdcI4(value) ->
+        | I.Ldc_i4(value) ->
             if value <= int SByte.MaxValue && value >= int SByte.MinValue then
                 if value >= 0 && value <= 8 then
                     1
@@ -2147,11 +2350,11 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     1 + 1
             else
                 1 + 4
-        | I.LdcI8 _ ->
+        | I.Ldc_i8 _ ->
             1 + 8
-        | I.LdcR4 _ ->
+        | I.Ldc_r4 _ ->
             1 + 4
-        | I.LdcR8 _ ->
+        | I.Ldc_r8 _ ->
             1 + 8
 
         | I.Ldfld _ ->
@@ -2257,6 +2460,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 #if DEBUG || CHECKED
         let labels = Dictionary<int, _>()
 
+        let mutable dummyStackCount = 0
         let mutable dummyIL = createInstructionEncoder()
 
         for i = 0 to instrs.Length - 1 do
@@ -2267,8 +2471,6 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 addLabel &dummyIL labels labeId
             | _ ->
                 ()
-
-        let mutable maxStack = 0
 
         let dummyOffsets = List()
 
@@ -2289,7 +2491,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Ble labelId
             | I.Ble_un labelId
             | I.Blt labelId
-            | I.Ble_un labelId
+            | I.Blt_un labelId
             | I.Bne_un labelId
             | I.Brtrue labelId
             | I.Brfalse labelId
@@ -2326,7 +2528,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             | _ ->
                 let originalOffset = dummyIL.Offset
-                emitInstr asmBuilder &maxStack &dummyIL instr
+                emitInstr asmBuilder &dummyStackCount &dummyIL instr
                 let offset = dummyIL.Offset
                 if originalOffset = offset then
                     failwithf "IL emitter should have emitted instruction %A" instr
@@ -2392,13 +2594,13 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         ilBuilder.Align(4)
 
         // ----
-        let mutable firstDocument = None
-
         let seqPoints = ImArray.builder()
 
-        let mutable maxStack = 0
-
+        let mutable firstDocument = None
         let mutable hasMultipleDocuments = false
+
+        let mutable estimatedStackCount = 0
+        let mutable maxStackCount = 0
 
         let debugILOffsetStack = Stack()
         let localScopes = ImArray.builder()  
@@ -2420,12 +2622,41 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Ble labelId
             | I.Ble_un labelId
             | I.Blt labelId
-            | I.Ble_un labelId
+            | I.Blt_un labelId
             | I.Bne_un labelId
             | I.Brtrue labelId
             | I.Brfalse labelId
             | I.Br labelId
             | I.Leave labelId ->
+
+                match instr with
+                // stack transition: ..., value1, value2 -> ...
+                | I.Beq _ 
+                | I.Bge _
+                | I.Bge_un _
+                | I.Bgt _
+                | I.Ble _
+                | I.Ble_un _
+                | I.Blt _
+                | I.Blt_un _ 
+                | I.Bne_un _ ->
+                    pop &estimatedStackCount
+                    pop &estimatedStackCount
+                // stack transition: ..., value -> ...
+                | I.Brtrue _
+                | I.Brfalse _ ->
+                    pop &estimatedStackCount
+                // stack transition: ..., -> ...
+                | I.Br _ ->
+                    ()
+                // stack transition: ..., ->
+                | I.Leave _ ->
+                    // empties the evaluation stack
+                    // TODO: What should we do here to the stack?
+                    ()
+                | _ ->
+                    unreached()               
+
                 let isShort = shorts[i]
                 let labelOffset = getLabelOffset labelId
                 let opCode = getBranchOpCode instr
@@ -2477,7 +2708,7 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
             | I.HiddenSequencePoint ->
                 match firstDocument with
-                | Some(firstDocumentPath, firstDocument) when il.Offset > 0 ->
+                | Some(_firstDocumentPath, firstDocument) when il.Offset > 0 ->
                     seqPoints.Add(ClrSequencePoint(firstDocument, il.Offset, 1, 1, 1, 1))
                 | _ ->
                     ()
@@ -2496,18 +2727,18 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                 ()
 
             | _ ->
-                emitInstr asmBuilder &maxStack &il instr
+                emitInstr asmBuilder &estimatedStackCount &il instr
+                if estimatedStackCount > maxStackCount then
+                    maxStackCount <- estimatedStackCount
 
         //---------------------------------------------------------
 
         let mutable methBodyStream = MethodBodyStreamEncoder(ilBuilder)
         let bodyOffset =
-            // TODO: 'maxStack + 8' is a little arbitrary, we should correctly count the max number of stacks.
-            //       The '8' is just a little extra room to ensure we have enough.
             if this.Locals.IsEmpty then
-                methBodyStream.AddMethodBody(il, maxStack = maxStack + 8) 
+                methBodyStream.AddMethodBody(il, maxStack = maxStackCount) 
             else
-                methBodyStream.AddMethodBody(il, maxStack = maxStack + 8, localVariablesSignature = localSig)
+                methBodyStream.AddMethodBody(il, maxStack = maxStackCount, localVariablesSignature = localSig)
 
         match firstDocument with
         | Some(_, document) ->

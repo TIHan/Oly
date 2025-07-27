@@ -216,8 +216,8 @@ main(): () =
         I.Nop
         I.Ldarg 0 // RefCell is an array with one item
         I.Ldfld _
-        I.LdcI4 0
-        I.LdcI4 5
+        I.Ldc_i4 0
+        I.Ldc_i4 5
         I.Stelem _
         I.HiddenSequencePoint
         I.Ret
@@ -254,8 +254,8 @@ main(): () =
         I.Nop
         I.Ldarg 0 // RefCell is an array with one item
         I.Ldfld _
-        I.LdcI4 0
-        I.LdcI4 5
+        I.Ldc_i4 0
+        I.Ldc_i4 5
         I.Stelem _
         I.HiddenSequencePoint
         I.Ret
