@@ -457,7 +457,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
     let typeCache_ModReq = System.Collections.Generic.Dictionary<struct (ClrTypeHandle * ClrTypeHandle), EntityHandle>()
     let typeCache_ValueTuple = System.Collections.Generic.Dictionary<ClrTypeHandle imarray, ClrTypeHandle>()
     let typeCache_Array = System.Collections.Generic.Dictionary<struct (ClrTypeHandle * int32), ClrTypeHandle>()
-    let typeCache_FunctionPointer = System.Collections.Generic.Dictionary<struct (ClrTypeHandle imarray * ClrTypeHandle), ClrTypeHandle>()
+    let typeCache_FunctionPointer = System.Collections.Generic.Dictionary<struct (SignatureCallingConvention * ClrTypeHandle imarray * ClrTypeHandle), ClrTypeHandle>()
     let typeCache_NativePointer = System.Collections.Generic.Dictionary<ClrTypeHandle, ClrTypeHandle>()
     let ctorCache_ValueTuple = System.Collections.Generic.Dictionary<ClrTypeHandle, ClrMethodHandle>()
 
@@ -1454,37 +1454,37 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
         MetadataHelpers.encodeType(encoder, handle, this)
 
     member this.GetOrAddArrayType(elementTy: ClrTypeHandle, rank) =
-        //let key = struct(elementTy, rank)
-        //match typeCache_Array.TryGetValue key with
-        //| true, result -> result
-        //| _ ->
+        let key = struct(elementTy, rank)
+        match typeCache_Array.TryGetValue key with
+        | true, result -> result
+        | _ ->
             let result = ClrTypeHandle.CreateArray(elementTy, rank)
-            //typeCache_Array[key] <- result
+            typeCache_Array[key] <- result
             result
 
     member this.GetOrAddFunctionPointer(cc, parTys: ClrTypeHandle imarray, returnTy: ClrTypeHandle) =
-        //let key = struct(parTys, returnTy)
-        //match typeCache_FunctionPointer.TryGetValue key with
-        //| true, result -> result
-        //| _ ->
+        let key = struct(cc, parTys, returnTy)
+        match typeCache_FunctionPointer.TryGetValue key with
+        | true, result -> result
+        | _ ->
             let result = ClrTypeHandle.FunctionPointer(cc, parTys, returnTy)
-        //    typeCache_FunctionPointer[key] <- result
+            typeCache_FunctionPointer[key] <- result
             result
 
     member this.GetOrAddNativePointer(elementTy: ClrTypeHandle) =
-        //let key = elementTy
-        //match typeCache_NativePointer.TryGetValue key with
-        //| true, result -> result
-        //| _ ->
+        let key = elementTy
+        match typeCache_NativePointer.TryGetValue key with
+        | true, result -> result
+        | _ ->
             let result = ClrTypeHandle.NativePointer(elementTy)
-        //    typeCache_NativePointer[key] <- result
+            typeCache_NativePointer[key] <- result
             result
 
     member this.GetOrAddValueTupleType(tyInst: ClrTypeHandle imarray) =
-        //let key = tyInst
-        //match typeCache_ValueTuple.TryGetValue key with
-        //| true, result -> result
-        //| _ ->
+        let key = tyInst
+        match typeCache_ValueTuple.TryGetValue key with
+        | true, result -> result
+        | _ ->
             let result =
                 match tyInst.Length with
                 | 1 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`1``, tyInst)
@@ -1497,7 +1497,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 | 8 -> this.AddGenericInstanceType(this.``TypeReferenceValueTuple`8``, tyInst)
                 | _ ->
                     raise(System.NotSupportedException("Tuple item count larger than 8 or zero."))
-            //typeCache_ValueTuple[key] <- result
+            typeCache_ValueTuple[key] <- result
             result
 
     member this.GetOrAddValueTupleConstructor(tyInst: ClrTypeHandle imarray) =

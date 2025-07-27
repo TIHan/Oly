@@ -184,6 +184,7 @@ type ClrTypeHandle =
                 | Array(elementTy1, rank1), Array(elementTy2, rank2) -> elementTy1.Equals(elementTy2) && rank1 = rank2
                 | ByRef(elementTy1), ByRef(elementTy2) -> elementTy1.Equals(elementTy2)
                 | ModReq(modifierTy1, ty1), ModReq(modifierTy2, ty2) -> modifierTy1.Equals(modifierTy2) && ty1.Equals(ty2)
+                | FunctionPointer(cc1, parTys1, returnTy1), FunctionPointer(cc2, parTys2, returnTy2) -> cc1 = cc2 && (parTys1.Length = parTys2.Length && ((parTys1, parTys2) ||> ImArray.forall2 (=))) && returnTy1 = returnTy2
                 | NativePointer(elementTy1), NativePointer(elementTy2) -> elementTy1.Equals(elementTy2)
                 | TypeReference(handle1, _, _), TypeReference(handle2, _, _) -> handle1.Equals(handle2)
                 | TypeSpecification(handle1, _, _, _), TypeSpecification(handle2, _, _, _) -> handle1.Equals(handle2)
