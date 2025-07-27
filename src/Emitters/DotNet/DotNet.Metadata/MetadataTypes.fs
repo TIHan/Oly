@@ -424,6 +424,7 @@ type ClrInstruction =
     | EndLocalScope
 
     | Skip
+    | FakePush
 
     member this.IsBranch =
         match this with

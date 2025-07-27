@@ -1289,6 +1289,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             else
                 defaultCase()
 
+        // REVIEW: Does it make sense for throw to have any kind of return type?
         | OlyILOperation.Throw(ilArgExpr, ilResultTy) ->
             let irArgExpr, _ = importExpression cenv env None ilArgExpr
             let resultTy = cenv.ResolveType(env.ILAssembly, ilResultTy, env.GenericContext)

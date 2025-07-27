@@ -464,6 +464,28 @@ module rec ClrCodeGen =
         else
             PrimitiveTypeCode.Object
 
+    let beginLocalScope (cenv: cenv) name n =
+        if cenv.IsDebuggable then
+            let newDebugLocal = ClrDebugLocal(name, n)
+            let debugLocals =
+                // Shadowing support
+                cenv.debugLocalsInScope.Values
+                |> Seq.map (fun debugLocal ->
+                    if debugLocal.Name = name then
+                        ClrDebugLocal(debugLocal.Name + " (shadowed)", debugLocal.Index)
+                    else
+                        debugLocal
+                )
+                |> Seq.append (seq { newDebugLocal })
+                |> ImArray.ofSeq
+            cenv.debugLocalsInScope.Add(n, newDebugLocal)
+            I.BeginLocalScope debugLocals |> emitInstruction cenv
+
+    let endLocalScope (cenv: cenv) n =
+        if cenv.IsDebuggable then
+            cenv.debugLocalsInScope.Remove(n) |> ignore
+            I.EndLocalScope |> emitInstruction cenv
+
     let emitInstruction (cenv: cenv) (instr: I) =
         match instr with
         | I.Ret ->
@@ -804,9 +826,14 @@ module rec ClrCodeGen =
             | _ ->
                 emitConv cenv castToTy     
 
-        | O.Throw(irArg, _) ->
+        | O.Throw(irArg, resultTy) ->
             GenArgumentExpression cenv env irArg
             I.Throw |> emitInstruction cenv
+            if cenv.assembly.IsVoidType(resultTy.Handle) |> not then
+                if resultTy.IsStruct || resultTy.IsByRef_t then
+                    GenExpression cenv env (E.Value(NoRange, V.Default(resultTy)))
+                else
+                    GenExpression cenv env (E.Value(NoRange, V.Null(resultTy)))
 
         | O.Ignore(irArg, _) ->
             GenExpression cenv env irArg
@@ -1522,10 +1549,16 @@ module rec ClrCodeGen =
 
     let GenExpressionAux (cenv: cenv) env (irExpr: E<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
         match irExpr with
-        | E.None(textRange, _) ->
+        | E.None(textRange, resultTy) ->
+            if cenv.assembly.IsVoidType(resultTy.Handle) |> not then
+                invalidOp "Invalid 'None' expression."
+
             emitSequencePointIfPossible cenv (setEnableSequencePoint env) &textRange
 
         | E.Let(name, n, irRhsExpr, irBodyExpr) ->
+            if cenv.assembly.IsVoidType(irRhsExpr.ResultType.Handle) then
+                invalidOp "Invalid 'Let' expression."
+
             let hasNoDup = cenv.IsDebuggable || cenv.dups.Contains(n) |> not
             
             if hasNoDup then
@@ -1537,27 +1570,9 @@ module rec ClrCodeGen =
             else
                 I.Dup |> emitInstruction cenv
 
-            if cenv.IsDebuggable then
-                let newDebugLocal = ClrDebugLocal(name, n)
-                let debugLocals =
-                    // Shadowing support
-                    cenv.debugLocalsInScope.Values
-                    |> Seq.map (fun debugLocal ->
-                        if debugLocal.Name = name then
-                            ClrDebugLocal(debugLocal.Name + " (shadowed)", debugLocal.Index)
-                        else
-                            debugLocal
-                    )
-                    |> Seq.append (seq { newDebugLocal })
-                    |> ImArray.ofSeq
-                cenv.debugLocalsInScope.Add(n, newDebugLocal)
-                I.BeginLocalScope debugLocals |> emitInstruction cenv
-
+            beginLocalScope cenv name n
             GenExpression cenv env irBodyExpr
-
-            if cenv.IsDebuggable then
-                cenv.debugLocalsInScope.Remove(n) |> ignore
-                I.EndLocalScope |> emitInstruction cenv
+            endLocalScope cenv n
 
         | E.Value(textRange, irValue) ->
             emitSequencePointIfPossible cenv env &textRange
@@ -1714,11 +1729,13 @@ module rec ClrCodeGen =
                     emitHiddenSequencePointIfPossible cenv env |> ignore
                     I.Label handlerStartLabelId |> emitInstruction cenv
 
-                    // This is sort of hacky, but it does make it easier to handle introducing locals
-                    // for debugging purposes on try/catch/finally.
-                    // At this point, the exception is on the stack and so using a Let expression will emit a store.
-                    E.Let(localName, localIndex, E.None(NoRange, catchTy), bodyExpr)
-                    |> GenExpression cenv env
+                    cenv.locals[localIndex] <- (localName, catchTy, false)
+                    I.FakePush |> emitInstruction cenv // this is necessary to keep the stack count in check
+                    I.Stloc localIndex |> emitInstruction cenv // this is necessary
+
+                    beginLocalScope cenv localName localIndex
+                    GenExpression cenv env bodyExpr
+                    endLocalScope cenv localIndex
 
                     resultLocalOpt
                     |> Option.iter (fun returnLocal ->

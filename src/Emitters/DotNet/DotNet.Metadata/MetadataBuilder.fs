@@ -1769,13 +1769,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
 
     static let pop (stackCount: byref<int32>) =
         stackCount <- stackCount - 1
-        // Because this is just used for estimates.
-        // Sometimes the stack can be below zero when dealing with exceptions/branches/etc.
+        //OlyAssert.True(stackCount >= 0)
         if stackCount < 0 then
             stackCount <- 0
 
 #if DEBUG || CHECKED
-    static let debugLog (stackDiffCount: int32) (currentStackCount: int32) (instr: I) =
+    static let debugLogInstruction (stackDiffCount: int32) (currentStackCount: int32) (instr: I) =
         Debug.WriteLine($"stack diff: {stackDiffCount}\tcurrent stack: {currentStackCount}\t - {instr}")
 #endif
 
@@ -2116,10 +2115,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             OlyAssert.True((handle.ArgumentCount - 1) >= 0)
 
             // arg1, ... argN
-            // TODO: Is this accurate?
-            //for _ = 1 to handle.ArgumentCount - 1 do
-            //    pop &estimatedStackCount
+            for _ = 1 to handle.ArgumentCount - 1 do
+                pop &estimatedStackCount
 
+            // obj
             push &estimatedStackCount
 
         // stack transition: ..., numElems -> ..., array
@@ -2236,11 +2235,12 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.BeginLocalScope _
         | I.EndLocalScope
         | I.Leave _
-        | I.Skip ->
+        | I.Skip 
+        | I.FakePush ->
             failwith "Unexpected instruction."
 
 #if DEBUG || CHECKED
-        debugLog (estimatedStackCount - oldStackCount) estimatedStackCount instr
+        debugLogInstruction (estimatedStackCount - oldStackCount) estimatedStackCount instr
 #endif
 
     static let sizeOfInstr instr =
@@ -2500,7 +2500,8 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         | I.HiddenSequencePoint
         | I.BeginLocalScope _
         | I.EndLocalScope
-        | I.Skip ->
+        | I.Skip 
+        | I.FakePush ->
             0
 
     static let createInstructionEncoder() =
@@ -2585,6 +2586,42 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Brfalse labelId
             | I.Br labelId
             | I.Leave labelId ->
+#if DEBUG || CHECKED
+                let oldStackCount = dummyStackCount
+#endif
+
+                match instr with
+                // stack transition: ..., value1, value2 -> ...
+                | I.Beq _ 
+                | I.Bge _
+                | I.Bge_un _
+                | I.Bgt _
+                | I.Ble _
+                | I.Ble_un _
+                | I.Blt _
+                | I.Blt_un _ 
+                | I.Bne_un _ ->
+                    pop &dummyStackCount
+                    pop &dummyStackCount
+                // stack transition: ..., value -> ...
+                | I.Brtrue _
+                | I.Brfalse _ ->
+                    pop &dummyStackCount
+                // stack transition: ..., -> ...
+                | I.Br _ ->
+                    ()
+                // stack transition: ..., ->
+                | I.Leave _ ->
+                    // empties the evaluation stack
+                    // TODO: What should we do here to the stack?
+                    ()
+                | _ ->
+                    unreached()        
+                    
+#if DEBUG || CHECKED
+                debugLogInstruction (dummyStackCount - oldStackCount) dummyStackCount instr
+#endif
+
                 dummyIL.Branch(getBranchOpCode instr, labels[labelId])
 
             | I.Label labelId ->
@@ -2606,6 +2643,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     labels[handlerStartLabelId],
                     labels[handlerEndLabelId]
                 )
+
+            | I.FakePush ->
+                dummyStackCount <- dummyStackCount + 1
 
             | I.SequencePoint _
             | I.HiddenSequencePoint
@@ -2717,6 +2757,10 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
             | I.Br labelId
             | I.Leave labelId ->
 
+#if DEBUG || CHECKED
+                let oldStackCount = estimatedStackCount
+#endif
+
                 match instr with
                 // stack transition: ..., value1, value2 -> ...
                 | I.Beq _ 
@@ -2743,7 +2787,11 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     // TODO: What should we do here to the stack?
                     ()
                 | _ ->
-                    unreached()               
+                    unreached()        
+                    
+#if DEBUG || CHECKED
+                debugLogInstruction (estimatedStackCount - oldStackCount) estimatedStackCount instr
+#endif
 
                 let isShort = shorts[i]
                 let labelOffset = getLabelOffset labelId
@@ -2810,6 +2858,9 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
                     localScopes.Add({ Locals = debugLocals; StartOffset = ilOffset; Length = il.Offset - ilOffset })
                 | _ ->
                     OlyAssert.Fail("Unexpected 'EndLocalScope'. No 'BeginLocalScope' instruction was found.")
+
+            | I.FakePush ->
+                estimatedStackCount <- estimatedStackCount + 1
 
             | I.Skip ->
                 ()
