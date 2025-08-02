@@ -9471,3 +9471,89 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task"``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                123
+        )
+    print(task.Result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task" 2``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("utf16")]
+alias strbg
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                "123"
+        )
+    print(task.Result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task" 3``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M<T>(x: T): T = x
+
+M2<T>(x: T): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                M(x)                
+        )
+    print(task.Result)
+
+main(): () =
+    M2(456)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"

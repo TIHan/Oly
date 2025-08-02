@@ -2749,7 +2749,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
 
         match stripTypeEquations ty with
         | TypeSymbol.Function(inputTy, returnTy, kind) ->
-            TypeSymbol.Function(
+            TypeSymbol.CreateFunction(
                 freshen tys explicitTyArgs inputTy,
                 freshen tys explicitTyArgs returnTy,
                 kind

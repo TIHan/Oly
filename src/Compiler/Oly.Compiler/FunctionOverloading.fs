@@ -118,7 +118,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
         if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
             let currentWeight = currentWeight + 1
             let currentRigidWeight =
-                if UnifyTypes Rigid expectedTy.Formal ty.Formal then
+                if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsTypeVariable && ty.IsTypeVariable) then
                     currentRigidWeight + 1
                 else
                     currentRigidWeight
@@ -269,15 +269,15 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 areGeneralizedTypesEqual funcTy func.LogicalType
             )
 
-    let funcs2 =
+    let newFuncs =
         if funcs2.IsEmpty then
             funcs
         else
             funcs2
 
-    if funcs2.Length = 1 then funcs2
+    if newFuncs.Length = 1 then newFuncs
     else
-        funcs2
+        newFuncs
 
 let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray): _ imarray =
     if funcs.Length <= 1 then funcs
@@ -339,13 +339,13 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
         else
             specificFuncs2
 
-    let funcs =
+    let newFuncs =
         if specificFuncs.IsEmpty then
             funcs
         else
             specificFuncs
 
-    filterFunctionsForOverloadingPhase4 resArgs returnTyOpt funcs
+    filterFunctionsForOverloadingPhase4 resArgs returnTyOpt newFuncs
 
 /// Overloading Phase 2:
 ///     Optionally filters candidates by return type.

@@ -10036,7 +10036,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+            ("Cannot dereference a write-only by-reference expression.",
                 """
     M2(outValue)
        ^^^^^^^^
@@ -10076,7 +10076,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'inref<int32>' but is 'outref<int32>'.",
+            ("Cannot dereference a write-only by-reference expression.",
                 """
     M(x)
       ^

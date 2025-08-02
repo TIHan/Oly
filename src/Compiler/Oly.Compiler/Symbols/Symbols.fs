@@ -474,7 +474,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
-        TypeSymbol.Function(tyArgs[0], tyArgs[1], kind)
+        TypeSymbol.CreateFunction(tyArgs[0], tyArgs[1], kind)
 
     | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
         OlyAssert.Equal(2, tyArgs.Length)
@@ -1169,13 +1169,7 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
             | _ -> TypeSymbol.HigherVariable(tyPar, tyArgs3)
 
         | TypeSymbol.Function(inputTy, returnTy, kind) ->
-            let newInputTy = instTy inputTy
-            let newInputTy =
-                if newInputTy.HasImmediateNonVariadicInferenceVariableTypeParameter then
-                    TypeSymbol.Tuple(ImArray.createOne newInputTy, ImArray.empty)
-                else
-                    newInputTy
-            TypeSymbol.Function(newInputTy, instTy returnTy, kind)
+            TypeSymbol.CreateFunction(instTy inputTy, instTy returnTy, kind)
 
         | TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy) ->
             TypeSymbol.NativeFunctionPtr(ilCallConv, instTy inputTy, instTy returnTy)
@@ -4621,6 +4615,14 @@ type TypeSymbol =
 
     static member CreateFunction(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
         TypeSymbol.Function(inputTy, outputTy, kind)
+
+    static member CreateFunctionChecked(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
+        let inputTy =
+            if inputTy.HasImmediateNonVariadicInferenceVariableTypeParameter || (not inputTy.IsSolved && inputTy.TryImmedateTypeParameter.IsNone) then
+                TypeSymbol.Tuple(ImArray.createOne inputTy, ImArray.empty)
+            else
+                inputTy
+        TypeSymbol.CreateFunction(inputTy, outputTy, kind)
 
     static member CreateFunction(tyPars: ImmutableArray<TypeParameterSymbol>, argTys: TypeSymbol imarray, returnTy: TypeSymbol, kind) =
         let inputTy =

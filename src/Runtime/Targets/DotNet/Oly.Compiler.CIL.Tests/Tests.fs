@@ -21192,3 +21192,60 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "456"
+
+[<Fact>]
+let ``Infer array correctly``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+M(xs: mutable __oly_object[]): () = print("hello")
+
+main(): () =
+    let _ = M(mutable [A()])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Infer tuple correctly``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+M(xs: (__oly_object, __oly_object)): () = print("hello")
+
+main(): () =
+    let _ = M((A(), A()))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Infer generic correctly``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+class G<T> =
+    new(x: T) = this { }
+
+M(xs: G<__oly_object>): () = print("hello")
+
+main(): () =
+    let _ = M(G(A()))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
