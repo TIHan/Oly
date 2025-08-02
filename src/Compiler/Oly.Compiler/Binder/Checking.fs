@@ -662,23 +662,23 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     match expr with
     | E.Call _ ->
-        checkCallerOfCallExpression cenv env true None isArgForAddrOf expr |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking |> assertIsCallExpression
-        |> checkEarlyArgumentsOfCallExpression cenv env tyChecking
-        |> checkCallerOfCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking
-        |> ImplicitRules.ImplicitCallExpression env.benv
-        |> checkArgumentsOfCallLikeExpression cenv env tyChecking
+        checkCallerOfCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
+        |> checkEarlyArgumentsOfCallExpression cenv env tyChecking                      |> assertIsCallExpression
+        |> checkCallerOfCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
+        |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
+        |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
-        checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
+        checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
-        checkWitnessExpression cenv env tyChecking expr |> assertIsWitnessExpression
+        checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
@@ -829,7 +829,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking
         
         E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
     | _ ->
-        expr
+        unreached()
 
 let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking: TypeChecking) expr =
     match expr with
