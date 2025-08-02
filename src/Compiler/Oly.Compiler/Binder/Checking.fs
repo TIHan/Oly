@@ -674,13 +674,11 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
 
     | E.Value(value=value) when value.IsFunction ->
         checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
-        |> checkArgumentsOfCallLikeExpression cenv env tyChecking
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
         checkWitnessExpression cenv env tyChecking expr |> assertIsWitnessExpression
-        |> checkArgumentsOfCallLikeExpression cenv env tyChecking
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
