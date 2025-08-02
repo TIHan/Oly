@@ -11173,3 +11173,61 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Array of tuples in a ForEach loop funcion should work should fail``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[unmanaged(allocation_only)]
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[inline]
+For(count: int32, #[inline] f: scoped int32 -> ()): () =
+    let mutable i = 0
+    while (i < count)
+        f(i)
+        i <- i + 1
+
+#[intrinsic("get_length")]
+private getLength<T>(T[]): int32
+
+ForEach<T>(f: (T, int32) -> (), xs: T[]): () =
+    For(getLength(xs), i -> f(xs[i], 5))
+
+main(): () =
+    let xs = [(1, 2)]
+    ForEach(
+        ((x, y), _) ->
+            print(x)
+            print(y),
+        xs
+    )
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type '(__oly_object, __oly_object)[]' but is '(int32, int32)[]'.",
+                """
+        xs
+        ^^
+"""
+            )
+        ]
+    |> ignore
+     
