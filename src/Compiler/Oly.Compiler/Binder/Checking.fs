@@ -617,9 +617,13 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
             cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax) 
     | FromAddress(expr) when expr.Type.IsWriteOnlyByRef ->
         cenv.diagnostics.Error("Cannot dereference a write-only by-reference expression.", 10, expr.Syntax) 
-    | _ ->
+    | E.Call _ ->
         ()
+    | _ ->
+        unreached()
+    expr
 
+let lateCheckExpression cenv env expr =
     // TODO: Ideally we should not do these checks based on syntax after its bound.
     //       We need to have access to the original ResolutionInfo at the time this was bound.
     //       The best way to do that is to store the ResolutionInfo *optionally* on the Call expression itself.
@@ -687,22 +691,23 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression
+        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
         checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
         checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | _ ->
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
 let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (parAttrs: AttributeSymbol imarray) parTy argExpr =
