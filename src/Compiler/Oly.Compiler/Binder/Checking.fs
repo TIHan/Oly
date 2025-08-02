@@ -399,11 +399,12 @@ let inline assertIsCallExpression (expr: E) =
 #endif
     expr
 
-let inline assertIsValueExpression (expr: E) =
+let inline assertIsFunctionValueOrLambdaExpression (expr: E) =
 #if DEBUG || CHECKED
     match expr with
-    | E.Call _ -> ()
-    | _ -> OlyAssert.Fail("Expected 'Call' expression")
+    | E.Value(value=value) when value.IsFunction -> ()
+    | E.Lambda _ -> ()
+    | _ -> OlyAssert.Fail("Expected 'FunctionValue' or 'Lambda' expression")
 #else
     ()
 #endif
@@ -538,20 +539,6 @@ let checkWitnessExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: Ty
     | _ ->
         unreached()
 
-let checkFunctionValueOrWitnessExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) (expr: E) =
-    match expr with
-    | E.Value(_, value) when value.IsFunction ->
-        checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr
-
-    | E.Witness _ ->
-        checkWitnessExpression cenv env tyChecking expr
-
-    | E.Call _ ->
-        unreached()
-
-    | _ ->
-        expr
-
 let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
     match expr with
     | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, _) ->
@@ -685,10 +672,20 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
-    | _ ->
-        checkFunctionValueOrWitnessExpression cenv env tyChecking None expr
-        |> checkFunctionValueOrWitnessExpression cenv env tyChecking expectedTyOpt
+    | E.Value(value=value) when value.IsFunction ->
+        checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> checkReturnExpression cenv env tyChecking expectedTyOpt
+
+    | E.Witness _ ->
+        checkWitnessExpression cenv env tyChecking expr |> assertIsWitnessExpression
+        |> checkArgumentsOfCallLikeExpression cenv env tyChecking
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
+        |> checkReturnExpression cenv env tyChecking expectedTyOpt
+
+    | _ ->
+        checkArgumentsOfCallLikeExpression cenv env tyChecking expr
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
