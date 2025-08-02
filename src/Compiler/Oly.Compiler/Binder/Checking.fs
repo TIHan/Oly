@@ -692,7 +692,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression
-        |> lateCheckExpression cenv env
+        |> lateCheckExpression cenv env                                                 
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
