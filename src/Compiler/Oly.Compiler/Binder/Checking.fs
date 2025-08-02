@@ -176,7 +176,7 @@ let checkValueExport cenv syntaxNode (value: IValueSymbol) =
 
             checkUsageTypeExport cenv syntaxNode value.Name value.LogicalType
 
-let autoDereferenceExpression expr =
+let autoDereferenceValueOrCallExpression expr =
     match expr with
     | E.Call(value=value) ->
         if value.IsAddressOf then
@@ -539,6 +539,42 @@ let checkWitnessExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: Ty
     | _ ->
         unreached()
 
+let lateCheckTypeArgumentsOfCallExpression cenv expr =
+    match expr with
+    | E.Call(syntaxInfo=syntaxInfo;value=value) when value.IsParameterLessFunction || value.RequiresExplicitTypeArguments ->
+        match syntaxInfo.Syntax with
+        | :? OlySyntaxExpression as syntaxExpr ->
+            match syntaxExpr with
+            | OlySyntaxExpression.Call(OlySyntaxExpression.Name(syntaxName), _) ->
+                if value.IsParameterLessFunction then
+                    cenv.diagnostics.Error($"'{value.Name}' is parameter-less which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
+
+                if value.RequiresExplicitTypeArguments then
+                    let resTyArity = typeResolutionArityOfName syntaxName.LastGenericNameIfPossible
+                    if resTyArity.IsAny_t then
+                        cenv.diagnostics.Error($"'{value.Name}' requires explicit type arguments.", 10, syntaxInfo.Syntax)
+            | _ ->
+                ()
+        | _ ->
+            ()
+    | E.Call _ ->
+        ()
+    | _ ->
+        unreached()
+
+let lateCheckPropertyExpression cenv env expr =
+    match expr with
+    | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+        if prop.Getter.IsNone || not (prop.Getter.Value.IsAccessible(env.benv.ac)) then
+            cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
+
+    | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+        if prop.Setter.IsNone || not (prop.Setter.Value.IsAccessible(env.benv.ac)) then
+            cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
+
+    | _ ->
+        ()
+
 let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
     match expr with
     | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, _) ->
@@ -588,40 +624,22 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
     //       We need to have access to the original ResolutionInfo at the time this was bound.
     //       The best way to do that is to store the ResolutionInfo *optionally* on the Call expression itself.
     match expr with
-    | E.Call(syntaxInfo=syntaxInfo;value=value) when value.IsParameterLessFunction || value.RequiresExplicitTypeArguments ->
-        match syntaxInfo.Syntax with
-        | :? OlySyntaxExpression as syntaxExpr ->
-            match syntaxExpr with
-            | OlySyntaxExpression.Call(OlySyntaxExpression.Name(syntaxName), _) ->
-                if value.IsParameterLessFunction then
-                    cenv.diagnostics.Error($"'{value.Name}' is parameter-less which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
+    | E.Call _ ->
+        lateCheckTypeArgumentsOfCallExpression cenv expr
 
-                if value.RequiresExplicitTypeArguments then
-                    let resTyArity = typeResolutionArityOfName syntaxName.LastGenericNameIfPossible
-                    if resTyArity.IsAny_t then
-                        cenv.diagnostics.Error($"'{value.Name}' requires explicit type arguments.", 10, syntaxInfo.Syntax)
-            | _ ->
-                ()
-        | _ ->
-            ()
-
-    | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Getter.IsNone || not (prop.Getter.Value.IsAccessible(env.benv.ac)) then
-            cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
-
-    | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Setter.IsNone || not (prop.Setter.Value.IsAccessible(env.benv.ac)) then
-            cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
+    | E.GetProperty _
+    | E.SetProperty _ ->
+        lateCheckPropertyExpression cenv env expr
 
     | _ ->
         ()
 
     checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
 
-    autoDereferenceExpression expr
+    autoDereferenceValueOrCallExpression expr
 
 let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expectedTyOpt: TypeSymbol option) expr =
-    let expr = autoDereferenceExpression expr
+    let expr = autoDereferenceValueOrCallExpression expr
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
         match expectedTyOpt with
@@ -653,7 +671,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
         | _ ->
             ()
 
-    let expr = autoDereferenceExpression expr
+    let expr = autoDereferenceValueOrCallExpression expr
     if recheckExpectedTy then
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
 
