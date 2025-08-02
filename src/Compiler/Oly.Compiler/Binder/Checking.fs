@@ -780,7 +780,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
 let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (argExprs: E imarray) =
     let argTys = caller.LogicalType.FunctionArgumentTypes
     if argTys.Length = argExprs.Length then       
-        let env = env.SetReturnable(false).SetPassedAsArgument(true)
+        let env = env.SetReturnable(false).SetPassedAsArgument(false)
         (argTys, argExprs)
         ||> ImArray.mapi2 (fun i argTy argExpr ->
             let parAttrs =
