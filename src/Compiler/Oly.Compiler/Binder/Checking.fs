@@ -592,7 +592,7 @@ let lateCheckCalleeExpression cenv env expr =
 
     autoDereferenceExpression expr
 
-let checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) expr =
+let checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expectedTyOpt: TypeSymbol option) expr =
     let expr = autoDereferenceExpression expr
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
@@ -600,13 +600,13 @@ let checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
         | Some expectedTy when expectedTy.IsSolved ->
             let exprTy = expr.Type
             if exprTy.IsSolved then
-                checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
             else
                 match expr with
                 | AutoDereferenced expr when expectedTy.IsByRef_t ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+                    checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
                 | _ ->
-                    checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+                    checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
             false
         | _ ->
             true
@@ -627,24 +627,20 @@ let checkCallReturnExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyO
 
     let expr = autoDereferenceExpression expr
     if recheckExpectedTy then
-        match expectedTyOpt with
-        | Some expectedTy ->
-            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
-        | _ ->
-            ()
+        checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
 
     expr
 
 let checkCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     checkCallerExpression cenv env tyChecking true None isArgForAddrOf expr
     |> checkCalleeExpression cenv env tyChecking
-    |> checkEarlyArgumentsOfCallExpression cenv env
+    |> checkEarlyArgumentsOfCallExpression cenv env tyChecking
     |> checkCallerExpression cenv env tyChecking skipEager expectedTyOpt isArgForAddrOf
     |> checkCalleeExpression cenv env tyChecking
     |> ImplicitRules.ImplicitCallExpression env.benv
     |> checkArgumentsOfCallLikeExpression cenv env tyChecking
     |> lateCheckCalleeExpression cenv env
-    |> checkCallReturnExpression cenv env expectedTyOpt
+    |> checkCallReturnExpression cenv env tyChecking expectedTyOpt
 
 let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (parAttrs: AttributeSymbol imarray) parTy argExpr =
     match argExpr with
@@ -752,14 +748,16 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
-let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
+let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let tyChecking =
             if value.IsFunctionGroup && env.isPassedAsArgument then
                 TypeChecking.Disabled
             else
-                TypeChecking.EnabledNoTypeErrors
+                match tyChecking with
+                | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
+                | _ -> tyChecking
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
