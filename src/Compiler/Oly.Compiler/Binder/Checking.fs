@@ -739,7 +739,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
                     parTy
             else
                 parTy
-        let newArgExpr = checkExpressionImpl cenv env tyChecking false (Some expectedTy) isAddrOf argExpr
+        let newArgExpr = checkExpressionAux cenv env tyChecking (Some expectedTy) argExpr
         if newArgExpr = argExpr then
             argExpr
         else
