@@ -718,7 +718,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-    | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
+    | E.Let(_, bindingInfo, ((_)), _) 
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
@@ -833,7 +833,7 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
             | E.Value(value=value) when value.IsFunction ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
                 // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-            | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
+            | E.Let(_, bindingInfo, ((_)), _) 
                 when 
                     bindingInfo.Value.IsSingleUse && 
                     bindingInfo.Value.IsGenerated ->
@@ -989,13 +989,14 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
 
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-    | E.Let(syntaxInfo, bindingInfo, ((E.GetProperty _) as rhsExpr), bodyExpr) 
+    | E.Let(syntaxInfo, bindingInfo, ((_) as rhsExpr), bodyExpr) 
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
+        let newRhsExpr = checkExpressionAux cenv env tyChecking (Some bindingInfo.Value.Type) rhsExpr
         let newBodyExpr = checkExpressionAux cenv env tyChecking None bodyExpr
 
-        if newBodyExpr = bodyExpr then
+        if newRhsExpr = rhsExpr && newBodyExpr = bodyExpr then
             expr
         else
             E.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
