@@ -823,16 +823,14 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
         fun argExpr ->
             match argExpr with
             | E.Literal _
-            | E.Lambda _ ->
-                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
-            | E.NewArray _
-            | E.NewTuple _
+            | E.Lambda _ 
             | E.Call _ 
             | E.Witness _ ->
-                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+            | E.NewArray _
+            | E.NewTuple _ ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | E.Value(value=value) when value.IsFunction ->
-                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
                 // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
             | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
@@ -840,7 +838,6 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
                     bindingInfo.Value.IsSingleUse && 
                     bindingInfo.Value.IsGenerated  &&
                     env.isPassedAsArgument ->
-                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
