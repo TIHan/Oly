@@ -413,8 +413,8 @@ let inline assertIsFunctionValueOrLambdaExpression (expr: E) =
 let inline assertIsWitnessExpression (expr: E) =
 #if DEBUG || CHECKED
     match expr with
-    | E.Call _ -> ()
-    | _ -> OlyAssert.Fail("Expected 'Call' expression")
+    | E.Witness _ -> ()
+    | _ -> OlyAssert.Fail("Expected 'Witness' expression")
 #else
     ()
 #endif
@@ -733,6 +733,14 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
+    | E.IfElse(trueTargetExpr=trueTargetExpr;cachedExprTy=cachedExprTy) ->
+        expr
+        //if cachedExprTy.IsSolved then
+        //    checkReturnExpression cenv env tyChecking expectedTyOpt expr
+        //else
+        //    checkExpressionTypeIfPossible cenv env tyChecking (Some trueTargetExpr.Type) expr
+        //    checkReturnExpression cenv env tyChecking expectedTyOpt expr
+
     | _ ->
         checkReturnExpression cenv env tyChecking expectedTyOpt expr
 
@@ -860,7 +868,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let tyChecking =
-            if value.IsFunctionGroup && env.isPassedAsArgument then
+            if value.IsFunctionGroup then
                 TypeChecking.Disabled
             else
                 match tyChecking with
@@ -902,12 +910,6 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         if argExprs.IsEmpty then
             expr
         else
-            let tyChecking =
-                if env.isPassedAsArgument then
-                    TypeChecking.EnabledNoTypeErrors
-                else
-                    tyChecking
-
             let expectedArgTyOpt = Some exprTy.FirstTypeArgument
             let newArgExprs =         
                 let env = env.SetReturnable(false).SetPassedAsArgument(true)
@@ -919,12 +921,6 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
     | E.NewTuple(syntaxInfo, argExprs, exprTy) ->
         OlyAssert.True(argExprs.Length > 1)
-
-        let tyChecking =
-            if env.isPassedAsArgument then
-                TypeChecking.EnabledNoTypeErrors
-            else
-                tyChecking
 
         let newArgExprs =       
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
@@ -946,10 +942,8 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let tyChecking =
-            if value.IsFunctionGroup && env.isPassedAsArgument then
+            if value.IsFunctionGroup then
                 TypeChecking.Disabled
-            elif env.isPassedAsArgument then
-                TypeChecking.EnabledNoTypeErrors
             else
                 tyChecking
 
@@ -1018,13 +1012,19 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
     | E.NewArray _
     | E.NewTuple _
     | E.Lambda _ 
-    | E.Witness _ when env.isPassedAsArgument -> expr
-    | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument -> expr
+    | E.Witness _ when env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        expr
+    | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        expr
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
     | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated  &&
-                env.isPassedAsArgument -> expr
+                env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        expr
     | _ ->
         checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
