@@ -836,8 +836,7 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
             | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
                 when 
                     bindingInfo.Value.IsSingleUse && 
-                    bindingInfo.Value.IsGenerated  &&
-                    env.isPassedAsArgument ->
+                    bindingInfo.Value.IsGenerated ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
