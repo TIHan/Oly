@@ -676,41 +676,31 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
     match expr with
     | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
-        if env.isPassedAsArgument then
-            expr
-        else
-            checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
+        checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
 
-            let canEval =
-                match tyChecking with
-                | TypeChecking.Enabled -> true
-                | TypeChecking.EnabledNoTypeErrors 
-                | TypeChecking.Disabled -> false
+        let canEval =
+            match tyChecking with
+            | TypeChecking.Enabled -> true
+            | _ -> false
 
-            if canEval then
-                match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
-                | ValueSome(literal) ->
-                    E.Literal(syntaxInfo, stripLiteral literal)
-                | _ ->
-                    expr
-            else
+        if canEval then
+            match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+            | ValueSome(literal) ->
+                E.Literal(syntaxInfo, stripLiteral literal)
+            | _ ->
                 expr
-
-    | E.Literal _ when env.isReturnable || not env.isPassedAsArgument ->
-        if env.isPassedAsArgument then
-            expr
         else
-            checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
             expr
+
+    | E.Literal _ ->
+        checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
+        expr
 
     | E.Lambda(body=lazyBodyExpr) ->
-        if env.isPassedAsArgument then
-            expr
-        else
-            checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
-            if not lazyBodyExpr.HasExpression then
-                lazyBodyExpr.Run()
-            expr
+        checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
+        if not lazyBodyExpr.HasExpression then
+            lazyBodyExpr.Run()
+        expr
 
     | E.Call _ ->
         checkCallerOfCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
@@ -803,7 +793,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
 let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (argExprs: E imarray) =
     let argTys = caller.LogicalType.FunctionArgumentTypes
     if argTys.Length = argExprs.Length then       
-        let env = env.SetReturnable(false).SetPassedAsArgument(false)
+        let env = env.SetReturnable(false).SetPassedAsArgument(true)
         (argTys, argExprs)
         ||> ImArray.mapi2 (fun i argTy argExpr ->
             let parAttrs =
@@ -833,9 +823,7 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
         fun argExpr ->
             match argExpr with
             | E.Literal _
-            | E.Lambda _ 
-            | E.NewArray _
-            | E.NewTuple _ ->
+            | E.Lambda _ ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
@@ -869,7 +857,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking
         let argTys = value.LogicalType.FunctionArgumentTypes
 
         let newArgExprs =
-            let env = env.SetReturnable(false).SetPassedAsArgument(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -909,7 +897,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
             let expectedArgTyOpt = Some exprTy.FirstTypeArgument
             let newArgExprs =         
-                let env = env.SetReturnable(false).SetPassedAsArgument(false)
+                let env = env.SetReturnable(false).SetPassedAsArgument(true)
                 argExprs
                 |> ImArray.map (fun argExpr ->
                     checkArgumentExpression cenv env tyChecking expectedArgTyOpt argExpr
@@ -926,7 +914,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 tyChecking
 
         let newArgExprs =       
-            let env = env.SetReturnable(false).SetPassedAsArgument(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -953,7 +941,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 tyChecking
 
         let newArgExprs =
-            let env = env.SetReturnable(false).SetPassedAsArgument(false)
+            let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
                 let expectedArgTy =
@@ -1009,4 +997,8 @@ let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeCh
     |> checkVirtualUsage cenv env
 
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
-    checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
+    match expr with
+    | E.Literal _
+    | E.Lambda _ when env.isPassedAsArgument -> expr
+    | _ ->
+        checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr

@@ -1775,7 +1775,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
 
     | OlySyntaxExpression.If(_, _, syntaxConditionExpr, _, syntaxTargetExpr, syntaxElseIfOrElseExpr) ->
         let conditionExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Bool) syntaxConditionExpr syntaxConditionExpr |> snd
-        bindElseIfOrElseExpression cenv env expectedTyOpt syntaxToCapture syntaxTargetExpr conditionExpr syntaxElseIfOrElseExpr
+        let env, expr = bindElseIfOrElseExpression cenv env expectedTyOpt syntaxToCapture syntaxTargetExpr conditionExpr syntaxElseIfOrElseExpr
+        env, expr // REVIEW: checkExpression ?
 
     | OlySyntaxExpression.While(_, _, syntaxConditionExpr, _, syntaxBodyExpr) ->
         let conditionExpr = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Bool) syntaxConditionExpr syntaxConditionExpr |> snd
