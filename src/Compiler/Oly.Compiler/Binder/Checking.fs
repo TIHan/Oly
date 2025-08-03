@@ -653,19 +653,23 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
         | _ ->
             true
 
-    match expr with
-    | AutoDereferenced bodyExpr ->
-        match bodyExpr with
-        | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass bodyExpr
-        | _ ->
-            ()
-    | _ ->
+    match tyChecking with
+    | TypeChecking.Enabled ->
         match expr with
-        | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expr 
+        | AutoDereferenced bodyExpr ->
+            match bodyExpr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass bodyExpr
+            | _ ->
+                ()
         | _ ->
-            ()
+            match expr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expr 
+            | _ ->
+                ()
+    | _ ->
+        ()
 
     let expr = autoDereferenceValueOrCallExpression expr
     if recheckExpectedTy then
@@ -1008,13 +1012,18 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
     match expr with
     | E.Literal _
     | E.Lambda _ 
-    | E.Call _ 
     | E.NewArray _
     | E.NewTuple _
     | E.Lambda _ 
     | E.Witness _ when env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
         expr
+    | E.Call(value=value) when env.isPassedAsArgument ->
+        if value.IsFunctionGroup then
+            expr
+        else
+            checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+            expr
     | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
         expr
