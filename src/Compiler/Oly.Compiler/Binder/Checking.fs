@@ -717,7 +717,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
     | E.NewArray _ ->
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
-   // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
+    // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
     | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
             when 
                 bindingInfo.Value.IsSingleUse && 
@@ -824,6 +824,22 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
             match argExpr with
             | E.Literal _
             | E.Lambda _ ->
+                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+            | E.NewArray _
+            | E.NewTuple _
+            | E.Call _ ->
+                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+            | E.Value(value=value) when value.IsFunction ->
+                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+                // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
+            | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
+                when 
+                    bindingInfo.Value.IsSingleUse && 
+                    bindingInfo.Value.IsGenerated  &&
+                    env.isPassedAsArgument ->
+                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | _ ->
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
@@ -999,6 +1015,17 @@ let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeCh
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
     match expr with
     | E.Literal _
+    | E.Lambda _ 
+    | E.Call _ 
+    | E.NewArray _
+    | E.NewTuple _
     | E.Lambda _ when env.isPassedAsArgument -> expr
+    | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument -> expr
+    // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
+    | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
+            when 
+                bindingInfo.Value.IsSingleUse && 
+                bindingInfo.Value.IsGenerated  &&
+                env.isPassedAsArgument -> expr
     | _ ->
         checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
