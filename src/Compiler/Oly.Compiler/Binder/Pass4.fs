@@ -425,13 +425,14 @@ let private bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes:
     | ResolutionItem.MemberCall(syntaxToCapture, receiverInfoOpt, syntaxCallBodyExpr, syntaxArgs, syntaxMemberExprOpt) ->
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
-            let expr = bindCallExpression cenv env syntaxToCapture receiverInfoOpt syntaxCallBodyExpr syntaxArgs
+            let envCall = env.SetPassedAsArgument(false)
+            let expr = bindCallExpression cenv envCall syntaxToCapture receiverInfoOpt syntaxCallBodyExpr syntaxArgs
 
             // REVIEW: This is a little weird. We do not have to provide an expected type as we actually won't check against it.
             //         However, having an expected type enables the use of overload resolution's final phase which is useful.
             //         We could write this differently and just pass a flag of some kind instead of doing this hack.
             let useOverloadingFinalPhase = (Some(mkInferenceVariableType None))
-            let expr = checkExpression cenv env useOverloadingFinalPhase expr
+            let expr = checkExpression cenv envCall useOverloadingFinalPhase expr
             bindMemberExpressionAsItem cenv env syntaxToCapture (expr |> Choice1Of2) syntaxMemberExpr
             |> bindItemAsExpression cenv env
         | _ ->
@@ -440,13 +441,14 @@ let private bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes:
     | ResolutionItem.MemberIndexerCall(syntaxToCapture, syntaxReceiver, syntaxBrackets, syntaxMemberExprOpt, (* TODO: get rid of this parameter? *) _expectedTyOpt) ->
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
-            let _, expr = bindIndexer cenv env syntaxToCapture syntaxReceiver syntaxBrackets None
+            let envIndexer = env.SetPassedAsArgument(false)
+            let _, expr = bindIndexer cenv envIndexer syntaxToCapture syntaxReceiver syntaxBrackets None
 
             // REVIEW: This is a little weird. We do not have to provide an expected type as we actually won't check against it.
             //         However, having an expected type enables the use of overload resolution's final phase which is useful.
             //         We could write this differently and just pass a flag of some kind instead of doing this hack.
             let useOverloadingFinalPhase = (Some(mkInferenceVariableType None))
-            let expr = checkExpression cenv env useOverloadingFinalPhase expr
+            let expr = checkExpression cenv envIndexer useOverloadingFinalPhase expr
             bindMemberExpressionAsItem cenv env syntaxToCapture (expr |> Choice1Of2) syntaxMemberExpr
             |> bindItemAsExpression cenv env
         | _ ->
