@@ -618,7 +618,7 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
         unreached()
     expr
 
-let lateCheckExpression cenv env expr =
+let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expectedTyOpt: TypeSymbol option) expr =
     // TODO: Ideally we should not do these checks based on syntax after its bound.
     //       We need to have access to the original ResolutionInfo at the time this was bound.
     //       The best way to do that is to store the ResolutionInfo *optionally* on the Call expression itself.
@@ -635,9 +635,6 @@ let lateCheckExpression cenv env expr =
 
     checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
 
-    autoDereferenceValueOrCallExpression expr
-
-let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expectedTyOpt: TypeSymbol option) expr =
     let expr = autoDereferenceValueOrCallExpression expr
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
     let recheckExpectedTy =
@@ -723,14 +720,12 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression
-        |> lateCheckExpression cenv env                                                 
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression                                                
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.NewTuple _
     | E.NewArray _ ->
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
-        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
    // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
     | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
@@ -738,22 +733,18 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
-        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
         checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
-        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
         checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
-        |> lateCheckExpression cenv env
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | _ ->
-        lateCheckExpression cenv env expr
-        |> checkReturnExpression cenv env tyChecking expectedTyOpt
+        checkReturnExpression cenv env tyChecking expectedTyOpt expr
 
 let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (parAttrs: AttributeSymbol imarray) parTy argExpr =
     match argExpr with
