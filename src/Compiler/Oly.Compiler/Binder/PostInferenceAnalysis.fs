@@ -1051,7 +1051,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         //         What are the pitfalls? It would make analysis more than just analysis, but doesn't retrying to solve constraints also mean that?
 
         // Re-check constraints
-        checkConstraintsFromCallExpression acenv.cenv.diagnostics false PostInferenceAnalysis expr
+        checkConstraintsFromCallExpression acenv.cenv.diagnostics false PostInferenceAnalysis false expr
 
         if not value.IsFunctionGroup then
             witnessArgs

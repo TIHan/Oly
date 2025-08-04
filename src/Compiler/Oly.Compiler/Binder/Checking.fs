@@ -639,18 +639,19 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
 
     match tyChecking with
-    | TypeChecking.Enabled ->
+    | TypeChecking.Enabled 
+    | TypeChecking.EnabledNoTypeErrors ->
         match expr with
         | AutoDereferenced bodyExpr ->
             match bodyExpr with
             | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expectedTyOpt bodyExpr
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true bodyExpr
             | _ ->
                 ()
         | _ ->
             match expr with
             | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expectedTyOpt expr 
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr 
             | _ ->
                 ()
     | _ ->
@@ -671,6 +672,24 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
             false
         | _ ->
             true
+
+    match tyChecking with
+    | TypeChecking.Enabled ->
+        match expr with
+        | AutoDereferenced bodyExpr ->
+            match bodyExpr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false bodyExpr
+            | _ ->
+                ()
+        | _ ->
+            match expr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false expr 
+            | _ ->
+                ()
+    | _ ->
+        ()
 
     let expr = autoDereferenceValueOrCallExpression expr
     if recheckExpectedTy then
@@ -765,6 +784,12 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
                     parTy
             else
                 parTy
+
+        let tyChecking =
+            match tyChecking with
+            | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
+            | _ -> tyChecking
+
         let newArgExpr = checkExpressionAux cenv env tyChecking (Some expectedTy) argExpr
         if newArgExpr = argExpr then
             argExpr

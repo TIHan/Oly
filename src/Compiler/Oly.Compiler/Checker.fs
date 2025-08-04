@@ -251,6 +251,7 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
         (tyPars |> ImArray.skip skipAmount)
         (tyArgs |> ImArray.skip skipAmount)
+        false
         ImArray.empty (* type constructors do not support witnesses *)
 
 let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
@@ -889,10 +890,11 @@ and checkFunctionConstraints
         syntaxFuncTyArgsOpt
         funcTyPars
         funcTyArgs
+        (isAttempt: bool)
         (witnessArgs: WitnessSolution imarray) =
-    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs witnessArgs
+    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs isAttempt witnessArgs
 
-and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: BoundExpression) =
+and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt: bool) (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
         // We cannot check constraints and witness for function groups, so skip it.
@@ -968,6 +970,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: Boun
                 syntaxFuncTyArgsOpt
                 value.TypeParameters
                 funcTyArgs
+                isAttempt
                 witnessArgs
         | _ ->
             ()
