@@ -135,7 +135,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
             else
                 (currentRigidWeight, currentWeight + expectedTy.LogicalTypeParameterCount)
         else
-            (0, 0)
+            (currentRigidWeight, currentWeight)
     
     let mapArgTys (func: IFunctionSymbol) (argTys: TypeSymbol imarray) =
         OlyAssert.Equal(func.LogicalParameterCount, argTys.Length)
