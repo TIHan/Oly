@@ -427,6 +427,7 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
 
         let argExprs =
             if value.IsFunctionGroup then
+                let tyChecking = TypeChecking.EnabledNoTypeErrors
                 checkFunctionGroupCalleeArgumentExpression cenv env tyChecking isAddrOf argExprs
             else
                 checkCalleeArgumentExpressions cenv env tyChecking value argExprs
