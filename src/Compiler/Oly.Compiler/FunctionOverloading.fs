@@ -115,27 +115,32 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
     let rec computeWeight (currentRigidWeight, currentWeight) (expectedTy: TypeSymbol) (ty: TypeSymbol) : struct(int * int) =
         let expectedTy = stripTypeEquationsAndBuiltIn expectedTy
         let ty = stripTypeEquationsAndBuiltIn ty
-        if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
-            let currentWeight = currentWeight + 1
-            let currentRigidWeight =
-                if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsTypeVariable && ty.IsTypeVariable) then
-                    currentRigidWeight + 1
-                else
-                    currentRigidWeight
-            if expectedTy.LogicalTypeParameterCount = ty.LogicalTypeParameterCount then
-                let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount) |> ImArray.ofSeq
-                let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount) |> ImArray.ofSeq
 
-                OlyAssert.Equal(expectedTyArgs.Length, tyArgs.Length)
-
-                (struct(currentRigidWeight, currentWeight), expectedTyArgs, tyArgs)
-                |||> ImArray.fold2 (fun (struct(currentRigidWeight, currentWeight)) expectedTy ty ->
-                    computeWeight (currentRigidWeight, currentWeight) expectedTy ty
-                )
-            else
-                (currentRigidWeight, currentWeight + expectedTy.LogicalTypeParameterCount)
-        else
+        // Error does not necessarily mean there was an error, this could be coming from the return type of a FunctionGroup.
+        if ty.IsError_t then
             (currentRigidWeight, currentWeight)
+        else
+            if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
+                let currentWeight = currentWeight + 1
+                let currentRigidWeight =
+                    if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsTypeVariable && ty.IsTypeVariable) then
+                        currentRigidWeight + 1
+                    else
+                        currentRigidWeight
+                if expectedTy.LogicalTypeParameterCount = ty.LogicalTypeParameterCount then
+                    let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount) |> ImArray.ofSeq
+                    let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount) |> ImArray.ofSeq
+
+                    OlyAssert.Equal(expectedTyArgs.Length, tyArgs.Length)
+
+                    (struct(currentRigidWeight, currentWeight), expectedTyArgs, tyArgs)
+                    |||> ImArray.fold2 (fun (struct(currentRigidWeight, currentWeight)) expectedTy ty ->
+                        computeWeight (currentRigidWeight, currentWeight) expectedTy ty
+                    )
+                else
+                    (currentRigidWeight, currentWeight + expectedTy.LogicalTypeParameterCount)
+            else
+                (currentRigidWeight, currentWeight)
     
     let mapArgTys (func: IFunctionSymbol) (argTys: TypeSymbol imarray) =
         OlyAssert.Equal(func.LogicalParameterCount, argTys.Length)
