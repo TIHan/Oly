@@ -9600,21 +9600,6 @@ print(__oly_object): ()
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
-    x.get_Item(key)
-
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
-    x.set_Item(key, value)
-
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
-    x.set_Item(key, value)
-
 main(): () =
     let mutable s = Span<int32>(mutable [1;2;3])
     let x = &s[0]
@@ -9669,21 +9654,6 @@ print(__oly_object): ()
 #[System.Diagnostics.DebuggerHiddenAttribute()]
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
-
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
-    x.get_Item(key)
-
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
-    x.set_Item(key, value)
-
-#[inline]
-#[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
-    x.set_Item(key, value)
 
 M(mutable s: Span<int32>, f: byref<int32> -> ()): () =
     f(&s[2])
