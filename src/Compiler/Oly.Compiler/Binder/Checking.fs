@@ -275,7 +275,7 @@ let tryOverloadResolution
     else
         filteredFuncs |> Some
 
-let tryOverloadedCallExpression 
+let tryOverloadCallExpression 
         (cenv: cenv) 
         (env: BinderEnvironment) 
         skipEager
@@ -445,12 +445,16 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
                     let argExprTy = argExpr.Type
                     if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
                     else
-                        cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
+                        if tyChecking <> TypeChecking.Enabled && not argExprTy.IsSolved then ()
+                        else
+                            cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
             | _ ->
                 let argExprTy = argExpr.Type
                 if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
                 else
-                    cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
+                    if tyChecking <> TypeChecking.Enabled && not argExprTy.IsSolved then ()
+                    else
+                        cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
 
         E.Call(
             syntaxInfo,
@@ -464,33 +468,32 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
         unreached()
 
 /// Returns the same kind of expression that was given.
-let checkCallerOfCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
+let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
     match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->
+    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->       
+        if value.IsFunctionGroup then
+            let funcGroup = value :?> FunctionGroupSymbol
 
-        match value with
-        | :? FunctionGroupSymbol as funcGroup ->
-            if funcGroup.IsAddressOf then
-                match expectedTyOpt with
-                | Some expectedTy when not expectedTy.IsSolved ->
-                    match argExprs[0] with
-                    | AutoDereferenced(argExpr) ->
-                        UnifyTypes Flexible expectedTy argExpr.Type
-                        |> ignore
-                    | _ ->
-                        ()
+            match expectedTyOpt with
+            | Some expectedTy when not expectedTy.IsSolved ->
+                match argExprs[0] with
+                | AutoDereferenced(argExpr) ->
+                    UnifyTypes Flexible expectedTy argExpr.Type
+                    |> ignore
                 | _ ->
                     ()
+            | _ ->
+                ()
                    
-            match tryOverloadedCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions flags with
+            match tryOverloadCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions flags with
             | Some newExpr -> newExpr |> assertIsCallExpression
             | _ -> expr
-        | _ ->
+        else
             expr
     | _ ->
         unreached()
 
-let checkFunctionValueAsPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: E) =
+let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
     | E.Value(syntaxInfo, value) when value.IsFunction ->
         let syntaxNameOpt =
@@ -704,7 +707,8 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
 
         let canEval =
             match tyChecking with
-            | TypeChecking.Enabled -> true
+            | TypeChecking.Enabled
+            | TypeChecking.EnabledNoTypeErrors -> true
             | _ -> false
 
         if canEval then
@@ -727,11 +731,12 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         expr
 
     | E.Call _ ->
-        checkCallerOfCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
+        checkOverloadCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> checkEarlyArgumentsOfCallExpression cenv env tyChecking                      |> assertIsCallExpression
-        |> checkCallerOfCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression                                                
@@ -750,7 +755,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
-        checkFunctionValueAsPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
+        checkOverloadPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->

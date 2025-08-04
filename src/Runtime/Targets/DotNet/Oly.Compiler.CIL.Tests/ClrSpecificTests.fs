@@ -9618,7 +9618,134 @@ print(__oly_object): ()
 main(): () =
     let mutable s = Span<int32>(mutable [1;2;3])
     let x = &s[0]
+    print(x)
+    let y = &s[1]
+    print(y)
+    let z = &s[2]
+    print(z)
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "456"
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Get index of a span 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+M(mutable s: Span<int32>, f: byref<int32> -> ()): () =
+    f(&s[2])
+
+main(): () =
+    let mutable s = Span<int32>(mutable [1;2;3])
+    M(s, x -> print(x))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "3"
+
+[<Fact>]
+let ``Get index of a span 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+M(s: byref<Span<int32>>): byref<int32> =
+    &s[1]
+
+main(): () =
+    let mutable s = Span<int32>(mutable [1;2;3])
+    let result = M(&s)
+    print(result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
