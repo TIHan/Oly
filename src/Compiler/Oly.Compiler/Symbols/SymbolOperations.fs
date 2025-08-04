@@ -145,10 +145,6 @@ type TypeVariableRigidity =
     /// No inference, but is relaxed on type variables equality.
     | Generalizable
 
-    | IntegerGeneralizable
-
-    | NumberGeneralizable
-
 // --------------------------------------------------------------------------------------------------------------------
 
 let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) (tyArgs: TypeSymbol imarray) (externalSolution: VariableSolutionSymbol) (solution: VariableSolutionSymbol) (ty2: TypeSymbol) =
@@ -388,17 +384,17 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy eagerTy 
                     else
-                        rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
+                        rigidity = Generalizable
                 | TypeSymbol.Float32
                 | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy eagerTy 
                     else
-                        rigidity = NumberGeneralizable || rigidity = Generalizable
+                        rigidity = Generalizable
                 | _ ->
                     false
             elif targetTy.IsTypeVariable then
-                rigidity = IntegerGeneralizable || rigidity = NumberGeneralizable || rigidity = Generalizable
+                rigidity = Generalizable
             else
                 subsumesTypeWith rigidity eagerTy targetTy
 
@@ -1891,8 +1887,11 @@ let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
 
 let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if UnifyTypes rigidity ty superTy then
-        if ty.IsTypeVariable && not superTy.IsTypeVariable then
-            false
+        if ty.IsTypeVariable then
+            if superTy.IsBaseObject_t || superTy.IsTypeVariable then
+                true
+            else
+                false
         else
             true
     else

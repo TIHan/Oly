@@ -334,15 +334,7 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
             )
 
     let specificFuncs =
-        let specificFuncs2 = findSpecificFuncs IntegerGeneralizable
-        if specificFuncs2.IsEmpty then       
-            let specificFuncs3 = findSpecificFuncs NumberGeneralizable
-            if specificFuncs3.IsEmpty then
-                findSpecificFuncs Generalizable
-            else
-                specificFuncs3
-        else
-            specificFuncs2
+        findSpecificFuncs Generalizable
 
     let newFuncs =
         if specificFuncs.IsEmpty then
