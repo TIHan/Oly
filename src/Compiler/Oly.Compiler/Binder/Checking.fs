@@ -697,9 +697,13 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
     | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
 
-        match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
-        | ValueSome(literal) ->
-            E.Literal(syntaxInfo, stripLiteral literal)
+        match tyChecking with
+        | TypeChecking.Enabled ->
+            match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
+            | ValueSome(literal) ->
+                E.Literal(syntaxInfo, stripLiteral literal)
+            | _ ->
+                expr
         | _ ->
             expr
 
