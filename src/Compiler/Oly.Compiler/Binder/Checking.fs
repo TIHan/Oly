@@ -637,6 +637,25 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     let expr = autoDereferenceValueOrCallExpression expr
     let expr = ImplicitRules.ImplicitReturn expectedTyOpt expr
+
+    match tyChecking with
+    | TypeChecking.Enabled ->
+        match expr with
+        | AutoDereferenced bodyExpr ->
+            match bodyExpr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expectedTyOpt bodyExpr
+            | _ ->
+                ()
+        | _ ->
+            match expr with
+            | E.Call _ ->
+                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expectedTyOpt expr 
+            | _ ->
+                ()
+    | _ ->
+        ()
+
     let recheckExpectedTy =
         match expectedTyOpt with
         | Some expectedTy when expectedTy.IsSolved ->
@@ -652,24 +671,6 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
             false
         | _ ->
             true
-
-    match tyChecking with
-    | TypeChecking.Enabled ->
-        match expr with
-        | AutoDereferenced bodyExpr ->
-            match bodyExpr with
-            | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass bodyExpr
-            | _ ->
-                ()
-        | _ ->
-            match expr with
-            | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass expr 
-            | _ ->
-                ()
-    | _ ->
-        ()
 
     let expr = autoDereferenceValueOrCallExpression expr
     if recheckExpectedTy then
