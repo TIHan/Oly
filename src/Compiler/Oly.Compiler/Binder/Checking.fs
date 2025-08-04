@@ -444,16 +444,12 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
                     let argExprTy = argExpr.Type
                     if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
                     else
-                        if tyChecking <> TypeChecking.Enabled && not argExprTy.IsSolved then ()
-                        else
-                            cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
+                        cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
             | _ ->
                 let argExprTy = argExpr.Type
                 if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
                 else
-                    if tyChecking <> TypeChecking.Enabled && not argExprTy.IsSolved then ()
-                    else
-                        cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
+                    cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
 
         E.Call(
             syntaxInfo,
@@ -736,7 +732,6 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkEarlyArgumentsOfCallExpression cenv env tyChecking                      |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
-        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression                                                
