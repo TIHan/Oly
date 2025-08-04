@@ -716,7 +716,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
     | E.Call _ ->
         checkOverloadCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
-        |> checkEarlyArgumentsOfCallExpression cenv env tyChecking                      |> assertIsCallExpression
+        |> checkEarlyArgumentsOfCallExpression cenv env                                 |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
@@ -879,13 +879,10 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
-let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking expr =
+let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
-        let tyChecking =
-            match tyChecking with
-            | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
-            | _ -> tyChecking
+        let tyChecking = TypeChecking.EnabledNoTypeErrors
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
