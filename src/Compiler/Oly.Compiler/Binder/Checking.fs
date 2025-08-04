@@ -243,7 +243,6 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
 type TypeChecking =
     | Enabled
     | EnabledNoTypeErrors
-    | Disabled
 
 let tryOverloadResolution
         (expectedReturnTyOpt: TypeSymbol option) 
@@ -474,16 +473,17 @@ let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager 
         if value.IsFunctionGroup then
             let funcGroup = value :?> FunctionGroupSymbol
 
-            match expectedTyOpt with
-            | Some expectedTy when not expectedTy.IsSolved ->
-                match argExprs[0] with
-                | AutoDereferenced(argExpr) ->
-                    UnifyTypes Flexible expectedTy argExpr.Type
-                    |> ignore
+            if funcGroup.IsAddressOf then
+                match expectedTyOpt with
+                | Some expectedTy when not expectedTy.IsSolved ->
+                    match argExprs[0] with
+                    | AutoDereferenced(argExpr) ->
+                        UnifyTypes Flexible expectedTy argExpr.Type
+                        |> ignore
+                    | _ ->
+                        ()
                 | _ ->
                     ()
-            | _ ->
-                ()
                    
             match tryOverloadCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions flags with
             | Some newExpr -> newExpr |> assertIsCallExpression
@@ -894,8 +894,6 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
             checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
         | TypeChecking.EnabledNoTypeErrors ->
             checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
-        | TypeChecking.Disabled ->
-            ()
     | _ ->
         ()
 
@@ -903,12 +901,9 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) tyChecking
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let tyChecking =
-            if value.IsFunctionGroup then
-                TypeChecking.Disabled
-            else
-                match tyChecking with
-                | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
-                | _ -> tyChecking
+            match tyChecking with
+            | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
+            | _ -> tyChecking
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
@@ -978,7 +973,9 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
         let tyChecking =
             if value.IsFunctionGroup then
-                TypeChecking.Disabled
+                match tyChecking with
+                | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
+                | _ -> tyChecking
             else
                 tyChecking
 
