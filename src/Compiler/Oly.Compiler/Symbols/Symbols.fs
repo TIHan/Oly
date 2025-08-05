@@ -2927,6 +2927,7 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
         member _.IsBase = false
 
 [<Sealed>]
+[<DebuggerDisplay("{DebugName}")>]
 type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isBase: bool, isMutable) =
     // REVIEW: I wonder how this will come back to haunt us....
     //         A local symbol whose is a type constructor is illegal, even for error recovery.
@@ -2960,6 +2961,8 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
 
     /// Mutability - is this the only good way to handle this?
     member _.SetAttributes_Pass3_NonConcurrent(newAttrs) = attrs <- newAttrs
+
+    member this.DebugName = $"{(this: ILocalParameterSymbol).Name}: {(this: ILocalParameterSymbol).Type.DebugName}"
 
     interface ILocalParameterSymbol with
 

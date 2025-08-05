@@ -188,6 +188,31 @@ let autoDereferenceValueOrCallExpression expr =
     | _ ->
         expr
 
+let determineByRefKind argExpr =
+    match argExpr with
+    | E.Value(value=value) when value.IsLocal ->
+        if value.IsMutable then
+            ByRefKind.ReadOnly
+        else
+            ByRefKind.ReadWrite
+    | E.GetField(field=field) ->
+        if field.IsMutable then
+            ByRefKind.ReadOnly
+        else
+            ByRefKind.ReadWrite
+    | E.Call(value=value) ->
+        match value.TryWellKnownFunction with
+        | ValueSome(WellKnownFunction.GetArrayElement) ->
+            let par = (value :?> IFunctionSymbol).Parameters[0]
+            if par.Type.IsReadOnly then
+                ByRefKind.ReadOnly
+            else
+                ByRefKind.ReadWrite
+        | _ ->
+            ByRefKind.ReadWrite
+    | _ ->
+        ByRefKind.ReadWrite
+
 let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
     else
@@ -247,7 +272,6 @@ type TypeChecking =
 let tryOverloadResolution
         (expectedReturnTyOpt: TypeSymbol option) 
         (resArgs: ResolutionArguments)
-        (isArgForAddrOf: bool)
         (funcs: IFunctionSymbol imarray) =
 
     if funcs.IsEmpty then None
@@ -259,13 +283,6 @@ let tryOverloadResolution
     | _ ->
 
     let filteredFuncs =
-        let funcs =
-            if isArgForAddrOf then
-                funcs
-                |> ImArray.filter (fun x -> x.ReturnType.IsByRef_t)
-            else
-                funcs
-
         funcs
         |> filterFunctionsForOverloadingPart2 resArgs expectedReturnTyOpt
 
@@ -282,7 +299,6 @@ let tryOverloadCallExpression
         (syntaxInfo: BoundSyntaxInfo) 
         (receiverExprOpt: E option)
         (argExprs: E imarray)
-        (isArgForAddrOf: bool)
         (funcs: IFunctionSymbol imarray)
         (flags: CallFlags) =
 
@@ -290,7 +306,7 @@ let tryOverloadCallExpression
         argExprs
         |> ImArray.map (fun x -> x.Type)
         |> ResolutionArguments.ByType
-    match tryOverloadResolution expectedTyOpt resArgs isArgForAddrOf funcs with
+    match tryOverloadResolution expectedTyOpt resArgs funcs with
     | None -> None
     | Some funcs ->
         if funcs.Length = 1 then
@@ -373,7 +389,7 @@ let tryOverloadPartialCallExpression
         | _ ->
             ResolutionArguments.Any
 
-    match tryOverloadResolution None resArgs false funcs with
+    match tryOverloadResolution None resArgs funcs with
     | None -> None
     | Some funcs ->
         if funcs.IsEmpty then
@@ -464,7 +480,58 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
         unreached()
 
 /// Returns the same kind of expression that was given.
-let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) isArgForAddrOf expr =
+let checkMutableStructReceiverExpression (expectedTyOpt: TypeSymbol option) expr =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) when value.IsAddressOf ->
+        match argExprs[0] with
+        | E.Call(syntaxInfoCall, receiverExprOptCall, witnessArgsCall, argExprsCall, valueCall, flagsCall) when valueCall.IsFunctionGroup ->
+            match receiverExprOptCall with
+            | Some(receiverExprCall) when receiverExprCall.Type.IsByRef_t ->
+                let byRefKind = determineByRefKind receiverExprCall
+
+                let funcs = (valueCall :?> FunctionGroupSymbol).Functions
+
+                let newFuncs =
+                    funcs
+                    |> ImArray.filter (fun x ->
+                        match byRefKind with
+                        | ByRefKind.ReadOnly when x.ReturnType.IsReadOnlyByRef -> true
+                        | _ -> x.ReturnType.IsReadWriteByRef
+                    )
+
+                if newFuncs.IsEmpty || newFuncs.Length = funcs.Length then
+                    expr
+                else
+                    E.Call(
+                        syntaxInfo, 
+                        receiverExprOpt, 
+                        witnessArgs,
+                        (
+                            ImArray.createOne (
+                                E.Call(
+                                    syntaxInfoCall,
+                                    receiverExprOptCall,
+                                    witnessArgsCall,
+                                    argExprsCall,
+                                    FunctionGroupSymbol.CreateIfPossible(newFuncs),
+                                    flagsCall
+                                )
+                            )
+                        ),
+                        value,
+                        flags
+                    )
+            | _ ->
+                expr
+        | _ ->
+            expr
+    | E.Call _ ->
+        expr
+    | _ ->
+        unreached()
+
+/// Returns the same kind of expression that was given.
+let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager (expectedTyOpt: TypeSymbol option) expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) ->       
         if value.IsFunctionGroup then
@@ -482,7 +549,7 @@ let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager 
                 | _ ->
                     ()
                    
-            match tryOverloadCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs isArgForAddrOf funcGroup.Functions flags with
+            match tryOverloadCallExpression cenv env skipEager expectedTyOpt syntaxInfo receiverExprOpt argExprs funcGroup.Functions flags with
             | Some newExpr -> newExpr |> assertIsCallExpression
             | _ -> expr
         else
@@ -692,7 +759,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     expr
 
-let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (isArgForAddrOf: bool) (expr: E) =
+let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
     | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
@@ -718,10 +785,11 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         expr
 
     | E.Call _ ->
-        checkOverloadCallExpression cenv env true None isArgForAddrOf expr              |> assertIsCallExpression
+        checkOverloadCallExpression cenv env true None expr                             |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
+        |> checkMutableStructReceiverExpression expectedTyOpt                           |> assertIsCallExpression
         |> checkEarlyArgumentsOfCallExpression cenv env                                 |> assertIsCallExpression
-        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt isArgForAddrOf  |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt                 |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
@@ -840,12 +908,8 @@ let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: 
 
 let checkFunctionGroupCalleeArgumentExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (isAddrOf: bool) (argExprs: E imarray) : E imarray =
     let env = env.SetReturnable(false).SetPassedAsArgument(true)
-    if isAddrOf then
-        checkExpressionImpl cenv env tyChecking false None true argExprs[0]
-        |> ImArray.createOne
-    else
-        argExprs
-        |> ImArray.map (checkExpressionImpl cenv env tyChecking false None false)
+    argExprs
+    |> ImArray.map (checkExpressionImpl cenv env tyChecking false None)
 
 let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (argExpr: E) =
     argExpr.RewriteReturningTargetExpression(
@@ -954,14 +1018,6 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
-        let tyChecking =
-            if value.IsFunctionGroup then
-                match tyChecking with
-                | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
-                | _ -> tyChecking
-            else
-                tyChecking
-
         let newArgExprs =
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
@@ -1016,7 +1072,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) expectedTyOpt (expr: E) =
     // If the expression is used as an argument, then we will skip eager inference in function overloads.
     // REVIEW: The name 'checkCallExpression' isn't quite accurate because it can affect non-call expressions.
-    checkExpressionImpl cenv env tyChecking false expectedTyOpt false expr
+    checkExpressionImpl cenv env tyChecking false expectedTyOpt expr
     |> checkVirtualUsage cenv env
 
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =

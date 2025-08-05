@@ -811,14 +811,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid then
+            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid && not value.Type.IsError_t then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsAnyStruct && not field.IsMutable && not field.IsInvalid then
+                if field.Type.IsAnyStruct && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -843,13 +843,13 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env value.Type rhs
-        if not value.IsMutable && not value.IsInvalid then
+        if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_t then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env field.Type rhs
         if check false receiver then
-            if not field.IsMutable && not field.IsInvalid then
+            if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->

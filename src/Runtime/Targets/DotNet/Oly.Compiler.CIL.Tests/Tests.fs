@@ -11095,19 +11095,24 @@ alias inref<T>
 (`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
 
 #[intrinsic("divide")]
 (/)(int32, int32): int32
@@ -11456,8 +11461,6 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 (`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
@@ -11472,7 +11475,7 @@ struct TestStruct =
     field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
-        print("normal")
+        print("FAILED")
         this.Value
 
     mutable get_Item(index: int32): byref<int32> =
@@ -11501,7 +11504,7 @@ main(): () =
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "normalbyrefbyrefbyrefbyref123123123123"
+    |> shouldRunWithExpectedOutput "byrefbyrefbyrefbyrefbyref123123123123"
     |> ignore
 
 [<Fact>]
@@ -11529,8 +11532,6 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 (`[]`)<T, TKey, TValue>(x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
@@ -11545,7 +11546,7 @@ struct TestStruct =
     field mutable Value: int32 = 123
 
     get_Item(index: int32): int32 =
-        print("normal")
+        print("FAILED")
         this.Value
 
     mutable get_Item(index: int32): byref<int32> =
@@ -11579,7 +11580,7 @@ main(): () =
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "normalbyrefbyrefbyref123123123123normalinrefinref123123123"
+    |> shouldRunWithExpectedOutput "byrefbyrefbyrefbyref123123123123inrefinrefinref123123123"
     |> ignore
 
 [<Fact>]
