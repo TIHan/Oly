@@ -1092,8 +1092,8 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
             checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
             expr
     | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument ->
-        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
-        expr
+        checkExpressionAux cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
     | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
             when 
@@ -1102,5 +1102,6 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
                 env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
         expr
+
     | _ ->
         checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
