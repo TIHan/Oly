@@ -1078,7 +1078,6 @@ let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeCh
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
     match expr with
     | E.Literal _
-    | E.Lambda _ 
     | E.NewArray _
     | E.NewTuple _
     | E.Lambda _ 
