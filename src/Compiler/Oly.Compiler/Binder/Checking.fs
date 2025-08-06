@@ -439,16 +439,14 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
 
-        let isAddrOf = value.IsAddressOf
-
         let argExprs =
             if value.IsFunctionGroup then
                 let tyChecking = TypeChecking.EnabledNoTypeErrors(false)
-                checkFunctionGroupCalleeArgumentExpression cenv env tyChecking isAddrOf argExprs
+                checkFunctionGroupCalleeArgumentExpression cenv env tyChecking argExprs
             else
                 checkCalleeArgumentExpressions cenv env tyChecking value argExprs
 
-        if isAddrOf then
+        if value.IsAddressOf then
             let argExpr = argExprs[0]
             match argExpr with
             | AutoDereferenced _ -> ()
@@ -928,23 +926,27 @@ let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: 
         // REVIEW: Maybe we should actually check it here...
         argExprs
 
-let checkFunctionGroupCalleeArgumentExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (isAddrOf: bool) (argExprs: E imarray) : E imarray =
+let checkFunctionGroupCalleeArgumentExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (argExprs: E imarray) : E imarray =
     let env = env.SetReturnable(false).SetPassedAsArgument(true)
     argExprs
     |> ImArray.map (checkExpressionImpl cenv env tyChecking false None)
 
-let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (argExpr: E) =
+let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expectedTyOpt (argExpr: E) =
     argExpr.RewriteReturningTargetExpression(
         fun argExpr ->
             match argExpr with
             | E.Literal _
             | E.Lambda _ 
-            | E.Call _ 
             | E.Witness _ ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | E.NewArray _
-            | E.NewTuple _ ->
-                checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+            | E.NewTuple _
+            | E.Call _ ->
+                if isAddrOf then
+                    checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
+                else
+                    checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(true)) expectedTyOpt argExpr
+                    checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | E.Value(value=value) when value.IsFunction ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
                 // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
@@ -992,7 +994,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                     | _ -> ImArray.empty
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    checkArgumentExpression cenv env tyChecking (Some expectedArgTy) argExpr
+                    checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                 )
             )
         
@@ -1013,7 +1015,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 let env = env.SetReturnable(false).SetPassedAsArgument(true)
                 argExprs
                 |> ImArray.map (fun argExpr ->
-                    checkArgumentExpression cenv env tyChecking expectedArgTyOpt argExpr
+                    checkArgumentExpression cenv env tyChecking false expectedArgTyOpt argExpr
                 )
             E.NewArray(syntaxExpr, benv, newArgExprs, exprTy)
 
@@ -1029,7 +1031,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                         exprTy.TypeArguments[i]
                     else
                         TypeSymbolError
-                checkArgumentExpression cenv env tyChecking (Some expectedArgTy) argExpr
+                checkArgumentExpression cenv env tyChecking false (Some expectedArgTy) argExpr
             )
         E.NewTuple(syntaxInfo, newArgExprs, exprTy)
 
@@ -1055,7 +1057,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                     | _ -> ImArray.empty
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    checkArgumentExpression cenv env tyChecking (Some expectedArgTy) argExpr
+                    checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                 )
             )
 
@@ -1096,11 +1098,12 @@ let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeCh
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
     match expr with
     | E.Literal _
-    | E.NewArray _
-    | E.NewTuple _
     | E.Lambda _ 
     | E.Witness _ when env.isPassedAsArgument ->
         checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
+        expr
+    | E.NewArray _
+    | E.NewTuple _ when env.isPassedAsArgument ->
         expr
     | E.Call(value=value) when env.isPassedAsArgument ->
         if value.IsFunctionGroup then
