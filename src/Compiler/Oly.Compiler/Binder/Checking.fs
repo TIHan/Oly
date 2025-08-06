@@ -847,32 +847,23 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
-    | E.IfElse(trueTargetExpr=trueTargetExpr;cachedExprTy=cachedExprTy) ->
+    | E.IfElse _ ->
         expr
-        //if cachedExprTy.IsSolved then
-        //    checkReturnExpression cenv env tyChecking expectedTyOpt expr
-        //else
-        //    checkExpressionTypeIfPossible cenv env tyChecking (Some trueTargetExpr.Type) expr
-        //    checkReturnExpression cenv env tyChecking expectedTyOpt expr
 
     | _ ->
         checkReturnExpression cenv env tyChecking expectedTyOpt expr
 
 let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: IValueSymbol) (parAttrs: AttributeSymbol imarray) parTy argExpr =
     match argExpr with
-    | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup ->
-        let isAddrOf = caller.IsAddressOf
+    | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup && caller.IsAddressOf ->
         let expectedTy =
-            if isAddrOf then
-                match caller.Type.TryFunction with
-                | ValueSome(_, outputTy) ->
-                    if outputTy.IsReadOnlyByRef then
-                        TypeSymbol.CreateByRef(parTy, ByRefKind.ReadOnly)
-                    else
-                        TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)
-                | _ ->
-                    parTy
-            else
+            match caller.Type.TryFunction with
+            | ValueSome(_, outputTy) ->
+                if outputTy.IsReadOnlyByRef then
+                    TypeSymbol.CreateByRef(parTy, ByRefKind.ReadOnly)
+                else
+                    TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)
+            | _ ->
                 parTy
 
         let tyChecking =
