@@ -991,9 +991,8 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                     | ValueSome(attrs) -> attrs
                     | _ -> ImArray.empty
 
-                argExpr.RewriteReturningTargetExpression(fun x ->
-                    checkCalleeArgumentExpression cenv env tyChecking value parAttrs expectedArgTy x
-                    |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
+                argExpr.RewriteReturningTargetExpression(fun argExpr ->
+                    checkArgumentExpression cenv env tyChecking (Some expectedArgTy) argExpr
                 )
             )
         
@@ -1055,11 +1054,8 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                     | ValueSome(attrs) -> attrs
                     | _ -> ImArray.empty
 
-                argExpr.RewriteReturningTargetExpression(fun x ->
-                    let result =
-                        checkCalleeArgumentExpression cenv env tyChecking value parAttrs expectedArgTy x
-                        |> checkArgumentExpression cenv env tyChecking (Some expectedArgTy)
-                    result
+                argExpr.RewriteReturningTargetExpression(fun argExpr ->
+                    checkArgumentExpression cenv env tyChecking (Some expectedArgTy) argExpr
                 )
             )
 
