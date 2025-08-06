@@ -9719,3 +9719,24 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
+
+[<Fact>]
+let ``Should choose right overload when used as receiver``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("subtract")]
+(-)(int32, int32) : int32
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+
+main(): () =
+    Console.Write(Math.Abs((Vector3.Zero - Vector3.Zero).Length()))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"

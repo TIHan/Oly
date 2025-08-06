@@ -456,7 +456,7 @@ let private bindItemAsExpression (cenv: cenv) (env: BinderEnvironment) (nameRes:
             |> snd
 
     | ResolutionItem.Parenthesis(syntaxToCapture, syntaxParen, syntaxMemberExprOpt) ->
-        let expr = bindParenthesisExpression cenv env None syntaxToCapture syntaxParen |> snd
+        let expr = bindParenthesisExpression cenv (env.SetPassedAsArgument(false)) None syntaxToCapture syntaxParen |> snd
         match syntaxMemberExprOpt with
         | Some syntaxMemberExpr ->
             bindMemberExpressionAsItem cenv env syntaxToCapture (expr |> Choice1Of2) syntaxMemberExpr

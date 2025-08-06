@@ -267,7 +267,7 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
 [<RequireQualifiedAccess>]
 type TypeChecking =
     | Enabled
-    | EnabledNoTypeErrors
+    | EnabledNoTypeErrors of skipLambda: bool
 
 let tryOverloadResolution
         (expectedReturnTyOpt: TypeSymbol option) 
@@ -310,7 +310,7 @@ let tryOverloadCallExpression
     | None -> None
     | Some funcs ->
         if funcs.Length = 1 then
-            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (funcs[0], syntaxInfo.TrySyntaxName)
+            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (funcs[0], syntaxInfo.TrySyntaxName)       
             let expr =
                 // partial call / partial overloaded call
                 if flags.HasFlag(CallFlags.Partial) then
@@ -443,7 +443,7 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
 
         let argExprs =
             if value.IsFunctionGroup then
-                let tyChecking = TypeChecking.EnabledNoTypeErrors
+                let tyChecking = TypeChecking.EnabledNoTypeErrors(false)
                 checkFunctionGroupCalleeArgumentExpression cenv env tyChecking isAddrOf argExprs
             else
                 checkCalleeArgumentExpressions cenv env tyChecking value argExprs
@@ -480,7 +480,7 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
         unreached()
 
 /// Returns the same kind of expression that was given.
-let checkMutableStructReceiverExpression (expectedTyOpt: TypeSymbol option) expr =
+let checkMutableStructReceiverExpression expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) when value.IsAddressOf ->
         match argExprs[0] with
@@ -527,6 +527,31 @@ let checkMutableStructReceiverExpression (expectedTyOpt: TypeSymbol option) expr
             expr
     | E.Call _ ->
         expr
+    | _ ->
+        unreached()
+
+let checkImplicitArgumentsOfCallExpression (env: BinderEnvironment) expr =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) ->
+        if value.IsFunctionGroup then
+            expr
+        else
+
+        let newFuncOpt, newArgExprs = 
+            if value.IsFunction then
+                ImplicitRules.ImplicitArgumentsForFunction env.benv value.AsFunction argExprs
+            elif value.Type.IsAnyFunction then
+                let argExprs = ImplicitRules.ImplicitArgumentsForFunctionType value.Type argExprs
+                (None, argExprs)
+            else           
+                (None, argExprs)
+
+        let value =
+            match newFuncOpt with
+            | Some(func) -> func: IValueSymbol
+            | _ -> value
+        // TODO: Performance - Only construct this if something has changed.
+        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, flags)
     | _ ->
         unreached()
 
@@ -780,16 +805,22 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
 
     | E.Lambda(body=lazyBodyExpr) ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
-        if not lazyBodyExpr.HasExpression then
-            lazyBodyExpr.Run()
+        match tyChecking with
+        | TypeChecking.EnabledNoTypeErrors(true) -> ()
+        | _ ->
+            if not lazyBodyExpr.HasExpression then
+                lazyBodyExpr.Run()
         expr
 
     | E.Call _ ->
-        checkOverloadCallExpression cenv env true None expr                             |> assertIsCallExpression
+        checkEarlyArgumentsOfCallExpression cenv env true expr                          |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env true None                               |> assertIsCallExpression
+        |> checkImplicitArgumentsOfCallExpression env                                   |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
-        |> checkMutableStructReceiverExpression expectedTyOpt                           |> assertIsCallExpression
-        |> checkEarlyArgumentsOfCallExpression cenv env                                 |> assertIsCallExpression
+        |> checkMutableStructReceiverExpression                                         |> assertIsCallExpression
+        |> checkEarlyArgumentsOfCallExpression cenv env false                           |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env skipEager expectedTyOpt                 |> assertIsCallExpression
+        |> checkImplicitArgumentsOfCallExpression env                                   |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
@@ -801,7 +832,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         checkArgumentsOfCallLikeExpression cenv env tyChecking expr
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-    | E.Let(_, bindingInfo, ((_)), _) 
+    | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
@@ -846,7 +877,7 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
 
         let tyChecking =
             match tyChecking with
-            | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors
+            | TypeChecking.Enabled -> TypeChecking.EnabledNoTypeErrors(false)
             | _ -> tyChecking
 
         let newArgExpr = checkExpressionAux cenv env tyChecking (Some expectedTy) argExpr
@@ -926,7 +957,7 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) expectedTyOpt (a
             | E.Value(value=value) when value.IsFunction ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
                 // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-            | E.Let(_, bindingInfo, ((_)), _) 
+            | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
                 when 
                     bindingInfo.Value.IsSingleUse && 
                     bindingInfo.Value.IsGenerated ->
@@ -942,15 +973,15 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
         match tyChecking with
         | TypeChecking.Enabled ->
             checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
-        | TypeChecking.EnabledNoTypeErrors ->
+        | TypeChecking.EnabledNoTypeErrors _ ->
             checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
     | _ ->
         ()
 
-let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) expr =
+let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
-        let tyChecking = TypeChecking.EnabledNoTypeErrors
+        let tyChecking = TypeChecking.EnabledNoTypeErrors(skipLambda)
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
@@ -1054,7 +1085,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, callFlags)
 
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
-    | E.Let(syntaxInfo, bindingInfo, ((_) as rhsExpr), bodyExpr) 
+    | E.Let(syntaxInfo, bindingInfo, ((E.GetProperty _) as rhsExpr), bodyExpr) 
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
@@ -1082,16 +1113,16 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
     | E.NewTuple _
     | E.Lambda _ 
     | E.Witness _ when env.isPassedAsArgument ->
-        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
         expr
     | E.Call(value=value) when env.isPassedAsArgument ->
         if value.IsFunctionGroup then
             expr
         else
-            checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
-            expr
+            checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
+            checkEarlyArgumentsOfCallExpression cenv env true expr |> assertIsCallExpression
     | E.Value(value=value) when value.IsFunction && env.isPassedAsArgument ->
-        checkExpressionAux cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        checkExpressionAux cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
 
     // REVIEW: This isn't particularly great, but it is the current way we handle indirect calls from property getters.
     | E.Let(_, bindingInfo, ((E.GetProperty _)), _) 
@@ -1099,7 +1130,7 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated  &&
                 env.isPassedAsArgument ->
-        checkExpressionTypeIfPossible cenv env TypeChecking.EnabledNoTypeErrors expectedTyOpt expr
+        checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
         expr
 
     | _ ->

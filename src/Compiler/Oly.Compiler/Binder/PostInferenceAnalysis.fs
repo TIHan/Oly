@@ -982,6 +982,8 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let bodyTy = bodyExpr.Type   
         if subsumesTypeWith Generalizable exprTy bodyTy then
             checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv, PostInferenceAnalysis)) bodyExpr.Syntax exprTy bodyTy
+        elif exprTy.IsEnum && areTypesEqual exprTy.TryEnumUnderlyingType.Value bodyTy then
+            ()
         else
             match tryFindTypeHasTypeExtensionImplementedType benv exprTy bodyTy with
             | ValueSome entSet when entSet.Count > 0 ->

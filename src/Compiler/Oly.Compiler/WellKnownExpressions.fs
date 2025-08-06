@@ -15,26 +15,6 @@ let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
     UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
     BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, CallFlags.None)
 
-let ImplicitCast benv (expr: BoundExpression) castToType =
-    let exprTy = expr.Type
-    if exprTy.IsEnum then
-        if areTypesEqual exprTy.AsEntityNoAlias.UnderlyingTypeOfEnumOrNewtype castToType then
-            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        else
-            expr
-    else
-        expr
-
-let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
-    if castToType.IsEnum then
-        let exprTy = expr.Type
-        if areTypesEqual castToType.AsEntityNoAlias.UnderlyingTypeOfEnumOrNewtype exprTy then
-            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        else
-            expr
-    else
-        expr
-
 let Ignore (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr

@@ -65,7 +65,7 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
             | _ ->
                 ty
 
-        let funcTy = 
+        let funcTy =
             match stripTypeEquations func.Type with
             | TypeSymbol.Function(_, _, kind) ->
                 TypeSymbol.CreateFunction(
@@ -77,47 +77,47 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
                 OlyAssert.Fail("Unsupported type.")
 
         { new IFunctionSymbol with
-    
+
                 member _.Enclosing = func.Enclosing
-    
+
                 member _.Name = func.Name
-    
+
                 member _.Type = funcTy
-    
+
                 member _.Id = id
-    
+
                 member _.TypeParameters = func.TypeParameters
-    
+
                 member _.TypeArguments = func.TypeArguments
-    
+
                 member _.IsFunction = func.IsFunction
 
                 member _.IsFunctionGroup = func.IsFunctionGroup
-    
+
                 member _.IsField = func.IsField
-    
+
                 member _.MemberFlags = func.MemberFlags
-    
+
                 member _.FunctionFlags = func.FunctionFlags
-    
+
                 member _.FunctionOverrides = func.FunctionOverrides
 
                 member _.IsProperty = func.IsProperty
 
                 member _.IsPattern = false
-    
+
                 member this.Formal = func.Formal
-    
+
                 member _.Parameters = newPars
-    
+
                 member _.ReturnType = returnTy
-    
+
                 member _.Attributes = func.Attributes
-    
+
                 member _.ValueFlags = func.ValueFlags
 
                 member _.IsThis = func.IsThis
-                        
+
                 member _.IsBase = func.IsBase
 
                 member _.Semantic = func.Semantic
@@ -304,22 +304,33 @@ let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol
         let argTys = func.Parameters |> ImArray.map (fun x -> x.Type)
         if (not argTys.IsEmpty) && argTys.Length = argExprs.Length then
 
-            let principalTy = argExprs[0].Type
-            let func =
-                alterParameterAndReturnTypesForEnumOperations
-                    func
-                    principalTy
+#if DEBUG || CHECKED
+            match func with
+            | :? FunctionGroupSymbol ->
+                OlyAssert.Fail("Unexpected function group.")
+            | _ ->
+                OlyAssert.True(func.TryWellKnownFunction.IsSome)
+                OlyAssert.True(func.TypeParameters.IsEmpty)
+                OlyAssert.True(func.TypeArguments.IsEmpty)
+                OlyAssert.True(func.IsStatic)
+                OlyAssert.False(func.IsConstructor)
+                OlyAssert.True(isIntrinsicForEnum func)
+#endif
 
-            func, argExprs
+            let alteredFunc =
+                // TODO: An altered func could be altered again. We should prevent this with a flag on the function?
+                alterParameterAndReturnTypesForEnumOperations func argExprs[0].Type
+
+            Some(alteredFunc), argExprs
         else
-            func, argExprs
+            None, argExprs
     else
         if func.IsFunctionGroup then
-            func, argExprs
+            None, argExprs
         else
             match tryImplicitArguments func.HasStrictInference func.LogicalType.FunctionArgumentTypes argExprs with
-            | ValueSome(newArgExprs) -> func, newArgExprs
-            | _ -> func, argExprs
+            | ValueSome(newArgExprs) -> None, newArgExprs
+            | _ -> None, argExprs
 
 let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
     match expr with

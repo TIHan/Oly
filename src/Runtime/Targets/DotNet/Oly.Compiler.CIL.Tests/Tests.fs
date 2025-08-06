@@ -21250,3 +21250,108 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Regression - using enums with integer opreations``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("int8")]
+alias int8
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("add")]
+(+)(int8, int8): int8
+
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+#[intrinsic("bitwise_and")]
+(&)(int8, int8): int8
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)(int8, int8): bool
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+enum GpuDescriptorSetLayoutBindingFlags =
+    | None
+    | Bindless
+
+main(): () =
+    let flags = GpuDescriptorSetLayoutBindingFlags.Bindless
+    let isBindless =
+        if (flags & GpuDescriptorSetLayoutBindingFlags.Bindless == GpuDescriptorSetLayoutBindingFlags.Bindless)
+            true
+        else
+            false
+    print(flags)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Bindless"
+    |> ignore
+
+[<Fact>]
+let ``Type should be inferred when default``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[null]
+class C =
+    X: int32 get = 456
+
+M(c: byref<C>): bool =
+    c <- C()
+    true
+
+main(): () =
+    let mutable c = default
+    if (M(&c) && c.X < 1000)
+        print("success")
+    else
+        print("failed")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "success"
+    |> ignore
