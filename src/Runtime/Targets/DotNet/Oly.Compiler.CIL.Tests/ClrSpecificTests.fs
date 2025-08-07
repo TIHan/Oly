@@ -9740,3 +9740,113 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "0"
+
+[<Fact>]
+let ``Should resolve address-of correctly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+struct S<T> =
+    public field X: T
+    new(x: T) = this { X = x }
+
+M(): () =
+    let mutable s = S(S(456))
+    let z = &s.X
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+    print(res.X)
+
+main(): () =
+    M()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+
+
+[<Fact>]
+let ``Should resolve the default correctly``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("unsafe_cast")]
+(*)<T>(void*): byref<T>
+
+#[intrinsic("unsafe_cast")]
+(*)<T>(T*): byref<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+struct S<T> =
+    public field X: T
+    new(x: T) = this { X = x }
+
+M(_dummy: int32, res: Quaternion*): () =
+    *res <- Quaternion.Identity
+
+main(): () =
+    let mutable res = default
+    M(0, &&res)
+    print(res)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "{X:0 Y:0 Z:0 W:1}"
