@@ -9841,10 +9841,6 @@ print(object): ()
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-struct S<T> =
-    public field X: T
-    new(x: T) = this { X = x }
-
 M(_dummy: int32, res: Quaternion*): () =
     *res <- Quaternion.Identity
 
