@@ -294,21 +294,17 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
     let success =
         if rigidity = MostFlexible then
             match origTy1, origTy2 with
-            | TypeSymbol.InferenceVariable(Some tyPar1, solution1), TypeSymbol.InferenceVariable(Some tyPar2, solution2) 
+            | TypeSymbol.InferenceVariable(_, solution1), _
                 when 
-                    tyPar1.Id = tyPar2.Id && 
                     solution1.HasSolution && 
-                    solution2.HasSolution && 
-                    not(areTypesEqual solution1.Solution solution2.Solution) && subsumesType solution1.Solution solution2.Solution ->
-                solution2.Solution <- solution1.Solution
+                    not(areTypesEqual solution1.Solution origTy2) && subsumesType origTy2 solution1.Solution ->
+                solution1.Solution <- stripTypeEquations origTy2
                 true
-            | TypeSymbol.InferenceVariable(Some tyPar1, solution1), TypeSymbol.InferenceVariable(Some tyPar2, solution2) 
+            | origTy1, TypeSymbol.InferenceVariable(_, solution2)
                 when 
-                    tyPar1.Id = tyPar2.Id && 
-                    solution1.HasSolution && 
                     solution2.HasSolution && 
-                    not(areTypesEqual solution1.Solution solution2.Solution) && subsumesType solution2.Solution solution1.Solution ->
-                solution2.Solution <- solution1.Solution
+                    not(areTypesEqual solution2.Solution origTy1) && subsumesType origTy1 solution2.Solution ->
+                solution2.Solution <- stripTypeEquations origTy1
                 true
             | _ ->
                 false

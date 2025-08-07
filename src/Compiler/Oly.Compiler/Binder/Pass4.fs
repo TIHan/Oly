@@ -506,6 +506,7 @@ let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (exp
 let private bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (receiverInfoOpt: ReceiverInfo option) (syntaxCallBodyExpr: OlySyntaxExpression) (syntaxArgs: OlySyntaxArguments) : BoundExpression =
     let argExprs = bindCallArguments cenv (env.SetReturnable(false)) syntaxArgs
 
+    let env = env.SetPassedAsArgument(false)
     match syntaxCallBodyExpr with
     | OlySyntaxExpression.Name(syntaxName) ->
         let resTyArity = typeResolutionArityOfName syntaxName
