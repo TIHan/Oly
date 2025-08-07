@@ -9808,6 +9808,9 @@ let ``Should resolve the default correctly``() =
 open System
 open System.Numerics
 
+#[intrinsic("base_object")]
+alias object
+
 #[intrinsic("int32")]
 alias int32
 
