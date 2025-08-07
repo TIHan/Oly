@@ -988,11 +988,6 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                     else
                         TypeSymbolError
 
-                let parAttrs =
-                    match value.TryGetFunctionLogicalParameterAttributesByIndex(i) with
-                    | ValueSome(attrs) -> attrs
-                    | _ -> ImArray.empty
-
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
                     checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                 )
@@ -1051,11 +1046,6 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                     else
                         TypeSymbolError
 
-                let parAttrs =
-                    match value.TryGetFunctionLogicalParameterAttributesByIndex(i) with
-                    | ValueSome(attrs) -> attrs
-                    | _ -> ImArray.empty
-
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
                     checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                 )
@@ -1099,11 +1089,10 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
     match expr with
     | E.Literal _
     | E.Lambda _ 
-    | E.Witness _ when env.isPassedAsArgument ->
-        checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
-        expr
+    | E.Witness _ 
     | E.NewArray _
     | E.NewTuple _ when env.isPassedAsArgument ->
+        checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
         expr
     | E.Call(value=value) when env.isPassedAsArgument ->
         if value.IsFunctionGroup then

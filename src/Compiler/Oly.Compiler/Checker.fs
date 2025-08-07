@@ -778,7 +778,7 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
             if env.reportTypeErrors then
                 solveTypes env expr.Syntax expectedTy exprTy
         else
-            solveTypesWithSubsumption env expr.Syntax expectedTy exprTy
+            solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let reportError name syntax =

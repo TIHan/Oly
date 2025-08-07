@@ -46,10 +46,10 @@ type ConstraintSolverError =
     | GeneralFailure
     | ShapeMembers_AmbiguousFunctions of abstractFunc: IFunctionSymbol
 
-let private solveTypesNoError (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
+let private solveTypesNoError expectedTy (ty: TypeSymbol) =
     UnifyTypes Flexible expectedTy ty
 
-let private solveTypesWithSubsumptionNoError (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
+let private solveTypesWithSubsumptionNoErrorWith (env: SolverEnvironment) rigidity expectedTy (ty: TypeSymbol) =
     // REVIEW: We ignore solving if the type is an error.
     //         Typically, this is due to a Call expression returning an error type because it's
     //         currently a function group; which could be resolved later from function overloading.
@@ -60,18 +60,21 @@ let private solveTypesWithSubsumptionNoError (env: SolverEnvironment) syntaxNode
     //     1. Perform inference type unification when checking the argument type.
     //     2. If '1.' fails, then see if the expected type subsumes the given type.
     //     3. If '2.' fails, then check for shape subsumption if the expected type is a shape.
-    if not (UnifyTypes Flexible expectedTy ty || subsumesTypeWith Flexible expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv Flexible expectedTy ty else false)) then
+    if not (UnifyTypes rigidity expectedTy ty || subsumesTypeWith rigidity expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv rigidity expectedTy ty else false)) then
         false
     else
         true
 
 let solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (ty: TypeSymbol) =
-    if not (solveTypesNoError env syntaxNode expectedTy ty) && env.reportTypeErrors then
+    if not (solveTypesNoError expectedTy ty) && env.reportTypeErrors then
+        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
+
+let solveTypesWithSubsumptionWith (env: SolverEnvironment) rigidity syntaxNode expectedTy (ty: TypeSymbol) =
+    if not (solveTypesWithSubsumptionNoErrorWith env rigidity expectedTy ty) && env.reportTypeErrors then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
 
 let solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
-    if not (solveTypesWithSubsumptionNoError env syntaxNode expectedTy ty) && env.reportTypeErrors then
-        env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
+    solveTypesWithSubsumptionWith env Flexible syntaxNode expectedTy ty
 
 let solveFunctionAmbiguities env syntaxNode (funcs: IFunctionSymbol seq) (argTys: TypeSymbol imarray) =
     if Seq.isEmpty funcs then
