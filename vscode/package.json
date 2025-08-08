@@ -231,6 +231,7 @@
                     "conditionalDirectiveBody": "#9B9B9B"
                 }
             },
+			"editor.wordBasedSuggestions": "off",
 			"debug.allowBreakpointsEverywhere": true,
 			"files.watcherExclude": {
 				"**/.git/objects/**": true,
