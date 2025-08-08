@@ -1,4 +1,12 @@
-﻿[<AutoOpen>]
+﻿/// This is the primary place where expressions are checked of their types.
+/// Overload resolution and constraint solving happen here as well.
+/// Note: 'AddressOf' functions are special; they have heuristics that can decide to use
+///        a 'mutable' or an immutable function from a struct.
+///        In order to accomplish this, we have to do an extra 'checkExpressionAux' pass
+///        on the argument of 'AddressOf'.
+///        'AddressOf' is also special in that a 'FunctionGroupSymbol' is considered an 'AddressOf' if
+///        all the functions in the group are 'AddressOf' functions. This is necessary.
+[<AutoOpen>]
 module internal rec Oly.Compiler.Internal.Binder.Checking
 
 open Oly.Core
@@ -192,14 +200,14 @@ let determineByRefKind argExpr =
     match argExpr with
     | E.Value(value=value) when value.IsLocal ->
         if value.IsMutable then
-            ByRefKind.ReadOnly
-        else
             ByRefKind.ReadWrite
+        else
+            ByRefKind.ReadOnly
     | E.GetField(field=field) ->
         if field.IsMutable then
-            ByRefKind.ReadOnly
-        else
             ByRefKind.ReadWrite
+        else
+            ByRefKind.ReadOnly
     | E.Call(value=value) ->
         match value.TryWellKnownFunction with
         | ValueSome(WellKnownFunction.GetArrayElement) ->
@@ -209,9 +217,9 @@ let determineByRefKind argExpr =
             else
                 ByRefKind.ReadWrite
         | _ ->
-            ByRefKind.ReadWrite
+             ByRefKind.ReadWrite
     | _ ->
-        ByRefKind.ReadWrite
+          ByRefKind.ReadWrite
 
 let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray) =
     if funcs.Length <= 1 then funcs
@@ -478,10 +486,38 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
         unreached()
 
 /// Returns the same kind of expression that was given.
-let checkMutableStructReceiverExpression expr =
+let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) when value.IsAddressOf ->
+
         match argExprs[0] with
+        | AutoDereferenced(argInnerExpr) ->
+            if value.IsFunctionGroup && argInnerExpr.Type.IsByRef_t then
+                let byRefKind =
+                    if argInnerExpr.Type.IsReadOnlyByRef then
+                        ByRefKind.ReadOnly
+                    else
+                        ByRefKind.ReadWrite
+
+                let funcs = (value :?> FunctionGroupSymbol).Functions
+
+                let newFuncs =
+                    funcs
+                    |> ImArray.filter (fun x ->
+                        match byRefKind with
+                        | ByRefKind.ReadOnly -> x.ReturnType.IsReadOnlyByRef
+                        | ByRefKind.ReadWrite -> x.ReturnType.IsReadWriteByRef
+                        | _ -> false
+                    )
+
+                match tryOverloadCallExpression cenv env false None syntaxInfo receiverExprOpt argExprs newFuncs CallFlags.None with
+                | Some newExpr ->
+                    checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt newExpr
+                    newExpr
+                | _ -> 
+                    expr
+            else
+                expr
         | E.Call(syntaxInfoCall, receiverExprOptCall, witnessArgsCall, argExprsCall, valueCall, flagsCall) when valueCall.IsFunctionGroup ->
             match receiverExprOptCall with
             | Some(receiverExprCall) when receiverExprCall.Type.IsByRef_t ->
@@ -647,16 +683,20 @@ let lateCheckTypeArgumentsOfCallExpression cenv expr =
     | _ ->
         unreached()
 
-let lateCheckPropertyExpression cenv env expr =
-    match expr with
-    | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Getter.IsNone || not (prop.Getter.Value.IsAccessible(env.benv.ac)) then
-            cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
+let lateCheckPropertyExpression cenv env tyChecking expr =
+    match tyChecking with
+    | TypeChecking.Enabled ->
+        match expr with
+        | E.GetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+            if prop.Getter.IsNone || not (prop.Getter.Value.IsAccessible(env.benv.ac)) then
+                cenv.diagnostics.Error($"Unable to get property value as '{prop.Name}' does not have a getter.", 10, syntaxInfo.SyntaxNameOrDefault)
 
-    | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
-        if prop.Setter.IsNone || not (prop.Setter.Value.IsAccessible(env.benv.ac)) then
-            cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
+        | E.SetProperty(syntaxInfo=syntaxInfo;prop=prop) ->
+            if prop.Setter.IsNone || not (prop.Setter.Value.IsAccessible(env.benv.ac)) then
+                cenv.diagnostics.Error($"Unable to set property value as '{prop.Name}' does not have a setter.", 10, syntaxInfo.SyntaxNameOrDefault)
 
+        | _ ->
+            ()
     | _ ->
         ()
 
@@ -718,7 +758,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     | E.GetProperty _
     | E.SetProperty _ ->
-        lateCheckPropertyExpression cenv env expr
+        lateCheckPropertyExpression cenv env tyChecking expr
 
     | _ ->
         ()
@@ -744,27 +784,49 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
         | _ ->
             true
 
-    match tyChecking with
-    | TypeChecking.Enabled ->
-        match expr with
-        | AutoDereferenced bodyExpr ->
-            match bodyExpr with
-            | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false bodyExpr
-            | _ ->
-                ()
+    match expr with
+    | AutoDereferenced bodyExpr ->
+        match bodyExpr with
+        | E.Call _ ->
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false bodyExpr
         | _ ->
-            match expr with
-            | E.Call _ ->
-                checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false expr 
-            | _ ->
-                ()
+            ()
     | _ ->
-        ()
+        match expr with
+        | E.Call _ ->
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false expr 
+        | _ ->
+            ()
 
     let expr = autoDereferenceValueOrCallExpression expr
     if recheckExpectedTy then
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
+
+    if not env.isPassedAsArgument then
+        // Error recovery: At this point, an overload was unable to be found and we will not try to solve overloading for this call.
+        //                 Recovery is to solve argument types with error types so they will not reported in PostInferenceAnalysis.
+        match expr with
+        | E.Call(args=argExprs;value=value) when value.IsFunctionGroup ->
+            argExprs
+            |> ImArray.iter (fun argExpr ->
+                solveTypes (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) argExpr.Syntax TypeSymbolError argExpr.Type
+                |> ignore
+            )
+        | _ ->
+            ()
+
+        // Lock inference variables from being re-solved.
+        let rec lockInferenceVariables ty =
+            match ty with
+            | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
+            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
+                externalSolution.SetLocked()
+                solution.SetLocked()
+            | _ ->
+                ty.TypeArguments
+                |> ImArray.iter lockInferenceVariables
+
+        lockInferenceVariables expr.Type
 
     expr
 
@@ -797,18 +859,18 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         expr
 
     | E.Call _ ->
-        checkEarlyArgumentsOfCallExpression cenv env true expr                          |> assertIsCallExpression
-        |> checkOverloadCallExpression cenv env true None                               |> assertIsCallExpression
-        |> checkImplicitArgumentsOfCallExpression env                                   |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
-        |> checkMutableStructReceiverExpression                                         |> assertIsCallExpression
-        |> checkEarlyArgumentsOfCallExpression cenv env false                           |> assertIsCallExpression
-        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt                 |> assertIsCallExpression
-        |> checkImplicitArgumentsOfCallExpression env                                   |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking                              |> assertIsCallExpression
-        |> ImplicitRules.ImplicitCallExpression env.benv                                |> assertIsCallExpression
-        |> checkArgumentsOfCallLikeExpression cenv env tyChecking                       |> assertIsCallExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env             |> assertIsCallExpression                                                
+        checkEarlyArgumentsOfCallExpression cenv env true expr              |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env true None                   |> assertIsCallExpression
+        |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking                  |> assertIsCallExpression
+        |> checkAddressOfExpression cenv env tyChecking expectedTyOpt       |> assertIsCallExpression
+        |> checkEarlyArgumentsOfCallExpression cenv env false               |> assertIsCallExpression
+        |> checkOverloadCallExpression cenv env skipEager expectedTyOpt     |> assertIsCallExpression
+        |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking                  |> assertIsCallExpression
+        |> ImplicitRules.ImplicitCallExpression env.benv                    |> assertIsCallExpression
+        |> checkArgumentsOfCallLikeExpression cenv env tyChecking           |> assertIsCallExpression
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env |> assertIsCallExpression                                                
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.NewTuple _
@@ -824,11 +886,11 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
-        checkOverloadPartialCallExpression cenv env expectedTyOpt expr           |> assertIsFunctionValueOrLambdaExpression
+        checkOverloadPartialCallExpression cenv env expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
-        checkWitnessExpression cenv env tyChecking expr                                 |> assertIsWitnessExpression
+        checkWitnessExpression cenv env tyChecking expr |> assertIsWitnessExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.IfElse _ ->
@@ -925,9 +987,11 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
             | E.Lambda _  ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | E.Call(value=value) when value.IsFunctionGroup ->
-                let argExpr = checkOverloadCallExpression cenv env false expectedTyOpt argExpr
+                let argExpr = 
+                    checkOverloadCallExpression cenv env false expectedTyOpt argExpr
+                    |> checkArgumentsOfCallLikeExpression cenv env tyChecking 
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
-                argExpr
+                argExpr            
             | _ ->
                 if isAddrOf then
                     checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
@@ -936,7 +1000,7 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
                     argExpr
     )
 
-let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr =
+let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr : unit =
     match expectedTyOpt with
     | Some expectedTy ->
         match tyChecking with
@@ -973,6 +1037,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
     | _ ->
         unreached()
 
+/// Needs to be called after overload resolution.
 let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking: TypeChecking) expr =
     match expr with
     | E.NewArray(syntaxExpr, benv, argExprs, exprTy) ->
@@ -1007,6 +1072,10 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         E.NewTuple(syntaxInfo, newArgExprs, exprTy)
 
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
+        if value.IsFunctionGroup then
+            expr
+        else
+
         let argTys = value.LogicalType.FunctionArgumentTypes
 
         if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
@@ -1022,9 +1091,32 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                     else
                         TypeSymbolError
 
-                argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
-                )
+                let derefExprOpt =
+                    if value.IsAddressOf then
+                        match argExpr with
+                        | AutoDereferenced(argInnerExpr) ->
+                            checkExpressionAux cenv env tyChecking None argInnerExpr
+                            |> autoDereferenceValueOrCallExpression
+                            |> Some
+                        | _ ->
+                            None
+                    else
+                        None
+
+                match derefExprOpt with
+                | Some(argExpr) -> argExpr
+                | _ ->
+                    argExpr.RewriteReturningTargetExpression(fun argExpr ->
+                        if value.IsAddressOf then
+                            match argExpr with
+                            | AutoDereferenced(argInnerExpr) ->
+                                checkExpressionAux cenv env tyChecking None argInnerExpr
+                                |> autoDereferenceValueOrCallExpression
+                            | _ ->
+                                checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                        else
+                            checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                    )
             )
 
         match tyChecking with
@@ -1044,10 +1136,9 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
             when 
                 bindingInfo.Value.IsSingleUse && 
                 bindingInfo.Value.IsGenerated ->
-        let newRhsExpr = checkExpressionAux cenv env tyChecking (Some bindingInfo.Value.Type) rhsExpr
         let newBodyExpr = checkExpressionAux cenv env tyChecking None bodyExpr
 
-        if newRhsExpr = rhsExpr && newBodyExpr = bodyExpr then
+        if newBodyExpr = bodyExpr then
             expr
         else
             E.Let(syntaxInfo, bindingInfo, rhsExpr, newBodyExpr)
@@ -1068,4 +1159,7 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
         checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
         expr
     | _ ->
-        checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
+        if env.isPassedAsArgument then
+            checkExpressionAux cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
+        else
+            checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr

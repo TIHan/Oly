@@ -296,13 +296,13 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             match origTy1, origTy2 with
             | TypeSymbol.InferenceVariable(_, solution1), _
                 when 
-                    solution1.HasSolution && 
+                    not solution1.IsLocked && origTy1.IsSolved &&
                     not(areTypesEqual solution1.Solution origTy2) && subsumesType origTy2 solution1.Solution ->
                 solution1.Solution <- stripTypeEquations origTy2
                 true
             | origTy1, TypeSymbol.InferenceVariable(_, solution2)
                 when 
-                    solution2.HasSolution && 
+                    not solution2.IsLocked && origTy2.IsSolved &&
                     not(areTypesEqual solution2.Solution origTy1) && subsumesType origTy1 solution2.Solution ->
                 solution2.Solution <- stripTypeEquations origTy1
                 true

@@ -9784,7 +9784,7 @@ nuint(int32): nuint
     x.get_Item(key)
 
 struct S<T> =
-    public field X: T
+    public field mutable X: T
     new(x: T) = this { X = x }
 
 M(): () =
@@ -9799,6 +9799,73 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "456"
+
+[<Fact>]
+let ``Should fail address-of correctly because field is not mutable``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+struct S<T> =
+    public field X: T
+    new(x: T) = this { X = x }
+
+M(): () =
+    let mutable s = S(S(456))
+    let z = &s.X
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+    print(res.X)
+
+main(): () =
+    M()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'byref<S<int32>>' but is 'inref<S<int32>>'.",
+                """
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+                                                                    ^^
+"""
+            )
+        ]
+    |> ignore
 
 
 [<Fact>]

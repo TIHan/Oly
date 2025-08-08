@@ -3251,7 +3251,14 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool, isStrict: bo
     let constrs = ResizeArray<ConstraintSymbol>()
     let mutable solutionState: TypeSymbol = Unchecked.defaultof<_> // We are not using option for perf reasons.
 
+    let mutable isLocked = false
+
     member this.Id = id
+
+    member this.SetLocked() =
+        isLocked <- true
+
+    member this.IsLocked = isLocked
 
     member this.Solution
 
@@ -3697,7 +3704,7 @@ type TypeSymbol =
                 "?"
         | DependentIndexer(_, formalTy) -> "!!dependent!!" + formalTy.Name // TODO:
         | Error _ -> 
-            "?"
+            "??"
 
     /// Returns false for NativeInt or NativeUInt
     /// TODO: rename to 'IsAnyFixedInteger'
