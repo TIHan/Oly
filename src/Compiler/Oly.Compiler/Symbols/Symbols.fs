@@ -47,6 +47,8 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
 #endif
     let varSolution = VariableSolutionSymbol(false, tyPar.HasArity, false)
     varSolution.Solution <- ty
+    if ty.IsSolved then
+        varSolution.SetLocked()
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 let mkSolvedStrictInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
@@ -58,11 +60,15 @@ let mkSolvedStrictInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSy
 #endif
     let varSolution = VariableSolutionSymbol(false, tyPar.HasArity, true)
     varSolution.Solution <- ty
+    if ty.IsSolved then
+        varSolution.SetLocked()
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
     let varSolution = mkVariableSolution()
     varSolution.Solution <- ty
+    if ty.IsSolved then
+        varSolution.SetLocked()
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(true, false, false))

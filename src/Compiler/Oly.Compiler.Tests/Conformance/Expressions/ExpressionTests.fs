@@ -11310,3 +11310,33 @@ main(): () =
     )
     """
     |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "xs: (int32, int32)[]"
+
+
+[<Fact>]
+let ``Should error as G<A> does not match G<object>``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+class G<T> =
+    new(x: T) = this { }
+
+M(xs: G<__oly_object>): () = print("hello")
+
+main(): () =
+    let _ = M(G<A>(A()))
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'G<__oly_object>' but is 'G<A>'.",
+                """
+    let _ = M(G<A>(A()))
+              ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
