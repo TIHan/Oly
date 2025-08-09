@@ -2484,7 +2484,7 @@ type OlyBoundModel internal (
     member this.TryGetSubModel(syntaxToken: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
 
-        let data = ResizeArray<IBoundNode * BoundEnvironment>()
+        let data = ResizeArray<IBoundNode>()
         
         let syntaxNode = syntaxToken.Node
 
@@ -2498,22 +2498,18 @@ type OlyBoundModel internal (
                     match expr with
                     | BoundExpression.Sequential _ -> ()
                     | _ ->
-                        match expr.TryEnvironment with
-                        | Some benv ->
-                            data.Add(boundNode, benv)
-                        | _ ->
-                            ()
+                        data.Add(boundNode)
                 | _ ->
                     ()
             )
         )
 
         data
-        |> Seq.sortBy (fun (boundNode, _) ->
+        |> Seq.sortBy (fun boundNode ->
             boundNode.Syntax.TextSpan.Width
         )
         |> Seq.tryHead
-        |> Option.map (fun (boundNode, benv) -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
+        |> Option.map (fun boundNode -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
 
     member this.TryGetWhitespaceSubModel(offside: int, syntaxToken: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -2537,14 +2533,10 @@ type OlyBoundModel internal (
                 match boundNode with
                 | :? BoundExpression as expr ->
                     match expr with
-                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _) as noneExpr)) when not syntaxInfo.IsGenerated ->
+                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _))) when not syntaxInfo.IsGenerated ->
                         let column = expr.Syntax.GetTextRange(ct).Start.Column
                         if offside >= column then
-                            match noneExpr.TryEnvironment with
-                            | Some benv ->
-                                data.Add(boundNode)
-                            | _ ->
-                                ()
+                            data.Add(boundNode)
                     | _ ->
                         ()
                 | _ ->
