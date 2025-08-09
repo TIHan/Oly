@@ -4813,7 +4813,8 @@ module SymbolExtensions =
             ///     or the enclosing type parameters if the value is a constructor.
             member this.TypeParametersOrConstructorEnclosingTypeParameters =
                 if this.IsConstructor then
-                    let enclosingEnclosingTyPars = this.Enclosing.Enclosing.TypeParameters
+                    let enclosingEnclosingTyPars = 
+                        this.Enclosing.Enclosing.TypeParameters
                     if enclosingEnclosingTyPars.IsEmpty then
                         this.Enclosing.TypeParameters
                     else

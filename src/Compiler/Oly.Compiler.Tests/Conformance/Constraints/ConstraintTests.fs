@@ -1290,7 +1290,7 @@ test<T>(): () where T: { new() } =
         """
     src |> hasSymbolSignatureTextByCursor "x: T"
 
-[<Fact(Skip = "Stack overflows")>]
+[<Fact>]
 let ``Shape constraint can have a constructor with the right signature 2``() =
     let src =
         """

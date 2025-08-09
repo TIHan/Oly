@@ -3024,38 +3024,6 @@ main() : () =
     |> withCompile
     |> shouldRunWithExpectedOutput ""
 
-[<Fact(Skip = "We cannot call 'test' as it is marked as unmanaged callers only, we need a new test. Passes in Release vs Debug - weird .NET behavior.")>]
-let ``UnmanagedCallersOnly example``() =
-    let src =
-        """
-namespace A
-
-open System.Runtime.InteropServices
-open System.Runtime.CompilerServices
-
-#[open]
-module Test =
-
-    #[intrinsic("constant")]
-    #[import("intrinsic-CLR", "", "typeof")]
-    typeof<T>(): System.Type
-
-    #[UnmanagedCallersOnly() { CallConvs = [DotNet.TypeOf<CallConvCdecl>] })]
-    test(x: __oly_int32): __oly_int32 = x
-
-module Main =
-
-    #[intrinsic("print")]
-    print(__oly_object): ()
-
-    main(): () =
-        let result = test(1234)
-        print(result)
-        """
-    Oly src
-    |> withCompile
-    |> shouldRunWithExpectedOutput "1234"
-
 [<Fact>]
 let ``Using SystemValueType subsumption``() =
     let src =
@@ -7031,7 +6999,7 @@ module Program =
     |> withCompile
     |> shouldRunWithExpectedOutput "5"
 
-[<Fact(Skip = "Executing within the test process results in an AV")>]
+[<Fact>]
 let ``Complex use of fields and structs and mutation with exported``() =
     let src =
         """
@@ -7096,20 +7064,17 @@ struct S3<T> where T: IA =
 #[export]
 module Program =
 
-    #[export]
     M<T>(x: S3<T>): int32 where T: IA =
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     M2<T>(x: S3<T>): int32 where T: IA =
         x.SetX(1)
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     main(): () =
         let mutable s = S3<S2<S>>()
         let result = M(s)

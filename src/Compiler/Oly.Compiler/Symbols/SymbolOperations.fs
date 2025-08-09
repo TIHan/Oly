@@ -2909,7 +2909,15 @@ let freshenValueAux tyParExists enclosingTyInst (value: IValueSymbol) =
         if value.IsLocal then
             value.Formal.Substitute(tyArgs)
         else
-            value.Formal.GetActual(enclosing, tyArgs)
+            match value.Formal.Enclosing with
+            | EnclosingSymbol.Entity(ent) when ent.IsShape ->
+                match enclosing with
+                | EnclosingSymbol.Witness(concreteTy, ent) when value.IsInstanceConstructor ->
+                    value.Formal.GetActual(enclosing, tyArgs).MorphShapeConstructor(concreteTy, ent.AsType)
+                | _ ->
+                    value.Formal.GetActual(enclosing, tyArgs)
+            | _ ->
+                value.Formal.GetActual(enclosing, tyArgs)
     | _ ->
         if not value.IsInvalid then
             failwith "Invalid value symbol"

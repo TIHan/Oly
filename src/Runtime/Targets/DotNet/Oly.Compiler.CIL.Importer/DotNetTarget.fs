@@ -664,9 +664,17 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
     override _.GetImplicitExtendsForEnum() = Some "System.Enum"
 
     override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
-        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("DotNet")
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("DOTNET")
 
         let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
+            // UnmanagedCallersOnly
+            if symbolInfo.Symbol.IsFunction && symbolInfo.IsCallee then
+                symbolInfo.Symbol.AsValue.ForEachAttribute(
+                    fun attr ->
+                        if attr.Name = "UnmanagedCallersOnlyAttribute" then
+                            diagnostics.Error("Cannot call an 'UnmanagedCallersOnly' function.", 10, symbolInfo.Syntax)
+                )
+
             if (symbolInfo.Syntax.IsDefinition || symbolInfo.Syntax.IsCompilationUnit) && symbolInfo.Symbol.IsExported && symbolInfo.Symbol.IsType then
                 let ty = symbolInfo.Symbol.AsType
                 let subModel = symbolInfo.SubModel

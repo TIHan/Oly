@@ -265,6 +265,7 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                 | ResolutionArguments.NotAFunctionCall -> 
                     ValueNone
                 | _ ->
+                    // TODO: We may have to move this in checkExpression if we want to handle overloads.
                     let ctors =
                         tyPar.Constraints
                         |> ImArray.map (function

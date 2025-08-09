@@ -156,19 +156,6 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     | E.Typed(body=bodyExpr) ->
         bodyExpr
 
-    // LoadFunctionPtr lambda removal
-    // Removes the wrapping lambda if this is a LoadFunctionPtr.
-    // LoadFunctionPtr will now have a direct argument of the function value.
-    | LoadFunctionPtrOfLambdaWrappedFunctionCall(syntaxInfo, funcLoadFunctionPtr, syntaxInfoFunc, func) ->
-        E.Call(
-            syntaxInfo,
-            None,
-            ImArray.empty,
-            ImArray.createOne(E.Value(syntaxInfoFunc, func)),
-            funcLoadFunctionPtr,
-            CallFlags.None
-        )
-
     // Auto-properties
     | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo None origExpr

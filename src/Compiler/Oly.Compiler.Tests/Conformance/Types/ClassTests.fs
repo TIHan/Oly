@@ -910,7 +910,7 @@ class C =
 
     field x: int32 = 0
 
-    new() = { }
+    new() = this { }
         """
     Oly src
     |> withCompile

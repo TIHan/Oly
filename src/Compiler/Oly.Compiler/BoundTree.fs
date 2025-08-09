@@ -47,9 +47,15 @@ type IBoundNode =
 
     abstract Syntax : OlySyntaxNode
 
+    abstract IsExpression: bool
+
+    abstract TryGetEnvironment: unit -> BoundEnvironment option
+
 let boundNone (syntaxTree: OlySyntaxTree) = 
     { new IBoundNode with 
         member _.Syntax = syntaxTree.DummyNode
+        member _.IsExpression = false
+        member _.TryGetEnvironment() = None
     }
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
@@ -95,6 +101,10 @@ type BoundBinding =
             match this with
             | Implementation(syntaxInfo=syntaxInfo)
             | Signature(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
+
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() = None
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type BoundLiteral =
@@ -813,6 +823,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
         member this.Syntax = this.Syntax
 
+        member this.IsExpression = true
+
+        member this.TryGetEnvironment() = this.TryEnvironment
+
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundCasePattern =
     | Literal of BoundSyntaxInfo * BoundLiteral
@@ -863,6 +877,10 @@ type BoundCasePattern =
 
         member this.Syntax = this.Syntax
 
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() = None
+
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundMatchPattern =
     | Cases of OlySyntaxNode * casePats: BoundCasePattern imarray
@@ -909,6 +927,13 @@ type BoundRoot =
     interface IBoundNode with
 
         member this.Syntax = this.Syntax
+
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() =
+            match this with
+            | Namespace(benv=benv)
+            | Global(benv=benv) -> Some(benv)
 
 [<Sealed>]
 type BoundDeclarationTable private (

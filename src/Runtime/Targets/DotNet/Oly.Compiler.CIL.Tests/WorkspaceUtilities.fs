@@ -97,7 +97,10 @@ let buildHasErrorsWithPrefix target (expected: (string * string) list) src =
 
         Assert.Equal(expected, errorMsgs)
     | _ ->
-        failwith "Expected errors."
+        if expected.IsEmpty then
+            ()
+        else
+            failwith "Expected errors."
 
 let getNumericsDataKind<'T> =
     match typeof<'T> with

@@ -705,6 +705,10 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
     | LoadFunctionPtr(syntaxInfo, funcLoadFunctionPtr, _) ->
         match expr with
         | LoadFunctionPtrOfLambdaWrappedFunctionCall(_, _, innerSyntaxInfo, func) ->
+            if func.IsFunctionGroup then
+                expr
+            else
+
             match func.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys, returnTy) ->
                 // TODO: This is weird, all because this is to satisfy __oly_load_function_ptr type arguments.
@@ -736,17 +740,32 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
 
                 if func.AllTypeParameterCount > 0 then
                     cenv.diagnostics.Error("Getting the address of a function requires the function not be generic or enclosed by a generic type.", 10, innerSyntaxInfo.Syntax)
+                    expr
+                else
+                    // LoadFunctionPtr lambda removal
+                    // Removes the wrapping lambda if this is a LoadFunctionPtr.
+                    // LoadFunctionPtr will now have a direct argument of the function value.
+                    E.Call(
+                        syntaxInfo,
+                        None,
+                        ImArray.empty,
+                        ImArray.createOne(E.Value(innerSyntaxInfo, func)),
+                        funcLoadFunctionPtr,
+                        CallFlags.None
+                    )
             | _ ->
                 cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, innerSyntaxInfo.Syntax)
+                expr
         | _ ->
             cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax) 
+            expr
     | FromAddress(expr) when expr.Type.IsWriteOnlyByRef ->
         cenv.diagnostics.Error("Cannot dereference a write-only by-reference expression.", 10, expr.Syntax) 
+        expr
     | E.Call _ ->
-        ()
+        expr
     | _ ->
         unreached()
-    expr
 
 let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expectedTyOpt: TypeSymbol option) expr =
     // TODO: Ideally we should not do these checks based on syntax after its bound.
