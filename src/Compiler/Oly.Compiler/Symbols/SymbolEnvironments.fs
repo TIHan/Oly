@@ -321,7 +321,7 @@ type BoundEnvironment =
         this.senv.parameters |> Seq.tryFind (fun x -> x.Name = name) 
 
     member this.TryFindTypeParameter name =
-        let resultOpt = this.senv.typeParameters |> Seq.tryFind (fun x -> x.Name = name)
+        let resultOpt = this.senv.typeParameters |> ImArray.tryFind (fun x -> x.Name = name)
 
         // TODO: We should get rid of this check, we only need it to look up the type parameter in the constraint.
         if resultOpt.IsNone then

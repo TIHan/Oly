@@ -1107,15 +1107,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 | Some(argExpr) -> argExpr
                 | _ ->
                     argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                        if value.IsAddressOf then
-                            match argExpr with
-                            | AutoDereferenced(argInnerExpr) ->
-                                checkExpressionAux cenv env tyChecking None argInnerExpr
-                                |> autoDereferenceValueOrCallExpression
-                            | _ ->
-                                checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
-                        else
-                            checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                        checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                     )
             )
 

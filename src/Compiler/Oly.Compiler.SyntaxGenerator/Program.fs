@@ -406,11 +406,11 @@ let computeConversionTree cenv (tree: XmlElement) =
 
     cenv.tags
     |> Seq.iter (fun name ->
-        $"        | {name}.Tag -> Oly{name}(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode\n"
+        $"        | {name}.Tag -> Oly{name}(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode\n"
         |> add cenv
     )
 
-    "        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode\n"
+    "        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode\n"
     |> add cenv
 
     "        | Tags.Terminal -> tree.DummyNode\n"
@@ -424,127 +424,127 @@ let computeConversionTree cenv (tree: XmlElement) =
 
     // HACKY
 
-    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
-    $"        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode, convert) :> OlySyntaxNode\n"
+    $"        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode, convert) : OlySyntaxNode\n"
     |> add cenv
 
     // END HACKY
