@@ -2508,6 +2508,7 @@ type OlyBoundModel internal (
         |> Seq.sortBy (fun boundNode ->
             boundNode.Syntax.TextSpan.Width
         )
+        |> Seq.filter (fun boundNode -> boundNode.TryGetEnvironment().IsSome)
         |> Seq.tryHead
         |> Option.map (fun boundNode -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
 
@@ -2548,6 +2549,7 @@ type OlyBoundModel internal (
         |> Seq.sortBy (fun boundNode ->
             boundNode.Syntax.TextSpan.Width
         )
+        |> Seq.filter (fun boundNode -> boundNode.TryGetEnvironment().IsSome)
         |> Seq.tryHead
         |> Option.map (fun boundNode -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
 
