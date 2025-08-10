@@ -889,7 +889,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkCalleeOfCallExpression cenv env tyChecking                  |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                    |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking           |> assertIsCallExpression
-        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env |> assertIsCallExpression                                                
+        |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env                                           
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.NewTuple _

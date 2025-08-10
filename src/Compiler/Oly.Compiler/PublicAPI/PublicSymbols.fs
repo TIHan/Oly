@@ -2534,10 +2534,10 @@ type OlyBoundModel internal (
                 match boundNode with
                 | :? BoundExpression as expr ->
                     match expr with
-                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _))) when not syntaxInfo.IsGenerated ->
+                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _) as rhsExpr)) when not syntaxInfo.IsGenerated ->
                         let column = expr.Syntax.GetTextRange(ct).Start.Column
                         if offside >= column then
-                            data.Add(boundNode)
+                            data.Add(rhsExpr)
                     | _ ->
                         ()
                 | _ ->
