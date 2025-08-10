@@ -20,7 +20,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Invalid use of runtime array.",
+            ("SPIRV: Invalid use of runtime array.",
                 """
     let x = buffer
             ^^^^^^
@@ -38,7 +38,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Only available in execution model(s) 'compute'.",
+            ("SPIRV: Only available in execution model(s) 'compute'.",
                 """
     let x = GlobalInvocationId.X
             ^^^^^^^^^^^^^^^^^^
@@ -56,7 +56,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Only available in execution model(s) 'vertex'.",
+            ("SPIRV: Only available in execution model(s) 'vertex'.",
                 """
     Position <- vec4(0)
     ^^^^^^^^
@@ -80,7 +80,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Nested structs are only available in version 1.3 or greater.",
+            ("SPIRV: Nested structs are only available in version 1.3 or greater.",
                 """
     public field mutable Value: TestData = TestData()
                          ^^^^^
@@ -100,7 +100,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: 'EmptyStruct' must declare at least one or more fields.",
+            ("SPIRV: 'EmptyStruct' must declare at least one or more fields.",
                 """
 struct EmptyStruct
        ^^^^^^^^^^^
@@ -122,7 +122,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Uniforms cannot be a mutable array type.",
+            ("SPIRV: Uniforms cannot be a mutable array type.",
                 """
 buffer: mutable vec2[]
 ^^^^^^
@@ -144,7 +144,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: Storage buffers are only available in version 1.3 or greater.",
+            ("SPIRV: Storage buffers are only available in version 1.3 or greater.",
                 """
 buffer: mutable vec2[]
 ^^^^^^
@@ -166,7 +166,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: 'vec3' must be 16-byte aligned.",
+            ("SPIRV: 'vec3' must be 16-byte aligned.",
                 """
 buffer: vec3[]
 ^^^^^^
@@ -187,7 +187,7 @@ main(): () =
     """
     |> buildHasErrors
         [
-            ("SPIR-V: 'S' must be 16-byte aligned.",
+            ("SPIRV: 'S' must be 16-byte aligned.",
                 """
 struct S =
        ^

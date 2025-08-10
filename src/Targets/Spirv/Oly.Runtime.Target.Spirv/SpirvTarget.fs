@@ -146,7 +146,7 @@ type SpirvTarget() =
             | Constants.lib -> AttributeFlags.None
             | _ -> unreached()
 
-        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("SPIR-V")
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("SPIRV")
 
         let isSpirvAttributeName attrName =
             match attrName with
