@@ -1412,3 +1412,38 @@ class Example =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Cannot use _protected_ if the signature has an _internal_``() =
+    let src =
+        """
+internal struct S
+
+abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'S' is less accessible than the member its used in.",
+                """
+    protected abstract M(s: S): ()
+                            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Can use _protected_ on an internal type if the signature has an _internal_ type``() =
+    let src =
+        """
+internal struct S
+
+internal abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> shouldCompile
