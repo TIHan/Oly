@@ -2130,17 +2130,24 @@ test(y: __oly_int32) : __oly_int32 =
     |> ignore
 
 [<Fact>]
-let ``Should error with right diagnostics 11``() =
+let ``Should compile with right signature as most flexible inference occured``() =
     let src =
         """
 test() : () = 
-    let f = (x: __oly_int32) -> if (true) 1 else 2.0
+    let ~^~f = (x: __oly_int32) -> if (true) 1 else 2.0
         """
-    Oly src
-    |> withErrorDiagnostics [
-        "Expected type '__oly_int32' but is '__oly_float64'."
-    ]
-    |> ignore
+    src
+    |> hasSymbolSignatureTextByCursor "f(x: __oly_int32): __oly_float64"
+
+[<Fact>]
+let ``Should compile with right signature as most flexible inference occured 2``() =
+    let src =
+        """
+test() : () = 
+    let ~^~f = (x: __oly_int32) -> if (true) 2.0 else 1
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "f(x: __oly_int32): __oly_float64"
 
 [<Fact>]
 let ``Should compile with certain constraint order``() =
@@ -11340,3 +11347,29 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Number inference should work``() =
+    let src =
+        """
+class Var<T> =
+    new(value: T) = this { }
+
+main(): () =
+    let x: Var<__oly_float32> = Var(0.1)
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Number inference should have right signature``() =
+    let src =
+        """
+class Var<T> =
+    new(value: T) = this { }
+
+main(): () =
+    let x: Var<__oly_float32> = Var(~^~0.1)
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "0.1: __oly_float32"

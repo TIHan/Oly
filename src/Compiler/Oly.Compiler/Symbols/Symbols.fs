@@ -1506,9 +1506,9 @@ let private stripTypeEquations_EagerInferenceVariable skipAlias skipModifiers (t
     match ty with
     | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then
-            let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
-            solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias solution.Solution // cache solution
-            strippedTy
+            // Note: We do not cache the solution like other inference variables
+            //       to preserve linked inference variables.
+            stripTypeEquationsAux skipAlias skipModifiers solution.Solution
         else
             ty
     | _ ->

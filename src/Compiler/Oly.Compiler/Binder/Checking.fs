@@ -851,19 +851,6 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
 let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
-    | E.Literal(syntaxInfo, BoundLiteral.NumberInference(lazyLiteral, _)) ->
-        checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
-
-        match tyChecking with
-        | TypeChecking.Enabled ->
-            match tryEvaluateLazyLiteral cenv.diagnostics lazyLiteral with
-            | ValueSome(literal) ->
-                E.Literal(syntaxInfo, stripLiteral literal)
-            | _ ->
-                expr
-        | _ ->
-            expr
-
     | E.Literal _ ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
         expr

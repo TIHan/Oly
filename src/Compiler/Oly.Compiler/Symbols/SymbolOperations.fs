@@ -287,27 +287,84 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
 let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSymbol) : bool =
     UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit = returnTy2.IsRealUnit
 
+let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
+    match origTy1, origTy2 with
+    | TypeSymbol.InferenceVariable(_, solution1), _
+        when 
+            not solution1.IsLocked && origTy1.IsSolved &&
+            not(areTypesEqual solution1.Solution origTy2) ->
+        match stripTypeEquations origTy1 with
+        | TypeSymbol.Float64 ->
+            match stripTypeEquations origTy2 with
+            | TypeSymbol.Float32 as origTy2 ->
+                solution1.Solution <- origTy2
+                true
+            | _ ->
+                false
+        | TypeSymbol.Int32 ->
+            match stripTypeEquations origTy2 with
+            | TypeSymbol.Int64
+            | TypeSymbol.UInt64 
+            | TypeSymbol.UInt32
+            | TypeSymbol.Int16
+            | TypeSymbol.UInt16
+            | TypeSymbol.Int8
+            | TypeSymbol.UInt8 
+            | TypeSymbol.Float32 
+            | TypeSymbol.Float64 as origTy2 ->
+                solution1.Solution <- origTy2
+                true
+            | _ ->
+                false
+        | _ ->
+            if subsumesType origTy2 solution1.Solution then
+                solution1.Solution <- stripTypeEquations origTy2
+                true
+            else
+                false
+    | _, TypeSymbol.InferenceVariable(_, solution2)
+        when 
+            not solution2.IsLocked && origTy2.IsSolved &&
+            not(areTypesEqual solution2.Solution origTy1) ->
+        match stripTypeEquations origTy2 with
+        | TypeSymbol.Float64 ->
+            match stripTypeEquations origTy1 with
+            | TypeSymbol.Float32 as origTy1 ->
+                solution2.Solution <- origTy1
+                true
+            | _ ->
+                false
+        | TypeSymbol.Int32 ->
+            match stripTypeEquations origTy1 with
+            | TypeSymbol.Int64
+            | TypeSymbol.UInt64 
+            | TypeSymbol.UInt32
+            | TypeSymbol.Int16
+            | TypeSymbol.UInt16
+            | TypeSymbol.Int8
+            | TypeSymbol.UInt8 
+            | TypeSymbol.Float32 
+            | TypeSymbol.Float64 as origTy1 ->
+                solution2.Solution <- origTy1
+                true
+            | _ ->
+                false
+        | _ ->
+            if subsumesType origTy1 solution2.Solution then
+                solution2.Solution <- stripTypeEquations origTy1
+                true
+            else
+                false
+    | _ ->
+        false
+
 let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     if obj.ReferenceEquals(origTy1, origTy2) then true
     else
 
     let success =
         if rigidity = MostFlexible then
-            match origTy1, origTy2 with
-            | TypeSymbol.InferenceVariable(_, solution1), _
-                when 
-                    not solution1.IsLocked && origTy1.IsSolved &&
-                    not(areTypesEqual solution1.Solution origTy2) && subsumesType origTy2 solution1.Solution ->
-                solution1.Solution <- stripTypeEquations origTy2
-                true
-            | origTy1, TypeSymbol.InferenceVariable(_, solution2)
-                when 
-                    not solution2.IsLocked && origTy2.IsSolved &&
-                    not(areTypesEqual solution2.Solution origTy1) && subsumesType origTy1 solution2.Solution ->
-                solution2.Solution <- stripTypeEquations origTy1
-                true
-            | _ ->
-                false
+            unifyMostFlexible origTy1 origTy2
         else
             false
 
@@ -2861,13 +2918,26 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
     match ty with
     | TypeSymbol.InferenceVariable(Some tyPar, varSolution) when varSolution.HasSolution ->
         let ty = (freshen cache explicitTyArgs varSolution.Solution)
-        if ty.HasImmediateStrictInferenceVariableTypeParameter then
-            mkSolvedStrictInferenceVariableType tyPar ty
-        else
-            mkSolvedInferenceVariableType tyPar ty
-    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, varSolution) when varSolution.HasSolution ->
+        match ty with
+        // If the freshen'ed type has the same type parameter, then just return it.
+        // We should not create another indirection as it could hurt some eager inference solving for numerics.
+        | TypeSymbol.InferenceVariable(Some tyPar2, _) when tyPar.Id = tyPar2.Id ->
+            ty
+        | _ ->
+            if ty.HasImmediateStrictInferenceVariableTypeParameter then
+                mkSolvedStrictInferenceVariableType tyPar ty
+            else
+                mkSolvedInferenceVariableType tyPar ty
+    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, varExternalSolution, varSolution) when varSolution.HasSolution ->
         let newTyArgs = tyArgs |> ImArray.map (fun tyArg -> freshen cache explicitTyArgs tyArg)
-        mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
+        let ty = freshen cache explicitTyArgs varSolution.Solution
+        // If the freshen'ed type has the same type parameter, then just return it.
+        // We should not create another indirection as it could hurt some eager inference solving for numerics.
+        match ty with
+        | TypeSymbol.HigherInferenceVariable(Some tyPar2, _, _, _) when tyPar.Id = tyPar2.Id ->
+            TypeSymbol.HigherInferenceVariable(Some tyPar, newTyArgs, varExternalSolution, varSolution)
+        | _ ->
+            mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
     | _ ->
         freshen cache explicitTyArgs ty
 
