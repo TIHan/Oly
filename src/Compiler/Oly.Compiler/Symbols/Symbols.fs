@@ -4860,14 +4860,6 @@ module SymbolExtensions =
                 | _ ->
                     ValueNone
 
-            member this.HasStrictInference =
-                match this.TryWellKnownFunction with
-                | ValueSome(WellKnownFunction.LoadFunctionPtr)
-                | ValueSome(WellKnownFunction.UnsafeCast)
-                | ValueSome(WellKnownFunction.Cast)
-                | ValueSome(WellKnownFunction.LoadNullPtr) -> true
-                | _ -> false
-
             member this.IsAddressOf =
                 match this.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.AddressOf) -> true

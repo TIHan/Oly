@@ -176,13 +176,13 @@ let private tryMorphPartialCall (expr: E) =
     | _ ->
         expr
 
-let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol) (expr: E) =
+let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
     let expr = tryMorphSimpleImplicit expectedTy expr
     let exprTy = expr.Type
     if expectedTy.IsFunctionNotPtr && exprTy.IsFunctionNotPtr then
         match expectedTy.TryFunction, exprTy.TryFunction with
         | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_t ->
-            if (expectedReturnTy.IsRealUnit || (expectedReturnTy.IsTypeVariableZeroArity && not hasStrictInference)) && returnTy.IsUnit_t then
+            if (expectedReturnTy.IsRealUnit || expectedReturnTy.IsTypeVariableZeroArity) && returnTy.IsUnit_t then
                 match expr with
                 | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
                     E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
@@ -231,7 +231,7 @@ let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol)
     else
         expr
 
-let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray) (argExprs: E imarray) =
+let private tryImplicitArguments (parTys: TypeSymbol imarray) (argExprs: E imarray) =
     if (not parTys.IsEmpty) && parTys.Length = argExprs.Length then
 
         // We lazily create a new argument expression array when it is needed.
@@ -255,7 +255,7 @@ let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray)
                 | _ ->
                     ()
             else
-                let newArgExpr = tryMorphArgumentImplicit hasStrictInference parTy argExpr
+                let newArgExpr = tryMorphArgumentImplicit parTy argExpr
                 if newArgExpr <> argExpr then
                     setNewArgExpr i newArgExpr
 
@@ -294,7 +294,7 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
 
 let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) =
     OlyAssert.True(funcTy.IsAnyFunction)
-    match tryImplicitArguments false funcTy.FunctionArgumentTypes argExprs with
+    match tryImplicitArguments funcTy.FunctionArgumentTypes argExprs with
     | ValueSome(newArgExprs) -> newArgExprs
     | _ -> argExprs
 
@@ -328,7 +328,7 @@ let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol
         if func.IsFunctionGroup then
             None, argExprs
         else
-            match tryImplicitArguments func.HasStrictInference func.LogicalType.FunctionArgumentTypes argExprs with
+            match tryImplicitArguments func.LogicalType.FunctionArgumentTypes argExprs with
             | ValueSome(newArgExprs) -> None, newArgExprs
             | _ -> None, argExprs
 
@@ -338,7 +338,7 @@ let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
             when not value.IsFunctionGroup && 
                  value.Type.IsAnyFunction && 
                  value.LogicalType.FunctionParameterCount = argExprs.Length ->
-        match tryImplicitArguments value.HasStrictInference value.LogicalType.FunctionArgumentTypes argExprs with
+        match tryImplicitArguments value.LogicalType.FunctionArgumentTypes argExprs with
         | ValueSome(newArgExprs) ->
             E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, flags)
         | _ ->
