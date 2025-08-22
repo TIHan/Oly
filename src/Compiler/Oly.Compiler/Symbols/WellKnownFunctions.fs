@@ -183,10 +183,11 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                     func.ReturnType.IsMutableArray_t
 
             | WellKnownFunction.LoadFunctionPtr ->
-                if func.TypeParameters.Length <> 3 then false
-                else
-                    // TODO: Add better validation.
+                // TODO: Add better validation.
+                if func.TypeParameters.Length >= 2 && func.TypeParameters.Length <= 3 then 
                     true
+                else
+                    false
 
             | WellKnownFunction.NewRefCell
             | WellKnownFunction.LoadRefCellContents
@@ -521,7 +522,20 @@ let LoadFunctionPtr =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[2].AsType, tyPars[1].AsType, FunctionKind.Normal), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    let func1 = createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
+    let tyPars =
+        seq {
+            TypeParameterSymbol("TFunctionPtr", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 1, 0, true, TypeParameterKind.Function 1, ref ImArray.empty)
+        } |> ImArray.ofSeq
+    let pars =
+        seq {
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[1].AsType, TypeSymbol.Unit, FunctionKind.Normal), false)
+        } |> ImArray.ofSeq
+    let returnTy = tyPars[0].AsType
+    let func2 = createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    FunctionGroupSymbol.CreateIfPossible(ImArray.createTwo func1 func2): IFunctionSymbol
 
 let NewRefCell =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("new_ref_cell"))

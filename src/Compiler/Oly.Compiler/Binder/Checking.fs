@@ -378,7 +378,7 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
     lambdaExpr
 
 let createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (syntaxTyArgsRoot, syntaxTyArgs) (func: IFunctionSymbol) =
-    let tyArgs = bindTypeArguments cenv env func.HasStrictInference 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
+    let tyArgs = bindTypeArguments cenv env 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
     createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs func
 
 /// TODO: There is duplication when it comes to handling overloading for non-partial and partial calls. We should figure out a way to combine them.

@@ -1246,6 +1246,9 @@ alias (*)<T>
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
 test(): () = ()
 
 main(): () =
@@ -1298,6 +1301,9 @@ alias bool
 
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
 
 #[intrinsic("by_ref")]
 alias byref<T>

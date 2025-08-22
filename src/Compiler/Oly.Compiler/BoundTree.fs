@@ -1014,7 +1014,7 @@ type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =
 
 let freshenType (benv: BoundEnvironment) (tyPars: TypeParameterSymbol imarray) (explicitTyInst: TypeSymbol imarray) ty =
     let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
-    freshenTypeAux benv.TypeParameterExists benv.senv.enclosingTyInst false tyPars explicitTyInst ty cache
+    freshenTypeAux benv.TypeParameterExists benv.senv.enclosingTyInst tyPars explicitTyInst ty cache
 
 let rec tryExpressionValue (expression: BoundExpression) =
     match expression with

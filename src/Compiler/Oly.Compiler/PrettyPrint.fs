@@ -161,7 +161,11 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
 
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
         if solution.HasSolution && solution.Solution.IsSolved then
-            printTypeAux benv isDefinition isTyCtor solution.Solution
+            match tyPar with
+            | Some tyPar when not tyPar.IsVariadic && solution.Solution.IsUnit_t ->
+                "(())"
+            | _ ->
+                printTypeAux benv isDefinition isTyCtor solution.Solution
         else
             match tyPar with
             | Some tyPar -> "?" + tyPar.DisplayName

@@ -6580,6 +6580,9 @@ module M =
     #[intrinsic("load_function_ptr")]
     (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
     #[intrinsic("constant")]
     #[import("intrinsic-CLR", "", "typeof")]
     typeof<require T>: System.Type
@@ -6651,7 +6654,7 @@ module M =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+            ("Invalid use of 'LoadFunctionPtr'.",
                 """
         let del = CreateDelegate(callback, &&callback.Invoke)
                                            ^^^^^^^^^^^^^^^^^
@@ -6711,14 +6714,75 @@ module M =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+            ("Invalid use of 'LoadFunctionPtr'.",
                 """
-        let del = CreateDelegate(callback, ptr)
-                                           ^^^
+        let ptr = &&callback.Invoke
+                  ^^^^^^^^^^^^^^^^^
 """
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Custom delegate should not error due to physical unit type``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("utf16")]
+alias string
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[export]
+class Callback =
+
+    Invoke(bodyId1: uint32, bodyId2: uint32): () = 
+        M.print("hello")
+        M.print(bodyId1)
+        M.print(bodyId2)
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+module M =
+
+    #[intrinsic("print")]
+    print(object): ()
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    typeof<require T>: System.Type
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TParameters...>(object, static TParameters... -> ()): System.Delegate
+
+    main(): () =
+        let callback = Callback()
+        let del = CreateDelegate(callback, &&callback.Invoke)
+        let _ = del.DynamicInvoke(mutable [4: uint32; 2: uint32])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello42"
 
 [<Fact>]
 let ``Custom delegate with return type``() =
@@ -7429,6 +7493,10 @@ print(__oly_object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
 
 main(): () =
 

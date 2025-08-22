@@ -540,6 +540,11 @@ let substitute
                             (value.AllTypeParameters, value.AllTypeArguments) 
                             ||> ImArray.map2 (fun tyPar tyArg -> 
                                 let newTyArg = tyArg.Substitute(tyParLookup)
+                                let newTyArg =
+                                    if newTyArg.IsUnit_t then
+                                        TypeSymbolRealUnit
+                                    else
+                                        newTyArg
                                 // REVIEW: This is a little curious, but perhaps it is ok.
                                 if tyPar.HasArity then
                                     mkSolvedInferenceVariableType tyPar newTyArg.Formal

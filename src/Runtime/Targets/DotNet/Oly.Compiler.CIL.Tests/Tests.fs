@@ -15902,6 +15902,12 @@ nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
+#[intrinsic("unsafe_cast")]
+nint<TArguments...>(static (TArguments...) -> ()): nint
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
 class Delegate =
 
     Invoke(): () = ()

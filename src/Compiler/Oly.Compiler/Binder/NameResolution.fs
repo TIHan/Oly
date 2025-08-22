@@ -659,7 +659,7 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
                 | _ ->
                     0
         let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
-        let tyArgs = bindTypeArguments cenv env originalValue.HasStrictInference tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
+        let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
         let finalExpr, _ =
             bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprsOpt tyArgs originalValue
@@ -1859,7 +1859,7 @@ let bindTypeAndInferConstraints (cenv: cenv) (env: BinderEnvironment) syntaxTy =
     | _ ->
         env, bindType cenv env None ResolutionTypeArityZero syntaxTy
 
-let bindTypeArgument (cenv: cenv) env isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
+let bindTypeArgument (cenv: cenv) env (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
     let index = offset + n
     let tyPar = 
         if isLastTyParVariadic && index >= tyPars.Length then
@@ -1877,12 +1877,9 @@ let bindTypeArgument (cenv: cenv) env isStrict (tyPars: ImmutableArray<TypeParam
                 else
                     ResolutionTypeArityZero
             bindType cenv env None resTyArity syntaxTyArg
-    if isStrict then
-        mkSolvedStrictInferenceVariableType tyPar ty
-    else
-        mkSolvedInferenceVariableType tyPar ty
+    mkSolvedInferenceVariableType tyPar ty
 
-let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
+let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
     let expectedTypeParameterCount = tyPars.Length - offset
 
     if syntaxTyArgs.IsEmpty then
@@ -1908,7 +1905,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (of
 
             let tyArgsTail = 
                 syntaxTyArgs 
-                |> Seq.mapi (bindTypeArgument cenv env isStrict tyPars isLastTyParVariadic offset)
+                |> Seq.mapi (bindTypeArgument cenv env tyPars isLastTyParVariadic offset)
 
             let tyArgs =
                 if offset > 0 then
@@ -1926,10 +1923,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (of
                 let lastIndex = tyPars.Length - 1
                 let headTyArgs = tyArgs.RemoveRange(lastIndex, tyArgs.Length - lastIndex)
                 let tailTyArgs = tyArgs.RemoveRange(0, lastIndex)
-                if isStrict then
-                    headTyArgs.Add(mkSolvedStrictInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
-                else
-                    headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
+                headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
             else
                 tyArgs
                 

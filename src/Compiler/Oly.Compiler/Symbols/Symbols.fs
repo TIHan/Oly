@@ -20,23 +20,16 @@ let AnonymousEntityName = ""
 [<Literal>]
 let EntryPointName = "main"
 
-let mkVariableSolution() = VariableSolutionSymbol(false, false, false)
-let mkStrictVariableSolution() = VariableSolutionSymbol(false, false, true)
+let mkVariableSolution() = VariableSolutionSymbol(false, false)
 let mkVariableType name = TypeSymbol.Variable(name)
 let mkInferenceVariableType tyParOpt = 
     match tyParOpt with
     | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(false, true, false))
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(false, true))
     | _ ->
         TypeSymbol.CreateInferenceVariable(tyParOpt, mkVariableSolution())
-let mkStrictInferenceVariableType tyParOpt = 
-    match tyParOpt with
-    | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(false, true, true))
-    | _ ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, mkStrictVariableSolution())
 let mkHigherInferenceVariableType tyParOpt (tyArgs: TypeSymbol imarray) = 
-    TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(false, true, false), mkVariableSolution())
+    TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(false, true), mkVariableSolution())
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
     if not ty.IsError_t then
@@ -45,20 +38,7 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
         if tyPar.HasArity && not ty.IsTypeConstructor then
             failwith "Expected type constructor."
 #endif
-    let varSolution = VariableSolutionSymbol(false, tyPar.HasArity, false)
-    varSolution.Solution <- ty
-    if ty.IsSolved then
-        varSolution.SetLocked()
-    TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
-let mkSolvedStrictInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
-#if DEBUG || CHECKED
-    if not ty.IsError_t then
-        if not tyPar.HasArity && ty.IsTypeConstructor then
-            failwith "Unexpected type constructor."
-        if tyPar.HasArity && not ty.IsTypeConstructor then
-            failwith "Expected type constructor."
-#endif
-    let varSolution = VariableSolutionSymbol(false, tyPar.HasArity, true)
+    let varSolution = VariableSolutionSymbol(false, tyPar.HasArity)
     varSolution.Solution <- ty
     if ty.IsSolved then
         varSolution.SetLocked()
@@ -71,7 +51,7 @@ let mkSolvedHigherInferenceVariableType tyPar tyArgs ty =
         varSolution.SetLocked()
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
-let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(true, false, false))
+let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(true, false))
 
 [<System.Flags>]
 type AttributeFlags =
@@ -476,7 +456,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
-        TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false, false))
+        TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false))
 
     | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
@@ -1432,9 +1412,10 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
         if solution.HasSolution then
             let ty2 = solution.Solution
-            if tyParOpt.IsSome && not solution.IsStrict && ty2.IsUnit_t then
+            match tyParOpt with
+            | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_t ->
                 TypeSymbolRealUnit
-            else
+            | _ ->
                 let strippedTy2 =
                     match tyParOpt with
                     | Some(tyPar) when tyPar.Arity > 0 ->
@@ -3250,7 +3231,7 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IF
     interface ISymbol
 
 [<Sealed>]
-type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool, isStrict: bool) = // TODO: convert these parameters to flags
+type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: convert these parameters to flags
 
     let id = newId ()
 
@@ -3305,12 +3286,6 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool, isStrict: bo
     member this.IsTypeOfParameter = isTyOfParameter
 
     member this.IsTypeConstructor = isTyCtor
-
-    /// If the variable solution is strict, this means that inference solving will not do any special rules in unification.
-    /// An example of this is 'unit'. 
-    ///     By default, solving a variable against a 'unit' type will result in an 'actual unit'.
-    ///     However, if the variable is strict, then the solution will result in a 'unit'.
-    member this.IsStrict = isStrict
 
     interface ISymbol
 
@@ -4103,11 +4078,6 @@ type TypeSymbol =
         | HigherInferenceVariable(Some tyPar, _, _, _)
         | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
-
-    member this.HasImmediateStrictInferenceVariableTypeParameter =
-        match this with
-        | InferenceVariable(Some _, varSolution) -> varSolution.IsStrict
-        | _ -> false
 
     member this.HasImmediateNonVariadicInferenceVariableTypeParameter =
         match this with

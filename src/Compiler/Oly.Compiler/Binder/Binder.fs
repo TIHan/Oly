@@ -510,7 +510,7 @@ type BinderPrePass(asm: AssemblySymbol, syntaxTree: OlySyntaxTree, prePassEnv: C
 let createInitialBoundEnvironment asmIdent =
     let funcs =
         seq {
-            WellKnownFunctions.addFunc
+            (WellKnownFunctions.addFunc: IFunctionSymbol)
             WellKnownFunctions.subtractFunc
             WellKnownFunctions.multiplyFunc
             WellKnownFunctions.divideFunc

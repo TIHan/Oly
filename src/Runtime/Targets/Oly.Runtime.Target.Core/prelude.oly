@@ -298,6 +298,14 @@ nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint<TArguments...>(static (TArguments...) -> ()): nint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nint<TArguments...>(static blittable (TArguments...) -> ()): nint
 #end
 
 #[unmanaged(allocation_only)]
@@ -328,6 +336,14 @@ nuint<TResult, TArguments...>(static (TArguments...) -> TResult): nuint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nuint<TResult, TArguments...>(static blittable (TArguments...) -> TResult): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint<TArguments...>(static (TArguments...) -> ()): nuint
+
+#[unmanaged(allocation_only)]
+#[intrinsic("unsafe_cast")]
+nuint<TArguments...>(static blittable (TArguments...) -> ()): nuint
 
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
@@ -911,6 +927,10 @@ print(object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
 #end
 
 #[unmanaged(allocation_only)]
@@ -1187,6 +1207,14 @@ module Unsafe =
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsFunctionPointer<TResult, TArguments...>(nuint): static blittable (TArguments...) -> TResult
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TArguments...>(nint): static blittable (TArguments...) -> ()
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsFunctionPointer<TArguments...>(nuint): static blittable (TArguments...) -> ()
 #end
 
     #[unmanaged(allocation_only)]
