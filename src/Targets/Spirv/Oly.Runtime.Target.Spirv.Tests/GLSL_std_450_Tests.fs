@@ -103,3 +103,17 @@ let ``floor - float``() =
     "floor(input)"
     |> run [|0.1f|] [|0.0f|]
 
+[<Fact>]
+let ``floor - vec2``() =
+    "floor(input)"
+    |> run [|Vector2(0.1f, 1.1f)|] [|Vector2(0.0f, 1.0f)|]
+
+[<Fact>]
+let ``floor - vec3``() =
+    "let result = floor(vec3(input.X, input.Y, input.Z))\n    vec4(result.X, result.Y, result.Z, 0)"
+    |> run [|Vector4(0.1f, 1.1f, 2.1f, 0.0f)|] [|Vector4(0.0f, 1.0f, 2.0f, 0.0f)|]
+
+[<Fact>]
+let ``floor - vec4``() =
+    "floor(input)"
+    |> run [|Vector4(0.1f, 1.1f, 2.1f, -0.1f)|] [|Vector4(0.0f, 1.0f, 2.0f, -1.0f)|]
