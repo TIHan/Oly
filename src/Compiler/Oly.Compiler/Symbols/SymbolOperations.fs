@@ -1986,7 +1986,7 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
         | TypeSymbol.Variable(tyPar), superTy
         | TypeSymbol.HigherVariable(tyPar, _), superTy ->
             (false, tyPar.Constraints)
-            ||> Seq.fold (fun exists constr ->
+            ||> ImArray.fold (fun exists constr ->
                 match constr with
                 | ConstraintSymbol.Null
                 | ConstraintSymbol.Struct
@@ -1996,9 +1996,17 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.Scoped -> exists
                 | ConstraintSymbol.SubtypeOf(ty)
                 | ConstraintSymbol.TraitType(ty) ->
-                    subsumesTypeWith rigidity superTy ty.Value
+                    let ty = ty.Value
+                    if superTy.IsShape || ty.IsShape then
+                        // Skip shape checks as these checks are done in the constraint solver for solved type variables.
+                        // REVIEW: If Oly ever implements 'dynamic dispatched' shapes, we may need to alter this logic.
+                        //         Perhaps this is fine and we introduce a new entity kind, `DispatchShape' or 'DynamicShape'
+                        //         to separate it from 'Shape' - making it so we don't need to alter any logic.
+                        exists
+                    else
+                        subsumesTypeWith rigidity superTy ty               
                 | ConstraintSymbol.ConstantType(ty) ->
-                    areTypesEqualWithRigidity rigidity superTy ty.Value
+                    exists || areTypesEqualWithRigidity rigidity superTy ty.Value
             )
         | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.ReadOnly) ->
             subsumesTypeWith rigidity superTy ty

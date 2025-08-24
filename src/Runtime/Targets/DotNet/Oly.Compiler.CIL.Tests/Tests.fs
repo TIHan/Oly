@@ -21489,3 +21489,38 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
+
+[<Fact>]
+let ``Should be able to get subtype from type variable 5 - checks constraint ordering``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class AC =
+
+    abstract MA(): ()
+
+abstract class AC2 =
+    inherits AC
+
+class C =
+    inherits AC2
+
+    overrides MA(): () = print("hello")
+
+M<T>(x: T): () where T: AC2, { new() } =
+    let y = x: AC
+    y.MA()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore

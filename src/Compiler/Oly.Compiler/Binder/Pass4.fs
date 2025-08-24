@@ -85,19 +85,18 @@ let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCa
     // Interfaces
     if ent.IsInterface then
         checkInterfaceDefinition (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxIdent ent
-
         // ent.Inherits and ent.Implements need to have a specific order so we can get the correct symbols for the associated syntax.
         // At the moment they do because the builder adds them in order.
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
+    elif ent.IsAbstract || ent.IsAlias then
+        env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
     else
-        if not ent.IsAlias && not ent.IsShape then
-            ent.AllLogicalInheritsAndImplements
-            |> filterTypesAsAbstract
-            |> filterMostSpecificTypes
-            |> ImArray.iter (fun super ->
-                checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxIdent ent.AsType super
-            )
-
+        ent.AllLogicalInheritsAndImplements
+        |> filterTypesAsAbstract
+        |> filterMostSpecificTypes
+        |> ImArray.iter (fun super ->
+            checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxIdent ent.AsType super
+        )
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
 /// Pass 4 - Bind all implementations.
