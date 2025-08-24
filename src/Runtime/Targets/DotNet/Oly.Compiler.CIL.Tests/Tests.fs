@@ -21361,3 +21361,131 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "success"
     |> ignore
+
+[<Fact>]
+let ``Should be able to get subtype from type variable - checks constraint ordering``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+
+    MA(): ()
+
+class C =
+    implements IA
+
+    MA(): () = print("hello")
+
+M<T>(x: T): () where T: { new() }, IA =
+    let y = x: IA
+    y.MA()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore
+
+[<Fact>]
+let ``Should be able to get subtype from type variable 2 - checks constraint ordering``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class AC =
+
+    abstract MA(): ()
+
+class C =
+    inherits AC
+
+    overrides MA(): () = print("hello")
+
+M<T>(x: T): () where T: { new() }, AC =
+    let y = x: AC
+    y.MA()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore
+
+[<Fact>]
+let ``Should be able to get subtype from type variable 3 - checks constraint ordering``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA =
+
+    MA(): ()
+
+class C =
+    implements IA
+
+    MA(): () = print("hello")
+
+M<T>(x: T): () where T: IA, { new() } =
+    let y = x: IA
+    y.MA()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore
+
+[<Fact>]
+let ``Should be able to get subtype from type variable 4 - checks constraint ordering``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+abstract class AC =
+
+    abstract MA(): ()
+
+class C =
+    inherits AC
+
+    overrides MA(): () = print("hello")
+
+M<T>(x: T): () where T: AC, { new() } =
+    let y = x: AC
+    y.MA()
+
+main(): () =
+    let c = C()
+    M(c)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore
