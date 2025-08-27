@@ -849,7 +849,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     expr
 
-let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (expr: E) =
+let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
     | E.Literal _ ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
@@ -878,6 +878,7 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking           |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env                                           
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
+        |> checkVirtualUsage cenv env
 
     | E.NewTuple _
     | E.NewArray _ ->
@@ -901,6 +902,11 @@ let checkExpressionImpl (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeC
 
     | E.IfElse _ ->
         expr
+
+    | E.GetProperty _
+    | E.SetProperty _ ->
+        checkReturnExpression cenv env tyChecking expectedTyOpt expr
+        |> checkVirtualUsage cenv env
 
     | _ ->
         checkReturnExpression cenv env tyChecking expectedTyOpt expr
@@ -983,7 +989,7 @@ let checkCalleeArgumentExpressions cenv env (tyChecking: TypeChecking) (caller: 
 let checkFunctionGroupCalleeArgumentExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (argExprs: E imarray) : E imarray =
     let env = env.SetReturnable(false).SetPassedAsArgument(true)
     argExprs
-    |> ImArray.map (checkExpressionImpl cenv env tyChecking false None)
+    |> ImArray.map (checkExpressionWithEager cenv env tyChecking false None)
 
 let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expectedTyOpt (argExpr: E) =
     argExpr.RewriteReturningTargetExpression(
@@ -1147,8 +1153,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 let checkExpressionAux (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) expectedTyOpt (expr: E) =
     // If the expression is used as an argument, then we will skip eager inference in function overloads.
     // REVIEW: The name 'checkCallExpression' isn't quite accurate because it can affect non-call expressions.
-    checkExpressionImpl cenv env tyChecking env.isPassedAsArgument expectedTyOpt expr
-    |> checkVirtualUsage cenv env
+    checkExpressionWithEager cenv env tyChecking env.isPassedAsArgument expectedTyOpt expr
 
 let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E) =
     match expr with
