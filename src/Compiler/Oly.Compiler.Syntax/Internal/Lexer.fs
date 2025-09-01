@@ -1153,9 +1153,9 @@ module Lexer =
                             | _ ->
                                 scanKeywordOrIdentifier lexer
 
-                        if not (valueToken.IsIdentifierToken || valueToken.IsStringLiteral_t) then
+                        if not valueToken.IsStringLiteral_t then
                             let endPos = lexer.window.LexemeStart
-                            lexer.diagnostics.Add(startPos, endPos, "Invalid directive value.", true, 152)
+                            lexer.diagnostics.Add(startPos, endPos, "Expected a string literal.", true, 152)
 
                         Directive(Hash, token, whitespaceToken, valueToken)
 

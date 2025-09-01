@@ -1519,7 +1519,7 @@ let ``Directives should fail with invalid value due to keyword``() =
     Oly src
     |> withSyntaxErrorHelperTextDiagnostics 
         [
-            ("Invalid directive value.",
+            ("Expected a string literal.",
                 """
 #target let
 ^^^^^^^^^^^
