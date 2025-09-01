@@ -424,6 +424,7 @@ type OlyCompilationUnitConfiguration =
         references: (OlyTextSpan * OlyPath) imarray
         packages: (OlyTextSpan * string) imarray
         copyFiles: (OlyTextSpan * OlyPath) imarray
+        properties: (OlyTextSpan * string * obj) imarray
         directiveDiagnostics: OlyDiagnostic imarray
         isLibrary: bool
     }
@@ -437,6 +438,8 @@ type OlyCompilationUnitConfiguration =
     member this.Packages = this.packages
 
     member this.CopyFiles = this.copyFiles
+
+    member this.Properties = this.properties
 
     member this.IsLibrary = this.isLibrary
 
@@ -592,6 +595,8 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
             let copyFiles = getDirectiveValues "copy" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let isLibrary = directiveExists "library"
 
+            let properties = ImArray.empty // TODO
+
             // Validate directives
             directives
             |> ImArray.iter(fun (startPos, endPos, rawToken) ->
@@ -610,7 +615,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     ()
             )
 
-            { target = target; references = references; loads = loads; packages = packages; copyFiles = copyFiles; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
+            { target = target; references = references; loads = loads; packages = packages; copyFiles = copyFiles; properties = properties; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
         )
 
     abstract WithPath : OlyPath -> OlySyntaxTree

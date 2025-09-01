@@ -837,8 +837,10 @@ module Lexer =
             lexer.diagnostics.Add(startIdentPos, endPos, "Invalid conditional define.", true, 153)
             ConditionalDirective(hashIfToken, String.Empty, dummyToken.RawToken)
 
-    let handleNonTriviaPeek (lexer: Lexer) peekedChar =
+    let rec handleNonTriviaPeek (lexer: Lexer) peekedChar =
         lexer.hasFirstNonTrivia <- true
+        handleNonTriviaPeekAux lexer peekedChar
+    and handleNonTriviaPeekAux (lexer: Lexer) peekedChar =
         match peekedChar with
         | '#' ->
             if isNextTokenHashIf lexer then
@@ -1157,7 +1159,22 @@ module Lexer =
                             let endPos = lexer.window.LexemeStart
                             lexer.diagnostics.Add(startPos, endPos, "Expected a string literal.", true, 152)
 
-                        Directive(Hash, token, whitespaceToken, valueToken)
+                        match token with
+                        | Token.Identifier("property") ->
+                            let whitespaceToken2 = scanWhitespace lexer
+                            resetLexeme lexer
+
+                            let propertyNameToken = valueToken
+
+                            let propertyValueToken = handleNonTriviaPeekAux lexer c
+
+                            if not (valueToken.IsStringLiteral_t || valueToken.IsIntegerLiteral || valueToken.IsRealLiteral || valueToken.IsTrue || valueToken.IsFalse) then
+                                let endPos = lexer.window.LexemeStart
+                                lexer.diagnostics.Add(startPos, endPos, "Expected a string, numeric or boolean literal.", true, 155)
+
+                            PropertyDirective(Hash, token, whitespaceToken, propertyNameToken, whitespaceToken2, propertyValueToken)
+                        | _ ->
+                            Directive(Hash, token, whitespaceToken, valueToken)
 
                 checkDirectiveIndentation lexer startColumn startPos
                 recordNonConditionalDirective lexer startPos directive

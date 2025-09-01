@@ -170,11 +170,19 @@ type OlyProjectConfiguration =
     member Debuggable : bool
 
 [<Sealed>]
+type OlyProjectProperties =
+
+    member Contains: propertyName: string -> bool
+
+    member TryGetValue<'T>: propertyName: string * outValue: outref<'T> -> bool
+
+[<Sealed>]
 type OlyProject =
 
     member Path : OlyPath
     member Name : string
     member Configuration : OlyProjectConfiguration
+    member Properties: OlyProjectProperties
     member Solution : OlySolution
     member Compilation : OlyCompilation
     member Documents : OlyDocument imarray
@@ -214,7 +222,7 @@ type OlySolution =
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
 
     member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
-    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> OlySolution * OlyProject
 
     member UpdateDocument : projectPath: OlyPath * documentPath: OlyPath * syntaxTree: OlySyntaxTree * extraDiagnostics: OlyDiagnostic imarray -> OlySolution * OlyProject * OlyDocument
 

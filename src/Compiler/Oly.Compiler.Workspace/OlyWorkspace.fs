@@ -253,6 +253,29 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
     member _.Debuggable = debuggable
 
 [<Sealed>]
+type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
+
+    static let empty = OlyProjectProperties(ImmutableDictionary.Empty)
+    static member Empty = empty
+
+    member _.Contains(propertyName: string) = properties.ContainsKey(propertyName)
+
+    member _.TryGetValue<'T>(propertyName: string, outValue: outref<'T>): bool =
+        match properties.TryGetValue(propertyName) with
+        | true, value ->
+            if isNull value then
+                false
+            else
+                match tryUnbox (downcast value) with
+                | Some(value) ->
+                    outValue <- value
+                    true
+                | _ ->
+                    false
+        | _ ->
+            false            
+
+[<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
 type OlyProject (
     solution: OlySolution Lazy, 
@@ -264,6 +287,7 @@ type OlyProject (
     references: OlyProjectReference imarray,
     packages: OlyPackageInfo imarray,
     copyFileInfos: OlyCopyFileInfo imarray,
+    properties: OlyProjectProperties,
     platformName: string, 
     targetInfo: OlyTargetInfo) =
 
@@ -287,6 +311,7 @@ type OlyProject (
     member _.Name = projName
     member _.Path = projPath
     member _.Configuration = targetInfo.ProjectConfiguration
+    member _.Properties = properties
     member _.Packages = packages
     member _.CopyFileInfos = copyFileInfos
 
@@ -345,7 +370,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -368,7 +393,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -391,7 +416,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -414,7 +439,7 @@ type OlyProject (
             )
             |> ImmutableDictionary.CreateRange
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
@@ -586,6 +611,7 @@ module WorkspaceHelpers =
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
             (copyFiles: OlyCopyFileInfo imarray)
+            (properties: OlyProjectProperties)
             platformName 
             (targetInfo: OlyTargetInfo) =
 
@@ -605,7 +631,7 @@ module WorkspaceHelpers =
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
             |> ImmutableDictionary.CreateRange
 
-        OlyProject(newSolution, projectId, projectName, options, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo)   
+        OlyProject(newSolution, projectId, projectName, options, compilation, documents, projectReferences, packages, copyFiles, properties, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
         OlyAssert.False(newSolutionLazy.IsValueCreated)
@@ -633,7 +659,7 @@ module WorkspaceHelpers =
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.Properties, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -727,12 +753,12 @@ type OlySolution (state: SolutionState) =
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
+    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, properties: OlyProjectProperties, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = projectPath.GetFileNameWithoutExtension()
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        let newProject = createProject newSolutionLazy projectPath projectName ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
+        let newProject = createProject newSolutionLazy projectPath projectName ImArray.empty ImArray.empty packages copyFileInfos properties platformName targetInfo
         let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
         newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
@@ -740,7 +766,7 @@ type OlySolution (state: SolutionState) =
         newSolution, newProject
 
     member this.CreateProject(projectPath, platformName, targetInfo, ct: CancellationToken) =
-        this.CreateProject(projectPath, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
+        this.CreateProject(projectPath, platformName, targetInfo, ImArray.empty, ImArray.empty, OlyProjectProperties.Empty, ct)
 
     member this.SetProject(projectPath: OlyPath, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
         let project = this.GetProject(projectPath)
@@ -1652,9 +1678,21 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 |> ImArray.append copyFileInfos
                 |> ImArray.distinct
 
+            let properties =
+                let builder = ImmutableDictionary.CreateBuilder()
+                config.Properties
+                |> ImArray.iter (fun (textSpan, propertyName, propertyValue) ->
+                    if builder.TryAdd(propertyName, propertyValue)  then
+                        // TODO: Add platform/target specific callback check
+                        ()
+                    else
+                        diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                )
+                OlyProjectProperties(builder.ToImmutable())
+
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 
-            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, ct)
+            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, properties, ct)
 
             let loads = getSortedLoadsFromConfig rs absoluteDir config
 

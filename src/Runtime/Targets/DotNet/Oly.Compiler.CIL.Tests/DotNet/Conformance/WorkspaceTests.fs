@@ -76,7 +76,9 @@ main(): () =
 let ``Simple ReadyToRun hello world project should compile`` () =
     let src =
         """
-#target "dotnet: net8_r2r"
+#target "dotnet: net8"
+
+#property "r2r" true
 
 main(): () =
     print("Hello World!")

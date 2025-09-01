@@ -45,8 +45,10 @@ type OlyToken =
 
     member this.IsAnyDirective =
         match this.node.Internal.RawToken with
+        | DirectiveFlag _
         | Directive _
-        | ConditionalDirective _ -> 
+        | ConditionalDirective _
+        | PropertyDirective _ -> 
             true
         | _ ->
             false

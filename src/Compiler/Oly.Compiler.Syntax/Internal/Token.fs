@@ -190,6 +190,7 @@ type internal Token =
     | DirectiveFlag of hashToken: Token * token: Token
     | Directive of hashToken: Token * token: Token * whitespaceToken: Token * valueToken: Token
     | ConditionalDirective of prevToken: Token * bodyText: string * token: Token
+    | PropertyDirective of hashToken: Token * propertyToken: Token * whitespaceToken1: Token * propertyNameToken: Token * whitespaceToken2: Token * propertyValueToken: Token
     | HashIf of whitespaceToken: Token * identToken: Token
     | HashElse of whitespaceToken: Token * identToken: Token
     | HashEnd
@@ -327,6 +328,7 @@ type internal Token =
         | DirectiveFlag(hashToken, token) -> hashToken.Text + token.Text
         | Directive(hashToken, token, whitespaceToken, valueToken) -> hashToken.Text + token.Text + whitespaceToken.Text + valueToken.Text
         | ConditionalDirective(prevToken, bodyText, token) -> prevToken.Text + bodyText + token.Text
+        | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) -> hashToken.Text + propertyToken.Text + whitespaceToken1.Text + propertyNameToken.Text + whitespaceToken2.Text + propertyValueToken.Text
         | HashIf(whitespaceToken, identToken) -> "#if" + whitespaceToken.Text + identToken.Text
         | HashElse(whitespaceToken, identToken) -> "#else" + whitespaceToken.Text + identToken.Text
         | HashEnd -> "#end"
@@ -617,6 +619,7 @@ type internal Token =
         | DirectiveFlag _
         | Directive _ 
         | ConditionalDirective _
+        | PropertyDirective _
         | HashIf _
         | HashEnd -> true
         | _ -> false
