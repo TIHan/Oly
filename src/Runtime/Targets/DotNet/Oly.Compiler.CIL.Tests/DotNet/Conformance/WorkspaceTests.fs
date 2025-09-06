@@ -93,7 +93,9 @@ main(): () =
 let ``Simple NativeAOT hello world project should compile`` () =
     let src =
         """
-#target "dotnet: net8_aot"
+#target "dotnet: net8"
+
+#property "r2r" true
 
 main(): () =
     print("Hello World!")

@@ -1,4 +1,6 @@
-#target "dotnet: net8_aot"
+#target "dotnet: net8"
+
+#property "aot" true
 
 main(): () =
     print("Hello World!")

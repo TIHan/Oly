@@ -75,7 +75,7 @@ module private DotNet =
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, MSBuildTargetInfo.ParseOnlyTargetName(targetName), fileReferences, dotnetProjectReferences, dotnetPackages, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, { TargetName = targetName; PublishKind = MSBuildPublishKind.None }, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
                         targetName,
@@ -146,6 +146,21 @@ module private DotNet =
             let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectName, outputPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
+
+    let createMSBuildTargetInfo targetName (properties: OlyProjectProperties) =
+        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.None }
+
+        match properties.TryGetValue "aot" with
+        | true, true ->
+            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.NativeAOT }
+        | _ ->
+            match properties.TryGetValue "r2r" with
+            | true, true ->
+                msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.ReadyToRun }
+            | _ ->
+                ()
+
+        msbuildTargetInfo
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
     inherit OlyBuild(platformName)
@@ -367,6 +382,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
+    override this.OnPropertyValidation (targetInfo: OlyTargetInfo, name: string, value: bool): Result<unit,string> = 
+        match name with
+        | "r2r" 
+        | "aot" -> Ok()
+        | _ -> Error($"'{name}' is not a valid .NET property")
+
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]
     override this.BuildProjectAsync(proj, ct) = backgroundTask {
         ct.ThrowIfCancellationRequested()
@@ -484,7 +505,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
         | Some consoleAssembly ->
 
-        let msbuildTargetInfo = MSBuildTargetInfo.Parse(proj.TargetInfo.Name)
+        let msbuildTargetInfo = DotNet.createMSBuildTargetInfo proj.TargetInfo.Name proj.Properties
+
         let asmName =
             if msbuildTargetInfo.IsPublish then
                 asm.Name + "__oly_internal"
@@ -546,7 +568,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             copyFilesFromProject proj
 
         if copyReferences then
-            let msbuildTargetInfo = MSBuildTargetInfo.Parse(proj.TargetInfo.Name)
             if msbuildTargetInfo.IsPublish then
                 // TODO: This really needs some massive cleanup.
 

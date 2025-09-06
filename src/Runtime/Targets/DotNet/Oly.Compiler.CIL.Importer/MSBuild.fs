@@ -30,7 +30,6 @@ type MSBuildPublishKind =
 [<NoEquality;NoComparison>]
 type MSBuildTargetInfo =
     {
-        FullTargetName: string
         TargetName: string
         PublishKind: MSBuildPublishKind
     }
@@ -38,22 +37,6 @@ type MSBuildTargetInfo =
     member this.IsPublish = match this.PublishKind with MSBuildPublishKind.None -> false | _ -> true
 
     member this.IsNativeAOT = match this.PublishKind with MSBuildPublishKind.NativeAOT -> true | _ -> false
-
-    static member Parse(targetName: string) =
-        let parts = targetName.Split("_")
-        if parts.Length > 1 then
-            let publishKind =
-                match parts[1] with
-                | "r2r" -> MSBuildPublishKind.ReadyToRun
-                | "aot" -> MSBuildPublishKind.NativeAOT
-                | _ -> failwith "Invalid target."
-            { FullTargetName = targetName; TargetName = parts[0]; PublishKind = publishKind }
-        else
-            { FullTargetName = targetName; TargetName = parts[0]; PublishKind = MSBuildPublishKind.None }
-
-    static member ParseOnlyTargetName(targetName: string) =
-        let info = MSBuildTargetInfo.Parse(targetName)
-        { FullTargetName = info.TargetName; TargetName = info.TargetName; PublishKind = MSBuildPublishKind.None }
 
 // TODO: This needs alot more work.
 [<Sealed>]
@@ -205,7 +188,7 @@ type MSBuild() =
 
                     return 
                         { 
-                            TargetName = msbuildTargetInfo.FullTargetName
+                            TargetName = msbuildTargetInfo.TargetName
                             ProjectPath = OlyPath.Create(projectPath)
                             OutputPath = outputPath.ToString()
                             References = refs

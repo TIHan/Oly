@@ -127,6 +127,8 @@ type OlyBuild =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
+    abstract OnPropertyValidation : targetInfo: OlyTargetInfo * name: string * value: bool -> Result<unit, string>
+
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
 

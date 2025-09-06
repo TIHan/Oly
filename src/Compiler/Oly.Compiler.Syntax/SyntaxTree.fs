@@ -574,7 +574,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         None
                 )
 
-            let directiveExists directive =
+            let directiveFlagExists directive =
                 directives
                 |> ImArray.exists(fun (startPos, endPos, rawToken) ->
                     match rawToken with
@@ -589,13 +589,27 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         false
                 )
 
+            let getPropertyDirectives() : (OlyTextSpan * string * obj) imarray = 
+                directives
+                |> ImArray.choose (fun (startPos, endPos, rawToken) ->
+                    match rawToken with
+                    | PropertyDirective(_, _, _, propertyNameToken, _, propertyValueToken) ->
+                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
+                        match propertyValueToken with
+                        | Token.True -> Some((textSpan, propertyNameToken.ValueText, (true: obj)))
+                        | Token.False -> Some((textSpan, propertyNameToken.ValueText, (false: obj)))
+                        | _ -> None
+                    | _ ->
+                        None
+                )
+
             let loads = getDirectiveValues "load" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let references = getDirectiveValues "reference" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let packages = getDirectiveValues "package"
             let copyFiles = getDirectiveValues "copy" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
-            let isLibrary = directiveExists "library"
+            let isLibrary = directiveFlagExists "library"
 
-            let properties = ImArray.empty // TODO
+            let properties = getPropertyDirectives()
 
             // Validate directives
             directives

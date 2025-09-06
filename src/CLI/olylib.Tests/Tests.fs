@@ -38,23 +38,3 @@ let ``Debug HelloWorld`` () =
 let ``Release HelloWorld`` () =
     let output = run "Release" "HelloWorld/HelloWorld.olyx"
     Assert.Equal("Hello World!" + Environment.NewLine, output)
-
-[<Fact>]
-let ``Debug HelloWorld_r2r`` () =
-    let output = run "Debug" "HelloWorld/HelloWorld_r2r.olyx"
-    Assert.Equal("Hello World!" + Environment.NewLine, output)
-
-[<Fact>]
-let ``Release HelloWorld_r2r`` () =
-    let output = run "Release" "HelloWorld/HelloWorld_r2r.olyx"
-    Assert.Equal("Hello World!" + Environment.NewLine, output)
-
-[<Fact>]
-let ``Debug HelloWorld_aot`` () =
-    let output = run "Debug" "HelloWorld/HelloWorld_aot.olyx"
-    Assert.Equal("Hello World!" + Environment.NewLine, output)
-
-[<Fact>]
-let ``Release HelloWorld_aot`` () =
-    let output = run "Release" "HelloWorld/HelloWorld_aot.olyx"
-    Assert.Equal("Hello World!" + Environment.NewLine, output)

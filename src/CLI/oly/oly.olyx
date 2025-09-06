@@ -1,9 +1,11 @@
-#target "dotnet: net8_r2r"
+#target "dotnet: net8"
 #load "oly.oly"
 #reference "../olylib/olylib.fsproj"
 
 #package "Spectre.Console.Cli,0.50.0"
 #package "Errata,0.14.0"
+
+#property "r2r" true
 
 namespace olycli
 

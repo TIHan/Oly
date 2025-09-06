@@ -130,6 +130,8 @@ type OlyBuild(platformName: string) =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
+    abstract OnPropertyValidation : targetInfo: OlyTargetInfo * name: string * value: bool -> Result<unit, string>
+
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
 
@@ -1463,7 +1465,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     diags.Add(OlyDiagnostic.CreateError("'#target' directive needs to be specified."))
                     String.Empty, String.Empty
 
-            let targetPlatform =
+            let targetBuild =
                 if String.IsNullOrWhiteSpace(platformName) then
                     state.defaultTargetPlatform
                 else
@@ -1484,9 +1486,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     OlyOutputKind.Executable
 
             let targetInfo =
-                OlyTargetInfo(targetName, projConfig, outputKind, targetPlatform.GetImplicitExtendsForStruct(), targetPlatform.GetImplicitExtendsForEnum())
+                OlyTargetInfo(targetName, projConfig, outputKind, targetBuild.GetImplicitExtendsForStruct(), targetBuild.GetImplicitExtendsForEnum())
 
-            if String.IsNullOrWhiteSpace(platformName) |> not && targetPlatform.IsValidTargetName(targetInfo) |> not then
+            if String.IsNullOrWhiteSpace(platformName) |> not && targetBuild.IsValidTargetName(targetInfo) |> not then
                 diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))
 
             let projPath = OlyPath.Create(filePath.ToString())
@@ -1494,8 +1496,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             let chooseReference textSpan (path: OlyPath) =
                 backgroundTask {
                     let path = absoluteDir.Join(path.ToString())
-                    if targetPlatform.CanImportReference path then
-                        match! targetPlatform.ImportReferenceAsync(projPath, targetInfo, path, ct) with
+                    if targetBuild.CanImportReference path then
+                        match! targetBuild.ImportReferenceAsync(projPath, targetInfo, path, ct) with
                         | Ok r -> 
                             match r with
                             | Some r ->
@@ -1643,7 +1645,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     not(x.Path.HasExtension(".oly"))
                 )
             
-            let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
+            let! resInfo = targetBuild.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
 
             resInfo.Diagnostics
             |> ImArray.iter diags.Add
@@ -1682,9 +1684,14 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 let builder = ImmutableDictionary.CreateBuilder()
                 config.Properties
                 |> ImArray.iter (fun (textSpan, propertyName, propertyValue) ->
-                    if builder.TryAdd(propertyName, propertyValue)  then
-                        // TODO: Add platform/target specific callback check
-                        ()
+                    if builder.TryAdd(propertyName, propertyValue) then
+                        match propertyValue with
+                        | :? bool as propertyValue ->
+                            match targetBuild.OnPropertyValidation(targetInfo, propertyName, propertyValue) with
+                            | Error(msg) -> diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' is not valid due to reason: {msg}.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                            | _ -> ()
+                        | _ ->
+                            failwith "Property value type not handled."
                     else
                         diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", OlySourceLocation.Create(textSpan, syntaxTree)))
                 )
