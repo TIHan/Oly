@@ -31,9 +31,30 @@ open Microsoft.CodeAnalysis.CSharp
 open Oly.Targets.DotNet.MSBuild
 open Oly.Targets.Core
 
+[<RequireQualifiedAccess>]
+module DotNetDiagnostic =
+
+    [<Literal>]
+    let CodePrefixDOTNET = "DOTNET"
+
+[<RequireQualifiedAccess>]
+module ERROR =
+
+    let createUnableToResolveReferences (ex: Exception) =
+        Debug.WriteLine(ex)
+        OlyDiagnostic.CreateError($"Unable to resolve references: {ex.Message}", DotNetDiagnostic.CodePrefixDOTNET, 500)
+
+    let createUnableToFindPrimaryAssembly () =
+        OlyDiagnostic.CreateError("Unable to find primary assembly.", DotNetDiagnostic.CodePrefixDOTNET, 501)
+
+    let createUnableToFindConsoleAssembly () =
+        OlyDiagnostic.CreateError("Unable to find console assembly.", DotNetDiagnostic.CodePrefixDOTNET, 502)
+    
+
+// this must be public for serialization to work
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
-        (targetName: string, projectPath: string, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool) =
+        (targetName: string, projectPath: string, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool, publishKind: string) =
 
     member _.TargetName = targetName
     member _.ProjectPath = projectPath
@@ -42,6 +63,7 @@ type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstruct
     member _.FilesToCopy = filesToCopy
     member _.DependencyTimeStamp = dependencyTimeStamp
     member _.IsExe = isExe
+    member _.PublishKind = publishKind
 
 module private DotNet =
 
@@ -65,7 +87,7 @@ module private DotNet =
             (cacheDir: OlyPath) 
             (configName: string) 
             (isExe: bool) 
-            (targetName: string) 
+            (msbuildTargetInfo: MSBuildTargetInfo)
             fileReferences 
             dotnetProjectReferences 
             dotnetPackages 
@@ -75,16 +97,17 @@ module private DotNet =
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, { TargetName = targetName; PublishKind = MSBuildPublishKind.None }, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, msbuildTargetInfo, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
-                        targetName,
+                        msbuildTargetInfo.TargetName,
                         result.ProjectPath.ToString(),
                         result.OutputPath,
                         result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
                         result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
                         result.DependencyTimeStamp,
-                        result.IsExe
+                        result.IsExe,
+                        msbuildTargetInfo.PublishKind.ToString()
                     )
 
                 do! Json.SerializeAsFileAsync(cachedBuildInfoJson, resultJsonFriendly, ct)
@@ -92,39 +115,46 @@ module private DotNet =
             }
 
             if File.Exists(cachedBuildInfoJson.ToString()) then
-                let! resultJsonFriendly = Json.DeserializeFromFileAsync<ProjectBuildInfoJsonFriendly>(cachedBuildInfoJson, ct)
+                try
+                    let! resultJsonFriendly = Json.DeserializeFromFileAsync<ProjectBuildInfoJsonFriendly>(cachedBuildInfoJson, ct)
 
-                let isValid =
-                    resultJsonFriendly.TargetName = targetName &&
-                    resultJsonFriendly.References
-                    |> Array.forall File.Exists
+                    let isValid =
+                        resultJsonFriendly.TargetName = msbuildTargetInfo.TargetName &&
+                        resultJsonFriendly.References
+                        |> Array.forall File.Exists
 
-                if isValid then
-                    let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
-                    let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
-                    let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
+                    if isValid then
+                        let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
+                        let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
+                        let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
+                        let hasPublishKindChanged = MSBuildPublishKind.Parse(resultJsonFriendly.PublishKind) <> msbuildTargetInfo.PublishKind
 
-                    // TODO: We need to check if other files are different. LastWriteTime, deleted or added files.
-                    if hasDependencyChanged || hasIsExeChanged then
-                        return! build()
+                        if hasDependencyChanged || hasIsExeChanged || hasPublishKindChanged then
+                            return! build()
+                        else
+                            OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
+                            return 
+                                {
+                                    TargetName = resultJsonFriendly.TargetName
+                                    ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+                                    OutputPath = resultJsonFriendly.OutputPath
+                                    References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                                    FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                                    ReferenceNames =
+                                        (ImmutableHashSet.Empty, resultJsonFriendly.References)
+                                        ||> Array.fold (fun s r ->
+                                            s.Add(Path.GetFileName(r))
+                                        )
+                                    DependencyTimeStamp = resultJsonFriendly.DependencyTimeStamp
+                                    IsExe = resultJsonFriendly.IsExe
+                                }
                     else
-                        OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
-                        return 
-                            {
-                                TargetName = resultJsonFriendly.TargetName
-                                ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
-                                OutputPath = resultJsonFriendly.OutputPath
-                                References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-                                FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
-                                ReferenceNames =
-                                    (ImmutableHashSet.Empty, resultJsonFriendly.References)
-                                    ||> Array.fold (fun s r ->
-                                        s.Add(Path.GetFileName(r))
-                                    )
-                                DependencyTimeStamp = resultJsonFriendly.DependencyTimeStamp
-                                IsExe = resultJsonFriendly.IsExe
-                            }
-                else
+                        OlyTrace.Log($"[MSBuild] Cache is invalid. Rebuilding...")
+                        return! build()
+                with
+                | ex ->
+                    Debug.WriteLine(ex)
+                    OlyTrace.Log($"[MSBuild] Cache is invalid and encountered an error: {ex.Message}")
                     return! build()
             else
                 return! build()
@@ -148,17 +178,19 @@ module private DotNet =
         }
 
     let createMSBuildTargetInfo targetName (properties: OlyProjectProperties) =
-        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.None }
+        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.JIT }
 
         match properties.TryGetValue "aot" with
-        | true, true ->
+        | Some(true) ->
             msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.NativeAOT }
         | _ ->
-            match properties.TryGetValue "r2r" with
-            | true, true ->
-                msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.ReadyToRun }
-            | _ ->
-                ()
+            ()
+
+        match properties.TryGetValue "r2r" with
+        | Some(true) ->
+            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.ReadyToRun }
+        | _ ->
+            ()
 
         msbuildTargetInfo
 
@@ -309,7 +341,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 | _ ->
                     if ext.Equals(".cs") then
                         let cacheDir = this.GetProjectCacheDirectory(targetInfo, path)
-                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir targetInfo.ProjectConfiguration.Name false targetInfo.Name [] [] [] ct
+                        let msbuildTargetInfo = { TargetName = targetInfo.Name; PublishKind = MSBuildPublishKind.JIT }
+                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir targetInfo.ProjectConfiguration.Name false msbuildTargetInfo [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -357,7 +390,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 return Result.Error(ex.ToString())
         }
 
-    override this.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos: OlyPackageInfo imarray, ct: CancellationToken) =
+    override this.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos: OlyPackageInfo imarray, properties, ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try
@@ -373,20 +406,34 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
-                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable targetInfo.Name fileReferences dotnetProjectReferences dotnetPackages ct
+                let msbuildTargetInfo = DotNet.createMSBuildTargetInfo targetInfo.Name properties
+                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
             | ex ->
-                let diag = OlyDiagnostic.CreateError($"Unable to resolve references: {ex.Message}")
+                let diag = ERROR.createUnableToResolveReferences ex
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
-    override this.OnPropertyValidation (targetInfo: OlyTargetInfo, name: string, value: bool): Result<unit,string> = 
+    override this.OnProjectPropertyValidation (targetInfo: OlyTargetInfo, currentProperties, name: string, _value: bool): Result<unit,string> = 
         match name with
-        | "r2r" 
-        | "aot" -> Ok()
-        | _ -> Error($"'{name}' is not a valid .NET property")
+        | "r2r" ->
+            if currentProperties.ContainsKey("aot") then
+                Error($"'{name}' cannot be set as the property 'aot' is already set")
+            elif not targetInfo.IsExecutable then
+                Error($"'{name}' cannot set be set in a library")
+            else
+                Ok()
+        | "aot" ->
+            if currentProperties.ContainsKey("r2r") then
+                Error($"'{name}' cannot be set as the property 'r2r' is already set")
+            elif not targetInfo.IsExecutable then
+                Error($"'{name}' cannot set be set in a library")
+            else
+                Ok()
+        | _ -> 
+            Error($"'{name}' is not a valid .NET property")
 
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]
     override this.BuildProjectAsync(proj, ct) = backgroundTask {
@@ -498,11 +545,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             )
 
         match primaryAssemblyOpt with
-        | None -> return Error(OlyDiagnostic.CreateError("Unable to find primary assembly.") |> ImArray.createOne)
+        | None -> return Error(ERROR.createUnableToFindPrimaryAssembly() |> ImArray.createOne)
         | Some primaryAssembly ->
 
         match consoleAssemblyOpt with
-        | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
+        | None -> return Error(ERROR.createUnableToFindConsoleAssembly() |> ImArray.createOne)
         | Some consoleAssembly ->
 
         let msbuildTargetInfo = DotNet.createMSBuildTargetInfo proj.TargetInfo.Name proj.Properties
@@ -685,7 +732,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
     override _.GetImplicitExtendsForEnum() = Some "System.Enum"
 
     override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
-        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix("DOTNET")
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix(DotNetDiagnostic.CodePrefixDOTNET)
 
         let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
             // UnmanagedCallersOnly

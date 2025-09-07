@@ -3,6 +3,7 @@
 open System
 open System.Threading
 open System.Threading.Tasks
+open System.Collections.Generic
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
@@ -119,7 +120,7 @@ type OlyBuild =
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
-    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
+    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
      
     abstract CanImportReference : path: OlyPath -> bool
 
@@ -127,7 +128,7 @@ type OlyBuild =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract OnPropertyValidation : targetInfo: OlyTargetInfo * name: string * value: bool -> Result<unit, string>
+    abstract OnProjectPropertyValidation : targetInfo: OlyTargetInfo * currentProperties: IReadOnlyDictionary<string, obj> * name: string * value: bool -> Result<unit, string>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
@@ -174,9 +175,7 @@ type OlyProjectConfiguration =
 [<Sealed>]
 type OlyProjectProperties =
 
-    member Contains: propertyName: string -> bool
-
-    member TryGetValue<'T>: propertyName: string * outValue: outref<'T> -> bool
+    member TryGetValue<'T>: propertyName: string -> 'T option
 
 [<Sealed>]
 type OlyProject =

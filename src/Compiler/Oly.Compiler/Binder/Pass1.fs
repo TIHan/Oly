@@ -197,7 +197,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then
                             if not extendTy.IsAnyStruct || extendTy.IsTypeVariable then
-                                cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.")
+                                cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.", 10, syntaxIdent)
                                 ValueFlags.None
                             else
                                 ValueFlags.Mutable

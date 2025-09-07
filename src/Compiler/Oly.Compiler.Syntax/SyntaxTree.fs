@@ -148,10 +148,10 @@ type OlyDiagnostic internal () =
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
-    static member CreateError(message, syntaxNode: OlySyntaxNode) =
-        OlyDiagnostic.CreateError(message, OlyDiagnostic.CodePrefixOLY, -1, syntaxNode)
+    static member CreateError(message, code, syntaxNode: OlySyntaxNode) =
+        OlyDiagnostic.CreateError(message, OlyDiagnostic.CodePrefixOLY, code, syntaxNode)
 
-    static member CreateError(message, location: OlySourceLocation) =
+    static member CreateError(message, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -163,7 +163,7 @@ type OlyDiagnostic internal () =
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
             member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
-            member _.Code = -1
+            member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
@@ -215,7 +215,7 @@ type OlyDiagnostic internal () =
             member _.Kind = OlyDiagnosticKind.Syntactic
         }
 
-    static member CreateError(message) =
+    static member CreateError(message, code) =
         { new OlyDiagnostic() with
             member _.Message = message
             member _.IsError = true
@@ -225,7 +225,21 @@ type OlyDiagnostic internal () =
             member _.TextSpan = OlyTextSpan()
             member _.OffsideAmount = 0
             member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
-            member _.Code = -1
+            member _.Code = code
+            member _.Kind = OlyDiagnosticKind.Semantic
+        }
+
+    static member CreateError(message, prefix, code) =
+        { new OlyDiagnostic() with
+            member _.Message = message
+            member _.IsError = true
+            member _.IsWarning = false
+            member _.IsInformational = false
+            member _.SyntaxTree = None
+            member _.TextSpan = OlyTextSpan()
+            member _.OffsideAmount = 0
+            member _.CodePrefix = prefix
+            member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
@@ -290,9 +304,6 @@ type OlyDiagnosticLogger private (prefixOpt: string option) =
         match prefixOpt with
         | Some prefix -> prefix
         | _ -> OlyDiagnostic.CodePrefixOLY
-
-    member _.Error(text: string) =
-        queue.Enqueue(OlyDiagnostic.CreateError(text))
 
     member _.Error(text: string, code: int, node: OlySyntaxNode) =
         hasErrors <- true
@@ -530,7 +541,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
 
             let checkConfigDirective textSpan =               
                 if not parsingOptions.CompilationUnitConfigurationEnabled then
-                    diags.Add(OlyDiagnostic.CreateError($"Compilation unit configuration is not enabled.", OlySourceLocation.Create(textSpan, this)))
+                    diags.Add(OlyDiagnostic.CreateError($"Compilation unit configuration is not enabled.", 200, OlySourceLocation.Create(textSpan, this)))
 
             let targets =
                 directives
@@ -553,7 +564,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     None
                 elif targets.Length > 1 then
                     let textSpan, _ = targets.[0]
-                    diags.Add(OlyDiagnostic.CreateError($"Only one target may be specified.", OlySourceLocation.Create(textSpan, this)))
+                    diags.Add(OlyDiagnostic.CreateError($"Only one target may be specified.", 201, OlySourceLocation.Create(textSpan, this)))
                     None
                 else
                     Some targets.[0]
@@ -624,7 +635,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     | "package" -> ()
                     | "copy" -> () // TODO:
                     | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", OlySourceLocation.Create(textSpan, this)))
+                        diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", 202, OlySourceLocation.Create(textSpan, this)))
                 | _ ->
                     ()
             )

@@ -15,7 +15,66 @@ open System.Threading.Tasks
 open System.Collections.Generic
 open System.Collections.Immutable
 open System.Runtime.CompilerServices
+
 open System.Diagnostics.CodeAnalysis
+
+[<RequireQualifiedAccess>]
+module ERROR =            
+
+    let reportInvalidTarget (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("Invalid target.", 300))
+
+    let reportDirectiveNeedsToBeSpecified (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("'#target' directive needs to be specified.", 301))
+
+    let reportTargetPlatformDoesNotExistInTheWorkspace platformName (location: OlySourceLocation option) (diags: imarrayb<OlyDiagnostic>) =
+        match location with
+        | Some location ->
+            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", 302, location))
+        | _ ->
+            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", 302))
+
+    let reportInvalidTargetFor targetName platformName (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'.", 303))
+
+    let reportReferenceNotValid (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Reference '{path}' is not valid.", 304, location))
+
+    let reportReferenceNotValidWithMessage (msg: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError(msg, 305, location))
+
+    let reportCannotReferenceOlyFiles (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", 306, location))
+
+    let reportProjectDoesNotExist (projPath: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}' as it does not exist in the current workspace.", 307, location))
+
+    let reportProjectHasInternalError (projPath: OlyPath) (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        System.Diagnostics.Debug.WriteLine(ex.Message)
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}'. Internal Error: {ex.Message}", 308, location))
+
+    let reportProjectPropertyNotValid (propertyName: string) (msg: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' is not valid. Reason: {msg}.", 309, location))
+
+    let reportDuplicateProjectProperty propertyName (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", 310, location))
+
+    let reportProjectFilesCannotBeLoadedOnlyReferenced (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", 311, location))
+
+    let reportFileDoesNotExist (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"'{path}' does not exist.", 312, location))
+
+    let createProjectInternalError (ex: Exception) (location: OlySourceLocation option) =
+        System.Diagnostics.Debug.WriteLine(ex.Message)
+        match location with
+        | Some(location) ->
+            OlyDiagnostic.CreateError($"Project internal error: {ex.Message}", 313, location)
+        | _ ->
+            OlyDiagnostic.CreateError($"Project internal error: {ex.Message}", 313)
+
+    let reportProjectInternalError (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(createProjectInternalError ex (Some location))
 
 exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
 
@@ -122,7 +181,7 @@ type OlyBuild(platformName: string) =
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
-    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
+    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
 
     abstract CanImportReference : path: OlyPath -> bool
 
@@ -130,7 +189,7 @@ type OlyBuild(platformName: string) =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract OnPropertyValidation : targetInfo: OlyTargetInfo * name: string * value: bool -> Result<unit, string>
+    abstract OnProjectPropertyValidation : targetInfo: OlyTargetInfo * currentProperties: IReadOnlyDictionary<string, obj> * name: string * value: bool -> Result<unit, string>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
@@ -260,22 +319,19 @@ type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
     static let empty = OlyProjectProperties(ImmutableDictionary.Empty)
     static member Empty = empty
 
-    member _.Contains(propertyName: string) = properties.ContainsKey(propertyName)
-
-    member _.TryGetValue<'T>(propertyName: string, outValue: outref<'T>): bool =
+    member _.TryGetValue<'T>(propertyName: string): 'T option =
         match properties.TryGetValue(propertyName) with
         | true, value ->
             if isNull value then
-                false
+                None
             else
                 match tryUnbox (downcast value) with
                 | Some(value) ->
-                    outValue <- value
-                    true
+                    Some(value)
                 | _ ->
-                    false
+                    None
         | _ ->
-            false            
+            None   
 
 [<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
@@ -1447,7 +1503,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, config: OlyCompilationUnitConfiguration, filePath, projConfig, ct: CancellationToken) =
         backgroundTask {
-            let diags = ImArray.builder ()
+            let diags: imarrayb<OlyDiagnostic> = ImArray.builder ()
 
             let absoluteDir = filePath.GetDirectory()
 
@@ -1457,12 +1513,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     let targetName = targetName.Replace(" ", "")
                     let index = targetName.IndexOf(':')
                     if (index = -1) || (index + 1 = targetName.Length) || targetName.Contains("\n") then
-                        diags.Add(OlyDiagnostic.CreateError("Invalid target."))
+                        ERROR.reportInvalidTarget diags
                         String.Empty, String.Empty
                     else
                         targetName.Substring(0, index), targetName.Substring(index + 1)
                 | _ -> 
-                    diags.Add(OlyDiagnostic.CreateError("'#target' directive needs to be specified."))
+                    ERROR.reportDirectiveNeedsToBeSpecified diags
                     String.Empty, String.Empty
 
             let targetBuild =
@@ -1474,9 +1530,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     | _ -> 
                         match config.Target with
                         | Some(textSpan, _) ->
-                            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                            ERROR.reportTargetPlatformDoesNotExistInTheWorkspace platformName (Some(OlySourceLocation.Create(textSpan, syntaxTree))) diags
                         | _ ->
-                            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace."))
+                            ERROR.reportTargetPlatformDoesNotExistInTheWorkspace platformName None diags
                         state.defaultTargetPlatform
 
             let outputKind = 
@@ -1489,7 +1545,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 OlyTargetInfo(targetName, projConfig, outputKind, targetBuild.GetImplicitExtendsForStruct(), targetBuild.GetImplicitExtendsForEnum())
 
             if String.IsNullOrWhiteSpace(platformName) |> not && targetBuild.IsValidTargetName(targetInfo) |> not then
-                diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))
+                ERROR.reportInvalidTargetFor targetName platformName diags
 
             let projPath = OlyPath.Create(filePath.ToString())
 
@@ -1508,10 +1564,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                             | _ ->
                                 return None
                         | Error msg ->
-                            diags.Add(OlyDiagnostic.CreateError(msg, OlySourceLocation.Create(textSpan, syntaxTree)))
+                            ERROR.reportReferenceNotValidWithMessage msg (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                             return None
                     else
-                        diags.Add(OlyDiagnostic.CreateError($"Reference '{path}' is not valid.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                        ERROR.reportReferenceNotValid path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                         return None
                 }
 
@@ -1519,7 +1575,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             config.References
             |> ImArray.iter (fun (textSpan, path) ->
                 if path.HasExtension(".oly") then
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                    ERROR.reportCannotReferenceOlyFiles path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
             )
 
             let referenceInfos = 
@@ -1608,11 +1664,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     | Some proj ->
                         projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
                     | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}' as it does not exist in the current workspace.", OlySourceLocation.Create(projTextSpan, syntaxTree)))
+                        ERROR.reportProjectDoesNotExist projPath (OlySourceLocation.Create(projTextSpan, syntaxTree)) diags
                 with
                 | ex ->
-                    System.Diagnostics.Debug.WriteLine(ex.Message)
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}'. Internal Error: {ex.Message}", OlySourceLocation.Create(projTextSpan, syntaxTree)))
+                    ERROR.reportProjectHasInternalError projPath ex (OlySourceLocation.Create(projTextSpan, syntaxTree)) diags
             let projectReferencesInWorkspace = projectReferencesInWorkspace.ToImmutable()
 
             let transitivePackageInfos =
@@ -1644,8 +1699,25 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     not(x.Path.HasExtension(".olyx")) &&
                     not(x.Path.HasExtension(".oly"))
                 )
+
+            let properties =
+                let builder = ImmutableDictionary.CreateBuilder()
+                config.Properties
+                |> ImArray.iter (fun (textSpan, propertyName, propertyValue) ->
+                    if builder.TryAdd(propertyName, propertyValue) then
+                        match propertyValue with
+                        | :? bool as propertyValue ->
+                            match targetBuild.OnProjectPropertyValidation(targetInfo, builder, propertyName, propertyValue) with
+                            | Error(msg) -> ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                            | _ -> ()
+                        | _ ->
+                            failwith "Property value type not handled."
+                    else
+                        ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                )
+                OlyProjectProperties(builder.ToImmutable())
             
-            let! resInfo = targetBuild.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
+            let! resInfo = targetBuild.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, properties, ct)
 
             resInfo.Diagnostics
             |> ImArray.iter diags.Add
@@ -1680,23 +1752,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 |> ImArray.append copyFileInfos
                 |> ImArray.distinct
 
-            let properties =
-                let builder = ImmutableDictionary.CreateBuilder()
-                config.Properties
-                |> ImArray.iter (fun (textSpan, propertyName, propertyValue) ->
-                    if builder.TryAdd(propertyName, propertyValue) then
-                        match propertyValue with
-                        | :? bool as propertyValue ->
-                            match targetBuild.OnPropertyValidation(targetInfo, propertyName, propertyValue) with
-                            | Error(msg) -> diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' is not valid due to reason: {msg}.", OlySourceLocation.Create(textSpan, syntaxTree)))
-                            | _ -> ()
-                        | _ ->
-                            failwith "Property value type not handled."
-                    else
-                        diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", OlySourceLocation.Create(textSpan, syntaxTree)))
-                )
-                OlyProjectProperties(builder.ToImmutable())
-
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 
             let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, properties, ct)
@@ -1708,7 +1763,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             loads
             |> ImArray.iter (fun (textSpan, path) ->
                 if path.HasExtension(ProjectExtension) then
-                    diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                    ERROR.reportProjectFilesCannotBeLoadedOnlyReferenced (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                 else
                     let path = absoluteDir.Join(path.ToString())
                     if OlyPath.Equals(filePath, path) then
@@ -1721,10 +1776,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                                 OlySyntaxTree.Parse(path, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
                             documents.Add(path, syntaxTree, ImArray.empty)
                         with
-                        | :? OlyWorkspaceFileDoesNotExist as ex ->
-                            diags.Add(OlyDiagnostic.CreateError($"'{path.ToString()}' does not exist.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                        | :? OlyWorkspaceFileDoesNotExist ->
+                            ERROR.reportFileDoesNotExist path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                         | ex ->
-                            diags.Add(OlyDiagnostic.CreateError($"Internal error: {ex.Message}", OlySourceLocation.Create(textSpan, syntaxTree)))
+                            ERROR.reportProjectInternalError ex (OlySourceLocation.Create(textSpan, syntaxTree)) diags
             )
 
             documents.Add(filePath, syntaxTree, diags.ToImmutable())
@@ -1747,6 +1802,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 let currentCopyFiles = currentConfig.CopyFiles
                 let currentTarget = currentConfig.Target
                 let currentIsLibrary = currentConfig.IsLibrary
+                let currentProperties = currentConfig.Properties
 
                 let config = syntaxTree.GetCompilationUnitConfiguration(ct)
                 let loads = config.Loads
@@ -1755,12 +1811,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 let copyFiles = config.CopyFiles
                 let target = config.Target
                 let isLibrary = config.IsLibrary
+                let properties = config.Properties
 
                 let currentTargetName = currentTarget |> Option.map snd |> Option.defaultValue ""
                 let targetName = target |> Option.map snd |> Option.defaultValue ""
 
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
-                   copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
+                   copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary || properties.Length <> currentProperties.Length then
 #if DEBUG || CHECKED
                     OlyTrace.Log($"[Workspace] - Reloading Existing Project - {projPath.ToString()}")
 #endif
@@ -1783,7 +1840,11 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         (copyFiles, currentCopyFiles)
                         ||> ImArray.forall2 (fun (_, path1) (_, path2) -> OlyPath.Equals(path1, path2))
 
-                    if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame then
+                    let propertiesAreSame =
+                        (properties, currentProperties)
+                        ||> ImArray.forall2 (fun (_, name1, value1) (_, name2, value2) -> name1 = name2 && value1.Equals(value2))
+
+                    if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame && propertiesAreSame then
                         return None
                     else
 #if DEBUG || CHECKED
@@ -1933,7 +1994,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 return! target.BuildProjectAsync(proj, ct)
             with
             | ex ->
-                return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
+                return Error(ImArray.createOne (ERROR.createProjectInternalError ex None))
         }
 
     member this.ClearSolution() =

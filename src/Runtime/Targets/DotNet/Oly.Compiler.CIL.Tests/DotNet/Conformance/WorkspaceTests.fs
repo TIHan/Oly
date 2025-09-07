@@ -132,3 +132,80 @@ main(): () =
     |> shouldHaveBuildError """olytest.olyx(13,9): error OLY9999: Generic recursion limit reached: D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<E>>>>>>>>>>>>>>>>>
         this.M2<D<T>>()
         ^^^^^^^^^^^^^^^"""
+
+[<Fact>]
+let ``AOT and R2R cannot both be set at the same time``() =
+    let src = """
+#target "dotnet: net8"
+
+#property "r2r" false
+#property "aot" false
+
+main(): () =
+    ()
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'aot' is not valid. Reason: 'aot' cannot be set as the property 'r2r' is already set.
+#property "aot" false
+^^^^^^^^^^^^^^^^^^^^^"""
+
+
+[<Fact>]
+let ``R2R and AOT cannot both be set at the same time``() =
+    let src = """
+#target "dotnet: net8"
+
+#property "aot" false
+#property "r2r" false
+
+main(): () =
+    ()
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'r2r' is not valid. Reason: 'r2r' cannot be set as the property 'aot' is already set.
+#property "r2r" false
+^^^^^^^^^^^^^^^^^^^^^"""
+
+[<Fact>]
+let ``AOT cannot be set in a library``() =
+    let src = """
+#target "dotnet: net8"
+#library
+
+#property "aot" false
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'aot' is not valid. Reason: 'aot' cannot set be set in a library.
+#property "aot" false
+^^^^^^^^^^^^^^^^^^^^^"""
+
+[<Fact>]
+let ``R2R cannot be set in a library``() =
+    let src = """
+#target "dotnet: net8"
+#library
+
+#property "r2r" false
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'r2r' is not valid. Reason: 'r2r' cannot set be set in a library.
+#property "r2r" false
+^^^^^^^^^^^^^^^^^^^^^"""
+
+[<Fact>]
+let ``Duplicate properties not allowed``() =
+    let src = """
+#target "dotnet: net8"
+
+#property "aot" false
+#property "aot" true
+    """
+    createWorkspace()
+    |> createProject src
+    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0310: Duplicate property 'aot'.
+#property "aot" true
+^^^^^^^^^^^^^^^^^^^^"""

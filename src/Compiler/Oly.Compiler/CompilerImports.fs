@@ -1092,10 +1092,10 @@ let private findEntityDefinition cenv (qualName: QualifiedName) (ilEntRef: OlyIL
                 | Some(ilEntRefHandle2, ilEntRef2) when obj.ReferenceEquals(ilEntRef, ilEntRef2) |> not ->
                     findEntityDefinition cenv qualName ilEntRef2
                 | _ ->
-                    cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName))
+                    cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName, 400))
                     invalidEntity
         | _ ->
-            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find assembly: %s::%s." asmIdentity.Name asmIdentity.Key))
+            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find assembly: %s::%s." asmIdentity.Name asmIdentity.Key, 401))
             invalidEntity
 
 let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILEntityReferenceHandle) =
@@ -1113,7 +1113,7 @@ let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILE
             localCache.entFromEntRef.[ilEntRefHandle] <- ent
             cenv.imports.sharedCache.AddEntity(ent)
         else
-            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName))
+            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName, 400))
         ent
 
 let private importEntitySymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilEntRef: OlyILEntityInstance) =

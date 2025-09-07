@@ -23,9 +23,9 @@ type ProjectBuildInfo =
 
 [<RequireQualifiedAccess>]
 type MSBuildPublishKind =
-    | None
-    | ReadyToRun
-    | NativeAOT
+    | JIT = 0
+    | ReadyToRun = 1
+    | NativeAOT = 2
 
 [<NoEquality;NoComparison>]
 type MSBuildTargetInfo =
@@ -34,7 +34,7 @@ type MSBuildTargetInfo =
         PublishKind: MSBuildPublishKind
     }
 
-    member this.IsPublish = match this.PublishKind with MSBuildPublishKind.None -> false | _ -> true
+    member this.IsPublish = match this.PublishKind with MSBuildPublishKind.JIT -> false | _ -> true
 
     member this.IsNativeAOT = match this.PublishKind with MSBuildPublishKind.NativeAOT -> true | _ -> false
 
@@ -50,9 +50,9 @@ type MSBuild() =
                 ""
         let publishKind =
             match publishKind with
-            | MSBuildPublishKind.None -> ""
             | MSBuildPublishKind.ReadyToRun -> "<PublishReadyToRun>true</PublishReadyToRun>"
             | MSBuildPublishKind.NativeAOT -> "<PublishAot>true</PublishAot>"
+            | _ -> ""
 
         let references =
             fileReferences

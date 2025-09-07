@@ -17,7 +17,8 @@ module OlyTarget =
             let solution = project.Solution
             let docs = solution.GetDocuments(ex.textRange.Path)
             if docs.IsEmpty then
-                Some(OlyDiagnostic.CreateError(ex.message))
+                System.Diagnostics.Debug.WriteLine(ex)
+                Some(OlyDiagnostic.CreateError($"Internal error: {ex.message}", 9999))
             else
                 let doc = docs[0]
                 let syntaxNode =
@@ -145,13 +146,13 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
                 return Error(ex.Message)
         }
 
-    override _.ResolveReferencesAsync(_, _, _, _, ct) =
+    override _.ResolveReferencesAsync(_, _, _, _, _, ct) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.empty)
         }
 
-    override this.OnPropertyValidation (targetInfo: OlyTargetInfo, name: string, value: bool): Result<unit,string> = 
+    override this.OnProjectPropertyValidation (_, _, name: string, _): Result<unit,string> = 
         match name with
-        | _ -> Error($"'{name}' is listed as a valid property for target platform")
+        | _ -> Error($"'{name}' is not listed as a valid property for target platform")
 
