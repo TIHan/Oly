@@ -1517,6 +1517,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     ERROR.reportDirectiveNeedsToBeSpecified diags
                     String.Empty, String.Empty
 
+            OlyTrace.Log($"[Project] '{projPath}' - Configuring Target - Platform: '{platformName}', Target: '{targetName}'")
+
             let targetBuild =
                 if String.IsNullOrWhiteSpace(platformName) then
                     state.defaultTargetPlatform
@@ -1537,8 +1539,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 else
                     OlyOutputKind.Executable
 
+            OlyTrace.Log($"[Project] '{projPath}' - Configuring Target - Output: {outputKind}")
+
             let targetInfo =
                 OlyTargetInfo(targetName, projConfig, outputKind, targetBuild.GetImplicitExtendsForStruct(), targetBuild.GetImplicitExtendsForEnum())
+
+            OlyTrace.Log($"[Project] '{projPath}' - Configured Target")
 
             if String.IsNullOrWhiteSpace(platformName) |> not && targetBuild.IsValidTargetName(targetInfo) |> not then
                 ERROR.reportInvalidTargetFor targetName platformName diags
@@ -1603,11 +1609,15 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 else
                     olyxReferenceInfos.Add(OlyReferenceInfo(preludeProjectPath, OlyTextSpan.Create(0, 0)))
 
+            OlyTrace.Log($"[Project] '{projPath}' - Parsing")
+
             let olyxReferenceInfosToUpdate =
                 olyxReferenceInfos
                 |> ImArray.map (fun x ->
                     OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
                 )
+
+            OlyTrace.Log($"[Project] '{projPath}' - Parsed")
 
             let olyxReferenceInfosToUpdate =
 
@@ -1641,7 +1651,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     )
                 with
                 | ex ->
-                    OlyTrace.LogError($"[Workspace] Failed getting project reference count:\n{ex.ToString()}")
+                    OlyTrace.LogError($"[Project] Failed getting project reference count:\n{ex.ToString()}")
                     ImArray.empty
 
             let projectReferencesInWorkspace = ImArray.builder()
@@ -1712,6 +1722,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                 )
                 OlyProjectProperties(builder.ToImmutable())
+
+            OlyTrace.Log($"[Project] '{projPath}' - Resolving References")
             
             let! resInfo = targetBuild.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, properties, ct)
 
@@ -1733,7 +1745,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     chooseReference textSpan path
                 )
                 |> Task.WhenAll
-            OlyTrace.Log($"[Project] '{projPath}' - Resolved References - {s.Elapsed.TotalMilliseconds}ms")
+            OlyTrace.Log($"[Project] '{projPath}' - Resolved References")
 
             let projectReferences =
                 projectReferences
