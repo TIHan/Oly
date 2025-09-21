@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="dotnet $(OutputPath)\oly_bootstrap.dll ../oly/oly.olyx&#xD;&#xA;dotnet ..\oly\.oly\bin\oly\dotnet\net8\Release\oly.dll build -c Debug ../oly/oly.olyx&#xD;&#xA;dotnet ..\oly\.oly\bin\oly\dotnet\net8\Debug\oly.dll build -c Release ../oly/oly.olyx" />
+    <Exec Command="dotnet $(OutputPath)\oly_bootstrap.dll ../oly/oly.olyx" />
   </Target>
 
 </Project>

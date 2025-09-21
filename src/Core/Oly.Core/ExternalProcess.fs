@@ -54,6 +54,7 @@ type ExternalProcess(filePath: string, args: string, ?workingDirectory: string) 
 
     member this.RunAsync(ct: CancellationToken) =
         backgroundTask {
+            OlyTrace.Log $"[ExternalProcess] {filePath} {args}"
             let output = System.Text.StringBuilder()
             let error = System.Text.StringBuilder()
             use outputWaitHandle = new AutoResetEvent(false)

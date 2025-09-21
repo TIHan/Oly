@@ -374,9 +374,7 @@ type OlyProject (
     member _.CopyFileInfos = copyFileInfos
 
     member this.InvalidateReferences(newSolutionLazy) =
-#if DEBUG || CHECKED
-        OlyTrace.Log($"[Workspace] - Invalidating Project References - {projPath.ToString()}")
-#endif
+        OlyTrace.Log($"[Project] '{projPath.ToString()}' - Invalidating References")
         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None)
 
     member val AsCompilationReference = OlyCompilationReference.Create(projPath, CacheValue(fun ct -> compilation.GetValue(ct)))
@@ -830,7 +828,7 @@ type OlySolution (state: SolutionState) =
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        OlyTrace.Log($"[Solution] Setting project - {projectPath.ToString()}")
+        OlyTrace.Log($"[Project] '{projectPath}' - Setting")
         OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
         let newProject = project.Set(newSolutionLazy, documents, projectReferences)
         let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
@@ -857,7 +855,7 @@ type OlySolution (state: SolutionState) =
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        OlyTrace.Log($"[Solution] Updating document - {documentPath.ToString()}")
+        OlyTrace.Log($"[Document] '{documentPath.ToString()}' - Updating")
         OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
         let newProject, newDocument = project.UpdateDocument(newSolutionLazy, documentPath, syntaxTree, extraDiagnostics)
         let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
@@ -915,9 +913,7 @@ type OlySolution (state: SolutionState) =
             this
 
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
-#if DEBUG || CHECKED
-        OlyTrace.Log($"[Workspace] - Updating References For Project - {projectPath.ToString()}")
-#endif
+        OlyTrace.Log($"[Project] '{projectPath.ToString()}' - Updating References")
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
@@ -1276,7 +1272,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             | ex ->
                 match ex with
                 | :? OperationCanceledException -> ()
-                | _ -> OlyTrace.LogError($"[Workspace] - Error updating document:\n" + ex.ToString())
+                | _ -> OlyTrace.LogError($"[Workspace] Failed Updating Document:\n" + ex.ToString())
                 solutionRef.contents <- prevSolution
             ct.ThrowIfCancellationRequested()
     }
@@ -1296,9 +1292,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 match! mbp.Receive() with
                 | GetSolution(ct, reply) ->
                     use _progress = onBeginWork()
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - GetSolution()")
-#endif
+
+                    OlyTrace.Log($"[Workspace] Getting Solution")
+
                     let prevSolution = solutionRef.contents
                     
                     try
@@ -1311,15 +1307,15 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.LogError($"[Workspace] - GetSolution:\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] Failed Getting Solution:\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
                         reply.Reply(Error(ex))
 
                 | RemoveProject(projectPath, ct) ->
                     use _progress = onBeginWork()
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - RemoveProject({projectPath.ToString()})")
-#endif
+
+                    OlyTrace.Log($"[Workspace] Removing Project '{projectPath.ToString()}'")
+
                     let prevSolution = solutionRef.contents
                     try
                         let! ctr, ct = mapCtToCtr ct
@@ -1330,39 +1326,39 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     | ex ->
                         match ex with
                         | :? OperationCanceledException -> ()
-                        | _ -> OlyTrace.LogError($"[Workspace] - RemoveProject({projectPath.ToString()}):\n" + ex.ToString())
+                        | _ -> OlyTrace.LogError($"[Workspace] Failed Removing Project '{projectPath.ToString()}':\n" + ex.ToString())
                         solutionRef.contents <- prevSolution
 
                 | ClearSolution ->
                     use _progress = onBeginWork()
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - ClearSolution")
-#endif
+
+                    OlyTrace.Log($"[Workspace] Clearing Solution")
+
                     clearSolution()
 
                 // File handling, these cannot be cancelled
 
                 | UpdateDocument(documentPath, sourceText, ct) ->
                     use _progress = onBeginWork()
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - UpdateDocument({documentPath.ToString()})")
-#endif
+
+                    OlyTrace.Log($"[Workspace] Updating Document '{documentPath.ToString()}'")
+
                     currentRs <- currentRs.SetInMemorySourceText(documentPath, sourceText)
                     documentsToUpdate.Enqueue(documentPath, ct)
                     events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(documentPath, true))
 
                 | LoadProject(projectPath, ct) ->
                     use _progress = onBeginWork()
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - LoadProject({projectPath.ToString()})")
-#endif
+
+                    OlyTrace.Log($"[Workspace] Loading Project '{projectPath.ToString()}'")
+
                     if projectPath.HasExtension(".olyx") then
                         documentsToUpdate.Enqueue(projectPath, ct)
 
                 | FileCreated(filePath) ->
                     use _progress = onBeginWork()
 
-                    OlyTrace.Log($"[Workspace] - FileCreated - {filePath.ToString()}")
+                    OlyTrace.Log($"[Workspace] File Created '{filePath.ToString()}'")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)
@@ -1382,7 +1378,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 | FileChanged(filePath) ->
                     use _progress = onBeginWork()
 
-                    OlyTrace.Log($"[Workspace] - FileChanged - {filePath.ToString()}")
+                    OlyTrace.Log($"[Workspace] File Changed '{filePath.ToString()}'")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)  
@@ -1396,7 +1392,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 | FileDeleted(filePath) ->
                     use _progress = onBeginWork()
 
-                    OlyTrace.Log($"[Workspace] - FileDeleted - {filePath.ToString()}")
+                    OlyTrace.Log($"[Workspace] File Deleted - {filePath.ToString()}")
                     if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.RemoveResource(filePath)
@@ -1421,7 +1417,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     do! loop()
                 with
                 | ex ->
-                    OlyTrace.LogError($"[Workspace] - Shutdown - Reason:\n{ex.ToString()}")
+                    OlyTrace.LogError($"[Workspace] Shutting Down - Reason:\n{ex.ToString()}")
                     raise ex
             }
 
@@ -1645,7 +1641,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     )
                 with
                 | ex ->
-                    OlyTrace.LogError($"[Workspace] Getting project reference count failed:\n{ex.ToString()}")
+                    OlyTrace.LogError($"[Workspace] Failed getting project reference count:\n{ex.ToString()}")
                     ImArray.empty
 
             let projectReferencesInWorkspace = ImArray.builder()
@@ -1737,7 +1733,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     chooseReference textSpan path
                 )
                 |> Task.WhenAll
-            OlyTrace.Log($"[Workspace] Resolved References - {s.Elapsed.TotalMilliseconds}ms")
+            OlyTrace.Log($"[Project] '{projPath}' - Resolved References - {s.Elapsed.TotalMilliseconds}ms")
 
             let projectReferences =
                 projectReferences
@@ -1818,9 +1814,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary || properties.Length <> currentProperties.Length then
-#if DEBUG || CHECKED
-                    OlyTrace.Log($"[Workspace] - Reloading Existing Project - {projPath.ToString()}")
-#endif
+                    OlyTrace.Log($"[Project] '{projPath}' Reloading")
                     let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                     return Some result
                 else
@@ -1847,15 +1841,11 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame && propertiesAreSame then
                         return None
                     else
-#if DEBUG || CHECKED
-                        OlyTrace.Log($"[Workspace] - Reloading Existing Project - {projPath.ToString()}")
-#endif                            
+                        OlyTrace.Log($"[Project] '{projPath}' - Reloading")                       
                         let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                         return Some result
             | _ -> 
-#if DEBUG || CHECKED
-                OlyTrace.Log($"[Workspace] - Creating Project - {projPath.ToString()}")
-#endif
+                OlyTrace.Log($"[Project] '{projPath}' - Creating")
                 let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
                 return Some result
         }

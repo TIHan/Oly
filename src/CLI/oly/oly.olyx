@@ -5,6 +5,8 @@
 #package "Spectre.Console.Cli,0.50.0"
 #package "Errata,0.14.0"
 
+#property "r2r" true
+
 namespace olycli
 
 open Spectre.Console.Cli

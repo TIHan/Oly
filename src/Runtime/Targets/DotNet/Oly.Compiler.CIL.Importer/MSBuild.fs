@@ -97,7 +97,7 @@ type MSBuild() =
 </Project>
         """
 
-    let getInfoCore programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let createAndBuildCore programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
@@ -203,7 +203,7 @@ type MSBuild() =
                 try File.Delete(tmpFile) with | _ -> ()
         }
     
-    let getInfo programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let createAndBuild programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             OlyTrace.Log $"[MSBuild] Started resolving DotNet references for project: {projectName}"
@@ -215,7 +215,7 @@ type MSBuild() =
                         OlyTrace.Log $"[MSBuild] Finished resolving DotNet references for project: {projectName} - {s.Elapsed.TotalMilliseconds}ms"
                 }
             try
-                let! result = getInfoCore programCs outputPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
+                let! result = createAndBuildCore programCs outputPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
                 return result
             with
             | ex ->
@@ -226,7 +226,7 @@ type MSBuild() =
         }
 
     member this.CreateAndBuildProjectAsync(programCs, projectName: string, outputPath: OlyPath, configName: string, isExe: bool, targetName, fileReferences, dotnetProjectReferences, dotnetPackages, ct) =
-        getInfo programCs outputPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
+        createAndBuild programCs outputPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
 
     member this.DeleteProjectObjDirectory(info: ProjectBuildInfo) =
         try Directory.Delete(Path.Combine(info.ProjectPath.ToString(), "obj"), true) with | _ -> ()

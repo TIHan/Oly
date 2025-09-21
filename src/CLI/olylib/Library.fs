@@ -24,6 +24,7 @@ module Oly =
         OlyWorkspace.Create(targets, rootPath, rs)
 
     let Build (configName: string, projectPath: OlyPath, ct: CancellationToken) =
+        OlyTrace.Log $"[Build] Started building '{projectPath}' with configuration '{configName}'"
         let projectPath = OlyPath.Create(System.Environment.CurrentDirectory).Join(projectPath)
         let rootPath = projectPath.GetDirectory()
         let activeConfigPath = rootPath.Join(".oly/workspace/state.json")
