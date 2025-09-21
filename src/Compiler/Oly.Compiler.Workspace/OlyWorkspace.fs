@@ -1609,11 +1609,18 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 else
                     olyxReferenceInfos.Add(OlyReferenceInfo(preludeProjectPath, OlyTextSpan.Create(0, 0)))
 
+            OlyTrace.Log($"[Project] '{projPath}' - Parsing References")
+
             let olyxReferenceInfosToUpdate =
                 olyxReferenceInfos
                 |> ImArray.map (fun x ->
-                    OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
+                    OlyTrace.Log($"[Project] Parsing Reference '{x.Path}'")
+                    let result = OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
+                    OlyTrace.Log($"[Project] Parsed Reference '{x.Path}'")
+                    result
                 )
+
+            OlyTrace.Log($"[Project] '{projPath}' - Parsed References")
 
             let olyxReferenceInfosToUpdate =
 
@@ -1862,6 +1869,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
         }
 
     static member private ParseProject(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath, sourceText: IOlySourceText) =
+        OlyTrace.Log($"[Project] '{projPath}' - Parsing")
         OlyAssert.True(projPath.HasExtension(ProjectExtension))
 
         // Handle project config for syntax tree
@@ -1871,7 +1879,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
               OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
               OlyParsingOptions.ConditionalDefines = projConfig.Defines }
 
-        OlyTrace.Log($"[Project] '{projPath}' - Parsing")
         let result = OlySyntaxTree.Parse(projPath, sourceText, parsingOptions), projConfig
         OlyTrace.Log($"[Project] '{projPath}' - Parsed")
         result
