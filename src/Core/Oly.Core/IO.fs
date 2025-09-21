@@ -71,7 +71,6 @@ type OlyIO private () =
         )
 
         for subDir in DirectoryInfo(dir).GetDirectories() do
-            let newDestinationDir = Path.Combine(dir, subDir.Name)
             let dtResult = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(subDir.FullName)
             if dtResult > dt then
                 dt <- dtResult

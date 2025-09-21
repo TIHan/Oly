@@ -100,7 +100,6 @@ type MSBuild() =
     let createAndBuildCore programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
 
             let isPublish = msbuildTargetInfo.IsPublish
 

@@ -42,7 +42,7 @@ class LogWarnFunc =
         match (this.Verbosity)
         | LogVerbosity.Normal
         | LogVerbosity.Detailed =>
-            AnsiConsole.Markup("[yellow]{0}[/yellow]", mutable [msg])
+            AnsiConsole.Markup("[yellow]{0}[/]", mutable [StringExtensions.EscapeMarkup(msg)])
         | _ =>
             ()
         null
@@ -57,7 +57,7 @@ class LogErrorFunc =
         match (this.Verbosity)
         | LogVerbosity.Normal
         | LogVerbosity.Detailed =>
-            AnsiConsole.Markup("[red]{0}[/red]", mutable [msg])
+            AnsiConsole.Markup("[red]{0}[/]", mutable [StringExtensions.EscapeMarkup(msg)])
         | _ =>
             ()
         null

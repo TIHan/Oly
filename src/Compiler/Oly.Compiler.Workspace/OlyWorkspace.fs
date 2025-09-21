@@ -1614,9 +1614,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             let olyxReferenceInfosToUpdate =
                 olyxReferenceInfos
                 |> ImArray.map (fun x ->
-                    OlyTrace.Log($"[Project] Parsing Reference '{x.Path}'")
+                    OlyTrace.Log($"[Project] '{projPath}' - Parsing Reference '{x.Path}'")
                     let result = OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
-                    OlyTrace.Log($"[Project] Parsed Reference '{x.Path}'")
+                    OlyTrace.Log($"[Project] '{projPath}' - Parsed Reference '{x.Path}'")
                     result
                 )
 

@@ -588,6 +588,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         | _ ->
         
         let outputPath = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
+        try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
         let dirInfo = outputPath.ToDirectoryInfo()
         dirInfo.Create()
         let outputPath = outputPath.ToString()
