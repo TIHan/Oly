@@ -1609,15 +1609,11 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 else
                     olyxReferenceInfos.Add(OlyReferenceInfo(preludeProjectPath, OlyTextSpan.Create(0, 0)))
 
-            OlyTrace.Log($"[Project] '{projPath}' - Parsing")
-
             let olyxReferenceInfosToUpdate =
                 olyxReferenceInfos
                 |> ImArray.map (fun x ->
                     OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
                 )
-
-            OlyTrace.Log($"[Project] '{projPath}' - Parsed")
 
             let olyxReferenceInfosToUpdate =
 
@@ -1875,7 +1871,10 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
               OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
               OlyParsingOptions.ConditionalDefines = projConfig.Defines }
 
-        OlySyntaxTree.Parse(projPath, sourceText, parsingOptions), projConfig
+        OlyTrace.Log($"[Project] '{projPath}' - Parsing")
+        let result = OlySyntaxTree.Parse(projPath, sourceText, parsingOptions), projConfig
+        OlyTrace.Log($"[Project] '{projPath}' - Parsed")
+        result
 
     static member private UpdateDocumentAsyncCore(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state, solution: OlySolution, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlySolution> =
         backgroundTask {
