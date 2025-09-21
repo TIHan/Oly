@@ -1814,8 +1814,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
                    copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary || properties.Length <> currentProperties.Length then
-                    OlyTrace.Log($"[Project] '{projPath}' Reloading")
+                    OlyTrace.Log($"[Project] '{projPath}' - Reloading")
                     let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                    OlyTrace.Log($"[Project] '{projPath}' - Reloaded") 
                     return Some result
                 else
                     let loadsAreSame =
@@ -1843,10 +1844,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     else
                         OlyTrace.Log($"[Project] '{projPath}' - Reloading")                       
                         let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                        OlyTrace.Log($"[Project] '{projPath}' - Reloaded") 
                         return Some result
             | _ -> 
                 OlyTrace.Log($"[Project] '{projPath}' - Creating")
                 let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                OlyTrace.Log($"[Project] '{projPath}' - Created")
                 return Some result
         }
 
