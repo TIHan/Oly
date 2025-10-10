@@ -1996,21 +1996,7 @@ type OlyBoundModel internal (
         | _ ->
             ()
 
-    let getStreamSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (filterSymbol: OlySymbolUseInfo -> bool) (compare: OlySyntaxNode -> OlySyntaxNode -> bool) canFindMultipleSymbols (f: OlySymbolUseInfo -> unit) (ct: CancellationToken) =
-
-        let predicate = fun node -> if canFindMultipleSymbols then true else nodeEquals syntaxNode node
-
-        let addSymbol = 
-            fun symbol -> 
-                if filterSymbol symbol then
-                    f symbol
-
-        let collector =
-            { new ISymbolCollector with
-                member _.CompareSyntax(syntaxNode1, syntaxNode2) = compare syntaxNode1 syntaxNode2
-                member _.FilterSyntax(syntaxNode) = predicate syntaxNode
-                member _.CollectSymbol(symbolUseInfo) = addSymbol symbolUseInfo
-            }
+    let getStreamSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (collector: ISymbolCollector) (ct: CancellationToken) =
 
         let boundTree = this.GetBoundTree(ct)
 
@@ -2018,7 +2004,7 @@ type OlyBoundModel internal (
         //       It's hacky because we assume the directives are always at the top, but it wont be the case for #if, #when, #else.
         let directiveSymbols = 
             let chooser (x: OlyToken) =
-                if x.IsAnyDirective && predicate x.Node then
+                if x.IsAnyDirective && collector.FilterSyntax x.Node then
                     match x.TryDirectiveText with
                     | ValueSome(name, value) ->
                         OlySymbolUseInfo(
@@ -2040,7 +2026,7 @@ type OlyBoundModel internal (
                     None
             match boundTree.SyntaxTree.GetRoot(ct).TryGetFirstToken(true) with
             | Some(firstNonTriviaToken) when not firstNonTriviaToken.IsEndOfSource ->                
-                if compare syntaxNode firstNonTriviaToken.Node || syntaxNode.TextSpan.End < firstNonTriviaToken.TextSpan.Start then
+                if collector.CompareSyntax(syntaxNode, firstNonTriviaToken.Node) || (syntaxNode.TextSpan.End < firstNonTriviaToken.TextSpan.Start) then
                     firstNonTriviaToken.GetLeadingTrivia()
                     |> ImArray.choose chooser
                 else
@@ -2049,21 +2035,21 @@ type OlyBoundModel internal (
                 boundTree.SyntaxTree.GetRoot(ct).FindTokens(syntaxNode.TextSpan.Start, skipTrivia = false, ct = ct)
                 |> ImArray.choose chooser
         directiveSymbols
-        |> ImArray.iter addSymbol
+        |> ImArray.iter collector.CollectSymbol
 
         let openDecls = boundTree.RootEnvironment.openDecls
 
         (openDecls, boundTree.SyntaxTree.GetOpenDeclarationNames(ct))
         ||> ImArray.tryIter2 (fun ent syntaxName ->
             ct.ThrowIfCancellationRequested()
-            if compare syntaxNode syntaxName then
+            if collector.CompareSyntax(syntaxNode, syntaxName) then
                 if ent.IsNamespace then
                     getTypeSymbolByName this collector syntaxName boundNode ent.AsNamespaceType
                 else
                     getTypeSymbolByName this collector syntaxName boundNode ent.AsType
         )
 
-        boundTree.ForEachForTooling((fun boundNode -> ct.ThrowIfCancellationRequested(); compare syntaxNode boundNode.Syntax), 
+        boundTree.ForEachForTooling((fun boundNode -> ct.ThrowIfCancellationRequested(); collector.CompareSyntax(syntaxNode, boundNode.Syntax)), 
             fun boundNode ->
                 ct.ThrowIfCancellationRequested()
                 this.GetImmediateSymbols(boundNode, collector)
@@ -2072,13 +2058,21 @@ type OlyBoundModel internal (
     let getSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (filterSymbol: OlySymbolUseInfo -> bool) (compare: OlySyntaxNode -> OlySyntaxNode -> bool) canFindMultipleSymbols (ct: CancellationToken) =
         let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
 
+        let predicate = fun node -> if canFindMultipleSymbols then true else nodeEquals syntaxNode node
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = compare syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = predicate syntaxNode
+                member _.CollectSymbol(symbolUseInfo) =
+                    if filterSymbol symbolUseInfo then
+                        symbols.Add(symbolUseInfo)
+            }
+
         getStreamSymbols
             syntaxNode
             boundNode
-            filterSymbol
-            compare
-            canFindMultipleSymbols
-            (fun symbol -> symbols.Add(symbol))
+            collector
             ct
 
         symbols.ToImmutable()
@@ -2579,9 +2573,17 @@ type OlyBoundModel internal (
         //       Similar thing for 'GetSymbolsByPossibleName'.
         getSymbols node Unchecked.defaultof<_> (fun x -> nodeHas node x.Syntax) nodeIntersects true ct
 
-    member this.ForEachSymbol(node: OlySyntaxNode, f, ct: CancellationToken) =
+    member this.ForEachSymbol(node: OlySyntaxNode, action, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        getStreamSymbols node Unchecked.defaultof<_> (fun x -> nodeHas node x.Syntax) nodeIntersects true f ct
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = action symbolUseInfo
+            }
+
+        getStreamSymbols node Unchecked.defaultof<_> collector ct
 
     member this.TryGetAnonymousModuleSymbol(ct: CancellationToken) : OlySymbolUseInfo<OlyTypeSymbol> option =
         ct.ThrowIfCancellationRequested()
