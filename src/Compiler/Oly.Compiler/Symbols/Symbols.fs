@@ -12,7 +12,9 @@ let newId =
     let i = ref 64L // We do not start with 0 because we leave 0-63 for built-in types.
     fun () -> System.Threading.Interlocked.Increment i
 
-type ISymbol = interface end
+type ISymbol = 
+
+    abstract Name : string
 
 [<Literal>]
 let AnonymousEntityName = ""
@@ -332,7 +334,9 @@ type EntitySymbol() =
 
     override this.ToString() = this.Name
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = this.Name
 
 [<Sealed;DebuggerDisplay("{DebugName}")>]
 type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, name, flags, kind, tyPars: _ imarray ref, funcs: FunctionSymbol imarray ref, fields: _ imarray ref, props: PropertySymbol imarray ref, pats: PatternSymbol imarray ref, extends: _ imarray ref, implements: _ imarray ref, entsHole: ResizeArray<EntitySymbol>, docText: string) =
@@ -1708,7 +1712,14 @@ type EnclosingSymbol =
     | Local
     | RootNamespace
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name =
+            match this with
+            | Entity(ent)
+            | Witness(_, ent) -> ent.Name
+            | Local
+            | RootNamespace -> String.Empty
 
     member this.Formal =
         match this with
@@ -2752,7 +2763,9 @@ type ConstantSymbol =
             | Some ty -> ty
             | _ -> TypeSymbol.Error(Some tyPar, None)
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = String.Empty
 
 [<NoComparison;NoEquality;DebuggerDisplay("{Name}")>]
 type ExtensionMemberSymbol =
@@ -2789,8 +2802,6 @@ type IValueSymbol =
     inherit ISymbol
 
     abstract Enclosing : EnclosingSymbol
-
-    abstract Name : string
 
     abstract Type : TypeSymbol
 
@@ -3101,7 +3112,9 @@ type ConstraintSymbol =
         | TraitType _ -> true
         | _ -> false
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = String.Empty
 
 [<NoComparison;RequireQualifiedAccess>]
 type TypeParameterKind =
@@ -3185,7 +3198,9 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
         else
             false
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = this.Name
 
     new(name: string, index: int, arity: int, isVariadic: bool, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref) =
         TypeParameterSymbol(newId(), name, index, arity, isVariadic, kind, constrs, None)
@@ -3228,7 +3243,9 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IF
 
     member this.HasSolution = this.Solution.IsSome
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = String.Empty
 
 [<Sealed>]
 type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: convert these parameters to flags
@@ -3287,7 +3304,9 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: c
 
     member this.IsTypeConstructor = isTyCtor
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = String.Empty
 
 [<RequireQualifiedAccess>]
 type ByRefKind =
@@ -4654,7 +4673,9 @@ type TypeSymbol =
                 TypeSymbol.Tuple(argTys, ImArray.empty)
         TypeSymbol.NativeFunctionPtr(ilCallConv, inputTy, returnTy)
 
-    interface ISymbol
+    interface ISymbol with
+
+        member this.Name = this.Name
 
 type IModuleSymbol = EntitySymbol
 type INamespaceOrModuleSymbol = EntitySymbol
