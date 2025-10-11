@@ -583,8 +583,9 @@ let createInitialBoundEnvironment asmIdent =
             parameters = ImArray.empty
 
             typeParameters = ImArray.empty
-            enclosing = EnclosingSymbol.Local
+            enclosing = EnclosingSymbol.RootNamespace
             enclosingTyInst = IdMap.Empty
+            enclosingValue = None
 
             typeExtensionsWithImplements = TypeSymbolGeneralizedMap.Create()
             typeExtensionMembers = TypeSymbolGeneralizedMap.Create()

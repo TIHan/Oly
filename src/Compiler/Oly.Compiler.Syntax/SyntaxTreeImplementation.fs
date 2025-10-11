@@ -729,24 +729,6 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 this
 
-        member this.IsDefinition =
-            match this with
-            | :? OlySyntaxToken as token 
-                    when 
-                    token.Internal.IsIdentifierOrOperator 
-                    || token.Internal.RawToken = Token.New 
-                    || token.Internal.RawToken = Token.Get 
-                    || token.Internal.RawToken = Token.Set 
-                    || token.Internal.RawToken = Token.Field ->
-                match this.Parent with
-                | :? OlySyntaxTypeDeclarationName
-                | :? OlySyntaxFunctionName
-                | :? OlySyntaxBindingDeclaration
-                | :? OlySyntaxPropertyBinding -> true
-                | _ -> false
-            | _ ->
-                false
-
         member this.TryGetParentExpression(ignoreSequentialExpr: bool, ct: CancellationToken) =
             ct.ThrowIfCancellationRequested()
             match this.Parent with
@@ -770,6 +752,44 @@ module OlySyntaxTreeExtensions =
                 match parentNode with
                 | :? 'T as x -> Some x
                 | _ -> parentNode.TryFindParent<'T>(ct)
+
+
+        /// TODO: Rename to 'IsPossiblyDefinition'.
+        member this.IsDefinition =
+            match this with
+            | :? OlySyntaxToken as token 
+                    when 
+                    token.Internal.IsIdentifierOrOperator 
+                    || token.Internal.RawToken = Token.New
+                    || token.Internal.RawToken = Token.Field ->
+                match this.Parent with
+                | :? OlySyntaxTypeDeclarationName
+                | :? OlySyntaxFunctionName
+                | :? OlySyntaxBindingDeclaration
+                | :? OlySyntaxPropertyBinding -> true
+                | _ ->
+                    match this.TryFindParent(CancellationToken.None) with
+                    | Some(pat: OlySyntaxPattern) ->
+                        let rec isDef (pat: SyntaxPattern) =
+                            match pat with
+                            | SyntaxPattern.Name(name) when name.LastIdentifier.RawToken.ValueText = token.Internal.RawToken.ValueText ->
+                                true
+                            | SyntaxPattern.Function(patArgs=patArgs) 
+                            | SyntaxPattern.Parenthesis(patArgs=patArgs) ->
+                                patArgs.Values
+                                |> Seq.exists isDef
+                            | _ -> 
+                                false
+                        match pat.Parent with
+                        | :? OlySyntaxParameter
+                        | :? OlySyntaxLet ->
+                            isDef pat.Internal
+                        | _ -> 
+                            false
+                    | _ ->
+                        false
+            | _ ->
+                false
 
         member this.GetDescendantTokens(?skipTrivia: bool, ?filter: OlySyntaxToken -> bool, ?ct: CancellationToken) : OlyToken imarray =
             let skipTrivia = defaultArg skipTrivia true

@@ -449,10 +449,9 @@ type OlyClassificationKind with
 
     member this.ToLspSymbolKind() =
         match this with
-        | OlyClassificationKind.Constructor ->
-            SymbolKind.Class
+        | OlyClassificationKind.Constructor
         | OlyClassificationKind.ConstructorStruct ->
-            SymbolKind.Struct
+            SymbolKind.Constructor
         | OlyClassificationKind.Function
         | OlyClassificationKind.StaticFunction
         | OlyClassificationKind.AbstractFunction 
@@ -598,7 +597,17 @@ type OlySymbolUseInfo with
             Name = this.Symbol.Name,
             Location = this.Syntax.GetLocation().ToLspLocation(ct),
             Kind = this.Symbol.ClassificationKind.ToLspSymbolKind(),
-            ContainerName = if this.Syntax.IsDefinition then "Definition" else String.Empty
+            ContainerName = 
+                match this.Container with
+                | Choice1Of2(symbol) ->
+                    match symbol.TryType with
+                    | Some(symbol) -> symbol.Name
+                    | _ ->
+                    match symbol.TryNamespace with
+                    | Some(symbol) -> symbol.FullyQualifiedName
+                    | _ -> String.Empty
+                | Choice2Of2(symbol) ->
+                    symbol.Name
         )
 
     member this.ToLspWorkspaceSymbol(ct: CancellationToken) =
@@ -606,7 +615,17 @@ type OlySymbolUseInfo with
             Name = this.Symbol.Name,
             Location = this.Syntax.GetLocation().ToLspLocation(ct),
             Kind = this.Symbol.ClassificationKind.ToLspSymbolKind(),
-            ContainerName = if this.Syntax.IsDefinition then "Definition" else String.Empty
+            ContainerName = 
+                match this.Container with
+                | Choice1Of2(symbol) ->
+                    match symbol.TryType with
+                    | Some(symbol) -> symbol.Name
+                    | _ ->
+                    match symbol.TryNamespace with
+                    | Some(symbol) -> symbol.FullyQualifiedName
+                    | _ -> String.Empty
+                | Choice2Of2(symbol) ->
+                    symbol.Name
         )
 
     member this.ToLspParameterInfo() =
@@ -632,15 +651,15 @@ type OlySymbolUseInfo with
             
 type OlySymbolUseInfo with
 
-    member x.TryToLspDocumentSymbol(lspRange, ct) =
+    member x.ToLspDocumentSymbol(lspRange, children, ct) =
         DocumentSymbol(
             Name = x.Symbol.Name,
             Detail = x.SignatureText,
             Range = lspRange,
             SelectionRange = x.Syntax.GetTextRange(ct).ToLspRange(),
-            Kind = x.Symbol.ClassificationKind.ToLspSymbolKind()
+            Kind = x.Symbol.ClassificationKind.ToLspSymbolKind(),
+            Children = Container(children)
         )
-        |> Some
 
 let getSymbolsBySymbol symbol (doc: OlyDocument) ct =
     doc.FindSimilarSymbols(symbol, ct)
@@ -1422,7 +1441,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                 let workspace = getWorkspace()
 
-                let! solution = workspace.GetSolutionAsync(CancellationToken.None)
+                let! solution = workspace.GetSolutionAsync(ct)
 
                 let lspSymbols =
                     solution.GetProjects()
@@ -1430,6 +1449,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         proj.Documents
                         |> ImArray.map (fun doc ->
                             doc.GetAllSymbolsByPossibleName(request.Query, ct)
+                            |> ImArray.filter (fun x -> x.Syntax.IsDefinition)
                         )
                         |> ImArray.concat
                     )
@@ -1451,85 +1471,80 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
         member this.Handle(request: DocumentSymbolParams, ct: CancellationToken): Task<SymbolInformationOrDocumentSymbolContainer> = 
             request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun doc ct -> backgroundTask {
-                let symbols = doc.GetAllSymbols(ct)
-                let result =
-                    let sortedSymbols =
-                        symbols
-                        |> ImArray.choose(fun symbolInfo ->
-                            match symbolInfo.Syntax.TryGetParentExpression(true, ct) with
-                            | Some syntaxExprNode ->
-                                Some(symbolInfo, syntaxExprNode)
+                let symbols = 
+                    doc.GetAllSymbols(ct)
+                    |> ImArray.filter (fun x -> x.Syntax.IsDefinition)
+
+                let topLevelTypes = Dictionary<OlySymbol, (OlySymbolUseInfo * List<DocumentSymbol>)>(
+                    { new IEqualityComparer<OlySymbol> with
+                        member this.GetHashCode (obj: OlySymbol): int = 
+                          obj.Name.GetHashCode()
+                        member this.Equals (x: OlySymbol, y: OlySymbol): bool = 
+                          x.IsFormalEqualTo(y)
+                    }
+                )
+
+                let topLevelValues = Dictionary<OlySymbol, (OlySymbolUseInfo * List<DocumentSymbol>)>(
+                    { new IEqualityComparer<OlySymbol> with
+                        member this.GetHashCode (obj: OlySymbol): int = 
+                          obj.Name.GetHashCode()
+                        member this.Equals (x: OlySymbol, y: OlySymbol): bool = 
+                          x.IsFormalEqualTo(y)
+                    }
+                )
+
+                for symbol in symbols do
+                    if not symbol.Symbol.IsInLocalScope then
+                        if symbol.Symbol.IsType then
+                            topLevelTypes[symbol.Symbol] <- (symbol, List())
+                        elif symbol.Symbol.IsFunction || symbol.Symbol.IsField || symbol.Symbol.IsProperty then
+                            topLevelValues[symbol.Symbol] <- (symbol, List())
+
+                for symbol in symbols do
+                    if symbol.Symbol.IsInLocalScope then
+                        match symbol.Container with
+                        | Choice1Of2(enclosingSymbol) ->
+                            match enclosingSymbol.TryType with
+                            | Some(typeSymbol) ->
+                                match topLevelTypes.TryGetValue typeSymbol with
+                                | true, (_, children) ->
+                                    let lspRange = symbol.Syntax.GetTextRange(ct).ToLspRange()
+                                    children.Add(symbol.ToLspDocumentSymbol(lspRange, [||], ct))
+                                | _ ->
+                                    ()
                             | _ ->
-                                None
-                        )
-                        |> Seq.groupBy(fun (_, syntaxNode) ->
-                            syntaxNode    
-                        )
-                        |> Seq.choose (fun (syntaxNode, symbols) ->
-                            let principalSymbolOpt =
-                                symbols
-                                |> Seq.filter (fun (symbolInfo, _) ->
-                                    match symbolInfo.Symbol with
-                                    | :? OlyValueSymbol as symbol when symbol.IsParameter -> false
-                                    | :? OlyTypeSymbol as symbol when symbol.IsTypeParameter -> false
-                                    | _ ->
-                                        symbolInfo.Syntax.IsDefinition
-                                )
-                                |> Seq.tryHead
-                                |> Option.bind (fun (x, syntaxNode) -> 
-                                    let lspRange = syntaxNode.GetTextRange(ct).ToLspRange()
-                                    x.TryToLspDocumentSymbol(lspRange, ct))
-
-                            match principalSymbolOpt with
-                            | Some principalSymbol ->
-                                Some(syntaxNode, principalSymbol)
+                                ()
+                        | Choice2Of2(valueSymbol) ->
+                            match topLevelValues.TryGetValue valueSymbol with
+                            | true, (_, children) ->
+                                let lspRange = symbol.Syntax.GetTextRange(ct).ToLspRange()
+                                children.Add(symbol.ToLspDocumentSymbol(lspRange, [||], ct))
                             | _ ->
-                                None
-                        )
-                        |> Seq.sortBy (fun (syntaxNode, _) ->
-                            let textSpan = syntaxNode.TextSpan
-                            (textSpan.Start, textSpan.Width)
-                        )
-                        |> ImArray.ofSeq
+                                ()
 
-                    let parentStack = Stack()
+               // TODO: This isn't perfect yet as it does not take into account local or nested types.
 
-                    let pushParent x isChild =
-                        let r = (x, ResizeArray(), isChild)
-                        parentStack.Push(r)
+                let result = List()
+                
+                for (symbol, children) in topLevelValues.Values do
+                    match symbol.Container with
+                    | Choice1Of2(enclosingSymbol) ->
+                        match enclosingSymbol.TryType with
+                        | Some(typeSymbol) ->
+                            match topLevelTypes.TryGetValue typeSymbol with
+                            | true, (_, innerChildren) ->
+                                let lspRange = symbol.Syntax.GetTextRange(ct).ToLspRange()
+                                innerChildren.Add(symbol.ToLspDocumentSymbol(lspRange, children.ToArray(), ct))
+                            | _ ->
+                                ()
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
 
-                    let results = ResizeArray()
-
-                    sortedSymbols
-                    |> ImArray.iter (fun ((syntaxNode, principalSymbol) as x) ->
-                        let rec loop () =
-                            match parentStack.TryPeek() with
-                            | false, _ ->
-                                pushParent x false
-                            | true, ((parentSyntaxNode, parentSymbol), parentChildren, isChild) ->
-                                if parentSyntaxNode.TextSpan.Contains(syntaxNode.TextSpan) then
-                                    parentChildren.Add(principalSymbol)
-                                    pushParent x true
-                                else
-                                    let ((parentSyntaxNode, parentSymbol), parentChildren, isChild) = parentStack.Pop()
-                                   // parentSymbol.Children <- Container(parentChildren) // TODO: Fix this.
-                                    if not isChild then
-                                        results.Add(parentSymbol)
-                                    loop()
-                        loop()
-                    )
-
-                    parentStack
-                    |> Seq.iter (fun ((_, symbol), children, isChild) ->
-                       // symbol.Children <- Container(children) // TODO: Fix this.
-                        if not isChild then
-                            results.Add(symbol)
-                    )
-
-                    results
-                    |> Seq.map (fun symbol ->
-                        SymbolInformationOrDocumentSymbol.Create(symbol)
-                    )
+                for (symbol, children) in topLevelTypes.Values do
+                    let lspRange = symbol.Syntax.GetTextRange(ct).ToLspRange()
+                    result.Add(SymbolInformationOrDocumentSymbol(symbol.ToLspDocumentSymbol(lspRange, children.ToArray(), ct)))
 
                 return SymbolInformationOrDocumentSymbolContainer.From(result)
             })

@@ -46,12 +46,6 @@
 				}
 			]
 		},
-		"snippets": [
-			{
-				"language": "oly",
-				"path": "./snippets/oly.json"
-			}
-		],
 		"taskDefinitions": [],
 		"views": {
 			"oly-view": [

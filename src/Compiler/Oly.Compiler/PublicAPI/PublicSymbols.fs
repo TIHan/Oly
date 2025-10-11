@@ -57,6 +57,8 @@ type OlySymbol internal () =
 
     abstract IsEqualTo: OlySymbol -> bool
 
+    abstract IsFormalEqualTo: OlySymbol -> bool
+
     abstract IsExported: bool
 
     abstract IsImported: bool
@@ -135,11 +137,18 @@ type OlyNamespaceSymbol internal (ent: EntitySymbol) =
     override this.IsEqualTo(symbol) =
         this.IsSimilarTo(symbol)
 
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
     override this.IsExported = false
 
     override this.IsImported = false
 
     override this.IsInLocalScope = false
+
+    member this.FullyQualifiedName =
+        ent.FullNamespacePath
+        |> String.concat "."
 
     member _.Types =
         match tys with
@@ -240,6 +249,13 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         match symbol with
         | :? OlyTypeSymbol as symbol ->
             OlyTypeSymbol.IsEqualToInternal(this.Internal, symbol.Internal)
+        | _ ->
+            false
+
+    override this.IsFormalEqualTo(symbol) =
+        match symbol with
+        | :? OlyTypeSymbol as symbol ->
+            OlyTypeSymbol.IsEqualToInternal(this.Internal.Formal, symbol.Internal.Formal)
         | _ ->
             false
 
@@ -517,6 +533,9 @@ type OlyConstantSymbol internal (internalLiteral: BoundLiteral) =
     override this.IsEqualTo(symbol) =
         this.IsSimilarTo(symbol)
 
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
     override this.IsExported =
         match this.Value with
         | OlyConstant.Variable(ty) -> ty.IsExported
@@ -555,8 +574,8 @@ type OlyFunctionGroupSymbol internal (funcGroup: FunctionGroupSymbol) =
         | _ ->
             false
 
-    override this.IsEqualTo(symbol) =
-        raise(NotImplementedException())
+    override this.IsEqualTo _ =
+        false
 
     override this.IsExported = false
 
@@ -641,8 +660,23 @@ type OlyValueSymbol internal (value: IValueSymbol) =
         | _ ->
             false
 
-    override this.IsEqualTo(symbol) =
-        raise(NotImplementedException())
+    override this.IsEqualTo symbol =
+        match symbol with
+        | :? OlyValueSymbol as symbol -> 
+            this.Internal.Name = symbol.Internal.Name &&
+            areValueSignaturesEqual this.Internal symbol.Internal &&
+            areEnclosingsEqual this.Internal.Enclosing symbol.Internal.Enclosing
+        | _ -> 
+            false   
+
+    override this.IsFormalEqualTo symbol =
+        match symbol with
+        | :? OlyValueSymbol as symbol -> 
+            this.Internal.Formal.Name = symbol.Internal.Formal.Name &&
+            areValueSignaturesEqual this.Internal.Formal symbol.Internal.Formal &&
+            areEnclosingsEqual this.Internal.Formal.Enclosing symbol.Internal.Formal.Enclosing
+        | _ -> 
+            false        
 
     override this.IsExported = value.IsExported
 
@@ -875,7 +909,12 @@ type OlyAttributeSymbol internal (attr: AttributeSymbol) =
                 false
 
     override this.IsEqualTo(symbol) =
-        raise(NotImplementedException())
+        // TODO: Implement
+        false
+
+    override this.IsFormalEqualTo(symbol) =
+        // TODO: Implement
+        false
 
 [<Sealed>] 
 type OlyEnclosingSymbol internal (enclosing: EnclosingSymbol) =
@@ -919,6 +958,9 @@ type OlyDirectiveSymbol internal (name: string, value: string) =
     override this.IsEqualTo(symbol) =
         this.IsSimilarTo(symbol)
 
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
     override this.IsExported = false
 
     override this.IsImported = false
@@ -939,6 +981,9 @@ type OlyConditionalDirectiveSymbol internal () =
 
     override this.IsEqualTo(_) = false
 
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
     override this.IsExported = false
 
     override this.IsImported = false
@@ -955,6 +1000,14 @@ type OlySymbolUseInfo internal (symbol: OlySymbol, subModel: OlyBoundSubModel) =
     member _.Symbol: OlySymbol = symbol
 
     member _.Syntax: OlySyntaxNode = subModel.SyntaxNode
+
+    member this.Container: Choice<OlyEnclosingSymbol, OlyValueSymbol> =
+        if symbol.IsInLocalScope then
+            match this.InternalEnvironment.senv.enclosingValue with
+            | Some(value) -> Choice2Of2(OlyValueSymbol(value))
+            | _ -> Choice1Of2(OlyEnclosingSymbol(this.InternalEnvironment.senv.enclosing))
+        else
+            Choice1Of2(OlyEnclosingSymbol(this.InternalEnvironment.senv.enclosing))
 
     member _.IsCallee =
         if obj.ReferenceEquals(subModel.Node, null) then
@@ -1996,7 +2049,7 @@ type OlyBoundModel internal (
         | _ ->
             ()
 
-    let getStreamSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (collector: ISymbolCollector) (ct: CancellationToken) =
+    let collectSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (collector: ISymbolCollector) (ct: CancellationToken) =
 
         let boundTree = this.GetBoundTree(ct)
 
@@ -2054,28 +2107,6 @@ type OlyBoundModel internal (
                 ct.ThrowIfCancellationRequested()
                 this.GetImmediateSymbols(boundNode, collector)
         )
-
-    let getSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (filterSymbol: OlySymbolUseInfo -> bool) (compare: OlySyntaxNode -> OlySyntaxNode -> bool) canFindMultipleSymbols (ct: CancellationToken) =
-        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
-
-        let predicate = fun node -> if canFindMultipleSymbols then true else nodeEquals syntaxNode node
-
-        let collector =
-            { new ISymbolCollector with
-                member _.CompareSyntax(syntaxNode1, syntaxNode2) = compare syntaxNode1 syntaxNode2
-                member _.FilterSyntax(syntaxNode) = predicate syntaxNode
-                member _.CollectSymbol(symbolUseInfo) =
-                    if filterSymbol symbolUseInfo then
-                        symbols.Add(symbolUseInfo)
-            }
-
-        getStreamSymbols
-            syntaxNode
-            boundNode
-            collector
-            ct
-
-        symbols.ToImmutable()
 
     let getLocalBindingSymbols collector (syntax: OlySyntaxNode) (boundNode: IBoundNode) (bindingInfo: LocalBindingInfoSymbol) =
         match bindingInfo with
@@ -2567,11 +2598,18 @@ type OlyBoundModel internal (
 
     member this.GetSymbols(node: OlySyntaxNode, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        // TODO: This code '(fun x -> nodeHas node x.UseSyntax)' is fine, 
-        //       but 'x' is an OlySymbol that was allocated and could be prevented if we 
-        //       only checked the symbol's use syntax before the symbol gets created/allocated.
-        //       Similar thing for 'GetSymbolsByPossibleName'.
-        getSymbols node Unchecked.defaultof<_> (fun x -> nodeHas node x.Syntax) nodeIntersects true ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols node Unchecked.defaultof<_> collector ct
+        symbols.ToImmutable()
 
     member this.ForEachSymbol(node: OlySyntaxNode, action, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -2583,7 +2621,7 @@ type OlyBoundModel internal (
                 member _.CollectSymbol(symbolUseInfo) = action symbolUseInfo
             }
 
-        getStreamSymbols node Unchecked.defaultof<_> collector ct
+        collectSymbols node Unchecked.defaultof<_> collector ct
 
     member this.TryGetAnonymousModuleSymbol(ct: CancellationToken) : OlySymbolUseInfo<OlyTypeSymbol> option =
         ct.ThrowIfCancellationRequested()
@@ -2599,11 +2637,37 @@ type OlyBoundModel internal (
 
     member this.GetSymbolsByPossibleName(node: OlySyntaxNode, possibleName: string, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        getSymbols node Unchecked.defaultof<_> (fun x -> nodeHas node x.Syntax && x.Symbol.Name.Contains(possibleName)) nodeIntersects true ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = 
+                    // REVIEW: There a way to do this without having to allocate a public symbol?
+                    //         We could simply add a new interface method to check the internal symbol's name.
+                    if symbolUseInfo.Symbol.Name.Contains(possibleName) then
+                        symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols node Unchecked.defaultof<_> collector ct
+        symbols.ToImmutableArray()
 
     member this.TryFindSymbol(token: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        let symbols = getSymbols token.Node Unchecked.defaultof<_> (fun _ -> true) (fun x y -> nodeHas y x) false ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeHas syntaxNode2 syntaxNode1
+                member _.FilterSyntax(syntaxNode) = nodeEquals token.Node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols token.Node Unchecked.defaultof<_> collector ct
+
         symbols
         |> Seq.tryExactlyOne
 

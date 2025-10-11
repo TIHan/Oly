@@ -109,6 +109,7 @@ type ScopeEnvironment =
         parameters: ILocalParameterSymbol imarray
         typeParameters: TypeParameterSymbol imarray
         enclosing: EnclosingSymbol
+        enclosingValue: IValueSymbol option // only used for tooling
 
         // Current info
         typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMapEntitySet>
@@ -141,8 +142,9 @@ module private BoundEnvironment =
                 parameters = ImArray.empty
 
                 typeParameters = ImArray.empty
-                enclosing = EnclosingSymbol.Local
+                enclosing = EnclosingSymbol.RootNamespace
                 enclosingTyInst = IdMap.Empty
+                enclosingValue = None
 
                 typeExtensionsWithImplements = TypeSymbolGeneralizedMap.Create()
                 typeExtensionMembers = TypeSymbolGeneralizedMap.Create()

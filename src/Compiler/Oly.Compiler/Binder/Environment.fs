@@ -665,6 +665,17 @@ type BinderEnvironment =
                     }
             }
 
+    member this.SetEnclosingValue(value: IValueSymbol) =
+        { this with
+            benv =
+                { this.benv with
+                    senv =
+                        { this.benv.senv with
+                            enclosingValue = Some value
+                        }
+                }
+        }
+
     member this.SetIsInOpenDeclaration() =
         if this.isInOpenDeclaration then this
         else { this with isInOpenDeclaration = true }

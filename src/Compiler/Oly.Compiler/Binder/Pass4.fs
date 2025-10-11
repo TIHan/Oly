@@ -156,7 +156,7 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entiti
                     |> ImArray.exists (function OlySyntaxValueDeclarationPostmodifier.Mutable _ -> true | _ -> false)
 
             let expr =
-                bindTopLevelBinding cenv env syntaxExpr isExplicitMutable bindingInfo syntaxBinding
+                bindTopLevelBinding cenv (env.SetEnclosingValue(bindingInfo.Value)) syntaxExpr isExplicitMutable bindingInfo syntaxBinding
 
             env, expr
         | _ ->
