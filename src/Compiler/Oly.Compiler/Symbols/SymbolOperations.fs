@@ -297,7 +297,7 @@ let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (s
             |> ImArray.exists (fun x -> 
                 match stripTypeEquations x with
                 | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
-                | x -> 
+                | _ -> 
                     checkCycle solution x
                     false
             )

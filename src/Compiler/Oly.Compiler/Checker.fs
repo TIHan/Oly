@@ -757,7 +757,7 @@ and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: O
             |> ImArray.exists (fun x -> 
                 match stripTypeEquations x with
                 | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
-                | x ->
+                | _ ->
                     checkInferenceVariableTypeCycle env syntax expectedTy x
                     false
             )
