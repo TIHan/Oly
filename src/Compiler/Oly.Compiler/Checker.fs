@@ -740,6 +740,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     if bindingInfo2.Value.IsFunction then
         match bindingInfo2.Type.TryGetFunctionWithParameters(), rhsExpr2.Type.TryGetFunctionWithParameters() with
         | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
+            // TODO: Uh, what was this? Do we really need this? Can we remove it?
             let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
             ()
             //solveFunctionInput env syntax argTys1 argTys2WithSyntax
@@ -747,6 +748,24 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
             solveTypes env syntax bindingInfo2.Type rhsExpr2.Type
 
     bindingInfo2, rhsExpr2
+
+and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: OlySyntaxNode) (expectedTy: TypeSymbol) (ty: TypeSymbol) =
+    match expectedTy with
+    | TypeSymbol.InferenceVariable(_, solution) when not solution.HasSolution ->
+        let isCycle =
+            ty.TypeArguments
+            |> ImArray.exists (fun x -> 
+                match stripTypeEquations x with
+                | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
+                | x ->
+                    checkInferenceVariableTypeCycle env syntax expectedTy x
+                    false
+            )
+        if isCycle then
+            env.diagnostics.Error($"Detected a cycle in inference: '{printType env.benv expectedTy}' cannot be solved with '{printType env.benv ty}'.", 10, syntax)
+            solution.Solution <- TypeSymbolError
+    | _ ->
+        ()
 
 and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
@@ -778,6 +797,7 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
             if env.reportTypeErrors then
                 solveTypes env expr.Syntax expectedTy exprTy
         else
+            checkInferenceVariableTypeCycle env expr.Syntax expectedTy exprTy
             solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =

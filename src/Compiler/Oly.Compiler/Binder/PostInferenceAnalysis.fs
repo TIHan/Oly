@@ -42,6 +42,7 @@ type acenv =
         cenv: cenv 
         scopes: System.Collections.Generic.Dictionary<int64, ScopeValues>
         checkedTypeParameters: System.Collections.Generic.HashSet<int64> 
+        errorTyMsgDeDup: System.Collections.Generic.HashSet<TypeSymbol>
     }
 
 type Limits =
@@ -197,7 +198,8 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
         diagnostics.Error($"'{printType benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
 
     | TypeSymbol.Error(_, Some msg) ->
-        diagnostics.Error(msg, 10, syntaxNode)
+        if acenv.errorTyMsgDeDup.Add(partiallyStrippedTy) then
+            diagnostics.Error(msg, 10, syntaxNode)
     
     | strippedTy ->
         match strippedTy with
@@ -1315,7 +1317,13 @@ let analyzeRoot acenv aenv (root: BoundRoot) =
         analyzeExpression acenv aenv bodyExpr |> ignore
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
-    let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
+    let acenv = 
+        { 
+            cenv = cenv
+            scopes = System.Collections.Generic.Dictionary()
+            checkedTypeParameters = System.Collections.Generic.HashSet() 
+            errorTyMsgDeDup = System.Collections.Generic.HashSet()
+        }
     let aenv = 
         { 
             envRoot = env 

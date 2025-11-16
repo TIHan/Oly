@@ -10020,3 +10020,25 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "{X:0 Y:0 Z:0 W:1}"
+
+[<Fact>]
+let ``Should not crash and should error``() =
+    let src =
+        """
+open System.Collections.Generic
+
+main(): () =
+    let xs = List()
+    xs.Add(xs)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Detected a cycle in inference: '?T' cannot be solved with 'List<?T>'.",
+                """
+    xs.Add(xs)
+           ^^
+"""
+            )
+        ]
+    |> ignore

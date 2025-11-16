@@ -287,6 +287,31 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
 let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSymbol) : bool =
     UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit = returnTy2.IsRealUnit
 
+let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) (ty: TypeSymbol) : bool = 
+    OlyAssert.False(solution.HasSolution)
+
+#if DEBUG || CHECKED
+    let rec checkCycle (solution: VariableSolutionSymbol) (ty: TypeSymbol) =
+        let isCycle =
+            ty.TypeArguments
+            |> ImArray.exists (fun x -> 
+                match stripTypeEquations x with
+                | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
+                | x -> 
+                    checkCycle solution x
+                    false
+            )
+        OlyAssert.False(isCycle)
+    checkCycle solution ty
+#endif
+
+    match tyParOpt with
+    | Some(tyPar) when tyPar.Arity > 0 ->
+        solution.Solution <- ty.Formal
+    | _ ->
+        solution.Solution <- ty
+    true
+
 let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     match origTy1, origTy2 with
     | TypeSymbol.InferenceVariable(_, solution1), _
@@ -620,20 +645,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             UnifyTypes rigidity ty1 ent.TryClosureInvoke.Value.Type
 
         | TypeSymbol.InferenceVariable(tyParOpt, solution), _ when ((rigidity = Flexible) || (rigidity = MostFlexible)) && not solution.HasSolution ->
-            match tyParOpt with
-            | Some(tyPar) when tyPar.Arity > 0 ->
-                solution.Solution <- ty2.Formal
-            | _ ->
-                solution.Solution <- ty2
-            true
-
+            unifyInferenceVariableType tyParOpt solution ty2
         | _, TypeSymbol.InferenceVariable(tyParOpt, solution) when ((rigidity = Flexible) || (rigidity = MostFlexible)) && not solution.HasSolution ->
-            match tyParOpt with
-            | Some(tyPar) when tyPar.Arity > 0 ->
-                solution.Solution <- ty1.Formal
-            | _ ->
-                solution.Solution <- ty1
-            true
+            unifyInferenceVariableType tyParOpt solution ty1
 
         | TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution), ty
         | ty, TypeSymbol.HigherInferenceVariable(_, tyArgs, externalSolution, solution) when ((rigidity = Flexible) || (rigidity = MostFlexible)) && (not solution.HasSolution) && tyArgs.Length = ty.LogicalArity ->

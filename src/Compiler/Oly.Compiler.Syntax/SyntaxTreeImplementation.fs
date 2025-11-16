@@ -1696,3 +1696,19 @@ module OlySyntaxDiffs =
                     false
             | _ ->
                 false
+
+[<AutoOpen>]
+module OlySyntaxFormatter =
+
+    type OlySyntaxName with
+
+        member this.Format(ct: CancellationToken): OlySyntaxName =
+            match this with
+            | OlySyntaxName.Identifier(identToken) ->
+                let leadingTrivia = identToken.GetLeadingTrivia()
+                if leadingTrivia.IsEmpty then
+                    this
+                else
+                    OlySyntaxName(this.Tree, this.FullTextSpan.Start, this.Parent, this.Internal)
+            | _ ->
+                this
