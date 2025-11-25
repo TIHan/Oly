@@ -21524,3 +21524,39 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
+
+[<Fact>]
+let ``Should still get shape member even though it has a subsumption``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+shape Shape<T> =
+
+    Doot(t: T): ()
+
+class Instance<T> =
+
+    Doot(t: T): () = print("doot")
+
+abstract default class A
+
+class B =
+    inherits A
+
+(`[]`)<M, T>(m: M, t: T, unit: ()): () where M: Shape<T> =
+    m.Doot(t)
+
+main(): () =
+    let i = Instance<A>()
+    let b = B()
+    i[b] <- ()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
