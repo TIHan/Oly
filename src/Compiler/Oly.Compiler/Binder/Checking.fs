@@ -1023,12 +1023,49 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
+let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution imarray) =
+    witnessArgs
+    |> ImArray.iter (fun witnessArg ->
+        if witnessArg.TypeParameter.Constraints.IsEmpty || witnessArg.TypeParameter.HasArity then ()
+        else
+
+        let tyArg = actualType allTyArgs witnessArg.TypeParameter.AsType
+        if not tyArg.IsSolved || tyArg.IsError_t then ()
+        else
+
+        let constrs = witnessArg.TypeParameter.Constraints
+        for i = 0 to constrs.Length - 1 do
+            let constr = actualConstraint allTyArgs constrs[i]
+            match constr with
+            | ConstraintSymbol.TraitType(lazyConstrTy)
+            | ConstraintSymbol.SubtypeOf(lazyConstrTy) ->
+                let constrTy = lazyConstrTy.Value
+                if constrTy.IsShape then
+                    let result = 
+                        subsumesShapeMembersWith env.benv Generalizable QueryFunction.IntrinsicAndExtrinsic constrTy tyArg
+                        |> ImArray.forall (fun (_, xs) -> xs.Length = 1)
+                    if result then
+                        subsumesShapeMembersWith env.benv Flexible QueryFunction.IntrinsicAndExtrinsic constrTy tyArg
+                        |> ignore
+            | _ ->
+                ()
+    )
+
 let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let tyChecking = TypeChecking.EnabledNoTypeErrors(skipLambda)
 
         let argTys = value.LogicalType.FunctionArgumentTypes
+
+        let allTyArgs = 
+            if value.IsLocal then
+                let tyArgs =
+                    env.benv.EnclosingTypeParameters
+                    |> ImArray.map (fun tyPar -> tyPar.AsType)
+                tyArgs.AddRange(value.TypeArguments)
+            else
+                value.AllTypeArguments
 
         let newArgExprs =
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
@@ -1041,7 +1078,9 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                         TypeSymbolError
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                    let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                    inferConstraintsByShapeMembers env allTyArgs witnessArgs
+                    newArgExpr
                 )
             )
         

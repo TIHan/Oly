@@ -10042,3 +10042,71 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Dotnet - Should still get shape member even though it has a subsumption``() =
+    let src = 
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+shape DotNetIndexSetter<TKey, TValue> =
+
+    set_Item(TKey, TValue): ()
+
+(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
+
+abstract default class A
+
+class B =
+    inherits A
+
+main(): () =
+    let dict = ConcurrentDictionary<A, ()>()
+    let b = B()
+    dict[b] <- ()
+    print("doot")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+
+[<Fact>]
+let ``Dotnet - Should still get shape member even though it has a subsumption 2``() =
+    let src = 
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+abstract default class A
+
+class B =
+    inherits A
+
+main(): () =
+    let dict = ConcurrentDictionary<A, ()>()
+    let b = B()
+    dict[b] <- ()
+    print("doot")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore

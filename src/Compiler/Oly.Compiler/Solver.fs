@@ -126,7 +126,6 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
 
     let shapeMembers = 
         subsumesShapeMembersWith env.benv TypeVariableRigidity.Generalizable QueryFunction.IntrinsicAndExtrinsic targetShape principalTyArg
-        |> ImArray.ofSeq
 
     let isValid =
         if shapeMembers.IsEmpty then

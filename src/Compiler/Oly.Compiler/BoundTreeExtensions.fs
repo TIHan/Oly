@@ -833,26 +833,25 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
 
 // ************************************************************************
 
-let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
+let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) (ty: TypeSymbol) : _ imarray =
     OlyAssert.True(superShapeTy.IsShape)
 
     if ty.IsTypeConstructor then
-        Seq.empty
+        ImArray.empty
     else
 
     let superFuncs = 
         superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
-        |> Seq.map (fun superFunc ->
+        |> ImArray.map (fun superFunc ->
             if superFunc.IsInstanceConstructor then
                 superFunc.MorphShapeConstructor(ty, superShapeTy).AsFunction
             else
                 superFunc
         )
-        |> Seq.cache
 
     let lookup = Dictionary<string, IFunctionSymbol imarray>()
     superFuncs
-    |> Seq.iter (fun superFunc ->
+    |> ImArray.iter (fun superFunc ->
         if not(lookup.ContainsKey(superFunc.Name)) then
             let nameToFind =
                 if superFunc.IsConstructor then
@@ -863,7 +862,7 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
     )
    
     superFuncs
-    |> Seq.map (fun superFunc ->
+    |> ImArray.map (fun superFunc ->
         let results =
             lookup[superFunc.Name]
             |> ImArray.filter (fun func ->
@@ -891,7 +890,7 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
                 else
                     false
             )
-        (superFunc, results |> filterMostSpecificFunctions |> ImArray.ofSeq)
+        (superFunc, results |> filterMostSpecificFunctions)
     )
 
 let subsumesTypeOrShapeWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
@@ -911,7 +910,7 @@ let subsumesShapeWith benv rigidity (superShapeTy: TypeSymbol) (ty: TypeSymbol) 
     else
         let areFuncsValid =
             subsumesShapeMembersWith benv rigidity QueryFunction.Intrinsic superShapeTy ty
-            |> Seq.forall (fun (_, xs) -> 
+            |> ImArray.forall (fun (_, xs) -> 
                 xs.Length = 1
             )
 
