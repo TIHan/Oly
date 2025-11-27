@@ -524,15 +524,18 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
             TypeSymbol.Tuple(elementTys |> ImArray.map instTy, names)
 
         | TypeSymbol.Entity(ent) ->
-            let tyArgs = 
-                (ent.TypeParameters, ent.TypeArguments)
-                ||> ImArray.map2 (fun tyPar tyArg ->
-                    if tyPar.HasArity && not tyArg.IsTypeVariable then
-                        tyArg
-                    else
-                        instTy tyArg
-                )
-            TypeSymbol.Entity(applyEntity tyArgs ent.Formal)
+            if ent.IsTypeConstructor then
+                ty  
+            else
+                let tyArgs = 
+                    (ent.TypeParameters, ent.TypeArguments)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        if tyPar.HasArity && not tyArg.IsTypeVariable then
+                            tyArg
+                        else
+                            instTy tyArg
+                    )
+                TypeSymbol.Entity(applyEntity tyArgs ent.Formal)
 
         | TypeSymbol.RefCell(innerTy) ->
             TypeSymbol.RefCell(instTy innerTy)

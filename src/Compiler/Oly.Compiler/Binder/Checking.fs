@@ -1028,8 +1028,8 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
 let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution imarray) =
     witnessArgs
     |> ImArray.iter (fun witnessArg ->
-        if witnessArg.TypeParameter.Constraints.IsEmpty || witnessArg.TypeParameter.HasArity then ()
-        else
+        // Type parameter must have at least one constraint if there is a witness
+        OlyAssert.False(witnessArg.TypeParameter.Constraints.IsEmpty)
 
         let tyArg = actualType allTyArgs witnessArg.TypeParameter.AsType
         let constrs = witnessArg.TypeParameter.Constraints

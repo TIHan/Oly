@@ -23,6 +23,12 @@ open System.Threading
 [<AutoOpen>]
 module private Helpers =
 
+    let witnessSolutionComparer = 
+        { new IEqualityComparer<WitnessSolution> with 
+            member _.GetHashCode(x) = int32 x.Type.FormalId
+            member _.Equals(x1, x2) = areTypesEqual x1.Type x2.Type
+        }
+
     type Locals = System.Collections.Generic.HashSet<int64>
 
     type Iterator(predicate, canCache, checkInnerLambdas, freeLocals: FreeLocals, locals: Locals) =
@@ -168,9 +174,9 @@ module private Helpers =
         implType ty
     
     let getFreeInferenceVariables (expr: BoundExpression) =
+        // REVIEW: There a way to make this a little more efficient with GC?
         let inputs = ResizeArray<struct(int64 * TypeSymbol)>()
         let witnessArgsLookup = Dictionary<int64, HashSet<WitnessSolution>>()
-
     
         let addInput id item =
             let exists =
@@ -250,23 +256,18 @@ module private Helpers =
                 |> Option.iter (fun receiver -> handleExpression receiver)
                 implType value.Type
 
+                // REVIEW: There a way to make this more efficient for GC?
                 witnessArgs
                 |> ImArray.iter (fun witnessArg ->
                     let xs =
                         match witnessArgsLookup.TryGetValue(witnessArg.TypeParameter.Id) with
                         | true, xs -> xs
                         | _ ->
-                            let xs = HashSet(
-                                { new IEqualityComparer<WitnessSolution> with 
-                                    member _.GetHashCode(x) = int32 x.Type.FormalId
-                                    member _.Equals(x1, x2) = areTypesEqual x1.Type x2.Type
-                                }
-                            )
+                            let xs = HashSet(witnessSolutionComparer)
                             witnessArgsLookup.Add(witnessArg.TypeParameter.Id, xs)
                             xs
                     xs.Add(witnessArg) |> ignore
                 )
-
 
             | BoundExpression.Lambda(body=bodyExpr;cachedLambdaTy=cachedLambdaTy) ->
                 OlyAssert.True(bodyExpr.HasExpression)
