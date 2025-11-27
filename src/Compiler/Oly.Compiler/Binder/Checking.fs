@@ -355,12 +355,14 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
         |> ImArray.map (fun x -> E.CreateValue(cenv.syntaxTree, x))
 
     let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, syntaxNameOpt, None)
+
+    let witnessArgs = createWitnessArguments func
     
     let callExpr =
         E.Call(
             syntaxInfo,
             None,
-            ImArray.empty,
+            witnessArgs,
             argExprs,
             freshFunc,
             if func.IsVirtual && not func.IsFinal then CallFlags.Virtual else CallFlags.None
@@ -1030,9 +1032,6 @@ let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution i
         else
 
         let tyArg = actualType allTyArgs witnessArg.TypeParameter.AsType
-        if not tyArg.IsSolved || tyArg.IsError_t then ()
-        else
-
         let constrs = witnessArg.TypeParameter.Constraints
         for i = 0 to constrs.Length - 1 do
             let constr = actualConstraint allTyArgs constrs[i]

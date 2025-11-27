@@ -169,6 +169,8 @@ module private Helpers =
     
     let getFreeInferenceVariables (expr: BoundExpression) =
         let inputs = ResizeArray<struct(int64 * TypeSymbol)>()
+        let witnessArgsLookup = Dictionary<int64, HashSet<WitnessSolution>>()
+
     
         let addInput id item =
             let exists =
@@ -242,11 +244,29 @@ module private Helpers =
             | BoundExpression.Literal(_, literal) ->
                 handleLiteral literal
 
-            | BoundExpression.Call(receiverOpt=receiverOpt;args=args;value=value) ->
+            | BoundExpression.Call(receiverOpt=receiverOpt;witnessArgs=witnessArgs;args=args;value=value) ->
                 args |> Seq.iter (fun arg -> handleExpression arg)
                 receiverOpt
                 |> Option.iter (fun receiver -> handleExpression receiver)
                 implType value.Type
+
+                witnessArgs
+                |> ImArray.iter (fun witnessArg ->
+                    let xs =
+                        match witnessArgsLookup.TryGetValue(witnessArg.TypeParameter.Id) with
+                        | true, xs -> xs
+                        | _ ->
+                            let xs = HashSet(
+                                { new IEqualityComparer<WitnessSolution> with 
+                                    member _.GetHashCode(x) = int32 x.Entity.FormalId
+                                    member _.Equals(x1, x2) = areEntitiesEqual x1.Entity x2.Entity
+                                }
+                            )
+                            witnessArgsLookup.Add(witnessArg.TypeParameter.Id, xs)
+                            xs
+                    xs.Add(witnessArg) |> ignore
+                )
+
 
             | BoundExpression.Lambda(body=bodyExpr;cachedLambdaTy=cachedLambdaTy) ->
                 OlyAssert.True(bodyExpr.HasExpression)
@@ -257,7 +277,7 @@ module private Helpers =
                 ()
     
         handleExpression expr
-        inputs
+        inputs, witnessArgsLookup
 
 [<AutoOpen>]
 module private FreeVariablesHelper =

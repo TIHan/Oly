@@ -178,16 +178,6 @@ type ResolutionItem =
         | Invalid(syntax) -> syntax
         | Error(syntax) -> syntax
 
-let private createWitnessArguments (cenv: cenv) (value: IValueSymbol) =
-    let witnessArgs =
-        let allTyPars = value.AllTypeParameters
-        let allTyArgs = value.AllTypeArguments 
-        allTyPars
-        |> ImArray.map (freshWitnessesWithTypeArguments cenv.asm allTyArgs)
-        |> ImArray.concat
-
-    witnessArgs
-
 let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxExpr: OlySyntaxExpression) =
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
@@ -677,7 +667,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         else ValueSome argExprs
 
     let value = freshenValue env.benv value   
-    let witnessArgs = createWitnessArguments cenv value
+    let witnessArgs = createWitnessArguments value
 
     let receiverExprOpt =
         receiverExprOpt

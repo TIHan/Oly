@@ -1210,7 +1210,7 @@ let freshWitnesses (tyPar: TypeParameterSymbol) =
         | ValueSome constrTy ->
             match constrTy.TryEntity with
             | ValueSome ent when ent.IsInterface ->
-                WitnessSolution(tyPar, ent, None)
+                WitnessSolution(tyPar, x, ent, None)
                 |> Some
             | _ ->
                 None
@@ -1218,7 +1218,7 @@ let freshWitnesses (tyPar: TypeParameterSymbol) =
             None
     ) 
 
-let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
+let freshWitnessesWithTypeArguments (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun constr -> 
         match constr.TryGetAnySubtypeOf() with
@@ -1226,14 +1226,15 @@ let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (ty
             match constrTy.TryEntity with
             | ValueSome ent when ent.IsInterface || ent.IsShape ->
                 let ent = ent.Substitute(tyArgs)
+                let constr = constr.Substitute(tyArgs)
                 if ent.IsShape then
                     ent.Functions
                     |> ImArray.map (fun func ->
-                        WitnessSolution(tyPar, ent, Some func)
+                        WitnessSolution(tyPar, constr, ent, Some func)
                     )
                     |> Some
                 else
-                    WitnessSolution(tyPar, ent, None)
+                    WitnessSolution(tyPar, constr, ent, None)
                     |> ImArray.createOne
                     |> Some
             | _ ->
@@ -1242,3 +1243,13 @@ let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (ty
             None
     )
     |> ImArray.concat
+
+let createWitnessArguments (value: IValueSymbol) =
+    let witnessArgs =
+        let allTyPars = value.AllTypeParameters
+        let allTyArgs = value.AllTypeArguments 
+        allTyPars
+        |> ImArray.map (freshWitnessesWithTypeArguments allTyArgs)
+        |> ImArray.concat
+
+    witnessArgs

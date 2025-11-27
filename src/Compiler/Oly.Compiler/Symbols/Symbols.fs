@@ -3222,7 +3222,7 @@ type WitnessSymbol =
     | Type of TypeSymbol
 
 [<Sealed>]
-type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IFunctionSymbol option) =
+type WitnessSolution (tyPar: TypeParameterSymbol, constr: ConstraintSymbol, ent: EntitySymbol, funcOpt: IFunctionSymbol option) =
 
 #if DEBUG || CHECKED
     do
@@ -3232,6 +3232,8 @@ type WitnessSolution (tyPar: TypeParameterSymbol, ent: EntitySymbol, funcOpt: IF
         | _ ->
             ()
 #endif
+
+    member _.Constraint = constr
 
     member _.TypeParameter = tyPar
     
@@ -5891,6 +5893,7 @@ module SymbolHelpers =
                 |> ImArray.map (fun (witnessArg: WitnessSolution) ->
                     let tyPar = witnessArg.TypeParameter
                     let ent = witnessArg.Entity.Substitute(tyParLookup)
+                    let constr = witnessArg.Constraint.Substitute(tyParLookup)
                     let funcOpt =
                         witnessArg.Function
                         |> Option.map (fun func -> func.Substitute(tyParLookup) :?> IFunctionSymbol)
@@ -5913,7 +5916,7 @@ module SymbolHelpers =
                         | _ ->
                             witness
 
-                    let subbedWitnessArg = WitnessSolution(tyPar, ent, funcOpt)
+                    let subbedWitnessArg = WitnessSolution(tyPar, constr, ent, funcOpt)
                     subbedWitnessArg.Solution <- Some witness
                     subbedWitnessArg
                 )

@@ -15,7 +15,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 
-let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
+let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (witnessArgLookup: Dictionary<int64, HashSet<WitnessSolution>>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
 
     let generalizedTyPars = ResizeArray()
@@ -52,10 +52,17 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                     | Some(tyPar) -> tyPar.Arity
                     | _ -> 0
 
+                let witnessArgs =
+                    match tyParOpt with
+                    | Some tyPar ->
+                        match witnessArgLookup.TryGetValue(tyPar.Id) with
+                        | true, witnessArgs -> witnessArgs.ToImmutableArray()
+                        | _ -> ImArray.empty
+                    | _ ->
+                        ImArray.empty
+
                 let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
 
-                // TODO: Prevent duplicate constraints.
-                // TODO: This may not handle the 'oldConstrEnt''s free type vars.
                 let oldConstrs =
                     match tyParOpt with
                     | None -> solution.Constraints |> ImArray.ofSeq
@@ -63,25 +70,40 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
 
                 let newConstrs =
                     oldConstrs
-                    |> ImArray.map (fun constr ->
+                    |> ImArray.choose (fun constr ->
                         match constr with
                         | ConstraintSymbol.Null
                         | ConstraintSymbol.Struct
                         | ConstraintSymbol.NotStruct
                         | ConstraintSymbol.Unmanaged
                         | ConstraintSymbol.Blittable
-                        | ConstraintSymbol.Scoped
-                        | ConstraintSymbol.ConstantType _ ->
-                            constr
-                        | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
+                        | ConstraintSymbol.Scoped ->
+                            Some constr
+                        | ConstraintSymbol.ConstantType _
+                        | ConstraintSymbol.TraitType _
+                        | ConstraintSymbol.SubtypeOf _ ->
+                            None
+                    )
+
+                // REVIEW: Do we care about the order of these constraints?
+                let newTyConstrs =
+                    witnessArgs
+                    |> ImArray.map (fun witnessArg ->
+                        match witnessArg.Constraint with
+                        | ConstraintSymbol.ConstantType(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
                         | ConstraintSymbol.TraitType(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
                             ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                        | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
+                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                        | _ ->
+                            failwith "Unexpected constraint"
                     )
 
-                newTyPar.SetConstraints(newConstrs)
+                newTyPar.SetConstraints(newConstrs.AddRange(newTyConstrs))
 
                 solution.Solution <- TypeSymbol.Variable(newTyPar)
                 generalizedTyPars.Add(newTyPar)
@@ -511,7 +533,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
 
     // TODO: We do this even on non-local bindings because we may want to run the bodies of lambdas.
     //       Perhaps we could do this without having to go looking for inference variables.
-    let freeInputTyVars = rhsExpr.GetFreeInferenceVariables()
+    let freeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
 
     let funcFlags =
         if value.IsLocal && isStatic then
@@ -525,6 +547,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
                 env
                 syntax
                 freeInputTyVars
+                witnessArgLookup
                 ImmutableArray.Empty
         let func = createFunctionValue value.Enclosing ImmutableArray.Empty value.Name generalizedTyPars pars returnTy MemberFlags.Private funcFlags WellKnownFunction.None None false
         let bindingInfo = BindingLocalFunction(func)
@@ -695,10 +718,10 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     let bindingInfo2 =
         match binding with
         | BindingLocalFunction(func) when func.IsLocal ->
-            let freeInputTyVars = rhsExpr.GetFreeInferenceVariables()
+            let freeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
 
             if freeInputTyVars.Count > 0 && binding.Value.IsLocal then
-                let generalizedTyPars = createGeneralizedFunctionTypeParameters env syntax freeInputTyVars func.TypeParameters
+                let generalizedTyPars = createGeneralizedFunctionTypeParameters env syntax freeInputTyVars witnessArgLookup func.TypeParameters
                 let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars func
                 BindingLocalFunction(generalizedFunc)
             else
@@ -714,7 +737,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
             | BoundExpression.Lambda(body=bodyExpr) ->
                 // TODO: We do this even on non-local bindings because we may want to run the bodies of lambdas.
                 //       Perhaps we could do this without having to go looking for inference variables.
-                let _freeInputTyVars = bodyExpr.Expression.GetFreeInferenceVariables()
+                let _freeInputTyVars, _ = bodyExpr.Expression.GetFreeInferenceVariables()
                 ()
             | _ ->
                 ()

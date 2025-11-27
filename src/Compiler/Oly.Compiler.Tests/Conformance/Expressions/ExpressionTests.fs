@@ -3992,6 +3992,7 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Expected type 'byref<?T>' but is 'Test<__oly_int32>'."
+            "Expected type 'TKey' but is '__oly_int32'."
         ]
     |> ignore
 
