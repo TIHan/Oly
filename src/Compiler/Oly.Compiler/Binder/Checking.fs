@@ -1036,6 +1036,7 @@ let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution i
         for i = 0 to constrs.Length - 1 do
             let constr = actualConstraint allTyArgs constrs[i]
             match constr with
+            | ConstraintSymbol.ConstantType(lazyConstrTy)
             | ConstraintSymbol.TraitType(lazyConstrTy)
             | ConstraintSymbol.SubtypeOf(lazyConstrTy) ->
                 let constrTy = lazyConstrTy.Value
