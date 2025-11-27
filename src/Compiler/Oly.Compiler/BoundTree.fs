@@ -1207,13 +1207,9 @@ let freshWitnesses (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun x -> 
         match x.TryGetAnySubtypeOf() with
-        | ValueSome constrTy ->
-            match constrTy.TryEntity with
-            | ValueSome ent when ent.IsInterface ->
-                WitnessSolution(tyPar, x, ent, None)
-                |> Some
-            | _ ->
-                None
+        | ValueSome _ ->
+            WitnessSolution(tyPar, x, None)
+            |> Some
         | _ ->
             None
     ) 
@@ -1222,23 +1218,19 @@ let freshWitnessesWithTypeArguments (tyArgs: TypeArgumentSymbol imarray) (tyPar:
     tyPar.Constraints
     |> ImArray.choose (fun constr -> 
         match constr.TryGetAnySubtypeOf() with
-        | ValueSome constrTy ->
-            match constrTy.TryEntity with
-            | ValueSome ent when ent.IsInterface || ent.IsShape ->
-                let ent = ent.Substitute(tyArgs)
-                let constr = constr.Substitute(tyArgs)
-                if ent.IsShape then
-                    ent.Functions
-                    |> ImArray.map (fun func ->
-                        WitnessSolution(tyPar, constr, ent, Some func)
-                    )
-                    |> Some
-                else
-                    WitnessSolution(tyPar, constr, ent, None)
-                    |> ImArray.createOne
-                    |> Some
-            | _ ->
-                None 
+        | ValueSome _ ->
+            let constr = constr.Substitute(tyArgs)
+            let constrTy = constr.TryGetAnySubtypeOf().Value;
+            if constrTy.IsShape then
+                constrTy.Functions
+                |> ImArray.map (fun func ->
+                    WitnessSolution(tyPar, constr, Some func)
+                )
+                |> Some
+            else
+                WitnessSolution(tyPar, constr, None)
+                |> ImArray.createOne
+                |> Some
         | _ ->
             None
     )

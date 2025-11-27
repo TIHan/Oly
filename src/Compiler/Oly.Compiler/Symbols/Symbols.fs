@@ -3222,13 +3222,13 @@ type WitnessSymbol =
     | Type of TypeSymbol
 
 [<Sealed>]
-type WitnessSolution (tyPar: TypeParameterSymbol, constr: ConstraintSymbol, ent: EntitySymbol, funcOpt: IFunctionSymbol option) =
+type WitnessSolution (tyPar: TypeParameterSymbol, constr: ConstraintSymbol, funcOpt: IFunctionSymbol option) =
 
 #if DEBUG || CHECKED
     do
         match funcOpt with
         | Some func ->
-            OlyAssert.Equal(ent.FormalId, func.Enclosing.TryEntity.Value.FormalId)
+            OlyAssert.Equal(constr.TryGetAnySubtypeOf().Value.FormalId, func.Enclosing.TryEntity.Value.FormalId)
         | _ ->
             ()
 #endif
@@ -3237,7 +3237,7 @@ type WitnessSolution (tyPar: TypeParameterSymbol, constr: ConstraintSymbol, ent:
 
     member _.TypeParameter = tyPar
     
-    member _.Entity = ent
+    member _.Type = constr.TryGetAnySubtypeOf().Value
 
     member _.Function = funcOpt // For shape members
 
@@ -5892,7 +5892,6 @@ module SymbolHelpers =
                 witnessArgs
                 |> ImArray.map (fun (witnessArg: WitnessSolution) ->
                     let tyPar = witnessArg.TypeParameter
-                    let ent = witnessArg.Entity.Substitute(tyParLookup)
                     let constr = witnessArg.Constraint.Substitute(tyParLookup)
                     let funcOpt =
                         witnessArg.Function
@@ -5916,7 +5915,7 @@ module SymbolHelpers =
                         | _ ->
                             witness
 
-                    let subbedWitnessArg = WitnessSolution(tyPar, constr, ent, funcOpt)
+                    let subbedWitnessArg = WitnessSolution(tyPar, constr, funcOpt)
                     subbedWitnessArg.Solution <- Some witness
                     subbedWitnessArg
                 )

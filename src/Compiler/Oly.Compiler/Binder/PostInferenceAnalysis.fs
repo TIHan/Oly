@@ -377,7 +377,7 @@ and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol)
 
 and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
     OlyAssert.True(witness.HasSolution)
-    analyzeTypeEntity acenv aenv syntaxNode witness.Entity
+    analyzeType acenv aenv syntaxNode witness.Type
     match witness.Solution with
     | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()

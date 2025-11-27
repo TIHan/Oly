@@ -122,7 +122,7 @@ let solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs:
 
     let filteredWitnessArgs =
         witnessArgs
-        |> ImArray.filter (fun x -> x.TypeParameter.Id = principalTyPar.Id && areEntitiesEqual x.Entity targetShape.AsEntity)
+        |> ImArray.filter (fun x -> x.TypeParameter.Id = principalTyPar.Id && areTypesEqual x.Type targetShape)
 
     let shapeMembers = 
         subsumesShapeMembersWith env.benv TypeVariableRigidity.Generalizable QueryFunction.IntrinsicAndExtrinsic targetShape principalTyArg
@@ -239,7 +239,7 @@ let solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: Witne
             witnesses
             |> Seq.iter (fun witness ->
                 if not witness.HasSolution then
-                    if subsumesType actualTarget witness.Entity.AsType then
+                    if subsumesType actualTarget witness.Type then
                         witness.Solution <- Some(WitnessSymbol.TypeParameter(tyPar))
             )
             true
@@ -275,7 +275,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSol
                 |> ImArray.iter (fun witness ->
                     if witness.HasSolution then ()
                     else
-                        if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target witness.Entity.AsType then
+                        if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target witness.Type then
                             witness.Solution <- Some(WitnessSymbol.Type(ty))
                 )
                 Ok()
@@ -329,7 +329,7 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSol
                 |> ImArray.choose (fun witness ->      
                     if witness.HasSolution then None
                     else
-                        if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Entity.AsType && 
+                        if areTypeParametersEqual tyPar witness.TypeParameter && subsumesType target witness.Type && 
                            subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Generalizable target mostSpecificTy then
                            Some witness
                         else

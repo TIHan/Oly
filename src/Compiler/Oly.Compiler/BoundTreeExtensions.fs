@@ -258,8 +258,8 @@ module private Helpers =
                         | _ ->
                             let xs = HashSet(
                                 { new IEqualityComparer<WitnessSolution> with 
-                                    member _.GetHashCode(x) = int32 x.Entity.FormalId
-                                    member _.Equals(x1, x2) = areEntitiesEqual x1.Entity x2.Entity
+                                    member _.GetHashCode(x) = int32 x.Type.FormalId
+                                    member _.Equals(x1, x2) = areTypesEqual x1.Type x2.Type
                                 }
                             )
                             witnessArgsLookup.Add(witnessArg.TypeParameter.Id, xs)
