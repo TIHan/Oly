@@ -121,6 +121,19 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
             env
     else
 
+    if ent.IsNamespace && (openContent <> OpenContent.Values) && env.HasOpenedNamespace(ent) then
+        if openContent = OpenContent.All then
+             openContentsOfEntityAux declTable canOverride canOpenNamespace env OpenContent.Values ent
+        else
+            env
+    else
+
+    let env =
+        if ent.IsNamespace && (openContent = OpenContent.Entities) then
+            env.AddOpenedNamespace(ent)
+        else
+            env
+
     if env.HasOpenedEntity(ent) then
         env
     else

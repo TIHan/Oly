@@ -79,9 +79,18 @@ let bindNamespaceOrModuleDefinitionPass0 (cenv: cenv) (env: BinderEnvironment) s
     entBuilder.SetEntities(cenv.pass, nestedEntBuilders)
     env1
 
+let openEnclosingNamespaceOfModule (cenv: cenv) env openContent (ent: EntitySymbol) =
+    match ent.Enclosing with
+    | EnclosingSymbol.Entity(enclosingNamespace) when ent.IsModule ->
+        OlyAssert.True(enclosingNamespace.IsNamespace)
+        openContentsOfEntity cenv.declTable.contents env openContent enclosingNamespace
+    | _ ->
+        env
+
 let bindNamespaceOrModuleDefinitionPass1 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyPars syntaxConstrClauses syntaxTyDefBody =
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
 
+    let env = openEnclosingNamespaceOfModule cenv env OpenContent.Entities entBuilder.Entity
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     Pass1.bindTypeDeclarationBody cenv env cenv.syntaxTree.DummyNode true entBuilder nestedEntBuilders syntaxTyPars syntaxConstrClauses syntaxTyDefBody
 
@@ -90,10 +99,12 @@ let bindNamespaceOrModuleDefinitionPass2 (cenv: cenv) (env: BinderEnvironment) (
     Pass2.bindTypeDeclarationBody cenv env nestedEntBuilders entBuilder syntaxTyPars syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass3 (cenv: cenv) (env: BinderEnvironment) (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
+    let env = openEnclosingNamespaceOfModule cenv env OpenContent.Values entBuilder.Entity
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     Pass3.bindTypeDeclarationBody cenv env nestedEntBuilders entBuilder true syntaxTyDefBody
 
 let bindNamespaceOrModuleDefinitionPass4 (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entBuilder: EntitySymbolBuilder) (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
+    let env = openEnclosingNamespaceOfModule cenv env OpenContent.All entBuilder.Entity
     let nestedEntBuilders = entBuilder.NestedEntityBuilders
     let bindingInfos =
         let bindingInfosBuilder = ImmutableDictionary.CreateBuilder()
@@ -593,6 +604,7 @@ let createInitialBoundEnvironment asmIdent =
 
     {
         senv = senv
+        openedNamespaces = ImmutableHashSet.Empty
         openedEnts = ImmutableHashSet.Empty
         partialAutoOpenedRootEnts = ImmutableHashSet.Empty
         openDecls = ImArray.empty

@@ -708,6 +708,21 @@ type BinderEnvironment =
         | _ ->
             false
 
+    member this.HasOpenedNamespace(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNamespace)
+        OlyAssert.False(ent.IsAggregatedNamespace)
+        this.benv.openedNamespaces.Contains(ent.FormalId)
+
+    member this.AddOpenedNamespace(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNamespace)
+        OlyAssert.False(ent.IsAggregatedNamespace)
+        { this with
+            benv = 
+                { this.benv with
+                    openedNamespaces = this.benv.openedNamespaces.Add(ent.FormalId)
+                }
+        }
+
     member this.HasOpenedEntity(ent: EntitySymbol) =
         this.benv.openedEnts.Contains(ent)
 

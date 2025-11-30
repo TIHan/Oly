@@ -11374,3 +11374,41 @@ main(): () =
         """
     src
     |> hasSymbolSignatureTextByCursor "0.1: __oly_float32"
+
+[<Fact>]
+let ``Should open the namespace for the top-level module``() =
+    let src1 =
+        """
+namespace Test.Doot
+
+class Doot
+        """
+
+    let src2 =
+        """
+module Test.Doot.Zoot
+
+doot(): Doot = Doot()
+        """
+    OlyTwo src1 src2
+    |> shouldCompile
+
+[<Fact>]
+let ``Should open the namespace for the top-level module and should not create ambiguity for the already open namespace``() =
+    let src1 =
+        """
+namespace Test.Doot
+
+class Doot
+        """
+
+    let src2 =
+        """
+module Test.Doot.Zoot
+
+open Test.Doot
+
+doot(): Doot = Doot()
+        """
+    OlyTwo src1 src2
+    |> shouldCompile

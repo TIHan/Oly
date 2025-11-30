@@ -152,6 +152,7 @@ module private BoundEnvironment =
 
         {
             senv = senv
+            openedNamespaces = ImmutableHashSet.Empty
             openedEnts = ImmutableHashSet.Empty
             partialAutoOpenedRootEnts = ImmutableHashSet.Empty
             openDecls = ImArray.empty
@@ -164,6 +165,7 @@ module private BoundEnvironment =
 type BoundEnvironment =
     {
         senv: ScopeEnvironment
+        openedNamespaces: ImmutableHashSet<int64>
         openedEnts: ImmutableHashSet<EntitySymbol>
         partialAutoOpenedRootEnts: ImmutableHashSet<EntitySymbol>
         openDecls: EntitySymbol imarray
