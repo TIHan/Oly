@@ -4203,6 +4203,30 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             failwith "Expected formal enclosing type."
 
         let isErasingFunc = genericContext.IsErasingFunction
+
+        // We use to allow eraseable functions to be selectively emitted as
+        // non-eraseable in contexts where generics cannot be erased.
+        // Example:
+        //      zoot<T>(x: T): () =
+        //          print(x)
+        //
+        //      #[export]
+        //      doot<T>(x: T): () =
+        //          let f() = 
+        //              // T cannot be erased.
+        //              // So when T is used on the 'zoot' call, 'zoot' cannot be erased.
+        //              // Use to compile, now it does not. 'zoot' must *always* be erased.
+        //              zoot(x)
+        //          f()
+        // REVIEW: In the future, we could relax this rule and allow the code above to compile again.
+        //         The relaxation would only work for non-abstract functions whose enclosing type parents are not generic.
+        //         However, this would make the rules more complex.
+        //         The other alternative to allow this would be to never erase types or functions that do not need to be erased
+        //         based on the target platform/runtime. Such an alternative may reduce compile times when emitting,
+        //         but may add cognitive overhead on how the user understands what gets erased and what does not. Ideally, the user
+        //         should not worry about that, but in the case of interoping with other platforms/runtimes, they do as the runtime performance characteristics
+        //         of erasing versus non-erasing will be different.
+        OlyAssert.Equal(func.CanGenericsBeErased, isErasingFunc)
         
         if func.IsExternal && isErasingFunc then
             failwith "Cannot erase type arguments of an external function."
