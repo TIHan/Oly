@@ -82,7 +82,7 @@ class ExportedA3 =
 let ``Calling an UnmanagedCallersOnly should fail``() =
     let src =
         """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 namespace A
 
@@ -122,7 +122,7 @@ module Main =
 let ``Getting pointer of UnmanagedCallersOnly should pass``() =
     let src =
         """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 namespace A
 

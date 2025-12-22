@@ -1,4 +1,4 @@
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #load "*.oly"
 

@@ -2884,7 +2884,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         let irTier = this.GetFunctionTier(func)
 
-        this.Emitter.EmitFunctionBody(body, irTier, emittedFunc)
+        StackGuard.Do(fun () -> this.Emitter.EmitFunctionBody(body, irTier, emittedFunc))
 
     let rec tryFindTypeAux(splitted: string imarray, tyParCount: int32): RuntimeType option =
         let enclosingTargetNames = splitted.RemoveAt(splitted.Length - 1)

@@ -55,7 +55,7 @@ let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new
     let dataKind = getNumericsDataKind<'T>
 
     let src = $"""
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 module OlyNumericsTest
 

@@ -1,11 +1,11 @@
 **Note: This is a work-in-progress.**
 
 # Chapter 1 - `Hello World!`
-## `Hello World!` (.NET 7)
+## `Hello World!` (.NET 10)
 
-file: [`chapter1/hello-world-net7.olyx`](chapter1/hello-world-net7.olyx)
+file: [`chapter1/hello-world-net10.olyx`](chapter1/hello-world-net10.olyx)
 ```oly
-#target "dotnet: net7"
+#target "dotnet: net10"
 
 open System
 

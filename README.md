@@ -8,13 +8,11 @@ A side project to understand programming languages and compilers in all stages.
 ## Building
 
 Requirements:
-- Visual Studio 2022 Community 17.13.6 or later - [Download](https://visualstudio.microsoft.com/vs/community/)
-    - Must use this to build Oly with the appropriate F# version.
-- .NET 8 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+- .NET 10 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 
-This will build everything except for the VSCode extension.
-
-Open `Oly.sln` in Visual Studio and build it there.
+Command Line:
+- `dotnet build -c Release`
+    - This will build everything except for the VSCode extension.
 
 ## Running Tests
 

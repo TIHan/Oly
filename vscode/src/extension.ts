@@ -54,14 +54,14 @@ class DocumentRangeSemanticTokensProvider implements vscode.DocumentRangeSemanti
 
 export function activate(context: ExtensionContext) {
 	let serverModule = context.asAbsolutePath(
-		path.join('out', 'net8', 'Oly.LanguageServer.dll')
+		path.join('out', 'net10.0', 'Oly.LanguageServer.dll')
 	);
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
 		run: { command: 'dotnet', args: [serverModule] },
-        debug: { command: 'dotnet', args: [serverModule] }
+		debug: { command: 'dotnet', args: [serverModule] }
 	};
 
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
@@ -108,7 +108,7 @@ export function activate(context: ExtensionContext) {
 	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
 
 	function showOlyWorkspaceStatusCleanTooltip() {
-			olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
+		olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
 		olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
 		olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
 	}
@@ -145,22 +145,18 @@ export function activate(context: ExtensionContext) {
 	function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
 		switch (params.kind) {
 			case 'begin':
-				if (params.message == "building")
-				{
+				if (params.message == "building") {
 					olyBuildingStatusBarItem.show();
 				}
-				else
-				{
+				else {
 					beginOlyWorkspaceStatus(params.title);
 				}
 				break;
 			case 'end':
-				if (params.message == "building")
-				{
+				if (params.message == "building") {
 					olyBuildingStatusBarItem.hide();
 				}
-				else
-				{
+				else {
 					endOlyWorkspaceStatus();
 				}
 				break;
@@ -180,7 +176,7 @@ export function activate(context: ExtensionContext) {
 		await client.didChangeWorkspaceConfiguration(config);
 		vscode.workspace.onDidChangeConfiguration(async (_e) => {
 			let config = vscode.workspace.getConfiguration("oly.languageServer");
-			client.didChangeWorkspaceConfiguration(config);		
+			client.didChangeWorkspaceConfiguration(config);
 		});
 
 		vscode.workspace.onDidChangeTextDocument(async (e) => {
@@ -191,21 +187,19 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly'}, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
+		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly' }, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
 
 		let buildOutputChannel = vscode.window.createOutputChannel("Oly Build");
 		async function buildCommandHandler() {
 			let ch = buildOutputChannel;
-			
+
 			ch.show(true);
 			let result = await build(client, olyProjectStatusBarItem, ch);
-			if (result == null)
-			{
+			if (result == null) {
 				throw new Error("Oly Build Failed\nSee output for details");
 			}
-			else if (result.resultPath == null)
-			{
+			else if (result.resultPath == null) {
 				ch.appendLine("========================================================\n");
 				ch.append("ERROR:\n" + result.error);
 				throw new Error("Oly Build Failed\nSee output for details");
@@ -221,19 +215,16 @@ export function activate(context: ExtensionContext) {
 		let olyWorkspaceSettingsUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceSettingsPath));
 		async function readOlyWorkspaceSettings() {
 			// TODO: How do we handle a blank active project?
-			try
-			{
+			try {
 				let fileContents: Uint8Array = await vscode.workspace.fs.readFile(olyWorkspaceSettingsUri);
 				let stringContents = new TextDecoder().decode(fileContents);
 				return JSON.parse(stringContents);
 			}
-			catch
-			{
+			catch {
 				let olyWorkspaceSettings: any = {};
 				olyWorkspaceSettings.activeProject = "";
 				let projectNames = await client.getProjectList();
-				if (projectNames.length > 0)
-				{
+				if (projectNames.length > 0) {
 					olyWorkspaceSettings.activeProject = projectNames[0];
 				}
 
@@ -249,14 +240,12 @@ export function activate(context: ExtensionContext) {
 		let olyWorkspaceStatePath = '.oly/workspace/state.json';
 		let olyWorkspaceStateUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceStatePath));
 		async function readOlyWorkspaceState() {
-			try
-			{
+			try {
 				let fileContents: Uint8Array = await vscode.workspace.fs.readFile(olyWorkspaceStateUri);
 				let stringContents = new TextDecoder().decode(fileContents);
 				return JSON.parse(stringContents);
 			}
-			catch
-			{
+			catch {
 				let olyWorkspaceState: any = {};
 				olyWorkspaceState.activeConfiguration = "Debug"; // default - TODO: Technically a project may not have 'Debug' as default.
 				saveOlyWorkspaceState(olyWorkspaceState);
@@ -272,38 +261,32 @@ export function activate(context: ExtensionContext) {
 
 			var projText = "(NO PROJECT SELECTED)";
 			var isValid = true;
-			if (olyWorkspaceSettings.activeProject !== undefined && 
-				olyWorkspaceSettings.activeProject !== null && 
-				await client.doesProjectExist(olyWorkspaceSettings.activeProject))
-			{
+			if (olyWorkspaceSettings.activeProject !== undefined &&
+				olyWorkspaceSettings.activeProject !== null &&
+				await client.doesProjectExist(olyWorkspaceSettings.activeProject)) {
 				projText = olyWorkspaceSettings.activeProject;
 			}
-			else
-			{
+			else {
 				isValid = false;
 			}
 
 			var isDebuggable = false;
-			
+
 			var olyWorkspaceState = await readOlyWorkspaceState();
 			let proj = await client.tryGetActiveProjectInfo();
 			var configText = "";
 			if (isValid &&
-				olyWorkspaceState.activeConfiguration !== undefined && 
+				olyWorkspaceState.activeConfiguration !== undefined &&
 				olyWorkspaceState.activeConfiguration !== null &&
-				await client.doesActiveProjectConfigurationExist(olyWorkspaceState.activeConfiguration))
-			{
+				await client.doesActiveProjectConfigurationExist(olyWorkspaceState.activeConfiguration)) {
 				configText = ` (${olyWorkspaceState.activeConfiguration})`;
 			}
-			else if (isValid && proj !== null)
-			{
+			else if (isValid && proj !== null) {
 				configText = proj.configurationName;
-				if (configText === null)
-				{
+				if (configText === null) {
 					isValid = false;
 				}
-				else
-				{
+				else {
 					configText = ` (${configText})`;
 				}
 			}
@@ -311,13 +294,11 @@ export function activate(context: ExtensionContext) {
 			if (proj !== null)
 				isDebuggable = proj.isDebuggable;
 
-			if (isValid)
-			{
+			if (isValid) {
 				olyProjectStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
 				olyProjectStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
 			}
-			else
-			{
+			else {
 				olyProjectStatusBarItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
 				olyProjectStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
 			}
@@ -325,8 +306,7 @@ export function activate(context: ExtensionContext) {
 			olyProjectStatusBarItem.tooltip = new vscode.MarkdownString("", true);
 			olyProjectStatusBarItem.tooltip.isTrusted = true;
 
-			if (isValid)
-			{
+			if (isValid) {
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`Active Project: ${projText}${configText}\n\n`);
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(project) Build](command:${OlyClientCommands.build} "Build active project")\n\n`);
 				if (isDebuggable)
@@ -335,8 +315,7 @@ export function activate(context: ExtensionContext) {
 				olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Configuration](command:${OlyClientCommands.changeActiveConfiguration} "Change active configuration")\n\n`);
 				olyProjectStatusBarItem.command = { title: "", command: "vscode.open", arguments: [proj.uri] };
 			}
-			else
-			{
+			else {
 				olyProjectStatusBarItem.command = null;
 			}
 			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Project](command:${OlyClientCommands.changeActiveProject} "Change active project")\n\n`);
@@ -346,15 +325,13 @@ export function activate(context: ExtensionContext) {
 		olyProjectStatusBarItem.show();
 
 		let stateWatcher = workspace.createFileSystemWatcher('**/*.json');
-		stateWatcher.onDidChange(function(event) {
-			if (event.path.endsWith(olyWorkspaceSettingsPath) || event.path.endsWith(olyWorkspaceStatePath))
-			{
+		stateWatcher.onDidChange(function (event) {
+			if (event.path.endsWith(olyWorkspaceSettingsPath) || event.path.endsWith(olyWorkspaceStatePath)) {
 				refreshProjectStatusBarItemTooltip();
 			}
 		});
-		stateWatcher.onDidCreate(function(event) {
-			if (event.path.endsWith(olyWorkspaceSettingsPath) || event.path.endsWith(olyWorkspaceStatePath))
-			{
+		stateWatcher.onDidCreate(function (event) {
+			if (event.path.endsWith(olyWorkspaceSettingsPath) || event.path.endsWith(olyWorkspaceStatePath)) {
 				refreshProjectStatusBarItemTooltip();
 			}
 		});
@@ -376,11 +353,10 @@ export function activate(context: ExtensionContext) {
 			let result = await vscode.window.showQuickPick(configNames, options);
 
 			let workspaceState = await readOlyWorkspaceState();
-			if (workspaceState.activeConfiguration != result && 
-				result !== undefined && 
-				result !== null && 
-				result != '')
-			{
+			if (workspaceState.activeConfiguration != result &&
+				result !== undefined &&
+				result !== null &&
+				result != '') {
 				workspaceState.activeConfiguration = result;
 				await saveOlyWorkspaceState(workspaceState);
 			}
@@ -401,21 +377,19 @@ export function activate(context: ExtensionContext) {
 						return "'.oly' extension required"
 					}
 					let fileUri = vscode.Uri.file(path.join(path.dirname(projectUri.path), newFileName));
-					try
-					{
+					try {
 						let _ = await vscode.workspace.fs.stat(fileUri); // test if the file exists
 						return "File already exists";
 					}
-					catch
-					{
+					catch {
 						return undefined;
 					}
 				}
 				let newFileName = await vscode.window.showInputBox({ title: "File Name", validateInput: validateInput, value: ".oly", valueSelection: [0, 0] });
 				if (newFileName !== undefined && newFileName !== null) {
 					let projectTextDocument = await vscode.workspace.openTextDocument(projectUri);
-					let projectText = new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri));	
-					
+					let projectText = new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri));
+
 					let fileUri = vscode.Uri.file(path.join(path.dirname(projectUri.path), newFileName));
 
 					let r = new RegExp(`#target.*(\\n|\\r\\n)`);
@@ -451,7 +425,7 @@ export function activate(context: ExtensionContext) {
 			if (fileUri !== undefined && projectUri !== undefined) {
 				let projectTextDocument = await vscode.workspace.openTextDocument(projectUri);
 				let projectText = new TextDecoder().decode(await vscode.workspace.fs.readFile(projectUri));
-				
+
 				let filePath = path.relative(path.dirname(projectUri.path), fileUri.path);
 
 				let r = new RegExp(`#load.*"${filePath}".*(\\n|\\r\\n)`);

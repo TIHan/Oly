@@ -62,7 +62,7 @@ let run (expectedOutput: string) (program: OlyProgram) =
 let ``Simple hello world project should compile`` () =
     let src =
         """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 main(): () =
     print("Hello World!")
@@ -76,7 +76,7 @@ main(): () =
 let ``Simple ReadyToRun hello world project should compile`` () =
     let src =
         """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #property "r2r" true
 
@@ -93,7 +93,7 @@ main(): () =
 let ``Simple NativeAOT hello world project should compile`` () =
     let src =
         """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #property "r2r" true
 
@@ -108,7 +108,7 @@ main(): () =
 [<Fact>]
 let ``Recursive generics should give a build error``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 class B<T>
 
@@ -136,7 +136,7 @@ main(): () =
 [<Fact>]
 let ``AOT and R2R cannot both be set at the same time``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #property "r2r" false
 #property "aot" false
@@ -154,7 +154,7 @@ main(): () =
 [<Fact>]
 let ``R2R and AOT cannot both be set at the same time``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #property "aot" false
 #property "r2r" false
@@ -171,7 +171,7 @@ main(): () =
 [<Fact>]
 let ``AOT cannot be set in a library``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 #library
 
 #property "aot" false
@@ -185,7 +185,7 @@ let ``AOT cannot be set in a library``() =
 [<Fact>]
 let ``R2R cannot be set in a library``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 #library
 
 #property "r2r" false
@@ -199,7 +199,7 @@ let ``R2R cannot be set in a library``() =
 [<Fact>]
 let ``Duplicate properties not allowed``() =
     let src = """
-#target "dotnet: net8"
+#target "dotnet: net10.0"
 
 #property "aot" false
 #property "aot" true

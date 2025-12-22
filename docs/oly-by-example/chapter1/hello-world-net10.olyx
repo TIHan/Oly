@@ -1,4 +1,4 @@
-#target "dotnet: net7"
+#target "dotnet: net10.0"
 
 open System
 
