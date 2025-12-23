@@ -80,7 +80,7 @@ type MSBuild() =
         $"""
 <Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup>
-    <EnableDefaultItems>false</EnableDefaultItems>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     {outputType}
     {publishKind}
     <TargetFramework>{targetName}</TargetFramework>
@@ -132,14 +132,14 @@ type MSBuild() =
                         let build =
                             if isPublish then "publish"
                             else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o {outputPath.ToString()} {projectName}.csproj", workingDirectory = stubDir.FullName)
+                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
 
                         try
                             let! _result = p.RunAsync(ct)
                             ()
                         with
                         | ex ->
-                            OlyTrace.LogError($"[MSBuild] ${ex.ToString()}")
+                            OlyTrace.LogError($"[MSBuild]\n{stub}\n{ex.ToString()}")
                             raise ex
                         ()
                     }

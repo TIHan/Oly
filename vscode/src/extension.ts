@@ -60,8 +60,8 @@ export function activate(context: ExtensionContext) {
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
-		run: { command: 'dotnet', args: [serverModule] },
-		debug: { command: 'dotnet', args: [serverModule] }
+		run: { command: 'dotnet', args: [serverModule], options: { env: { DOTNET_DefaultStackSize: "8388608" } } },
+		debug: { command: 'dotnet', args: [serverModule], options: { env: { DOTNET_DefaultStackSize: "8388608" } } }
 	};
 
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
