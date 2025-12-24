@@ -288,8 +288,7 @@ module internal rec Helpers =
                                         | OlyILTypeEntity(olyEntInst) ->
                                             match olyEntInst with
                                             | OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs) when olyTyArgs.IsEmpty && (olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition) ->
-                                                let olyEntRef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
-                                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                                let name = cenv.olyEntDefToNameCache[olyEntDefOrRefHandle.Index]
                                                 // TODO: Check namespace...
                                                 if name = "ValueType" then                                         
                                                     OlyILTypeModified(olyModifier, olyUnmodifiedType)
@@ -439,6 +438,7 @@ module internal rec Helpers =
             tySpecToOlyTypeCache: Dictionary<TypeSpecificationHandle, OlyILType>
             exportedTyToOlyEntRefCache: Dictionary<ExportedTypeHandle, OlyILEntityReferenceHandle>
             methDefToOlyFuncDefCache: Dictionary<MethodDefinitionHandle, OlyILEntityDefinitionHandle>
+            olyEntDefToNameCache: Dictionary<int, string>
         }
 
     let unmangleName (name: string) =
@@ -1120,6 +1120,8 @@ module internal rec Helpers =
         let name = reader.GetString(tyDef.Name)
         let unmangledName = unmangleName(name)
 
+        cenv.olyEntDefToNameCache[olyEntDefHandle.Index] <- unmangledName
+
         let path, olyTyPars, olyEnclosing = 
             if tyDef.IsNested then
                 let enclosingTyDefHandle = tyDef.GetDeclaringType()
@@ -1500,6 +1502,7 @@ type Importer private (name: string, peReader: PEReader) =
                 tySpecToOlyTypeCache = Dictionary()
                 exportedTyToOlyEntRefCache = Dictionary()
                 methDefToOlyFuncDefCache = Dictionary()
+                olyEntDefToNameCache = Dictionary()
             }
 
         let olyDefaultCtorConstr =

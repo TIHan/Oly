@@ -8,9 +8,9 @@ type StackGuard =
 
     static member MaxDepth with get() = 
 #if DEBUG
-        3
+        1
 #else
-        10
+        5
 #endif
 
 
@@ -22,7 +22,12 @@ type StackGuard =
     static member inline Do<'T>([<InlineIfLambda>] f: unit -> 'T) =
         StackGuard.CurrentDepth <- StackGuard.CurrentDepth + 1
         try
-            if StackGuard.CurrentDepth % StackGuard.MaxDepth = 0 then
+            let sufficientStack =
+                if StackGuard.CurrentDepth > StackGuard.MaxDepth then
+                    System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack()
+                else
+                    true
+            if (not sufficientStack) then
                 Task.Run(fun () -> f()).Result
             else
                 f()

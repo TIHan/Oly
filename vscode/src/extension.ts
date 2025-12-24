@@ -60,8 +60,8 @@ export function activate(context: ExtensionContext) {
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
-		run: { command: 'dotnet', args: [serverModule], options: { env: { DOTNET_DefaultStackSize: "8388608" } } },
-		debug: { command: 'dotnet', args: [serverModule], options: { env: { DOTNET_DefaultStackSize: "8388608" } } }
+		run: { command: 'dotnet', args: [serverModule] },
+		debug: { command: 'dotnet', args: [serverModule] }
 	};
 
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
@@ -91,7 +91,7 @@ export function activate(context: ExtensionContext) {
 	vscode.workspace.onDidRenameFiles(e => {
 		e.files.forEach(args => {
 			let path = args.oldUri.path.toLowerCase();
-			if (path.endsWith('.oly') || path.endsWith('olyx')) {
+			if (path.endsWith('.oly') || path.endsWith('.olyx')) {
 				client.diagnostics.delete(args.oldUri);
 			}
 		})

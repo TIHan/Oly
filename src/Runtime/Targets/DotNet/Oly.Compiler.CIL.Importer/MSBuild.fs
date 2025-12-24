@@ -1,4 +1,4 @@
-﻿module internal Oly.Targets.DotNet.MSBuild
+﻿module Oly.Targets.DotNet.MSBuild
 
 open System
 open System.IO
@@ -132,14 +132,14 @@ type MSBuild() =
                         let build =
                             if isPublish then "publish"
                             else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
+                        use p = new ExternalProcess("dotnet", $"{build} -v detailed --disable-build-servers -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
 
                         try
                             let! _result = p.RunAsync(ct)
                             ()
                         with
                         | ex ->
-                            OlyTrace.LogError($"[MSBuild]\n{stub}\n{ex.ToString()}")
+                            OlyTrace.LogError($"[MSBuild] {ex.ToString()}")
                             raise ex
                         ()
                     }
