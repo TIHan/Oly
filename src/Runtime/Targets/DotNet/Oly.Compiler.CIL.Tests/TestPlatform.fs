@@ -21,7 +21,8 @@ let globalSetup() =
         |> Array.append [|consoleAsm|]
         |> Array.distinctBy (fun x -> x.FullName)
         |> Array.choose (fun x ->
-            if x.Location.StartsWith(dotnetLocation) then
+            System.Diagnostics.Debug.WriteLine(x.FullName)
+            if x.Location.StartsWith(dotnetLocation) && (x.Location.Contains("System.Private.CoreLib") || x.Location.Contains("System.Console") || x.Location.Contains("System.Collections.Concurrent") || x.Location.Contains("System.Runtime") || x.Location.Contains("System.Linq") || x.Location.Contains("System.Collections.Immutable")) then
                 use fs = File.OpenRead(x.Location)
                 let asm = Importer.Import(x.GetName().Name, fs)
                 let compRef = OlyCompilationReference.Create(OlyPath.Create(x.Location), 42UL, asm)

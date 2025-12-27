@@ -845,12 +845,18 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
     let syntaxTree = cenv.tree.SyntaxTree
 
     let ctor = ctor.ApplyConstructor((freeTyVars |> ImArray.map (fun x -> x.AsType)))
+
+    let ctorArgTys =
+        ctor.LogicalType.FunctionArgumentTypes
         
     let ctorArgExprs =
-        freeLocals
-        |> ImArray.map (fun x -> 
-            if x.IsMutable then
-                WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))
+        (freeLocals, ctorArgTys)
+        ||> ImArray.map2 (fun x argTy -> 
+            if not x.Type.IsByRef_t && argTy.IsByRef_t then
+                if argTy.IsReadOnlyByRef then
+                   WellKnownExpressions.AddressOf (E.CreateValue(syntaxTree, x))
+                else
+                   WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))   
             else
                 E.CreateValue(syntaxTree, x)
         )
@@ -1029,9 +1035,19 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 let field =
                     let fieldTy = x.Type.Substitute(closureTyParLookup)
                     let fieldTy =
-                        if x.IsMutable then
-                            TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
+                        if closureBuilder.Entity.IsScoped && not x.Type.IsByRef_t then
+                            if x.IsMutable then
+                                TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
+
+                            // TODO: We technically do not need to create read-only byrefs.
+                            //       But we do as there is a quirk in DOTNET that causes memory corruption if we use the GC type instead of a byref handle.
+                            //       However, we do not do it for function types yet because we need to handle LoadFunction implicit call. 
+                            elif x.Type.IsAnyFunction then
+                                fieldTy
+                            else
+                                TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadOnly)
                         else
+                            OlyAssert.False(x.IsMutable)
                             fieldTy
 
                     if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped then
