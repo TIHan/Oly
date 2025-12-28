@@ -196,6 +196,22 @@ let substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, liter
     | _ ->
         literal          
 
+let handleCallExpression syntaxInfo receiverOpt subbedWitnessArgs argExprs (appliedNewValue: IValueSymbol) isVirtualCall =
+    let newArgExprs =
+        if appliedNewValue.Type.IsTypeVariable then
+            argExprs
+        else
+            BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
+
+    BoundExpression.Call(
+        syntaxInfo,
+        receiverOpt,
+        subbedWitnessArgs,
+        newArgExprs,
+        appliedNewValue,
+        isVirtualCall
+    )
+
 /// Substitutes type variables with the new types and values with new values in the entire expression.
 /// Some special rules:
 ///     - TODO: Document special rules here. Such as if the old value was a local and the new value is a instance field, it handles this by calling handleReceiverExpr callback.
@@ -521,20 +537,34 @@ let substitute
                         | _ ->
                             let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
 
-                            let newArgExprs =
-                                if appliedNewValue.Type.IsTypeVariable then
+                            if appliedNewValue.Type.IsByRef_t then
+                                let rhsExpr =
+                                    if appliedNewValue.IsField && receiverOpt.IsSome then
+                                        OlyAssert.True(appliedNewValue.IsInstance)
+                                        (FromAddress (E.GetField(syntaxInfo, receiverOpt.Value, appliedNewValue.AsField)))
+                                    else
+                                        OlyAssert.False(receiverOpt.IsSome)
+                                        OlyAssert.False(appliedNewValue.IsInstance)
+                                        (FromAddress (E.Value(syntaxInfo, appliedNewValue)))
+                                createLocalDeclarationExpression 
+                                    rhsExpr
+                                    (fun syntaxInfo appliedNewValue ->
+                                        handleCallExpression
+                                            syntaxInfo
+                                            None
+                                            subbedWitnessArgs
+                                            argExprs
+                                            appliedNewValue
+                                            isVirtualCall
+                                    ) |> fst
+                            else
+                                handleCallExpression
+                                    syntaxInfo
+                                    receiverOpt
+                                    subbedWitnessArgs
                                     argExprs
-                                else
-                                    BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
-
-                            BoundExpression.Call(
-                                syntaxInfo,
-                                receiverOpt,
-                                subbedWitnessArgs,
-                                newArgExprs,
-                                appliedNewValue,
-                                isVirtualCall
-                            )
+                                    appliedNewValue
+                                    isVirtualCall
                     | _ ->
                         let allTyArgs =
                             (value.AllTypeParameters, value.AllTypeArguments) 
@@ -1039,11 +1069,15 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                             if x.IsMutable then
                                 TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
 
+                            // For struct types, do not get the address.
+                            // We mainly do this to keep optimizations working for inlining functions
+                            // when scoped lambda capture other scoped lambdas.
+                            // REVIEW: We should just create a byref type as a stress test and fix the optimizations in the runtime.
+                            elif fieldTy.IsAnyStruct then
+                                fieldTy
+
                             // TODO: We technically do not need to create read-only byrefs.
                             //       But we do as there is a quirk in DOTNET that causes memory corruption if we use the GC type instead of a byref handle.
-                            //       However, we do not do it for function types yet because we need to handle LoadFunction implicit call. 
-                            elif x.Type.IsAnyFunction then
-                                fieldTy
                             else
                                 TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadOnly)
                         else
@@ -1348,9 +1382,12 @@ type LambdaLiftingRewriter(cenv: cenv) =
                                     match newFunc.Type.TryGetFunctionWithParameters() with
                                     | ValueSome(parTys, _) ->
                                         (parTys, argExprs)
-                                        ||> ImArray.map2 (fun parTy argExpr ->
-                                            if parTy.IsReadWriteByRef && not argExpr.Type.IsByRef_t then
-                                                AddressOfMutable argExpr
+                                        ||> ImArray.map2 (fun parTy argExpr -> 
+                                            if parTy.IsByRef_t && not argExpr.Type.IsByRef_t then
+                                                if parTy.IsReadOnlyByRef then
+                                                    AddressOf argExpr
+                                                else
+                                                    AddressOfMutable argExpr
                                             else
                                                 argExpr
                                         )
