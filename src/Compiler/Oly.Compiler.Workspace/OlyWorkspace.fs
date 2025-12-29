@@ -554,6 +554,8 @@ type OlyProject (
                 | _ ->
                     OlyPath.Equals(x, documentPath)
             )
+        elif documentPath.HasExtension(".olyx") then
+            OlyPath.Equals(this.Path, documentPath)
         else
             false
 
@@ -1169,6 +1171,8 @@ type WorkspaceMessage =
     | FileCreated of filePath: OlyPath
     | FileChanged of filePath: OlyPath
     | FileDeleted of filePath: OlyPath
+    | FolderCreated of folderPath: OlyPath
+    | FolderDeleted of folderPath: OlyPath
 
 type IOlyWorkspaceProgress =
 
@@ -1282,9 +1286,22 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     let refresh() = async {
         let projects = solutionRef.contents.GetProjects()
         clearSolution()
+        documentsToUpdate.Clear()
         for proj in projects do
             documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
     }
+
+    let getProjectsReferencingFile(filePath: OlyPath) =
+        if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+            solutionRef.contents.GetProjects()
+        else
+            solutionRef.contents.GetProjects()
+            |> ImArray.choose (fun proj ->
+                if proj.CouldHaveDocument(filePath) then
+                    Some(proj)
+                else
+                    None
+            )                           
 
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
@@ -1357,56 +1374,66 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                 | FileCreated(filePath) ->
                     use _progress = onBeginWork()
-
                     OlyTrace.Log($"[Workspace] File Created '{filePath.ToString()}'")
-                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)
-
-                        let mutable newSolution = solutionRef.contents
-                        newSolution.GetProjects()
-                        |> ImArray.iter (fun proj ->
-                            if proj.CouldHaveDocument(filePath) then
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            projects
+                            |> ImArray.iter (fun proj ->
                                 documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
-                        )
-                        solutionRef.contents <- newSolution
-                        documentsToUpdate.Enqueue(filePath, CancellationToken.None)
-                        events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(filePath))
-                    elif filePath.HasExtension(".json") then
-                        currentRs <- currentRs.SetResourceAsCopy(filePath)
+                            )
+                            documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(filePath))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            do! refresh()
 
                 | FileChanged(filePath) ->
                     use _progress = onBeginWork()
-
                     OlyTrace.Log($"[Workspace] File Changed '{filePath.ToString()}'")
-                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.SetResourceAsCopy(filePath)  
-                        documentsToUpdate.Enqueue(filePath, CancellationToken.None)
-                        events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(filePath, false))
-                    elif filePath.HasExtension(".json") then
-                        currentRs <- currentRs.SetResourceAsCopy(filePath)       
-                        if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(filePath, false))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
                             do! refresh()
 
                 | FileDeleted(filePath) ->
                     use _progress = onBeginWork()
-
                     OlyTrace.Log($"[Workspace] File Deleted - {filePath.ToString()}")
-                    if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
                         currentRs <- currentRs.RemoveInMemorySourceText(filePath)
                         currentRs <- currentRs.RemoveResource(filePath)
-                        let mutable newSolution = solutionRef.contents
-                        let docs = newSolution.GetDocuments(filePath)
-                        for doc in docs do
-                            if doc.IsProjectDocument then
-                                newSolution <- newSolution.RemoveProject(doc.Project.Path)
-                            else
-                                newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
-                        solutionRef.contents <- newSolution
-                        events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(filePath))
-                    elif filePath.HasExtension(".json") then
-                        currentRs <- currentRs.RemoveResource(filePath)
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            let mutable newSolution = solutionRef.contents
+                            let docs = newSolution.GetDocuments(filePath)
+                            for doc in docs do
+                                if doc.IsProjectDocument then
+                                    newSolution <- newSolution.RemoveProject(doc.Project.Path)
+                                else
+                                    newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
+                            solutionRef.contents <- newSolution
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(filePath))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            do! refresh()
+
+                | FolderCreated(folderPath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] Folder Created - {folderPath.ToString()}")
+                    ()
+
+                | FolderDeleted(folderPath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] Folder Deleted - {folderPath.ToString()}")
+                    ()
 
                 return! loop()
             }
@@ -2023,6 +2050,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     member _.FileDeleted(filePath: OlyPath)=
         mbp.Post(WorkspaceMessage.FileDeleted(filePath))
 
+    member _.FolderCreated(folderPath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FolderCreated(folderPath))
+
+    member _.FolderDeleted(folderPath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FolderDeleted(folderPath))
+
     static member CreateCore(targetPlatforms: OlyBuild seq, progress, initialRs, workspaceDirectory: OlyPath) =
         let targetPlatforms =
             targetPlatforms
@@ -2065,6 +2098,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     member _.WorkspaceDirectory = state.workspaceDirectory
     member _.WorkspaceStateDirectory = state.workspaceStateDirectory
+    /// TODO: Rename to WorkspaceStateFilePath
     member _.WorkspaceStateFileName = state.workspaceStateFileName
     member _.WorkspaceChanged = events.Publish
 

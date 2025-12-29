@@ -693,12 +693,12 @@ type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
     member private this.OnBeginAnalysisProgress() =
         if Interlocked.Increment(&analysisCount) = 1 then
             let observer = this.GetObserver()
-            observer.OnNext({| kind = "begin"; title = "Analyzing" |}: obj)
+            observer.OnNext({| kind = "begin"; message = "Analyzing" |}: obj)
 
     member private this.OnEndAnalysisProgress() =
         if Interlocked.Decrement(&analysisCount) = 0 then
             let observer = this.GetObserver()
-            observer.OnNext({| kind = "end" |}: obj)
+            observer.OnNext({| kind = "end"; message = "Analyzing" |}: obj)
 
     member this.ForAnalyzingProgress(ct: CancellationToken, f) = backgroundTask {
         ct.ThrowIfCancellationRequested()
@@ -712,12 +712,12 @@ type OlyLspWorkspaceProgress(server: ILanguageServerFacade) =
     member private this.OnBeginBuildProgress() =
         if Interlocked.Increment(&buildCount) = 1 then
             let observer = this.GetObserver()
-            observer.OnNext({| kind = "begin"; title = "Building"; message = "building" |}: obj)
+            observer.OnNext({| kind = "begin"; message = "Building" |}: obj)
 
     member private this.OnEndBuildProgress() =
         if Interlocked.Decrement(&buildCount) = 0 then
             let observer = this.GetObserver()
-            observer.OnNext({| kind = "end"; message = "building" |}: obj)
+            observer.OnNext({| kind = "end"; message = "Building" |}: obj)
 
     member this.CreateBuildProgress() =
         this.OnBeginBuildProgress()
@@ -949,6 +949,18 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
     let progress = OlyLspWorkspaceProgress(server)
 
+    let ignoredPathComponents =
+        [
+            ".oly"
+            ".vscode"
+            ".git"
+            ".gitignore"
+            ".svn"
+            ".hg"
+            ".DS_Store"
+            "Thumbs.db"
+        ]
+
     do
         OlyTrace.Log <-
             fun msg ->
@@ -1111,15 +1123,30 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
         member _.Handle (request: DidChangeWatchedFilesParams, cancellationToken: CancellationToken): Task<Unit> = backgroundTask {
             let workspace = getWorkspace()
             for change in request.Changes do
-                match change.Type with
-                | FileChangeType.Created ->
-                    workspace.FileCreated(OlyPath.Create(change.Uri.Path))
-                | FileChangeType.Changed ->
-                    workspace.FileChanged(OlyPath.Create(change.Uri.Path))
-                | FileChangeType.Deleted ->
-                    workspace.FileDeleted(OlyPath.Create(change.Uri.Path))
-                | _ ->
+                let path = OlyPath.Create(change.Uri.Path)
+                // TODO: This is not comprehensive enough. What happens if the folder that contains
+                //       'state.json' was deleted or created?
+                if path.ContainsAnyComponent(ignoredPathComponents) && 
+                   not(OlyPath.Equals(path, workspace.WorkspaceStateFileName)) then
                     ()
+                elif path.IsFile then
+                    match change.Type with
+                    | FileChangeType.Created ->
+                        workspace.FileCreated(path)
+                    | FileChangeType.Changed ->
+                        workspace.FileChanged(path)
+                    | FileChangeType.Deleted ->
+                        workspace.FileDeleted(path)
+                    | _ ->
+                        ()
+                else
+                    match change.Type with
+                    | FileChangeType.Created ->
+                        workspace.FolderCreated(path)
+                    | FileChangeType.Deleted ->
+                        workspace.FolderDeleted(path)
+                    | _ ->
+                        ()
             return Unit.Value
         }
 

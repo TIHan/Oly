@@ -64,16 +64,14 @@ export function activate(context: ExtensionContext) {
 		debug: { command: 'dotnet', args: [serverModule] }
 	};
 
-	let olyFileWatcher = workspace.createFileSystemWatcher('**/*.oly');
-	let olyxFileWatcher = workspace.createFileSystemWatcher('**/*.olyx');
-	let jsonFileWatcher = workspace.createFileSystemWatcher('**/**.json');
+	let olyFileWatcher = workspace.createFileSystemWatcher('**/*');
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for plain text documents
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
-			fileEvents: [olyFileWatcher, olyxFileWatcher, jsonFileWatcher]
+			fileEvents: [olyFileWatcher]
 		}
 	};
 
@@ -86,8 +84,12 @@ export function activate(context: ExtensionContext) {
 	);
 
 	// Clear diagnostics on files that were deleted or renamed
-	olyFileWatcher.onDidDelete(uri => client.diagnostics.delete(uri));
-	olyxFileWatcher.onDidDelete(uri => client.diagnostics.delete(uri));
+	olyFileWatcher.onDidDelete(uri => {
+		let path = uri.path.toLowerCase();
+		if (path.endsWith('.oly') || path.endsWith('.olyx')) {
+			client.diagnostics.delete(uri);
+		}
+	});
 	vscode.workspace.onDidRenameFiles(e => {
 		e.files.forEach(args => {
 			let path = args.oldUri.path.toLowerCase();
@@ -101,63 +103,38 @@ export function activate(context: ExtensionContext) {
 	let syntaxTreeView = OlySyntaxTreeView.createFromVscodeWindow();
 	let solutionExplorerView = OlySolutionExplorerView.createFromVscodeWindow(context);
 
-	// Oly Workspace - status bar item
-	let olyWorkspaceStatusDefaultText = "$(globe) Oly Workspace";
-	let olyWorkspaceStatusSyncText = "$(loading~spin) Oly Workspace"
-	let olyWorkspaceStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
-
-	function showOlyWorkspaceStatusCleanTooltip() {
-		olyWorkspaceStatusBarItem.tooltip = new vscode.MarkdownString("", true);
-		olyWorkspaceStatusBarItem.tooltip.isTrusted = true;
-		olyWorkspaceStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean](command:oly.cleanWorkspace "Clean workspace")\n\n');
-	}
-
-	function beginOlyWorkspaceStatus(title: string) {
-		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusSyncText;
-		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
-		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
-		olyWorkspaceStatusBarItem.tooltip = title;
-	}
-
-	function endOlyWorkspaceStatus() {
-		olyWorkspaceStatusBarItem.text = olyWorkspaceStatusDefaultText;
-		olyWorkspaceStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
-		olyWorkspaceStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
-		showOlyWorkspaceStatusCleanTooltip();
-	}
-
-	showOlyWorkspaceStatusCleanTooltip();
-
-	endOlyWorkspaceStatus();
-	olyWorkspaceStatusBarItem.show();
-
 	// Building... - status bar item
 	let olyBuildingStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
 	olyBuildingStatusBarItem.text = "$(loading~spin) Oly Building...";
 	olyBuildingStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
 	olyBuildingStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
 
+	// Analyzing... - status bar item
+	let olyProgressStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+	olyProgressStatusBarItem.text = "$(loading~spin) Oly Analyzing...";
+	olyProgressStatusBarItem.color = new vscode.ThemeColor("statusBarItem.prominentForeground");
+	olyProgressStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
+
 	// Oly Project: {active-project-name}({active-project-configuration-name}) - status bar item
 	let olyProjectStatusDefaultText = "Oly Project";
-	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 
 	function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
 		switch (params.kind) {
 			case 'begin':
-				if (params.message == "building") {
+				if (params.message == "Building") {
 					olyBuildingStatusBarItem.show();
 				}
-				else {
-					beginOlyWorkspaceStatus(params.title);
+				else if (params.message == "Analyzing") {
+					olyProgressStatusBarItem.show()
 				}
 				break;
 			case 'end':
-				if (params.message == "building") {
+				if (params.message == "Building") {
 					olyBuildingStatusBarItem.hide();
 				}
-				else {
-					endOlyWorkspaceStatus();
+				else if (params.message == "Analyzing") {
+					olyProgressStatusBarItem.hide();
 				}
 				break;
 		}
@@ -319,6 +296,7 @@ export function activate(context: ExtensionContext) {
 				olyProjectStatusBarItem.command = null;
 			}
 			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Project](command:${OlyClientCommands.changeActiveProject} "Change active project")\n\n`);
+			olyProjectStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean Workspace](command:oly.cleanWorkspace "Clean workspace")\n\n');
 			olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: ${projText}${configText}`;
 		}
 		refreshProjectStatusBarItemTooltip();
@@ -464,20 +442,18 @@ export function activate(context: ExtensionContext) {
 			}
 		}
 
-		olyFileWatcher.onDidCreate(async _ => {
-			await refreshSolutionExplorer(getActiveDocument());
+		olyFileWatcher.onDidCreate(async uri => {
+			let path = uri.path.toLowerCase();
+			if (path.endsWith('.oly') || path.endsWith('.olyx')) {
+				await refreshSolutionExplorer(getActiveDocument());
+			}
 		});
 
-		olyxFileWatcher.onDidCreate(async _ => {
-			await refreshSolutionExplorer(getActiveDocument());
-		});
-
-		olyFileWatcher.onDidDelete(async _ => {
-			await refreshSolutionExplorer(getActiveDocument());
-		});
-
-		olyxFileWatcher.onDidDelete(async _ => {
-			await refreshSolutionExplorer(getActiveDocument());
+		olyFileWatcher.onDidDelete(async uri => {
+			let path = uri.path.toLowerCase();
+			if (path.endsWith('.oly') || path.endsWith('.olyx')) {
+				await refreshSolutionExplorer(getActiveDocument());
+			}
 		});
 
 		vscode.window.onDidChangeActiveTextEditor(async e => {

@@ -2,6 +2,7 @@
 
 open System
 open System.IO
+open System.Collections.Generic
 
 /// A self-normalizing path for files and directories.
 [<Struct;CustomEquality;NoComparison>]
@@ -114,6 +115,17 @@ type OlyPath private (innerPath: string) =
                     true
             else
                 false
+
+    member this.ContainsComponent(str: string) =
+        let components = innerPath.Split('/')
+        components
+        |> Array.exists (fun c -> c.Equals(str, StringComparison.OrdinalIgnoreCase))
+
+    member this.ContainsAnyComponent(strs: IEnumerable<String>) =
+        let set = HashSet(strs, StringComparer.OrdinalIgnoreCase)
+        let components = innerPath.Split('/')
+        components
+        |> Array.exists set.Contains
 
     member this.IsRooted = Path.IsPathRooted(this.ToString())
 

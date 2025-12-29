@@ -305,6 +305,8 @@ type OlyWorkspace =
     member FileCreated : OlyPath -> unit
     member FileChanged : OlyPath -> unit
     member FileDeleted : OlyPath -> unit
+    member FolderCreated : OlyPath -> unit
+    member FolderDeleted : OlyPath -> unit
 
     member WorkspaceDirectory : OlyPath
     member WorkspaceStateDirectory : OlyPath
