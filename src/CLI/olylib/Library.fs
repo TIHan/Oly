@@ -31,7 +31,7 @@ module Oly =
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
         let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
         let workspace = createWorkspace(rootPath, rs)
-        workspace.FileChanged(projectPath)
+        workspace.LoadProject(projectPath, ct)
         workspace.BuildProjectAsync(projectPath, ct)
 
     let rec private CleanProject (set: HashSet<OlyPath>) (projPath: OlyPath) =
