@@ -7,6 +7,10 @@ open Oly.Compiler.Syntax.Internal
 
 #nowarn "40"
 
+#nowarn "3535"
+
+#nowarn "3536"
+
 [<Sealed;NoComparison>]
 type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxAccessor) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
@@ -3725,6 +3729,8 @@ module private Convert =
 
     let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =
         match internalNode.Tag with
+        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | Tags.Terminal -> tree.DummyNode
         | SyntaxAccessor.Tag -> OlySyntaxAccessor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | SyntaxName.Tag -> OlySyntaxName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | SyntaxBlittable.Tag -> OlySyntaxBlittable(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
@@ -3773,8 +3779,6 @@ module private Convert =
         | SyntaxInitializer.Tag -> OlySyntaxInitializer(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
-        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
-        | Tags.Terminal -> tree.DummyNode
         | _ ->
 
         match internalNode with

@@ -1,5 +1,8 @@
 ﻿namespace rec Oly.Compiler.Syntax.Internal
 
+#nowarn "3535"
+#nowarn "3536"
+
 type internal ISyntaxNode =
 
     /// Indicates the syntax node is the last node of its siblings.
@@ -19,6 +22,25 @@ type internal ISyntaxNode =
     abstract FullWidth: int
 
     abstract Tag: int
+    abstract InnerTag: int
+
+    static abstract StaticTag: int
+    static abstract StaticInnerTag: int
+
+[<Sealed>]
+type internal SyntaxDummy() =
+
+    interface ISyntaxNode with
+        member _.IsTerminal = true
+        member _.IsToken = false
+        member _.IsError = false
+        member _.GetSlot _ = failwith "Internal error: Syntax node does not exist."
+        member _.SlotCount = 0
+        member _.FullWidth = 0
+        member _.Tag = Tags.Terminal
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = Tags.Terminal
+        static member StaticInnerTag = Tags.Terminal
 
 [<AutoOpen>]
 module internal SyntaxHelpers =
@@ -48,16 +70,7 @@ module internal SyntaxHelpers =
         [<Literal>]
         let BracketInnerPipes = 1029
 
-    let syntaxTerminal =
-        { new ISyntaxNode with
-            member _.IsTerminal = true
-            member _.IsToken = false
-            member _.IsError = false
-            member _.GetSlot _ = failwith "Internal error: Syntax node does not exist."
-            member _.SlotCount = 0
-            member _.FullWidth = 0
-            member _.Tag = Tags.Terminal
-        }
+    let syntaxTerminal: ISyntaxNode = SyntaxDummy()
 
 type ISyntaxSeparatorList = 
 
@@ -154,6 +167,9 @@ type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
             | _ -> 0
 
         member _.Tag = Tags.SeparatorList
+        member _.InnerTag = 'T.StaticTag
+        static member StaticTag = Tags.SeparatorList
+        static member StaticInnerTag = 'T.StaticTag
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxList<'T when 'T :> ISyntaxNode> =
@@ -204,6 +220,9 @@ type internal SyntaxList<'T when 'T :> ISyntaxNode> =
             | _ -> 0
 
         member _.Tag = Tags.List
+        member _.InnerTag = 'T.StaticTag
+        static member StaticTag = Tags.List
+        static member StaticInnerTag = 'T.StaticTag
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxBrackets<'T when 'T :> ISyntaxNode> =
@@ -240,6 +259,9 @@ type internal SyntaxBrackets<'T when 'T :> ISyntaxNode> =
             | Brackets(fullWidth=fullWidth) -> fullWidth
 
         member _.Tag = Tags.Brackets
+        member _.InnerTag = 'T.StaticTag
+        static member StaticTag = Tags.Brackets
+        static member StaticInnerTag = 'T.StaticTag
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxBracketInnerPipes<'T when 'T :> ISyntaxNode> =
@@ -276,6 +298,9 @@ type internal SyntaxBracketInnerPipes<'T when 'T :> ISyntaxNode> =
             | BracketInnerPipes(fullWidth=fullWidth) -> fullWidth
 
         member _.Tag = Tags.BracketInnerPipes
+        member _.InnerTag = 'T.StaticTag
+        static member StaticTag = Tags.BracketInnerPipes
+        static member StaticInnerTag = 'T.StaticTag
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxCurlyBrackets<'T when 'T :> ISyntaxNode> =
@@ -312,6 +337,9 @@ type internal SyntaxCurlyBrackets<'T when 'T :> ISyntaxNode> =
             | CurlyBrackets(fullWidth=fullWidth) -> fullWidth
 
         member _.Tag = Tags.CurlyBrackets
+        member _.InnerTag = 'T.StaticTag
+        static member StaticTag = Tags.CurlyBrackets
+        static member StaticInnerTag = 'T.StaticTag
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type internal SyntaxToken =
@@ -352,3 +380,6 @@ type internal SyntaxToken =
             | Token(token) -> token.Width
 
         member _.Tag = Tags.Token
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = Tags.Token
+        static member StaticInnerTag = Tags.Terminal

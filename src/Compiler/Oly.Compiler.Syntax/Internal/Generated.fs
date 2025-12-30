@@ -2,6 +2,10 @@
 [<AutoOpen>]
 module internal rec Oly.Compiler.Syntax.Internal.Generated
 
+#nowarn "3535"
+
+#nowarn "3536"
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxAccessor =
     | Public
@@ -70,6 +74,9 @@ type SyntaxAccessor =
                 0
 
         member _.Tag = 0
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 0
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAccessor =
@@ -151,6 +158,9 @@ type SyntaxName =
                 fullWidth
 
         member _.Tag = 1
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 1
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxName =
@@ -189,6 +199,9 @@ type SyntaxBlittable =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 2
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 2
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBlittable =
@@ -234,6 +247,9 @@ type SyntaxBlittableOptional =
                 0
 
         member _.Tag = 3
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 3
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBlittableOptional =
@@ -396,6 +412,9 @@ type SyntaxAttribute =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 4
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 4
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAttribute =
@@ -437,6 +456,9 @@ type SyntaxHashAttribute =
                 fullWidth
 
         member _.Tag = 5
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 5
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxHashAttribute =
@@ -482,6 +504,9 @@ type SyntaxAttributes =
                 0
 
         member _.Tag = 6
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 6
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAttributes =
@@ -619,6 +644,9 @@ type SyntaxConstraint =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 7
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 7
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxConstraint =
@@ -674,6 +702,9 @@ type SyntaxConstraintClause =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 8
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 8
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxConstraintClause =
@@ -741,6 +772,9 @@ type SyntaxTypeParameters =
                 0
 
         member _.Tag = 9
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 9
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeParameters =
@@ -799,6 +833,9 @@ type SyntaxTypeConstructor =
                 fullWidth
 
         member _.Tag = 10
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 10
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeConstructor =
@@ -862,6 +899,9 @@ type SyntaxTupleElement =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 11
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 11
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTupleElement =
@@ -900,6 +940,9 @@ type SyntaxFixedArrayLength =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 12
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 12
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxFixedArrayLength =
@@ -1145,6 +1188,9 @@ type SyntaxType =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 13
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 13
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxType =
@@ -1190,6 +1236,9 @@ type SyntaxMutability =
                 0
 
         member _.Tag = 14
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 14
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMutability =
@@ -1260,6 +1309,9 @@ type SyntaxParameter =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 15
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 15
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxParameter =
@@ -1310,6 +1362,9 @@ type SyntaxTypeArguments =
                 0
 
         member _.Tag = 16
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 16
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeArguments =
@@ -1360,6 +1415,9 @@ type SyntaxParameters =
                 0
 
         member _.Tag = 17
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 17
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxParameters =
@@ -1405,6 +1463,9 @@ type SyntaxLambdaKind =
                 0
 
         member _.Tag = 18
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 18
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLambdaKind =
@@ -1453,6 +1514,9 @@ type SyntaxReturnTypeAnnotation =
                 0
 
         member _.Tag = 19
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 19
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxReturnTypeAnnotation =
@@ -1506,6 +1570,9 @@ type SyntaxFunctionName =
                 fullWidth
 
         member _.Tag = 20
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 20
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxFunctionName =
@@ -1635,6 +1702,9 @@ type SyntaxBindingDeclaration =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 21
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 21
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBindingDeclaration =
@@ -1684,6 +1754,9 @@ type SyntaxPropertyBinding =
                 fullWidth
 
         member _.Tag = 22
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 22
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxPropertyBinding =
@@ -1748,6 +1821,9 @@ type SyntaxGuardBinding =
                 fullWidth
 
         member _.Tag = 23
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 23
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxGuardBinding =
@@ -1844,6 +1920,9 @@ type SyntaxBinding =
                 fullWidth
 
         member _.Tag = 24
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 24
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBinding =
@@ -1889,6 +1968,9 @@ type SyntaxLet =
                 fullWidth
 
         member _.Tag = 25
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 25
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLet =
@@ -2048,6 +2130,9 @@ type SyntaxTypeDeclarationKind =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 26
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 26
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationKind =
@@ -2259,6 +2344,9 @@ type SyntaxLiteral =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 27
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 27
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLiteral =
@@ -2312,6 +2400,9 @@ type SyntaxFieldPattern =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 28
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 28
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxFieldPattern =
@@ -2355,6 +2446,9 @@ type SyntaxNamedArgument =
                 fullWidth
 
         member _.Tag = 29
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 29
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxNamedArgument =
@@ -2407,6 +2501,9 @@ type SyntaxArguments =
                 0
 
         member _.Tag = 30
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 30
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxArguments =
@@ -2481,6 +2578,9 @@ type SyntaxElseIfOrElseExpression =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 31
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 31
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxElseIfOrElseExpression =
@@ -2555,6 +2655,9 @@ type SyntaxCatchOrFinallyExpression =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 32
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 32
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxCatchOrFinallyExpression =
@@ -2633,6 +2736,9 @@ type SyntaxValueDeclarationPremodifier =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 33
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 33
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPremodifier =
@@ -2671,6 +2777,9 @@ type SyntaxValueDeclarationPostmodifier =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 34
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 34
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPostmodifier =
@@ -2766,6 +2875,9 @@ type SyntaxValueDeclarationKind =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 35
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 35
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationKind =
@@ -2824,6 +2936,9 @@ type SyntaxExtends =
                 0
 
         member _.Tag = 36
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 36
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxExtends =
@@ -2872,6 +2987,9 @@ type SyntaxImplements =
                 0
 
         member _.Tag = 37
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 37
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxImplements =
@@ -2930,6 +3048,9 @@ type SyntaxTypeDeclarationCase =
                 fullWidth
 
         member _.Tag = 38
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 38
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationCase =
@@ -2975,6 +3096,9 @@ type SyntaxTypeDeclarationBody =
                 fullWidth
 
         member _.Tag = 39
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 39
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationBody =
@@ -3028,6 +3152,9 @@ type SyntaxTypeDeclarationName =
                 fullWidth
 
         member _.Tag = 40
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 40
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationName =
@@ -3128,6 +3255,9 @@ type SyntaxPattern =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 41
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 41
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxPattern =
@@ -3180,6 +3310,9 @@ type SyntaxMatchGuard =
                 0
 
         member _.Tag = 42
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 42
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchGuard =
@@ -3253,6 +3386,9 @@ type SyntaxMatchPattern =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 43
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 43
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchPattern =
@@ -3300,6 +3436,9 @@ type SyntaxMatchClause =
                 fullWidth
 
         member _.Tag = 44
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 44
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchClause =
@@ -3343,6 +3482,9 @@ type SyntaxInitializer =
                 fullWidth
 
         member _.Tag = 45
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 45
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxInitializer =
@@ -3424,6 +3566,9 @@ type SyntaxCompilationUnit =
                 fullWidth
 
         member _.Tag = 46
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 46
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxCompilationUnit =
@@ -3866,6 +4011,9 @@ type SyntaxExpression =
                 0
 
         member _.Tag = 47
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 47
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxExpression =

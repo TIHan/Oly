@@ -1,5 +1,8 @@
 ﻿namespace rec Oly.Compiler.Syntax
 
+#nowarn "3535"
+#nowarn "3536"
+
 open System
 open System.Text
 open System.Threading

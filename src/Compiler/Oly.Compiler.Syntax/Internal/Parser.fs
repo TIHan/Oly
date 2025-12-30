@@ -1,5 +1,8 @@
 ﻿module rec Oly.Compiler.Syntax.Internal.Parser
 
+#nowarn "3535"
+#nowarn "3536"
+
 open System
 open System.Threading
 open System.Runtime.CompilerServices
@@ -2811,7 +2814,7 @@ let tryCreateTerminalExpression state =
     | _ ->
         None
 
-let checkContextForValueOrTypeDeclarationExpression (context: SyntaxTreeContext) syntaxNode state =
+let checkContextForValueOrTypeDeclarationExpression<'T when 'T :> ISyntaxNode> (context: SyntaxTreeContext) (syntaxNode: 'T) state =
     if context.CanSkipSequential then
         errorDo(InvalidSyntax("Declaration not valid in this context."), syntaxNode) state
 
@@ -3560,7 +3563,7 @@ let tryParseOffsideExpression (context: SyntaxTreeContext) (state: ParserState) 
     | _ ->
         None
 
-let parseOffsideExpression (context: SyntaxTreeContext, errorNode: ISyntaxNode) (state: ParserState) : SyntaxExpression =
+let parseOffsideExpression<'T when 'T :> ISyntaxNode> (context: SyntaxTreeContext, errorNode: 'T) (state: ParserState) : SyntaxExpression =
     match bt (tryParseOffsideExpression context) state with
     | Some expr ->
         expr

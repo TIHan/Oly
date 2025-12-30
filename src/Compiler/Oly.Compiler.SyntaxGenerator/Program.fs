@@ -238,7 +238,10 @@ let computeInternalNode cenv (node: XmlNode) =
     addInternal cenv $"        member this.GetSlot(index) =\n{textGetSlot}\n"
     addInternal cenv $"        member this.SlotCount =\n{textSlotCount}\n"
     addInternal cenv $"        member this.FullWidth =\n{textFullWidth}\n"
-    addInternal cenv $"        member _.Tag = {getInternalTag cenv}\n\n"
+    addInternal cenv $"        member _.Tag = {getInternalTag cenv}\n"
+    addInternal cenv $"        member _.InnerTag = Tags.Terminal\n"
+    addInternal cenv $"        static member StaticTag = {getInternalTag cenv}\n"
+    addInternal cenv $"        static member StaticInnerTag = Tags.Terminal\n\n"
 
     addInternal cenv "[<RequireQualifiedAccess>]\n"
     addInternal cenv $"module {name} =\n\n"
@@ -404,17 +407,17 @@ let computeConversionTree cenv (tree: XmlElement) =
     "        match internalNode.Tag with\n"
     |> add cenv
 
-    cenv.tags
-    |> Seq.iter (fun name ->
-        $"        | {name}.Tag -> Oly{name}(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode\n"
-        |> add cenv
-    )
-
     "        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode\n"
     |> add cenv
 
     "        | Tags.Terminal -> tree.DummyNode\n"
     |> add cenv
+
+    cenv.tags
+    |> Seq.iter (fun name ->
+        $"        | {name}.Tag -> Oly{name}(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode\n"
+        |> add cenv
+    )
 
     "        | _ ->\n\n"
     |> add cenv
@@ -565,6 +568,8 @@ let generate() =
 
     addInternal cenv "// Generated File Do Not Modify\n"
     addInternal cenv "[<AutoOpen>]\nmodule internal rec Oly.Compiler.Syntax.Internal.Generated\n\n"
+    addInternal cenv "#nowarn \"3535\"\n\n"
+    addInternal cenv "#nowarn \"3536\"\n\n"
 
     add cenv "// Generated File Do Not Modify\n"
     add cenv "namespace rec Oly.Compiler.Syntax\n\n"
@@ -572,6 +577,8 @@ let generate() =
     add cenv "open Oly.Compiler.Text\n"
     add cenv "open Oly.Compiler.Syntax.Internal\n\n"
     add cenv "#nowarn \"40\"\n\n"
+    add cenv "#nowarn \"3535\"\n\n"
+    add cenv "#nowarn \"3536\"\n\n"
 
     let tree = findTree cenv
     computeTree cenv tree
