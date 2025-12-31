@@ -1671,7 +1671,7 @@ main(): () =
         ]
 
 [<Fact>]
-let ``Call should NOT error as interface has implementatios for its static abstract functions``() =
+let ``Call should NOT error as interface has implementations for its static abstract functions``() =
     """
 interface ITest =
 
@@ -1692,7 +1692,7 @@ main(): () =
     |> shouldCompile
 
 [<Fact>]
-let ``Call should NOT error as interface has implementatios for its static abstract functions 2``() =
+let ``Call should NOT error as interface has implementations for its static abstract functions 2``() =
     """
 interface ITest =
 
@@ -1711,6 +1711,28 @@ test<T>(x: T): () where T: ITest = T.Doot()
 main(): () =
     let t = Test(): ITest2
     test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface has implementations for its static abstract functions 3``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+test2<T>(x: T): () where T: ITest = test(x)
+
+main(): () =
+    let t = Test(): ITest
+    test2(t)
     """
     |> Oly
     |> shouldCompile
