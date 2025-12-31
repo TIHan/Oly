@@ -1606,3 +1606,111 @@ M2<T>(): () where T: trait IA =
 """
             )
         ]
+
+[<Fact>]
+let ``Call should error as interface has no implementatios for its static abstract functions``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementatios for its static abstract functions 2``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+interface ITest2 =
+    inherits ITest
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest2' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should NOT error as interface has implementatios for its static abstract functions``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface has implementatios for its static abstract functions 2``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+interface ITest2 =
+    inherits ITest
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile

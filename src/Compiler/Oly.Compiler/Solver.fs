@@ -11,6 +11,7 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.SemanticDiagnostics
 open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 [<NoEquality;NoComparison;Struct>]
 type SolverEnvironment =
@@ -277,6 +278,16 @@ let rec solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSol
                     else
                         if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target witness.Type then
                             witness.Solution <- Some(WitnessSymbol.Type(ty))
+                            if not isAttempt && ty.IsAbstract && not ty.IsShape then
+                                let unimplementedMostSpecificStaticFuncs =
+                                    ty.FindFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
+                                    |> ImArray.filter (fun func -> func.IsAbstract)
+                                if not unimplementedMostSpecificStaticFuncs.IsEmpty then
+                                    let listOfFuncsText =
+                                        unimplementedMostSpecificStaticFuncs
+                                        |> ImArray.map (printValue env.benv)
+                                        |> String.concat "\n    "
+                                    env.diagnostics.Error($"'{printType env.benv ty}' cannot be used as a type argument as the following functions do not have an implementation:\n    {listOfFuncsText}", 10, syntaxNode)
                 )
                 Ok()
             else
