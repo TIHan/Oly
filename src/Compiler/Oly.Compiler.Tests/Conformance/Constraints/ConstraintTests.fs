@@ -1608,7 +1608,7 @@ M2<T>(): () where T: trait IA =
         ]
 
 [<Fact>]
-let ``Call should error as interface has no implementatios for its static abstract functions``() =
+let ``Call should error as interface has no implementations for its static abstract functions``() =
     """
 interface ITest =
 
@@ -1638,7 +1638,7 @@ main(): () =
         ]
 
 [<Fact>]
-let ``Call should error as interface has no implementatios for its static abstract functions 2``() =
+let ``Call should error as interface has no implementations for its static abstract functions 2``() =
     """
 interface ITest =
 
@@ -1663,6 +1663,130 @@ main(): () =
         [
             ("""'ITest2' cannot be used as a type argument as the following functions do not have an implementation:
     static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 3``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test<ITest>(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test<ITest>(t)
+         ^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 4``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+test<T>(x: __oly_object): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 5``() =
+    """
+interface ITest =
+
+    static Doot: __oly_int32 abstract get
+
+class Test =
+    implements ITest
+
+    static Doot: __oly_int32 overrides get() = 5
+
+test<T>(x: T): __oly_int32 where T: ITest = T.Doot
+
+main(): () =
+    let t = Test(): ITest
+    let _ = test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static get_Doot(): __oly_int32""",
+                """
+    let _ = test(t)
+            ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 6``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()
+    static Zoot(): ()""",
                 """
     test(t)
     ^^^^
