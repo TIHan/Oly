@@ -643,7 +643,7 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
                 if field.AssociatedFormalPropertyId.IsSome then
                     let prop = 
                         // TODO: Mainly for robustness, we should not have to search all the properties like this.
-                        enclosingTy.Formal.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic)
+                        enclosingTy.Formal.FindMostSpecificProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic)
                         |> Seq.find (fun x -> x.Id = field.AssociatedFormalPropertyId.Value)
                     env.diagnostics.Error($"Property '{prop.Name}' is not initialized.", 10, syntaxNode)
                 else

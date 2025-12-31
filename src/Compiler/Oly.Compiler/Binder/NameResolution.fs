@@ -1243,7 +1243,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 QueryMemberFlags.Instance
 
         let funcs =
-            ty.FindFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
+            ty.FindMostSpecificFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
             |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
             |> ImArray.filter (fun x -> x.IsPatternFunction = resMemberContext.IsPatternOnlyContext)
         if not funcs.IsEmpty then
@@ -1253,7 +1253,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
 
             match fields with
             | [] ->
-                let propOpt = ty.FindProperties(env.benv, queryMemberFlags, QueryProperty.IntrinsicAndExtrinsic, ident) |> Seq.tryHead
+                let propOpt = ty.FindMostSpecificProperties(env.benv, queryMemberFlags, QueryProperty.IntrinsicAndExtrinsic, ident) |> Seq.tryHead
                 match propOpt with
                 | Some prop -> prop :> IValueSymbol
                 | _ ->

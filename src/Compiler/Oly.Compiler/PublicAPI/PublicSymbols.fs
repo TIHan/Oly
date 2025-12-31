@@ -275,7 +275,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         )
 
     member _.Functions =
-        ty.FindFunctions(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.Intrinsic)
+        ty.FindMostSpecificFunctions(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.Intrinsic)
         |> ImArray.map (fun x ->
             OlyValueSymbol(x)
         )
@@ -287,7 +287,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         )
 
     member _.Properties =
-        ty.FindProperties(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, QueryProperty.Intrinsic)
+        ty.FindMostSpecificProperties(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, QueryProperty.Intrinsic)
         |> Seq.map (fun x ->
             OlyValueSymbol(x)
         )
@@ -1178,13 +1178,13 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode
         symbolInfo.TryGetAliasedType()
 
     member this.GetFunctions(symbol: OlyTypeSymbol) =
-        symbol.Internal.FindFunctions(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+        symbol.Internal.FindMostSpecificFunctions(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
         |> ImArray.map (fun x ->
             OlyValueSymbol(x)
         )
 
     member this.GetProperties(symbol: OlyTypeSymbol) =
-        symbol.Internal.FindProperties(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, QueryProperty.IntrinsicAndExtrinsic)
+        symbol.Internal.FindMostSpecificProperties(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, QueryProperty.IntrinsicAndExtrinsic)
         |> Seq.map (fun x ->
             OlyValueSymbol(x)
         )
@@ -1265,7 +1265,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode
                 |> Seq.collect (fun tys ->
                     tys
                     |> ImArray.collect (fun ty ->
-                        ty.FindFunctions(this.InternalEnvironment, QueryMemberFlags.PatternFunction, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+                        ty.FindMostSpecificFunctions(this.InternalEnvironment, QueryMemberFlags.PatternFunction, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
                         |> ImArray.filter (fun x -> x.IsPatternFunction)
                         |> ImArray.map (fun x ->
                             OlyValueSymbol(x)

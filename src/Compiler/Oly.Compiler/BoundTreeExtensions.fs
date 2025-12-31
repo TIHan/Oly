@@ -879,7 +879,7 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
                     ty.Name
                 else
                     superFunc.Name
-            lookup[superFunc.Name] <- ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc, nameToFind)
+            lookup[superFunc.Name] <- ty.FindMostSpecificFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc, nameToFind)
     )
    
     superFuncs

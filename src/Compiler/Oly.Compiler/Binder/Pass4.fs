@@ -1048,7 +1048,7 @@ let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCaptur
                         else
                             match x.AssociatedFormalPropertyId with
                             | Some(formalPropId) ->
-                                ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, fieldName)
+                                ty.FindMostSpecificProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, fieldName)
                                 |> Seq.tryExactlyOne
                                 |> Option.filter (fun x -> x.Formal.Id = formalPropId)
                                 |> Option.isSome

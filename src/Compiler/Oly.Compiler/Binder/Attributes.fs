@@ -62,7 +62,7 @@ let private bindAttributeFieldOrPropertyExpression cenv env (value: IValueSymbol
                     None
             | _ ->
                 // REVIEW: Only intrinsic properties will work, which is fine. However, from a design standpoint, are there useful use cases for extrinsic properties?
-                match ty.FindProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
+                match ty.FindMostSpecificProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic, ident) |> Seq.tryFind (fun x -> x.Name = ident) with
                 | Some(prop) ->
                     let expr = bindAttributeExpression cenv env prop.Type true syntaxExpr
                     match tryAttributeConstant cenv syntaxExpr expr with

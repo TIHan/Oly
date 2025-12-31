@@ -510,7 +510,7 @@ let private verifyWitnessArguments (env: SolverEnvironment) (syntaxNode: OlySynt
             match witnessSolution with
             | WitnessSymbol.Type(ty) when ty.IsAbstract && not ty.IsShape ->
                 let unimplementedMostSpecificStaticFuncs =
-                    ty.FindFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
+                    ty.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
                     |> ImArray.filter (fun func -> func.IsAbstract)
                 if not unimplementedMostSpecificStaticFuncs.IsEmpty then
                     let listOfFuncsText =

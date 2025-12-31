@@ -751,22 +751,28 @@ module Extensions =
             | _ ->
                 failwith "Expected an entity"
 
+        /// Find fields from the type.
         member this.FindFields(benv, queryMemberFlags) =
             queryFieldsOfType benv queryMemberFlags ValueFlags.None None this
 
+        /// Find fields from the type.
         member this.FindFields(benv, queryMemberFlags, name) =
             queryFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
 
-        member this.FindProperties(benv, queryMemberFlags, queryField) =
+        /// Find most specific properties from the type.
+        member this.FindMostSpecificProperties(benv, queryMemberFlags, queryField) =
             queryPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
 
-        member this.FindProperties(benv, queryMemberFlags, queryField, name) =
+        /// Find most specific properties from the type.
+        member this.FindMostSpecificProperties(benv, queryMemberFlags, queryField, name) =
             queryPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
 
-        member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
+        /// Find most specific functions from the type.
+        member this.FindMostSpecificFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
             queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
 
-        member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
+        /// Find most specific functions from the type.
+        member this.FindMostSpecificFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
             queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
 
         member this.FindNestedEntities(benv, nameOpt, resTyArity) =
