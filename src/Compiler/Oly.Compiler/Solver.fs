@@ -111,6 +111,11 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                 env.diagnostics.Error($"Shape member '{printValue env.benv abstractFunc}' has different constraints compared to '{printValue env.benv func}'.", 10, syntaxNode)
             else
 
+            // If the static abstract function does not have a most specific implementation,
+            // report an error.
+            if not isAttempt && func.IsStatic && func.IsAbstract && not func.Enclosing.IsShape then
+                tryReportUnimplementedStaticMembers env syntaxNode (principalTyArg, ImArray.createOne func)
+
             let witnessArgOpt =
                 filteredWitnessArgs
                 |> ImArray.tryFind (fun witnessArg ->
@@ -480,6 +485,35 @@ let private inferTypeArgumentFromTypeParameterConstraints env (tyPar: TypeParame
                     if areGeneralizedTypesEqual mostSpecificTy subTy then
                         UnifyTypes Flexible mostSpecificTy subTy |> ignore
 
+let private tryReportUnimplementedStaticMembers env syntaxNode (ty, unimplementedMostSpecificStaticFuncs: IFunctionSymbol imarray) =
+    if unimplementedMostSpecificStaticFuncs.IsEmpty then ()
+    else
+        let listOfFuncsText =
+            unimplementedMostSpecificStaticFuncs
+            |> ImArray.map (printValue env.benv)
+            |> String.concat "\n    "
+        env.diagnostics.Error($"'{printType env.benv ty}' cannot be used as a type argument as the following functions do not have an implementation:\n    {listOfFuncsText}", 10, syntaxNode)
+
+/// This function will not be inlined in order to be able performance trace if this function is expensive.
+/// REVIEW: This might be an expensive check as we are having to query functions against the constraint type and the type argument.
+[<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (isAttempt: bool) (constr: ConstraintSymbol, tyArg: TypeArgumentSymbol) =
+    // Checks if a solution for a witness is an abstract type, except shape types (illegal anyway), has a most specific implementation for static abstract members.
+    if not isAttempt && tyArg.IsAbstract && not tyArg.IsShape then
+        match constr.TryGetAnySubtypeOf() with
+        | ValueSome(subty) when subty.IsAbstract && not subty.IsShape && subsumesType subty tyArg ->
+            let unimplementedMostSpecificStaticFuncs =
+                subty.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
+                |> ImArray.filter (fun func -> func.IsAbstract)
+            if not unimplementedMostSpecificStaticFuncs.IsEmpty then
+                let set = System.Collections.Generic.HashSet(unimplementedMostSpecificStaticFuncs, FunctionSignatureSymbolComparer())
+                let unimplementedMostSpecificStaticFuncs =
+                    tyArg.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
+                    |> ImArray.filter (fun func -> func.IsAbstract && set.Contains(func))
+                tryReportUnimplementedStaticMembers env syntaxNode (tyArg, unimplementedMostSpecificStaticFuncs)            
+        | _ ->
+            ()
+
 let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyArgs: TypeArgumentSymbol imarray) witnessArgs (tyPar: TypeParameterSymbol, tyArg) =
     tyPar.Constraints
     |> ImArray.iter (fun constr ->
@@ -496,32 +530,13 @@ let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyAr
                 // TODO: Better error
                 env.diagnostics.Error($"'{printValueName abstractFunc}' has ambiguous functions.", 10, syntaxNode)
         | _ ->
-            ()
+            verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode isAttempt (constr, tyArg)
     )
 
-/// Checks if a solution for a witness is an abstract type, except shape types, has a most specific implementation for static abstract members.
-/// Check if there is no solution for a witness, and if so, solve it with an error type symbol for error recovery.
-/// REVIEW: Should this be moved to Checker.fs?
-let private verifyWitnessArguments (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (witnessArgs: WitnessSolution imarray) =
+    // Error recovery
     witnessArgs
     |> ImArray.iter (fun witnessArg ->
-        match witnessArg.Solution with
-        | Some(witnessSolution) ->
-            match witnessSolution with
-            | WitnessSymbol.Type(ty) when ty.IsAbstract && not ty.IsShape ->
-                let unimplementedMostSpecificStaticFuncs =
-                    ty.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
-                    |> ImArray.filter (fun func -> func.IsAbstract)
-                if not unimplementedMostSpecificStaticFuncs.IsEmpty then
-                    let listOfFuncsText =
-                        unimplementedMostSpecificStaticFuncs
-                        |> ImArray.map (printValue env.benv)
-                        |> String.concat "\n    "
-                    env.diagnostics.Error($"'{printType env.benv ty}' cannot be used as a type argument as the following functions do not have an implementation:\n    {listOfFuncsText}", 10, syntaxNode)
-            | _ ->
-                ()
-        | _ ->
-            // Error recovery
+        if not witnessArg.HasSolution then
             witnessArg.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
     )
 
@@ -543,7 +558,7 @@ let reportUnableToInferTypeParameter (env: SolverEnvironment) syntaxNode (witnes
     | _ ->
         OlyAssert.Fail("Expected type parameter associated with inference variable.")
 
-/// Solve constraints for the given type parameters by solving their witnesses.
+/// Solve constraints for the given type parameters by checking the type arguments and solving their witnesses.
 /// When 'isAttempt' is 'true' and solving a constraint fails, an error will NOT be reported.
 let solveConstraints
         (env: SolverEnvironment) 
@@ -582,7 +597,6 @@ let solveConstraints
                 let witnessArgs = getUnsolvedWitnessArgumentsForTypeParameter witnessArgs tyPar
                 inferTypeArgumentFromTypeParameterConstraints env (tyPar, tyArg)    
                 solveTypeParameterConstraints env syntaxNode isAttempt tyArgs witnessArgs (tyPar, tyArg)
-                verifyWitnessArguments env syntaxNode witnessArgs
             | _ ->
                 OlyAssert.Fail("Expected type parameter associated with inference variable.")
         else

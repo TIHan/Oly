@@ -940,7 +940,7 @@ and checkFunctionConstraints
 and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt: bool) (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
-        // We cannot check constraints and witness for function groups, so skip it.
+        // We cannot check constraints and witnesses for function groups, so skip it.
         if value.IsFunctionGroup then ()
         else
 

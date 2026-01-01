@@ -1795,6 +1795,184 @@ main(): () =
         ]
 
 [<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 7``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+class G<T> where T: ITest =
+    new(x: T) = this { }
+
+M(xs: G<ITest>): () = ()
+
+main(): () =
+    let _ = M(G(Test()))
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+M(xs: G<ITest>): () = ()
+        ^^^^^
+"""
+            )
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    let _ = M(G(Test()))
+              ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 8``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: trait ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 9``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 10``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+interface ITest2 =
+    inherits ITest
+
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest2' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface, even with an extension implementation, will fail as it will favor the principal type``() =
+    """
+// principal type
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+#[open]
+extension ITestExtension =
+    inherits ITest
+
+    static Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
 let ``Call should NOT error as interface has implementations for its static abstract functions``() =
     """
 interface ITest =
@@ -1857,6 +2035,79 @@ test2<T>(x: T): () where T: ITest = test(x)
 main(): () =
     let t = Test(): ITest
     test2(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface does not have static abstract functions``() =
+    """
+interface ITest
+
+interface ITest2 =
+    inherits ITest
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = ()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as we are using the concrete implementation to satisfy the constraint``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+class G<T> where T: ITest =
+    new(x: T) = this { }
+
+M<T>(xs: G<T>): () where T: ITest = ()
+
+main(): () =
+    let _ = M(G(Test()))
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should not error as shape does not use the same unimplemented static function from the interface``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Zoot(): () } = T.Zoot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
     """
     |> Oly
     |> shouldCompile
