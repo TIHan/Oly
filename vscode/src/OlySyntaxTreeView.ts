@@ -127,6 +127,7 @@ export class OlySyntaxTreeView {
 	private constructor(view: vscode.TreeView<IOlySyntaxNodeViewModel>, dataProvider: OlySyntaxTreeDataProvider) {
 		this.view = view;
 		this.dataProvider = dataProvider;
+		this.view.message = "Loading...";
 	}
 
 	public static createFromVscodeWindow(): OlySyntaxTreeView {
@@ -168,9 +169,8 @@ export class OlySyntaxTreeView {
 		this.isRefreshing = true;
 		await sleep(300);
 		if (!token.isCancellationRequested) {
-			this.view.description = "Loading...";
+			this.view.message = "Loading...";
 			await this.dataProvider.refresh(document, token, () => { this.view.message = null; }, (viewModel) => {
-				this.view.description = null;
 				reveal(viewModel);
 			});
 		}

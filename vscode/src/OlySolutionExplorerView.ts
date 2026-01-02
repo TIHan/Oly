@@ -77,8 +77,8 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
 
     // TODO: This has a dependency on 'extension.ts', we should try to fix this.
     async refresh(token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
+        let context = this.context;
         if (isClientReady) {
-            let context = this.context;
             return client.getSolutionExplorer(token).then(viewModel => {
                 if (!token.isCancellationRequested) {
                     viewModel.children.forEach(x => initializeViewModel(context, x));
@@ -117,6 +117,7 @@ export class OlySolutionExplorerView {
     private constructor(view: vscode.TreeView<IOlySolutionTreeNodeViewModel>, dataProvider: OlySolutionExplorerDataProvider) {
         this.view = view;
         this.dataProvider = dataProvider;
+        this.view.message = "Loading...";
     }
 
     public static createFromVscodeWindow(context: vscode.ExtensionContext): OlySolutionExplorerView {
@@ -143,10 +144,8 @@ export class OlySolutionExplorerView {
         this.isRefreshing = true;
         await sleep(300);
         if (!token.isCancellationRequested) {
-            this.view.description = "Loading...";
-            await this.dataProvider.refresh(token, () => { this.view.message = null; }, (viewModel) => {
-                this.view.description = null;
-            });
+            this.view.message = "Loading...";
+            await this.dataProvider.refresh(token, () => { this.view.message = null; }, (_viewModel) => { });
         }
     }
 

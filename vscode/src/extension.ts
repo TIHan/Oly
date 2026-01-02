@@ -306,6 +306,7 @@ export function activate(context: ExtensionContext) {
 			olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: ${projText}${configText}`;
 		}
 		refreshProjectStatusBarItemTooltip();
+		refreshSolutionExplorer(null);
 
 		let stateWatcher = workspace.createFileSystemWatcher('**/*.json');
 		stateWatcher.onDidChange(function (event) {
@@ -467,12 +468,6 @@ export function activate(context: ExtensionContext) {
 				await solutionExplorerView.goTo(e.document.uri)
 			}
 		});
-
-		solutionExplorerView.onDidChangeVisibility(async e => {
-			if (e.visible) {
-				await refreshSolutionExplorer(getActiveDocument());
-			}
-		})
 
 		syntaxTreeView.onDidChangeVisibility(async e => {
 			if (e.visible) {
