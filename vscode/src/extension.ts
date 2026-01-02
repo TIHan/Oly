@@ -118,6 +118,11 @@ export function activate(context: ExtensionContext) {
 	// Oly Project: {active-project-name}({active-project-configuration-name}) - status bar item
 	let olyProjectStatusDefaultText = "Oly Project";
 	let olyProjectStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	function beginLoadingProject() {
+		olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: $(loading~spin)`;
+	}
+	beginLoadingProject();
+	olyProjectStatusBarItem.show();
 
 	function handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
 		switch (params.kind) {
@@ -234,6 +239,7 @@ export function activate(context: ExtensionContext) {
 		}
 
 		async function refreshProjectStatusBarItemTooltip() {
+			beginLoadingProject();
 			var olyWorkspaceSettings = await readOlyWorkspaceSettings();
 
 			var projText = "(NO PROJECT SELECTED)";
@@ -300,7 +306,6 @@ export function activate(context: ExtensionContext) {
 			olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: ${projText}${configText}`;
 		}
 		refreshProjectStatusBarItemTooltip();
-		olyProjectStatusBarItem.show();
 
 		let stateWatcher = workspace.createFileSystemWatcher('**/*.json');
 		stateWatcher.onDidChange(function (event) {

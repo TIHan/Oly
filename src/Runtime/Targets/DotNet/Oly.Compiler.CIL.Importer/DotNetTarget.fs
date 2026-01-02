@@ -124,12 +124,15 @@ module private DotNet =
                         |> Array.forall File.Exists
 
                     if isValid then
-                        let dependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
+                        let (dependencyTimeStamp, dependencyPath) = MSBuild.GetDependencyTimeStamp dotnetProjectReferences
                         let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
                         let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
                         let hasPublishKindChanged = MSBuildPublishKind.Parse(resultJsonFriendly.PublishKind) <> msbuildTargetInfo.PublishKind
 
                         if hasDependencyChanged || hasIsExeChanged || hasPublishKindChanged then
+                            if hasDependencyChanged then
+                                OlyTrace.Log($"[MSBuild] Dependency changed: {dependencyPath}")
+                            OlyTrace.Log($"[MSBuild] Cache is invalid. Rebuilding...")
                             return! build()
                         else
                             OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")

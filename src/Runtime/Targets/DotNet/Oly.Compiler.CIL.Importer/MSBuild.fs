@@ -193,7 +193,7 @@ type MSBuild() =
                             References = refs
                             ReferenceNames = refNames
                             FilesToCopy = filesToCopy
-                            DependencyTimeStamp = MSBuild.GetObjPathTimeStamp dotnetProjectReferences
+                            DependencyTimeStamp = MSBuild.GetDependencyTimeStamp dotnetProjectReferences |> fst
                             IsExe = isExe
                         }
                 finally
@@ -233,21 +233,37 @@ type MSBuild() =
     member this.CopyOutput(info: ProjectBuildInfo, dstDir: OlyPath) =
         OlyIO.CopyDirectory(info.OutputPath, (dstDir.ToString()))
 
-    static member GetObjPathTimeStamp dotnetProjectReferences =
+    static member GetDependencyTimeStamp dotnetProjectReferences : (DateTime * OlyPath) =
+        let filter (path: OlyPath) =
+            // These specific files tend to change, but they are not necessary to determine invalidation.
+            if path.EndsWith(".nuget.dgspec.json") || 
+               path.EndsWith(".editorconfig") || 
+               path.EndsWith(".cache") ||
+               path.EndsWith("project.assets.json") then
+                false
+            else
+                true
         let mutable dt = DateTime()
+        let mutable path = OlyPath.Create("");
+
+        // TODO: Check '.cs', '.fs' and '.vb' files. How can we do that without always calling into MSBuild?
+        // TODO: Check other included files. How can we do that without always calling into MSBuild?
         dotnetProjectReferences
         |> Seq.iter (fun x ->
-            let dtResult = OlyIO.GetLastWriteTimeUtc(OlyPath.Create(x))
+            let pathResult = OlyPath.Create(x)
+            let dtResult = OlyIO.GetLastWriteTimeUtc(pathResult)
             if dtResult > dt then
                 dt <- dtResult
+                path <- pathResult
         )
         dotnetProjectReferences
         |> Seq.iter (fun x ->
-            let dtResult = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(Path.Combine(Path.GetDirectoryName(x), "obj"))
+            let (dtResult, pathResult) = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(Path.Combine(Path.GetDirectoryName(x), "obj"), filter)
             if dtResult > dt then
                 dt <- dtResult
+                path <- pathResult
         )
-        dt
+        (dt, path)
 
 
 

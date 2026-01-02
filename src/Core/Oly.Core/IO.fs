@@ -60,22 +60,26 @@ type OlyIO private () =
     static member GetLastWriteTimeUtcOrDefault(filePath: OlyPath) =
         try OlyIO.GetLastWriteTimeUtc(filePath) with | _ -> DateTime()
 
-    static member GetLastWriteTimeUtcFromDirectoryRecursively(dir) =
+    static member GetLastWriteTimeUtcFromDirectoryRecursively(dir, filter) : (DateTime * OlyPath) =
         let mutable dt = DateTime()
+        let mutable path = OlyPath.Create("")
 
         OlyIO.GetFilesFromDirectory(dir)
         |> ImArray.iter (fun x ->
-            let dtResult = File.GetLastWriteTimeUtc(x)
-            if dtResult > dt then
-                dt <- dtResult
+            if filter(OlyPath.Create(x)) then
+                let dtResult = File.GetLastWriteTimeUtc(x)
+                if dtResult > dt then
+                    dt <- dtResult
+                    path <- OlyPath.Create(x)
         )
 
         for subDir in DirectoryInfo(dir).GetDirectories() do
-            let dtResult = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(subDir.FullName)
+            let (dtResult, pathResult) = OlyIO.GetLastWriteTimeUtcFromDirectoryRecursively(subDir.FullName, filter)
             if dtResult > dt then
                 dt <- dtResult
+                path <- pathResult
 
-        dt
+        (dt, path)
 
     static member GetFileNamesFromDirectory(dir) =
         let files = ImArray.builder()
