@@ -516,3 +516,44 @@ let printEnclosingDefinition (benv: BoundEnvironment) (enclosing: EnclosingSymbo
     | EnclosingSymbol.Local -> ""
     | EnclosingSymbol.Witness(_, tr) -> printEntityDefinition benv tr
     | EnclosingSymbol.Entity(ent) -> printEntityDefinition benv ent
+
+/// Similar to 'printValue', but if the value is associated with a property or pattern,
+/// it will print out either of those instead of the value.
+/// REVIEW: This is kinda expensive, but it's really only called during errors, so it very likely does not matter.
+let printMember (benv: BoundEnvironment) (value: IValueSymbol) =
+    OlyAssert.True(value.Enclosing.IsEntity)
+    if value.IsFunction && value.Enclosing.IsEntity then
+        let enclosingEnt = value.Enclosing.AsEntity
+        let props = 
+            enclosingEnt.Properties
+            |> ImArray.filter (fun prop ->
+                let exists =
+                    match prop.Getter with
+                    | Some getter -> getter.Formal.Id = value.Formal.Id
+                    | _ -> false
+                if exists then
+                    true
+                else
+                    match prop.Setter with
+                    | Some setter -> setter.Formal.Id = value.Formal.Id
+                    | _ -> false
+            )
+        let pats =
+            enclosingEnt.Patterns
+            |> ImArray.filter (fun pat ->
+                let exists = pat.PatternFunction.Formal.Id = value.Formal.Id
+                if exists then
+                    true
+                else
+                    match pat.PatternGuardFunction with
+                    | Some guard -> guard.Formal.Id = value.Formal.Id
+                    | _ -> false
+            )
+        if not props.IsEmpty then
+            printValue benv props[0]
+        elif not pats.IsEmpty then
+            printValue benv pats[0]
+        else
+            printValue benv value
+    else
+        printValue benv value

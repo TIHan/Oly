@@ -103,6 +103,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             |> ImArray.forall (fun (_, xs) -> xs.Length = 1)
 
     if isValid then
+        let mutable unimplementedMostSpecificStaticFuncs = ImArray.empty
         shapeMembers
         |> ImArray.iter (fun (abstractFunc, funcs) ->
             let func = funcs[0]
@@ -114,7 +115,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             // If the static abstract function does not have a most specific implementation,
             // report an error.
             if not isAttempt && func.IsStatic && func.IsAbstract && not func.Enclosing.IsShape then
-                tryReportUnimplementedStaticMembers env syntaxNode (principalTyArg, ImArray.createOne func)
+                unimplementedMostSpecificStaticFuncs <- unimplementedMostSpecificStaticFuncs.Add(func)
 
             let witnessArgOpt =
                 filteredWitnessArgs
@@ -154,6 +155,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                 else
                     witnessArg.Solution <- WitnessSymbol.Type(principalTyArg) |> Some
         )
+        reportUnimplementedStaticMembers env syntaxNode (principalTyArg, unimplementedMostSpecificStaticFuncs)
         Ok()
     else
         if shapeMembers.IsEmpty then Ok()
@@ -485,14 +487,14 @@ let private inferTypeArgumentFromTypeParameterConstraints env (tyPar: TypeParame
                     if areGeneralizedTypesEqual mostSpecificTy subTy then
                         UnifyTypes Flexible mostSpecificTy subTy |> ignore
 
-let private tryReportUnimplementedStaticMembers env syntaxNode (ty, unimplementedMostSpecificStaticFuncs: IFunctionSymbol imarray) =
+let private reportUnimplementedStaticMembers env syntaxNode (ty, unimplementedMostSpecificStaticFuncs: IFunctionSymbol imarray) =
     if unimplementedMostSpecificStaticFuncs.IsEmpty then ()
     else
         let listOfFuncsText =
             unimplementedMostSpecificStaticFuncs
-            |> ImArray.map (printValue env.benv)
+            |> ImArray.map (printMember env.benv)
             |> String.concat "\n    "
-        env.diagnostics.Error($"'{printType env.benv ty}' cannot be used as a type argument as the following functions do not have an implementation:\n    {listOfFuncsText}", 10, syntaxNode)
+        env.diagnostics.Error($"'{printType env.benv ty}' cannot be used as a type argument as the following static members do not have an implementation:\n    {listOfFuncsText}", 10, syntaxNode)
 
 /// This function will not be inlined in order to be able performance trace if this function is expensive.
 /// REVIEW: This might be an expensive check as we are having to query functions against the constraint type and the type argument.
@@ -510,7 +512,7 @@ let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (isAt
                 let unimplementedMostSpecificStaticFuncs =
                     tyArg.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
                     |> ImArray.filter (fun func -> func.IsAbstract && set.Contains(func))
-                tryReportUnimplementedStaticMembers env syntaxNode (tyArg, unimplementedMostSpecificStaticFuncs)            
+                reportUnimplementedStaticMembers env syntaxNode (tyArg, unimplementedMostSpecificStaticFuncs)            
         | _ ->
             ()
 

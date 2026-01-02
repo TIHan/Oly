@@ -1628,7 +1628,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
@@ -1661,7 +1661,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest2' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest2' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
@@ -1691,7 +1691,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test<ITest>(t)
@@ -1722,7 +1722,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
@@ -1752,8 +1752,8 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
-    static get_Doot(): __oly_int32""",
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot: __oly_int32 get""",
                 """
     let _ = test(t)
             ^^^^
@@ -1784,7 +1784,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()
     static Zoot(): ()""",
                 """
@@ -1821,14 +1821,14 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
 M(xs: G<ITest>): () = ()
         ^^^^^
 """
             )
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     let _ = M(G(Test()))
@@ -1858,7 +1858,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
@@ -1889,7 +1889,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
@@ -1925,8 +1925,41 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest2' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest2' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 11``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = ()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()
+    static Zoot(): ()""",
                 """
     test(t)
     ^^^^
@@ -1963,7 +1996,7 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""'ITest' cannot be used as a type argument as the following functions do not have an implementation:
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
     static Doot(): ()""",
                 """
     test(t)
