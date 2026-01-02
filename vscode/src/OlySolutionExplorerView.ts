@@ -77,8 +77,8 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
 
     // TODO: This has a dependency on 'extension.ts', we should try to fix this.
     async refresh(token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
-        let context = this.context;
         if (isClientReady) {
+            let context = this.context;
             return client.getSolutionExplorer(token).then(viewModel => {
                 if (!token.isCancellationRequested) {
                     viewModel.children.forEach(x => initializeViewModel(context, x));
