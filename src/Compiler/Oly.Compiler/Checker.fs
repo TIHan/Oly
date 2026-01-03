@@ -770,6 +770,15 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
         | _ ->
             solveTypes env syntax bindingInfo2.Type rhsExpr2.Type
 
+    if rhsExpr2.Type.IsSolved then
+        match bindingInfo2.Type with
+        | TypeSymbol.InferenceVariable(solution=solution)
+        | TypeSymbol.HigherInferenceVariable(solution=solution) 
+        | TypeSymbol.EagerInferenceVariable(solution=solution) ->
+            solution.SetLocked()
+        | _ ->
+            ()
+
     bindingInfo2, rhsExpr2
 
 and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: OlySyntaxNode) (expectedTy: TypeSymbol) (ty: TypeSymbol) =

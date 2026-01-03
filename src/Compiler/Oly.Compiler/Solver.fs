@@ -73,6 +73,11 @@ let solveTypes (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) expectedTy (
 let solveTypesWithSubsumptionWith (env: SolverEnvironment) rigidity syntaxNode expectedTy (ty: TypeSymbol) =
     if not (solveTypesWithSubsumptionNoErrorWith env rigidity expectedTy ty) && env.reportTypeErrors then
         env.diagnostics.Error(sprintf "Expected type '%s' but is '%s'." (printType env.benv expectedTy) (printType env.benv ty), 0, syntaxNode)
+    match ty with
+    | TypeSymbol.EagerInferenceVariable(solution=solution) ->
+        solution.SetLocked()
+    | _ ->
+        ()
 
 let solveTypesWithSubsumption (env: SolverEnvironment) syntaxNode expectedTy (ty: TypeSymbol) =
     solveTypesWithSubsumptionWith env Flexible syntaxNode expectedTy ty
