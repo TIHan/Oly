@@ -1025,13 +1025,17 @@ let disableMostFlexible (ty: TypeSymbol) =
 let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr : unit =
     match expectedTyOpt with
     | Some expectedTy ->
-        let isMostFlexible = env.isPassedAsArgument
+        let mode = 
+            if env.isPassedAsArgument then
+                CheckExpressionMode.MostFlexible
+            else
+                CheckExpressionMode.Flexible
         match tyChecking with
         | TypeChecking.Enabled ->
-            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) isMostFlexible expectedTy expr
+            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) mode expectedTy expr
         | TypeChecking.EnabledNoTypeErrors _ ->
-            checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) isMostFlexible expectedTy expr
-        if not isMostFlexible then
+            checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) mode expectedTy expr
+        if not mode.IsMostFlexible then
             disableMostFlexible expectedTy
     | _ ->
         ()

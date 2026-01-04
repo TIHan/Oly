@@ -15,6 +15,11 @@ open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 
+[<RequireQualifiedAccess>]
+type CheckExpressionMode =
+    | Flexible
+    | MostFlexible
+
 let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (witnessArgLookup: Dictionary<int64, HashSet<WitnessSolution>>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
 
@@ -790,7 +795,7 @@ and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: O
     | _ ->
         ()
 
-and checkExpressionType (env: SolverEnvironment) isMostFlexible (expectedTy: TypeSymbol) (expr: BoundExpression) =
+and checkExpressionType (env: SolverEnvironment) (mode: CheckExpressionMode) (expectedTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
 
     if expectedTy.IsSolved && 
@@ -821,7 +826,7 @@ and checkExpressionType (env: SolverEnvironment) isMostFlexible (expectedTy: Typ
                 solveTypes env expr.Syntax expectedTy exprTy
         else
             checkInferenceVariableTypeCycle env expr.Syntax expectedTy exprTy
-            if isMostFlexible then
+            if mode.IsMostFlexible then
                 solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
             else
                 solveTypesWithSubsumptionWith env Flexible expr.Syntax expectedTy exprTy
@@ -888,12 +893,12 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        checkExpressionType env false value.Type rhs
+        checkExpressionType env CheckExpressionMode.Flexible value.Type rhs
         if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_t then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
-        checkExpressionType env false field.Type rhs
+        checkExpressionType env CheckExpressionMode.Flexible field.Type rhs
         if check false receiver then
             if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
                 reportError field.Name expr.SyntaxNameOrDefault
