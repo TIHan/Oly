@@ -2854,7 +2854,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                     match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                     | Some ty -> ty
                     | _ -> 
-                        let inferenceTy = mkInferenceVariableType (Some tyPar)
+                        let inferenceTy = mkMostFlexibleInferenceVariableType (Some tyPar)
                         unifyHiddenLinks tyPar inferenceTy
                         inferenceTy
                 tys.Add(tyPar, ty)
@@ -2869,7 +2869,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
                         match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
                         | Some ty -> ty
                         | _ -> 
-                            let inferenceTy = mkInferenceVariableType (Some tyPar)
+                            let inferenceTy = mkMostFlexibleInferenceVariableType (Some tyPar)
                             unifyHiddenLinks tyPar inferenceTy
                             inferenceTy
                     tys.Add(tyPar, ty)
