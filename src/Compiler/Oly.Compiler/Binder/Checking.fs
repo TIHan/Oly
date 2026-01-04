@@ -1010,7 +1010,8 @@ let disableMostFlexible (ty: TypeSymbol) =
     let rec disableMostFlexibleAux (ty: TypeSymbol) =
         match ty with
         | TypeSymbol.InferenceVariable(solution=solution)
-        | TypeSymbol.HigherInferenceVariable(solution=solution) ->
+        | TypeSymbol.HigherInferenceVariable(solution=solution)
+        | TypeSymbol.EagerInferenceVariable(solution=solution) ->
             solution.SetNotMostFlexible()
         | _ ->
             ()
