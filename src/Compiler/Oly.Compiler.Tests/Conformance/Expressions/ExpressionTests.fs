@@ -2130,14 +2130,23 @@ test(y: __oly_int32) : __oly_int32 =
     |> ignore
 
 [<Fact>]
-let ``Should compile with right signature as most flexible inference occured``() =
+let ``Should NOT compile as NOT most flexible inference occured``() =
     let src =
         """
 test() : () = 
-    let ~^~f = (x: __oly_int32) -> if (true) 1 else 2.0
+    let f = (x: __oly_int32) -> if (true) 1 else 2.0
         """
-    src
-    |> hasSymbolSignatureTextByCursor "f(x: __oly_int32): __oly_float64"
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type '__oly_int32' but is '__oly_float64'.",
+                """
+    let f = (x: __oly_int32) -> if (true) 1 else 2.0
+                                                 ^^^
+"""
+            )
+        ]
+    |> ignore
 
 [<Fact>]
 let ``Should compile with right signature as most flexible inference occured 2``() =
@@ -11533,7 +11542,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Expect 'a' to be of type 'A' no most flexible``() =
+let ``Expect 'a' to be of type 'A' NOT most flexible``() =
     let src = 
         """
 #[intrinsic("print")]
@@ -11553,7 +11562,7 @@ main(): () =
     |> hasSymbolSignatureTextByCursor "a: A"
 
 [<Fact>]
-let ``Expect 'a' to be of type 'IA' most flexible``() =
+let ``Expect 'a' to be of type 'IA' NOT most flexible``() =
     let src = 
         """
 #[intrinsic("print")]
@@ -11567,7 +11576,16 @@ class A =
 main(): () =
     let ia: IA = A()
     let a = if (true) A() else ia
-    print(~^~a)
+    print(a)
         """
-    src
-    |> hasSymbolSignatureTextByCursor "a: IA"
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'A' but is 'IA'.",
+                """
+    let a = if (true) A() else ia
+                               ^^
+"""
+            )
+        ]
+    |> ignore
