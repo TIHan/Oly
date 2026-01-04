@@ -839,8 +839,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
         // Lock inference variables from being re-solved.
         let rec lockInferenceVariables ty =
             match ty with
-            | TypeSymbol.InferenceVariable(_, solution) 
-            | TypeSymbol.EagerInferenceVariable(solution=solution) -> solution.SetLocked()
+            | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
             | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
                 externalSolution.SetLocked()
                 solution.SetLocked()
@@ -1023,6 +1022,26 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
             checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
         | TypeChecking.EnabledNoTypeErrors _ ->
             checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+
+        let exprTy = expr.Type
+        match exprTy with
+        | TypeSymbol.InferenceVariable(solution=solution)
+        | TypeSymbol.HigherInferenceVariable(solution=solution) ->
+            if solution.IsLocked then
+                // Lock inference variables from being re-solved.
+                let rec lockInferenceVariables ty =
+                    match ty with
+                    | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
+                    | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
+                        externalSolution.SetLocked()
+                        solution.SetLocked()
+                    | _ ->
+                        ty.TypeArguments
+                        |> ImArray.iter lockInferenceVariables
+
+                lockInferenceVariables expectedTy
+        | _ ->
+            ()
     | _ ->
         ()
 

@@ -484,17 +484,35 @@ let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (exp
 
     // Tuple
     else
+        let tupleTyOpt = 
+            match expectedTyOpt with
+            | Some expectedTy when expectedTy.IsAnyTuple && expectedTy.TypeArguments.Length = syntaxExprList.ChildrenOfType.Length ->
+                Some expectedTy
+            | _ ->
+                None
+
         let argExprs =
             syntaxExprList.ChildrenOfType
-            |> ImArray.map (fun syntaxExpr ->
-                let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxExpr syntaxExpr
+            |> ImArray.mapi (fun i syntaxExpr ->
+                let expectedItemTy =
+                    match tupleTyOpt with
+                    | Some(tupleTy) ->
+                        match tupleTy.TryGetTupleItemTypes() with
+                        | ValueSome itemTys ->
+                            OlyAssert.Equal(syntaxExprList.ChildrenOfType.Length, itemTys.Length)
+                            Some itemTys[i]
+                        | _ ->
+                            None
+                    | _ ->
+                        None
+                let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) expectedItemTy syntaxExpr syntaxExpr
                 item
             )
 
         let tupleTy = 
-            match expectedTyOpt with
-            | Some expectedTy when expectedTy.IsAnyTuple && expectedTy.TypeArguments.Length = argExprs.Length ->
-                expectedTy
+            match tupleTyOpt with
+            | Some tupleTy ->
+                tupleTy
             | _ ->
                 TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None))
 
@@ -1235,17 +1253,24 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
     env, expr
 
 let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
+    let elementTyOpt =
+        match expectedTyOpt with
+        | Some(expectedTy) when expectedTy.IsAnyArray ->
+            Some expectedTy.FirstTypeArgument
+        | _ ->
+            None
+
     let elements =
         syntaxElements
         |> ImArray.map (fun syntaxElement ->
-            let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) None syntaxElement syntaxElement
+            let _, item = bindLocalExpression cenv (env.SetReturnable(false).SetPassedAsArgument(true)) elementTyOpt syntaxElement syntaxElement
             item
         )
 
     let elementTy =
-        match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsAnyArray ->
-            expectedTy.FirstTypeArgument
+        match elementTyOpt with
+        | Some(elementTy) ->
+            elementTy
         | _ ->
             mkInferenceVariableType None
 
@@ -1610,7 +1635,24 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
         let env1, expr = bindLocalExpression cenv (env.SetReturnable(false)) (Some ty) syntaxBody syntaxBody
         let expr = BoundExpression.Typed(BoundSyntaxInfo.User(syntaxExpr, env.benv), expr, ty)
-        env1, checkExpression cenv env expectedTyOpt expr
+        let expr = checkExpression cenv env expectedTyOpt expr
+        match expectedTyOpt with
+        | Some expectedTy when expectedTy.IsSolved ->
+            // Lock inference variables from being re-solved.
+            let rec lockInferenceVariables ty =
+                match ty with
+                | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
+                | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
+                    externalSolution.SetLocked()
+                    solution.SetLocked()
+                | _ ->
+                    ty.TypeArguments
+                    |> ImArray.iter lockInferenceVariables
+
+            lockInferenceVariables expectedTy
+        | _ ->
+            ()
+        env1, expr
 
     | OlySyntaxExpression.Lambda(syntaxLambdaKind, syntaxPars, syntaxRightArrowToken, syntaxBodyExpr) ->
         let env = setIsInLocalLambda env

@@ -11423,12 +11423,6 @@ alias int32
 #[intrinsic("uint32")]
 alias uint32
 
-#[intrinsic("add")]
-(+)(int32, int32): int32
-
-#[intrinsic("add")]
-(+)(uint32, uint32): uint32
-
 #[intrinsic("print")]
 print(__oly_object): ()
 
@@ -11459,12 +11453,6 @@ alias int32
 #[intrinsic("uint32")]
 alias uint32
 
-#[intrinsic("add")]
-(+)(int32, int32): int32
-
-#[intrinsic("add")]
-(+)(uint32, uint32): uint32
-
 #[intrinsic("print")]
 print(__oly_object): ()
 
@@ -11484,3 +11472,102 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Regression - make sure graphicsQueueCount is not an uint32 3``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+Call(_x: uint32): () = ()
+
+main(): () =
+    let (graphicsQueueCount, _doot) = (10: int32, 20: int32)
+    Call(graphicsQueueCount)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'uint32' but is 'int32'.",
+                """
+    Call(graphicsQueueCount)
+         ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Regression - make sure graphicsQueueCount is not an uint32 4``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+GetInt32(): int32 = 10
+GetInt32_2(): int32 = 20
+
+Call(_x: uint32): () = ()
+
+main(): () =
+    let (graphicsQueueCount, _doot) = (GetInt32(), GetInt32_2())
+    Call(graphicsQueueCount)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'uint32' but is 'int32'.",
+                """
+    Call(graphicsQueueCount)
+         ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Expect 'a' to be of type 'A' no most flexible``() =
+    let src = 
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA
+
+class A =
+    implements IA
+
+main(): () =
+    let a = A()
+    let z: IA = ~^~a
+    print(z)
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "a: A"
+
+[<Fact>]
+let ``Expect 'a' to be of type 'IA' most flexible``() =
+    let src = 
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface IA
+
+class A =
+    implements IA
+
+main(): () =
+    let ia: IA = A()
+    let a = if (true) A() else ia
+    print(~^~a)
+        """
+    src
+    |> hasSymbolSignatureTextByCursor "a: IA"
