@@ -1867,7 +1867,7 @@ let bindTypeArgument (cenv: cenv) env (tyPars: ImmutableArray<TypeParameterSymbo
                 else
                     ResolutionTypeArityZero
             bindType cenv env None resTyArity syntaxTyArg
-    mkSolvedInferenceVariableType tyPar ty
+    mkSolvedMostFlexibleInferenceVariableType tyPar ty
 
 let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
     let expectedTypeParameterCount = tyPars.Length - offset

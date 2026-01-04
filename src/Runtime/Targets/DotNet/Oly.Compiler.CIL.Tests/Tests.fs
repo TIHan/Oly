@@ -21258,6 +21258,27 @@ main(): () =
     |> shouldRunWithExpectedOutput "hello"
 
 [<Fact>]
+let ``Infer generic correctly 2``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_object): ()
+
+class A
+
+class G<T> =
+    new(x: T) = this { }
+
+M(xs: G<__oly_object>): () = print("hello")
+
+main(): () =
+    let _ = M(G<_>(A()))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
 let ``Regression - using enums with integer opreations``() =
     let src =
         """

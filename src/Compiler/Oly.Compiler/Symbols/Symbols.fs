@@ -22,16 +22,28 @@ let AnonymousEntityName = ""
 [<Literal>]
 let EntryPointName = "main"
 
+// Begin variable solution functions
+
 let mkVariableSolution() = VariableSolutionSymbol(VariableSolutionFlags.Default)
 let mkVariableType name = TypeSymbol.Variable(name)
+
 let mkInferenceVariableType tyParOpt = 
     match tyParOpt with
     | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
         TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor))
     | _ ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, mkVariableSolution())
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.Default))
+
+let mkMostFlexibleInferenceVariableType tyParOpt = 
+    match tyParOpt with
+    | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor ||| VariableSolutionFlags.MostFlexible))
+    | _ ->
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.MostFlexible))
+
 let mkHigherInferenceVariableType tyParOpt (tyArgs: TypeSymbol imarray) = 
     TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor), mkVariableSolution())
+
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
     if not ty.IsError_t then
@@ -45,12 +57,32 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
     varSolution.Solution <- ty
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
+let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
+#if DEBUG || CHECKED
+    if not ty.IsError_t then
+        if not tyPar.HasArity && ty.IsTypeConstructor then
+            failwith "Unexpected type constructor."
+        if tyPar.HasArity && not ty.IsTypeConstructor then
+            failwith "Expected type constructor."
+#endif
+    let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
+    let varSolutionFlags =
+        if ty.IsSolved then
+            varSolutionFlags
+        else
+            varSolutionFlags ||| VariableSolutionFlags.MostFlexible
+    let varSolution = VariableSolutionSymbol(varSolutionFlags)
+    varSolution.Solution <- ty
+    TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
+
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
     let varSolution = mkVariableSolution()
     varSolution.Solution <- ty
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
+
+// End variable solution functions
 
 [<System.Flags>]
 type AttributeFlags =

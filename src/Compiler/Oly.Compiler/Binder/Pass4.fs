@@ -514,7 +514,7 @@ let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (exp
             | Some tupleTy ->
                 tupleTy
             | _ ->
-                TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkInferenceVariableType None))
+                TypeSymbol.CreateTuple(ImArray.init argExprs.Length (fun _ -> mkMostFlexibleInferenceVariableType None))
 
         let newTupleExpr = BoundExpression.NewTuple(BoundSyntaxInfo.User(syntaxNode, env.benv), argExprs, tupleTy)
 
@@ -1272,7 +1272,7 @@ let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expect
         | Some(elementTy) ->
             elementTy
         | _ ->
-            mkInferenceVariableType None
+            mkMostFlexibleInferenceVariableType None
 
     let arrayTy =
         match expectedTyOpt with
