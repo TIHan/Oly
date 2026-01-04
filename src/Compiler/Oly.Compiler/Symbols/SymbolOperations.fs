@@ -316,7 +316,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
     match origTy1, origTy2 with
     | TypeSymbol.InferenceVariable(_, solution1), _
         when 
-            not solution1.IsLocked && origTy1.IsSolved &&
+            solution1.IsMostFlexible && origTy1.IsSolved &&
             not(areTypesEqual solution1.Solution origTy2) ->
         match stripTypeEquations origTy1 with
         | TypeSymbol.Float64 ->
@@ -349,7 +349,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
                 false
     | _, TypeSymbol.InferenceVariable(_, solution2)
         when 
-            not solution2.IsLocked && origTy2.IsSolved &&
+            not solution2.IsMostFlexible && origTy2.IsSolved &&
             not(areTypesEqual solution2.Solution origTy1) ->
         match stripTypeEquations origTy2 with
         | TypeSymbol.Float64 ->

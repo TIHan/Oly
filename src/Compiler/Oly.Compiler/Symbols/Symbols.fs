@@ -22,16 +22,16 @@ let AnonymousEntityName = ""
 [<Literal>]
 let EntryPointName = "main"
 
-let mkVariableSolution() = VariableSolutionSymbol(false, false)
+let mkVariableSolution() = VariableSolutionSymbol(VariableSolutionFlags.Default)
 let mkVariableType name = TypeSymbol.Variable(name)
 let mkInferenceVariableType tyParOpt = 
     match tyParOpt with
     | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(false, true))
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor))
     | _ ->
         TypeSymbol.CreateInferenceVariable(tyParOpt, mkVariableSolution())
 let mkHigherInferenceVariableType tyParOpt (tyArgs: TypeSymbol imarray) = 
-    TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(false, true), mkVariableSolution())
+    TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor), mkVariableSolution())
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
     if not ty.IsError_t then
@@ -40,20 +40,17 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
         if tyPar.HasArity && not ty.IsTypeConstructor then
             failwith "Expected type constructor."
 #endif
-    let varSolution = VariableSolutionSymbol(false, tyPar.HasArity)
+    let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
+    let varSolution = VariableSolutionSymbol(varSolutionFlags)
     varSolution.Solution <- ty
-    if ty.IsSolved then
-        varSolution.SetLocked()
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
     let varSolution = mkVariableSolution()
     varSolution.Solution <- ty
-    if ty.IsSolved then
-        varSolution.SetLocked()
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
-let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(true, false))
+let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
 
 [<System.Flags>]
 type AttributeFlags =
@@ -460,7 +457,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
         TypeSymbol.HigherVariable(tyPar, tyArgs)
 
     | TypeSymbol.InferenceVariable(tyParOpt, solution) ->
-        TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(false, false))
+        TypeSymbol.CreateHigherInferenceVariable(tyParOpt, tyArgs, solution, VariableSolutionSymbol(VariableSolutionFlags.Default))
 
     | TypeSymbol.Function(kind=kind) ->
         OlyAssert.Equal(2, tyArgs.Length)
@@ -3252,22 +3249,21 @@ type WitnessSolution (tyPar: TypeParameterSymbol, constr: ConstraintSymbol, func
 
         member this.Name = String.Empty
 
+type VariableSolutionFlags =
+    | Default           = 0b0000
+    | TypeOfParameter   = 0b0001
+    | TypeConstructor   = 0b0010
+    | MostFlexible      = 0b0100
+
 [<Sealed>]
-type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: convert these parameters to flags
+type VariableSolutionSymbol (flags: VariableSolutionFlags) =
 
     let id = newId ()
 
     let constrs = ResizeArray<ConstraintSymbol>()
     let mutable solutionState: TypeSymbol = Unchecked.defaultof<_> // We are not using option for perf reasons.
 
-    let mutable isLocked = false
-
     member this.Id = id
-
-    member this.SetLocked() =
-        isLocked <- true
-
-    member this.IsLocked = isLocked
 
     member this.Solution
 
@@ -3276,7 +3272,7 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: c
         and set (value: TypeSymbol) = 
 #if DEBUG || CHECKED
             if not value.IsError_t then
-                if isTyCtor then
+                if this.IsTypeConstructor then
                     if not value.IsTypeConstructor then
                         failwith "Expected type constructor."
                     if value.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
@@ -3305,9 +3301,11 @@ type VariableSolutionSymbol (isTyOfParameter: bool, isTyCtor: bool) = // TODO: c
     member this.ForceAddConstraint constr =
         constrs.Add(constr)
 
-    member this.IsTypeOfParameter = isTyOfParameter
+    member this.IsTypeOfParameter = flags &&& VariableSolutionFlags.TypeOfParameter = VariableSolutionFlags.TypeOfParameter
 
-    member this.IsTypeConstructor = isTyCtor
+    member this.IsTypeConstructor = flags &&& VariableSolutionFlags.TypeConstructor = VariableSolutionFlags.TypeConstructor
+
+    member this.IsMostFlexible = flags &&& VariableSolutionFlags.MostFlexible = VariableSolutionFlags.MostFlexible
 
     interface ISymbol with
 

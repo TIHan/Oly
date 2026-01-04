@@ -1635,24 +1635,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let ty = bindType cenv env None ResolutionTypeArityZero syntaxTy
         let env1, expr = bindLocalExpression cenv (env.SetReturnable(false)) (Some ty) syntaxBody syntaxBody
         let expr = BoundExpression.Typed(BoundSyntaxInfo.User(syntaxExpr, env.benv), expr, ty)
-        let expr = checkExpression cenv env expectedTyOpt expr
-        match expectedTyOpt with
-        | Some expectedTy when expectedTy.IsSolved ->
-            // Lock inference variables from being re-solved.
-            let rec lockInferenceVariables ty =
-                match ty with
-                | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
-                | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
-                    externalSolution.SetLocked()
-                    solution.SetLocked()
-                | _ ->
-                    ty.TypeArguments
-                    |> ImArray.iter lockInferenceVariables
-
-            lockInferenceVariables expectedTy
-        | _ ->
-            ()
-        env1, expr
+        env1, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Lambda(syntaxLambdaKind, syntaxPars, syntaxRightArrowToken, syntaxBodyExpr) ->
         let env = setIsInLocalLambda env

@@ -183,7 +183,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
         let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteralAndCheck cenv env expectedTyOpt syntaxLiteral)
         match expectedTyOpt with
-        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) false expectedTy expr
         | _ -> ()
         expr
     | OlySyntaxExpression.Name(syntaxName) ->
@@ -194,7 +194,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
             let tyPar = ty.TryTypeParameter.Value
             let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxName, env.benv), BoundLiteral.Constant(ConstantSymbol.TypeVariable(tyPar)))
             match expectedTyOpt with
-            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) false expectedTy expr
             | _ -> ()
             expr
         | _ ->

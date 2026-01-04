@@ -790,7 +790,7 @@ and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: O
     | _ ->
         ()
 
-and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr: BoundExpression) =
+and checkExpressionType (env: SolverEnvironment) isMostFlexible (expectedTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
 
     if expectedTy.IsSolved && 
@@ -821,7 +821,10 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
                 solveTypes env expr.Syntax expectedTy exprTy
         else
             checkInferenceVariableTypeCycle env expr.Syntax expectedTy exprTy
-            solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
+            if isMostFlexible then
+                solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
+            else
+                solveTypesWithSubsumptionWith env Flexible expr.Syntax expectedTy exprTy
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let reportError name syntax =
@@ -885,12 +888,12 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        checkExpressionType env value.Type rhs
+        checkExpressionType env false value.Type rhs
         if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_t then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
-        checkExpressionType env field.Type rhs
+        checkExpressionType env false field.Type rhs
         if check false receiver then
             if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
                 reportError field.Name expr.SyntaxNameOrDefault
