@@ -1001,6 +1001,26 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
                     argExpr
     )
 
+/// Mutability
+/// Changes any solution variables within the given type and its type arguments
+/// to disable MostFlexible on the solution variable.
+/// This is not inlineable in order to see if this comes up in performance traces.
+[<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+let disableMostFlexible (ty: TypeSymbol) =
+    let rec disableMostFlexibleAux (ty: TypeSymbol) =
+        match ty with
+        | TypeSymbol.InferenceVariable(solution=solution)
+        | TypeSymbol.HigherInferenceVariable(solution=solution) ->
+            solution.SetNotMostFlexible()
+        | _ ->
+            ()
+        ty.TypeArguments
+        |> ImArray.iter disableMostFlexible
+    disableMostFlexibleAux ty
+
+/// Similar to 'checkExpressionType' but can decide whether or not to report errors.
+/// Use this function instead of 'checkExpressionType' within this file.
+/// This also handles MostFlexible type inference.
 let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr : unit =
     match expectedTyOpt with
     | Some expectedTy ->
@@ -1010,6 +1030,8 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
             checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) isMostFlexible expectedTy expr
         | TypeChecking.EnabledNoTypeErrors _ ->
             checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) isMostFlexible expectedTy expr
+        if not isMostFlexible then
+            disableMostFlexible expectedTy
     | _ ->
         ()
 

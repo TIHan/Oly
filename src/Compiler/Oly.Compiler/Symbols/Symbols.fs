@@ -3293,14 +3293,15 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
     let id = newId ()
 
     let constrs = ResizeArray<ConstraintSymbol>()
+    let mutable flags = flags
     let mutable solutionState: TypeSymbol = Unchecked.defaultof<_> // We are not using option for perf reasons.
 
     member this.Id = id
 
+    /// Mutability on setter
     member this.Solution
 
-        with get(): TypeSymbol = 
-            solutionState
+        with get(): TypeSymbol = solutionState
         and set (value: TypeSymbol) = 
 #if DEBUG || CHECKED
             if not value.IsError_t then
@@ -3329,9 +3330,13 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
     member this.Constraints = 
         constrs :> _ seq
 
-    // Mutability
+    /// Mutability
     member this.ForceAddConstraint constr =
         constrs.Add(constr)
+
+    /// Mutability
+    member this.SetNotMostFlexible() =
+        flags <- flags &&& ~~~VariableSolutionFlags.MostFlexible
 
     member this.IsTypeOfParameter = flags &&& VariableSolutionFlags.TypeOfParameter = VariableSolutionFlags.TypeOfParameter
 
