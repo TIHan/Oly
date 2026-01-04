@@ -1016,7 +1016,7 @@ let disableMostFlexible (ty: TypeSymbol) =
         | _ ->
             ()
         ty.TypeArguments
-        |> ImArray.iter disableMostFlexible
+        |> ImArray.iter disableMostFlexibleAux
     disableMostFlexibleAux ty
 
 /// Similar to 'checkExpressionType' but can decide whether or not to report errors.
