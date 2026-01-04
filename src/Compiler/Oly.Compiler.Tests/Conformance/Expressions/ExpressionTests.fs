@@ -11448,3 +11448,39 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Regression - make sure graphicsQueueCount is not an uint32 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("add")]
+(+)(uint32, uint32): uint32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+main(): () =
+    let (graphicsQueueCount, _doot) = (10: int32, 20: int32)
+    let y: uint32 = graphicsQueueCount
+    print(y)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'uint32' but is 'int32'.",
+                """
+    let y: uint32 = graphicsQueueCount
+                    ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

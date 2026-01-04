@@ -839,7 +839,8 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
         // Lock inference variables from being re-solved.
         let rec lockInferenceVariables ty =
             match ty with
-            | TypeSymbol.InferenceVariable(_, solution) -> solution.SetLocked()
+            | TypeSymbol.InferenceVariable(_, solution) 
+            | TypeSymbol.EagerInferenceVariable(solution=solution) -> solution.SetLocked()
             | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
                 externalSolution.SetLocked()
                 solution.SetLocked()
