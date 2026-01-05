@@ -25,6 +25,7 @@ let EntryPointName = "main"
 // Begin variable solution functions
 
 let mkVariableSolution() = VariableSolutionSymbol(VariableSolutionFlags.Default)
+let mkMostFlexibleVariableSolution() = VariableSolutionSymbol(VariableSolutionFlags.MostFlexible)
 let mkVariableType name = TypeSymbol.Variable(name)
 
 let mkInferenceVariableType tyParOpt = 
@@ -81,6 +82,22 @@ let mkSolvedHigherInferenceVariableType tyPar tyArgs ty =
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
+
+let mkEagerInferenceVariableType (eagerTy: TypeSymbol) =
+    OlyAssert.False(eagerTy.IsInferenceVariable)
+    OlyAssert.False(eagerTy.IsHigherInferenceVariable)
+    OlyAssert.False(eagerTy.IsEagerInferenceVariable)
+    OlyAssert.False(eagerTy.IsVariable)
+    OlyAssert.False(eagerTy.IsAlias)
+    TypeSymbol.EagerInferenceVariable(mkVariableSolution(), eagerTy)
+
+let mkMostFlexibleEagerInferenceVariableType (eagerTy: TypeSymbol) =
+    OlyAssert.False(eagerTy.IsInferenceVariable)
+    OlyAssert.False(eagerTy.IsHigherInferenceVariable)
+    OlyAssert.False(eagerTy.IsEagerInferenceVariable)
+    OlyAssert.False(eagerTy.IsVariable)
+    OlyAssert.False(eagerTy.IsAlias)
+    TypeSymbol.EagerInferenceVariable(mkMostFlexibleVariableSolution(), eagerTy)
 
 // End variable solution functions
 

@@ -2643,7 +2643,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     | OlySyntaxLiteral.Utf16(syntaxToken) ->
         BoundLiteral.Constant(ConstantSymbol.Utf16(unescapeText syntaxToken.ValueText))
     | OlySyntaxLiteral.Null _ ->
-        BoundLiteral.NullInference(TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.BaseObject))
+        BoundLiteral.NullInference(mkEagerInferenceVariableType TypeSymbol.BaseObject)
     | OlySyntaxLiteral.Default _ ->
         BoundLiteral.DefaultInference(mkInferenceVariableType None, false)
     | OlySyntaxLiteral.UncheckedDefault _ ->
@@ -2651,7 +2651,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
 
     // These are the defaults for integer and rational values.
     | OlySyntaxLiteral.Integer(syntaxToken) ->
-        let ty = TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.Int32)
+        let ty = mkEagerInferenceVariableType TypeSymbol.Int32
         let lazyValue =
             lazy
                 try
@@ -2701,7 +2701,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
     | OlySyntaxLiteral.Real(syntaxToken) ->
-        let ty = TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.Float64)
+        let ty = mkEagerInferenceVariableType TypeSymbol.Float64
         let lazyValue =
             lazy
                 try
