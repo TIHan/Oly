@@ -1279,7 +1279,9 @@ type RuntimeType =
                 (inputTys1, inputTys2)
                 ||> ImArray.forall2 (=)
 
-            | Entity ent1, Entity ent2 -> ent1 = ent2
+            | Entity ent1, Entity ent2 -> 
+                ent1 = ent2
+
             | Variable(index1, ilKind1), Variable(index2, ilKind2) ->
                 index1 = index2 && ilKind1 = ilKind2
             | HigherVariable(index1, tyArgs1, ilKind1), HigherVariable(index2, tyArgs2, ilKind2) ->

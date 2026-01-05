@@ -3538,6 +3538,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let enclosing = this.ResolveEnclosing(ilAsm, ilEntDef.Enclosing, GenericContext.Default, ImArray.empty)
 
+                // REVIEW: We have to do this additional check in the cache because the resolving
+                //         of the enclosing could call this again. Think nested types.
+                match asm.EntityDefinitionCache.TryGetValue ilEntDefOrRefHandle with
+                | true, (res, _) -> res
+                | _ ->
+
                 let enclosingTyPars = enclosing.TypeParameters
 
                 let tyPars =
