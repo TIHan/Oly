@@ -38,7 +38,7 @@ let mkInferenceVariableType tyParOpt =
 let mkMostFlexibleInferenceVariableType tyParOpt = 
     match tyParOpt with
     | Some (tyPar: TypeParameterSymbol) when tyPar.HasArity ->
-        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor ||| VariableSolutionFlags.MostFlexible))
+        TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.TypeConstructor))
     | _ ->
         TypeSymbol.CreateInferenceVariable(tyParOpt, VariableSolutionSymbol(VariableSolutionFlags.MostFlexible))
 
@@ -68,7 +68,7 @@ let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: 
 #endif
     let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
     let varSolutionFlags =
-        if ty.IsSolved then
+        if ty.IsSolved || tyPar.HasArity then
             varSolutionFlags
         else
             varSolutionFlags ||| VariableSolutionFlags.MostFlexible
@@ -84,20 +84,7 @@ let mkSolvedHigherInferenceVariableType tyPar tyArgs ty =
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
 
 let mkEagerInferenceVariableType (eagerTy: TypeSymbol) =
-    OlyAssert.False(eagerTy.IsInferenceVariable)
-    OlyAssert.False(eagerTy.IsHigherInferenceVariable)
-    OlyAssert.False(eagerTy.IsEagerInferenceVariable)
-    OlyAssert.False(eagerTy.IsVariable)
-    OlyAssert.False(eagerTy.IsAlias)
-    TypeSymbol.EagerInferenceVariable(mkVariableSolution(), eagerTy)
-
-let mkMostFlexibleEagerInferenceVariableType (eagerTy: TypeSymbol) =
-    OlyAssert.False(eagerTy.IsInferenceVariable)
-    OlyAssert.False(eagerTy.IsHigherInferenceVariable)
-    OlyAssert.False(eagerTy.IsEagerInferenceVariable)
-    OlyAssert.False(eagerTy.IsVariable)
-    OlyAssert.False(eagerTy.IsAlias)
-    TypeSymbol.EagerInferenceVariable(mkMostFlexibleVariableSolution(), eagerTy)
+    TypeSymbol.CreateEagerInferenceVariable(mkVariableSolution(), eagerTy)
 
 // End variable solution functions
 
@@ -3606,7 +3593,7 @@ type TypeSymbol =
 #endif
         TypeSymbol.InferenceVariable(tyParOpt, solution)
 
-    static member CreateHigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution) =
+    static member CreateHigherInferenceVariable(tyParOpt, tyArgs, externalSolution: VariableSolutionSymbol, solution: VariableSolutionSymbol) =
 #if DEBUG || CHECKED
         match tyParOpt with
         | Some (tyPar: TypeParameterSymbol) ->
@@ -3618,9 +3605,23 @@ type TypeSymbol =
         |> ImArray.iter (fun tyArg ->
             OlyAssert.False(tyArg.IsTypeConstructor)
         )
+
+        OlyAssert.False(externalSolution.IsMostFlexible)
+        OlyAssert.False(solution.IsMostFlexible)
 #endif
         OlyAssert.True(externalSolution.IsTypeConstructor)
         TypeSymbol.HigherInferenceVariable(tyParOpt, tyArgs, externalSolution, solution)
+
+    static member CreateEagerInferenceVariable(solution: VariableSolutionSymbol, eagerTy: TypeSymbol) =
+#if DEBUG || CHECKED
+        OlyAssert.False(eagerTy.IsInferenceVariable)
+        OlyAssert.False(eagerTy.IsHigherInferenceVariable)
+        OlyAssert.False(eagerTy.IsEagerInferenceVariable)
+        OlyAssert.False(eagerTy.IsVariable)
+        OlyAssert.False(eagerTy.IsAlias)
+        OlyAssert.False(solution.IsMostFlexible)
+#endif
+        TypeSymbol.EagerInferenceVariable(solution, eagerTy)
 
     member this.ToInstantiation() =
         applyType this this.TypeArguments

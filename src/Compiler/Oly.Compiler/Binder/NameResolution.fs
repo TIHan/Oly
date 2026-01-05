@@ -2651,7 +2651,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
 
     // These are the defaults for integer and rational values.
     | OlySyntaxLiteral.Integer(syntaxToken) ->
-        let ty = mkMostFlexibleEagerInferenceVariableType TypeSymbol.Int32
+        let ty = mkEagerInferenceVariableType TypeSymbol.Int32
         let lazyValue =
             lazy
                 try
@@ -2701,7 +2701,7 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
     | OlySyntaxLiteral.Real(syntaxToken) ->
-        let ty = mkMostFlexibleEagerInferenceVariableType TypeSymbol.Float64
+        let ty = mkEagerInferenceVariableType TypeSymbol.Float64
         let lazyValue =
             lazy
                 try

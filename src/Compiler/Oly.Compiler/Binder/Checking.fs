@@ -1008,10 +1008,23 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
 let disableMostFlexible (ty: TypeSymbol) =
     let rec disableMostFlexibleAux (ty: TypeSymbol) =
+#if DEBUG || CHECKED
+        // Sanity check as MostFlexible variable solutions for higher inference and eager inference
+        // should not exist.
         match ty with
-        | TypeSymbol.InferenceVariable(solution=solution)
-        | TypeSymbol.HigherInferenceVariable(solution=solution)
+        | TypeSymbol.HigherInferenceVariable(externalSolution=externalSolution;solution=solution) ->
+            OlyAssert.False(externalSolution.IsMostFlexible)
+            OlyAssert.False(solution.IsMostFlexible)
+        | _ ->
+            ()
+        match ty with
         | TypeSymbol.EagerInferenceVariable(solution=solution) ->
+            OlyAssert.False(solution.IsMostFlexible)
+        | _ ->
+            ()
+#endif
+        match ty with
+        | TypeSymbol.InferenceVariable(solution=solution) ->
             solution.SetNotMostFlexible()
         | _ ->
             ()
@@ -1025,17 +1038,12 @@ let disableMostFlexible (ty: TypeSymbol) =
 let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) expr : unit =
     match expectedTyOpt with
     | Some expectedTy ->
-        let mode = 
-            if env.isPassedAsArgument then
-                CheckExpressionMode.MostFlexible
-            else
-                CheckExpressionMode.Flexible
         match tyChecking with
         | TypeChecking.Enabled ->
-            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) mode expectedTy expr
+            checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) CheckExpressionMode.MostFlexible expectedTy expr
         | TypeChecking.EnabledNoTypeErrors _ ->
-            checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) mode expectedTy expr
-        if not mode.IsMostFlexible then
+            checkExpressionType (SolverEnvironment.CreateNoTypeErrors(cenv.diagnostics, env.benv, cenv.pass)) CheckExpressionMode.MostFlexible expectedTy expr
+        if not env.isPassedAsArgument then
             disableMostFlexible expectedTy
     | _ ->
         ()

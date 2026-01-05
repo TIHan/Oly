@@ -2920,7 +2920,7 @@ let freshenTypeAux (tyParExists: TypeSymbol -> bool) (enclosingTyInst: IdMap<Typ
         // We should not create another indirection as it could hurt some eager inference solving for numerics.
         match ty with
         | TypeSymbol.HigherInferenceVariable(Some tyPar2, _, _, _) when tyPar.Id = tyPar2.Id ->
-            TypeSymbol.HigherInferenceVariable(Some tyPar, newTyArgs, varExternalSolution, varSolution)
+            TypeSymbol.CreateHigherInferenceVariable(Some tyPar, newTyArgs, varExternalSolution, varSolution)
         | _ ->
             mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
     | _ ->
