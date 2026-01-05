@@ -2149,7 +2149,7 @@ test() : () =
     |> ignore
 
 [<Fact>]
-let ``Should compile with right signature as most flexible inference occured 2``() =
+let ``Should compile with right signature but most flexible did not occur``() =
     let src =
         """
 test() : () = 
