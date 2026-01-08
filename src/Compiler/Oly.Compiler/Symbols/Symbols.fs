@@ -1469,22 +1469,22 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
                             | TypeSymbol.HigherVariable(tyPar2, _) ->
                                 solution.Solution <- TypeSymbol.Variable(tyPar2)
                                 stripTypeEquationsAux skipAlias skipModifiers ty
-
+                
                             | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
                                 OlyAssert.True(externalSolution.IsTypeConstructor)
-
+                
                                 solution.Solution <- TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution)
                                 stripTypeEquationsAux skipAlias skipModifiers ty
-
+                
                             | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
                                 solution.Solution <- ent.Formal.AsType
                                 stripTypeEquationsAux skipAlias skipModifiers ty
-
+                
                             | _ ->
                                 TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
                     | _ ->
                         stripTypeEquationsAux skipAlias skipModifiers ty2
-                solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution          
+                solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution
                 strippedTy2
         else
             ty
@@ -3326,6 +3326,16 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
                 ()
 #endif
             solutionState <- value
+
+    member this.SetInnerMostSolution(ty: TypeSymbol) =
+        if this.HasSolution then
+            match this.Solution with
+            | TypeSymbol.InferenceVariable(_, innerSolution) ->
+                innerSolution.SetInnerMostSolution(ty)
+            | _ ->
+                this.Solution <- ty
+        else
+            this.Solution <- ty
 
     member this.HasSolution = 
         obj.ReferenceEquals(solutionState, null)

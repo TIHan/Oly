@@ -10172,3 +10172,29 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "500"
     |> ignore
+
+[<Fact>]
+let ``Type inference should work correctly for ReadOnlySpan of a mutable array``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int8")]
+alias byte
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: ReadOnlySpan<byte>): () = ()
+
+main(): () =
+    M(ReadOnlySpan(mutable [5;4;3;2;1]))
+    print("Hello World!")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore

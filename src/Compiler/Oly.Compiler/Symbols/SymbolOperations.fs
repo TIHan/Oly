@@ -312,16 +312,16 @@ let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (s
         solution.Solution <- ty
     true
 
-let private isMostFlexible (origTy1: TypeSymbol) (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
-    solution1.IsMostFlexible && origTy1.IsSolved &&
-    not(areTypesEqual solution1.Solution origTy2)
+let private isMostFlexible (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
+    solution1.IsMostFlexible &&
+    ((solution1.HasSolution && not(areTypesEqual solution1.Solution origTy2)) || not solution1.HasSolution)
 
 let private unifyMostFlexibleAux (origTy1: TypeSymbol) (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
     match stripTypeEquations origTy1 with
     | TypeSymbol.Float64 ->
         match stripTypeEquations origTy2 with
-        | TypeSymbol.Float32 as origTy2 ->
-            solution1.Solution <- origTy2
+        | TypeSymbol.Float32 ->
+            solution1.SetInnerMostSolution(origTy2)
             true
         | _ ->
             false
@@ -335,25 +335,42 @@ let private unifyMostFlexibleAux (origTy1: TypeSymbol) (solution1: VariableSolut
         | TypeSymbol.Int8
         | TypeSymbol.UInt8 
         | TypeSymbol.Float32 
-        | TypeSymbol.Float64 as origTy2 ->
-            solution1.Solution <- origTy2
+        | TypeSymbol.Float64 ->
+            solution1.SetInnerMostSolution(origTy2)
             true
         | _ ->
             false
     | _ ->
         if subsumesType origTy2 solution1.Solution then
-            solution1.Solution <- stripTypeEquations origTy2
+            solution1.SetInnerMostSolution(origTy2)
             true
         else
             false
 
 let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     match origTy1, origTy2 with
-    | TypeSymbol.InferenceVariable(_, solution1), _ when isMostFlexible origTy1 solution1 origTy2 ->
-        unifyMostFlexibleAux origTy1 solution1 origTy2
+    | TypeSymbol.InferenceVariable(_, solution1), _ when isMostFlexible solution1 origTy2 ->
+        if origTy1.IsSolved then
+            unifyMostFlexibleAux origTy1 solution1 origTy2
+        else
+            match origTy2 with
+            | TypeSymbol.InferenceVariable(_, solution2) when solution2.IsMostFlexible ->
+                solution1.Solution <- origTy2
+                true
+            | _ ->
+                false
     
-    | _, TypeSymbol.InferenceVariable(_, solution2) when isMostFlexible origTy2 solution2 origTy1 ->
-        unifyMostFlexibleAux origTy2 solution2 origTy1
+    | _, TypeSymbol.InferenceVariable(_, solution2) when isMostFlexible solution2 origTy1 ->
+        if origTy2.IsSolved then
+            unifyMostFlexibleAux origTy2 solution2 origTy1
+        else
+            match origTy1 with
+            | TypeSymbol.InferenceVariable(_, solution1) when solution1.IsMostFlexible ->
+                solution2.Solution <- stripTypeEquations origTy1
+                true
+            | _ ->
+                false
+
     | _ ->
         false
 
