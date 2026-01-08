@@ -199,21 +199,21 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) (tyArg
             if externalSolution.HasSolution then
                 if UnifyTypes rigidity externalSolution.Solution ty2 then
                     // TODO: This isn't properly tested. Should figure out what test could hit this path.
-                    solution.Solution <- applyType ty2 tyArgs
+                    solution.SetSolution(applyType ty2 tyArgs)
                     true
                 else
                     false
             else
-                solution.Solution <- applyType ty2.Formal tyArgs
+                solution.SetSolution(applyType ty2.Formal tyArgs)
                 match ty2.Formal with
                 | TypeSymbol.InferenceVariable(_, solution) ->
                     if obj.ReferenceEquals(externalSolution, solution) then
                         // Prevent circular reference.
                         ()
                     else
-                        externalSolution.Solution <- ty2.Formal
+                        externalSolution.SetSolution(ty2.Formal)
                 | _ ->
-                    externalSolution.Solution <- ty2.Formal
+                    externalSolution.SetSolution(ty2.Formal)
                 true
             
         else
@@ -266,8 +266,8 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
                                     else
                                         false
                                 if isValid then
-                                    externalSolution.Solution <- Types.Tuple
-                                    solution.Solution <- tyArgs2[0]
+                                    externalSolution.SetSolution(Types.Tuple)
+                                    solution.SetSolution(tyArgs2[0])
                                     true
                                 else
                                     false
@@ -307,9 +307,9 @@ let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (s
 
     match tyParOpt with
     | Some(tyPar) when tyPar.Arity > 0 ->
-        solution.Solution <- ty.Formal
+        solution.SetSolution(ty.Formal)
     | _ ->
-        solution.Solution <- ty
+        solution.SetSolution(ty)
     true
 
 let private isMostFlexible (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
@@ -355,7 +355,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
         else
             match origTy2 with
             | TypeSymbol.InferenceVariable(_, solution2) when solution2.IsMostFlexible ->
-                solution1.Solution <- origTy2
+                solution1.SetSolution(origTy2)
                 true
             | _ ->
                 false
@@ -366,7 +366,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
         else
             match origTy1 with
             | TypeSymbol.InferenceVariable(_, solution1) when solution1.IsMostFlexible ->
-                solution2.Solution <- stripTypeEquations origTy1
+                solution2.SetSolution(stripTypeEquations origTy1)
                 true
             | _ ->
                 false
@@ -425,8 +425,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.EagerInferenceVariable(varSolution1, eagerTy1), TypeSymbol.EagerInferenceVariable(varSolution2, eagerTy2) ->
             if UnifyTypes rigidity eagerTy1 eagerTy2 then
                 if (rigidity = Flexible) || (rigidity = MostFlexible) then
-                    varSolution1.Solution <- eagerTy1
-                    varSolution2.Solution <- eagerTy2
+                    varSolution1.SetSolution(eagerTy1)
+                    varSolution2.SetSolution(eagerTy2)
                 true
             else
                 false
@@ -437,8 +437,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             OlyAssert.False(eagerTy.IsTypeVariable)
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
-                tySolution.Solution <- eagerTy
-                varSolution.Solution <- ty
+                tySolution.SetSolution(eagerTy)
+                varSolution.SetSolution(ty)
                 UnifyTypes rigidity ty1 ty2
             | _ ->
                 if ty.IsAnyStruct then
@@ -451,20 +451,20 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     | TypeSymbol.Int32
                     | TypeSymbol.UInt64
                     | TypeSymbol.Int64 when eagerTy.IsFixedInteger ->
-                        varSolution.Solution <- ty
+                        varSolution.SetSolution(ty)
                         UnifyTypes rigidity ty1 ty2
                     | TypeSymbol.Float32
                     | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
-                        varSolution.Solution <- ty
+                        varSolution.SetSolution(ty)
                         UnifyTypes rigidity ty1 ty2
                     | _ ->
-                        varSolution.Solution <- eagerTy
+                        varSolution.SetSolution(eagerTy)
                         UnifyTypes rigidity ty1 ty2
                 else
                     if subsumesTypeWith rigidity eagerTy ty then
-                        varSolution.Solution <- ty
+                        varSolution.SetSolution(ty)
                     else
-                        varSolution.Solution <- eagerTy
+                        varSolution.SetSolution(eagerTy)
                     UnifyTypes rigidity ty1 ty2
 
         | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy

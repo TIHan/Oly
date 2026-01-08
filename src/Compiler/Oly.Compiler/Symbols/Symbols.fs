@@ -55,7 +55,7 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
 #endif
     let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
     let varSolution = VariableSolutionSymbol(varSolutionFlags)
-    varSolution.Solution <- ty
+    varSolution.SetSolution(ty)
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
@@ -73,12 +73,12 @@ let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: 
         else
             varSolutionFlags ||| VariableSolutionFlags.MostFlexible
     let varSolution = VariableSolutionSymbol(varSolutionFlags)
-    varSolution.Solution <- ty
+    varSolution.SetSolution(ty)
     TypeSymbol.CreateInferenceVariable(Some tyPar, varSolution)
 
 let mkSolvedHigherInferenceVariableType tyPar tyArgs ty = 
     let varSolution = mkVariableSolution()
-    varSolution.Solution <- ty
+    varSolution.SetSolution(ty)
     TypeSymbol.CreateHigherInferenceVariable(Some tyPar, tyArgs, varSolution, varSolution)
 
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
@@ -1467,24 +1467,24 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
                             // TODO: We should make this path illegal if we have a non-error type.
                             match stripTypeEquationsAux skipAlias skipModifiers ty2 with
                             | TypeSymbol.HigherVariable(tyPar2, _) ->
-                                solution.Solution <- TypeSymbol.Variable(tyPar2)
+                                solution.SetSolution(TypeSymbol.Variable(tyPar2))
                                 stripTypeEquationsAux skipAlias skipModifiers ty
                 
                             | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
                                 OlyAssert.True(externalSolution.IsTypeConstructor)
                 
-                                solution.Solution <- TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution)
+                                solution.SetSolution(TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution))
                                 stripTypeEquationsAux skipAlias skipModifiers ty
                 
                             | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                                solution.Solution <- ent.Formal.AsType
+                                solution.SetSolution(ent.Formal.AsType)
                                 stripTypeEquationsAux skipAlias skipModifiers ty
                 
                             | _ ->
                                 TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
                     | _ ->
                         stripTypeEquationsAux skipAlias skipModifiers ty2
-                solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias ty2 // cache solution
+                solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias ty2) // cache solution
                 strippedTy2
         else
             ty
@@ -1495,7 +1495,7 @@ let private stripTypeEquations_HigherInferenceVariable_Solution skipAlias skipMo
     OlyAssert.True(solution.HasSolution)
 
     let strippedTy = stripTypeEquationsAux skipAlias skipModifiers solution.Solution
-    solution.Solution <- (* preserve alias *) stripTypeEquationsExceptAlias solution.Solution // cache solution
+    solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias solution.Solution) // cache solution
     strippedTy
 
 let private stripTypeEquations_HigherInferenceVariable_ExternalSolution skipAlias skipModifiers tyArgs (externalSolution: VariableSolutionSymbol) (solution: VariableSolutionSymbol) =
@@ -1505,7 +1505,7 @@ let private stripTypeEquations_HigherInferenceVariable_ExternalSolution skipAlia
     OlyAssert.False(solution.IsTypeConstructor)
 
     let appliedTy = applyType externalSolution.Solution tyArgs
-    solution.Solution <- appliedTy
+    solution.SetSolution(appliedTy)
     stripTypeEquationsAux skipAlias skipModifiers appliedTy
 
 let private stripTypeEquations_HigherInferenceVariable skipAlias skipModifiers (ty: TypeSymbol) =
@@ -3302,11 +3302,12 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
 
     member this.Id = id
 
-    /// Mutability on setter
     member this.Solution
 
         with get(): TypeSymbol = solutionState
-        and set (value: TypeSymbol) = 
+
+    /// Mutability
+    member this.SetSolution(value: TypeSymbol) =
 #if DEBUG || CHECKED
             if not value.IsError_t then
                 if this.IsTypeConstructor then
@@ -3327,15 +3328,17 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
 #endif
             solutionState <- value
 
-    member this.SetInnerMostSolution(ty: TypeSymbol) =
+
+    /// Mutability
+    member this.SetInnerMostSolution(value: TypeSymbol) =
         if this.HasSolution then
             match this.Solution with
             | TypeSymbol.InferenceVariable(_, innerSolution) ->
-                innerSolution.SetInnerMostSolution(ty)
+                innerSolution.SetInnerMostSolution(value)
             | _ ->
-                this.Solution <- ty
+                this.SetSolution(value)
         else
-            this.Solution <- ty
+            this.SetSolution(value)
 
     member this.HasSolution = 
         obj.ReferenceEquals(solutionState, null)

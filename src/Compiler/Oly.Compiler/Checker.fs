@@ -110,7 +110,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
 
                 newTyPar.SetConstraints(newConstrs.AddRange(newTyConstrs))
 
-                solution.Solution <- TypeSymbol.Variable(newTyPar)
+                solution.SetSolution(TypeSymbol.Variable(newTyPar))
                 generalizedTyPars.Add(newTyPar)
                 tyParIndex <- tyParIndex + 1
                 computeNextTyParName()
@@ -791,7 +791,7 @@ and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: O
             )
         if isCycle then
             env.diagnostics.Error($"Detected a cycle in inference: '{printType env.benv expectedTy}' cannot be solved with '{printType env.benv ty}'.", 10, syntax)
-            solution.Solution <- TypeSymbolError
+            solution.SetSolution(TypeSymbolError)
     | _ ->
         ()
 
