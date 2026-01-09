@@ -349,7 +349,8 @@ let private unifyMostFlexibleAux (origTy1: TypeSymbol) (solution1: VariableSolut
 
 let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool =
     match origTy1, origTy2 with
-    | TypeSymbol.InferenceVariable(_, solution1), _ when isMostFlexible solution1 origTy2 ->
+    | TypeSymbol.InferenceVariable(_, solution1), _
+    | TypeSymbol.EagerInferenceVariable(solution1, _), _ when isMostFlexible solution1 origTy2 ->
         if origTy1.IsSolved then
             unifyMostFlexibleAux origTy1 solution1 origTy2
         else
@@ -360,13 +361,14 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
             | _ ->
                 false
     
-    | _, TypeSymbol.InferenceVariable(_, solution2) when isMostFlexible solution2 origTy1 ->
+    | _, TypeSymbol.InferenceVariable(_, solution2)
+    | _, TypeSymbol.EagerInferenceVariable(solution2, _) when isMostFlexible solution2 origTy1 ->
         if origTy2.IsSolved then
             unifyMostFlexibleAux origTy2 solution2 origTy1
         else
             match origTy1 with
             | TypeSymbol.InferenceVariable(_, solution1) when solution1.IsMostFlexible ->
-                solution2.SetSolution(stripTypeEquations origTy1)
+                solution2.SetSolution(origTy1)
                 true
             | _ ->
                 false

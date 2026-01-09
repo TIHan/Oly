@@ -84,7 +84,7 @@ let mkSolvedHigherInferenceVariableType tyPar tyArgs ty =
 let mkInferenceVariableTypeOfParameter () = TypeSymbol.CreateInferenceVariable(None, VariableSolutionSymbol(VariableSolutionFlags.TypeOfParameter))
 
 let mkEagerInferenceVariableType (eagerTy: TypeSymbol) =
-    TypeSymbol.CreateEagerInferenceVariable(mkVariableSolution(), eagerTy)
+    TypeSymbol.CreateEagerInferenceVariable(mkMostFlexibleVariableSolution(), eagerTy)
 
 // End variable solution functions
 
@@ -1456,36 +1456,39 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
             | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_t ->
                 TypeSymbolRealUnit
             | _ ->
-                let strippedTy2 =
-                    match tyParOpt with
-                    | Some(tyPar) when tyPar.Arity > 0 ->
-                        if ty2.IsTypeConstructor then
-                            stripTypeEquationsAux skipAlias skipModifiers ty2
-                        else
-                            // Because we have a second-order generic and our solution isn't a type constructor,
-                            //     we must extract the type constructor out of it and reset the solution using it.
-                            // TODO: We should make this path illegal if we have a non-error type.
-                            match stripTypeEquationsAux skipAlias skipModifiers ty2 with
-                            | TypeSymbol.HigherVariable(tyPar2, _) ->
-                                solution.SetSolution(TypeSymbol.Variable(tyPar2))
-                                stripTypeEquationsAux skipAlias skipModifiers ty
+                stripTypeEquationsAux skipAlias skipModifiers ty2
+                // TODO: Uncomment below till we verify the optimization has sound correctness.
+                //       We should also verify if it actually improves performance.
+                //let strippedTy2 =
+                //    match tyParOpt with
+                //    | Some(tyPar) when tyPar.Arity > 0 ->
+                //        if ty2.IsTypeConstructor then
+                //            stripTypeEquationsAux skipAlias skipModifiers ty2
+                //        else
+                //            // Because we have a second-order generic and our solution isn't a type constructor,
+                //            //     we must extract the type constructor out of it and reset the solution using it.
+                //            // TODO: We should make this path illegal if we have a non-error type.
+                //            match stripTypeEquationsAux skipAlias skipModifiers ty2 with
+                //            | TypeSymbol.HigherVariable(tyPar2, _) ->
+                //                solution.SetSolution(TypeSymbol.Variable(tyPar2))
+                //                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
-                                OlyAssert.True(externalSolution.IsTypeConstructor)
+                //            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
+                //                OlyAssert.True(externalSolution.IsTypeConstructor)
                 
-                                solution.SetSolution(TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution))
-                                stripTypeEquationsAux skipAlias skipModifiers ty
+                //                solution.SetSolution(TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution))
+                //                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                            | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                                solution.SetSolution(ent.Formal.AsType)
-                                stripTypeEquationsAux skipAlias skipModifiers ty
+                //            | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
+                //                solution.SetSolution(ent.Formal.AsType)
+                //                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                            | _ ->
-                                TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
-                    | _ ->
-                        stripTypeEquationsAux skipAlias skipModifiers ty2
-                solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias ty2) // cache solution
-                strippedTy2
+                //            | _ ->
+                //                TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
+                //    | _ ->
+                //        stripTypeEquationsAux skipAlias skipModifiers ty2
+                //solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias ty2) // cache solution
+                //strippedTy2
         else
             ty
     | _ ->
@@ -3316,15 +3319,23 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
                     if value.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
                         failwith "Unexpected type parameter with arity."
 
-            // Sanity check to make sure we do not create a circular reference. Not bullet-proof though.
-            match value with
-            | TypeSymbol.InferenceVariable(_, solution) ->
-                OlyAssert.False(obj.ReferenceEquals(this, solution))
-            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
-                OlyAssert.False(obj.ReferenceEquals(this, externalSolution))
-                OlyAssert.False(obj.ReferenceEquals(this, solution))
-            | _ ->
-                ()
+            // Sanity check to make sure we do not create a circular reference.
+            let rec loop value =
+                match value with
+                | TypeSymbol.InferenceVariable(_, solution) 
+                | TypeSymbol.EagerInferenceVariable(solution, _) ->
+                    OlyAssert.False(obj.ReferenceEquals(this, solution))
+                    if solution.HasSolution then
+                        loop solution.Solution
+                | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, solution) ->
+                    OlyAssert.False(obj.ReferenceEquals(this, externalSolution))
+                    OlyAssert.False(obj.ReferenceEquals(this, solution))
+                    if externalSolution.HasSolution then
+                        loop externalSolution.Solution
+                    if solution.HasSolution then
+                        loop solution.Solution
+                | _ ->
+                    ()
 #endif
             solutionState <- value
 
@@ -3632,7 +3643,6 @@ type TypeSymbol =
         OlyAssert.False(eagerTy.IsEagerInferenceVariable)
         OlyAssert.False(eagerTy.IsVariable)
         OlyAssert.False(eagerTy.IsAlias)
-        OlyAssert.False(solution.IsMostFlexible)
 #endif
         TypeSymbol.EagerInferenceVariable(solution, eagerTy)
 
