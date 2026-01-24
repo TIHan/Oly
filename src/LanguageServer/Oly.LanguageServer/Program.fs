@@ -63,13 +63,13 @@ type OlyTypeSymbol with
             "alias"
         elif symbol.IsInterface then
             "interface"
-        elif symbol.IsClass then
+        elif symbol.IsReference then
             "class"
         elif symbol.IsShape then
             "shape"
         elif symbol.IsEnum then
             "enum"
-        elif symbol.IsStruct then
+        elif symbol.IsValue then
             "struct"
         elif symbol.IsModule then
             "module"

@@ -35,10 +35,10 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
         let env1 =
             if canOpen then
                 let ty = bindNameAsType cenv (env.SetIsInOpenDeclaration()) None ResolutionTypeArityZero syntaxName
-                if ty.IsError_t then
+                if ty.IsError_ste then
                     env
                 else
-                    match ty.TryEntity with
+                    match ty.TryEntityNoAlias with
                     | ValueSome ent ->
                         let env = 
                             if openContent = OpenContent.Entities then
@@ -69,10 +69,10 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
         let env1 =
             if canOpen then
                 let ty = bindNameAsType cenv (env.SetIsInOpenDeclaration()) None ResolutionTypeArityZero syntaxName
-                if ty.IsError_t then
+                if ty.IsError_ste then
                     env
                 else
-                    match ty.TryEntity with
+                    match ty.TryEntityNoAlias with
                     | ValueSome ent ->
                         let env = 
                             if openContent = OpenContent.Entities then

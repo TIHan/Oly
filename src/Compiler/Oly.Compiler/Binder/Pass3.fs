@@ -105,7 +105,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     if not ent.Extends.IsEmpty then
         let superTy = ent.Extends.[0]
-        match superTy.TryEntity, ent.TryFindDefaultInstanceConstructor() with
+        match superTy.TryEntityNoAlias, ent.TryFindDefaultInstanceConstructor() with
         | ValueSome(superEnt), Some(ctor) when ctor.FunctionFlags &&& FunctionFlags.ImplicitDefaultConstructor = FunctionFlags.ImplicitDefaultConstructor ->
             if not superEnt.HasDefaultInstanceConstructor then
                 cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxIdent)

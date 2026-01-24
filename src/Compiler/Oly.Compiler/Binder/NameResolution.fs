@@ -190,7 +190,7 @@ let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (
         let resInfo = ResolutionInfo.Default
         let item = bindNameAsItem cenv env (Some syntaxExpr) None resInfo syntaxName
         match item with
-        | ResolutionItem.Type(_, ty) when ty.IsTypeVariable ->
+        | ResolutionItem.Type(_, ty) when ty.IsAnyVariable_ste ->
             let tyPar = ty.TryTypeParameter.Value
             let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxName, env.benv), BoundLiteral.Constant(ConstantSymbol.TypeVariable(tyPar)))
             match expectedTyOpt with
@@ -223,7 +223,7 @@ let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironm
     match expr with
     | BoundExpression.Literal(_, literal) ->
         match literal with
-        | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsFixedInteger ->
+        | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsAnyFixedInteger_ste ->
             handleConstantSymbol constantSymbol
         | _ ->
             ValueNone
@@ -262,7 +262,7 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                             | ConstraintSymbol.SubtypeOf(lazyTy)
                             | ConstraintSymbol.TraitType(lazyTy) ->
                                 let ty = lazyTy.Value
-                                if ty.IsShape then
+                                if ty.IsShape_ste then
                                     ty.Functions
                                     |> ImArray.filter (fun func -> func.IsInstanceConstructor)
                                     |> ImArray.map (fun func ->
@@ -792,7 +792,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
     | Choice1Of2(receiver) ->
         match receiver with
         // For member accesses, we only want to undo auto-dereferencing if it is a struct type only.
-        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsAnyStruct ->
+        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsAnyStruct_ste ->
             bind cenv env receiverAsAddr syntaxMemberExpr
         | _ ->
             bind cenv env receiver syntaxMemberExpr
@@ -908,7 +908,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         cenv.diagnostics.Error(sprintf "Identifier '%s' not found in scope." syntaxName.LastIdentifier.ValueText, 10, syntaxName)
                     match receiverItem with
                     | ReceiverItem.Type(ty) ->
-                        match ty.TryEntity with
+                        match ty.TryEntityNoAlias with
                         | ValueSome(ent) ->
                             ResolutionItem.Namespace(syntaxRootName, invalidNamespaceWithEnclosing ent.AsEnclosing)
                         | _ ->
@@ -925,7 +925,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         | ReceiverItem.Namespace(namespaceEnt) ->
                             ResolutionItem.Namespace(syntaxRootName, invalidNamespaceWithEnclosing namespaceEnt.AsEnclosing)
                         | ReceiverItem.Type(ty) ->
-                            match ty.TryEntity with
+                            match ty.TryEntityNoAlias with
                             | ValueSome ent ->
                                 ResolutionItem.Type(syntaxName, (invalidEntityWithEnclosing ent.AsEnclosing).AsType)
                             | _ ->
@@ -941,7 +941,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
 
             | ResolutionFormalItem.Type ty ->
                 let ty =
-                    if resInfo.resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty && not ty.IsError_t then
+                    if resInfo.resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty && not ty.IsError_ste then
                         let expectedTyArity = resInfo.resTyArity.TryArity.Value
                         let tyArity = ty.Arity
                         if expectedTyArity = tyArity then
@@ -949,7 +949,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         else
                             // At this point, we expect an instantiation of a type which then we try to do a partial instantiation of it.
                             // However, we cannot do a partial instantiation of a type-constructor, so simply return an error.
-                            if ty.IsTypeConstructor then
+                            if ty.IsTypeConstructor_steea then
                                 cenv.diagnostics.Error($"Partial instantiation of type-constructor '{printType env.benv ty}' not valid.", 10, syntaxName)
                                 TypeSymbolError
                             else
@@ -1258,7 +1258,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 | Some prop -> prop :> IValueSymbol
                 | _ ->
 
-                if canReportMissingIdentifier cenv ident && not ty.IsError_t then
+                if canReportMissingIdentifier cenv ident && not ty.IsError_ste then
                     if System.String.IsNullOrWhiteSpace(ident) then
                         cenv.diagnostics.Error(sprintf "Type '%s' does not contain any members." (printType env.benv ty), 0, syntaxNode)
                     else
@@ -1296,7 +1296,7 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
     | EnclosingSymbol.Entity(ent), ty 
             when 
                 ent.IsInterface && 
-                not ty.IsInterface && 
+                not ty.IsInterface_ste && 
                 value.IsStatic && 
                 not value.IsField && 
                 subsumesTypeInEnvironment env.benv ent.AsType ty ->
@@ -1430,7 +1430,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     | _ ->
                         raise(InternalCompilerUnreachedException())
 
-                if isFuncInput && (ty.IsUnit_t || ty.IsAnyTuple) && not ty.IsRealUnit then
+                if isFuncInput && (ty.IsUnit_ste || ty.IsAnyTuple) && not ty.IsRealUnit_ste then
                     // TODO: Kind of a hack using TypeSymbol.Tuple.
                     TypeSymbol.Tuple(ImArray.createOne ty, ImArray.empty)
                 else
@@ -1650,15 +1650,15 @@ let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (synta
         TypeSymbol.CreateFixedArray(elementTy, lengthTy)
 
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
-    if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then
+    if (ty.IsAnyVariable_ste && ty.IsTypeConstructor_steea) && syntaxTyArgs.IsEmpty then
         ty
     elif resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty then
-        if not ty.IsTypeConstructor then
+        if not ty.IsTypeConstructor_steea then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
         ty
     else
         let tyArities =
-            if ty.IsError_t (* error recovery *) then
+            if ty.IsError_ste (* error recovery *) then
                 ImArray.init syntaxTyArgs.Length (fun _ -> ResolutionTypeArity.Any)
             else
                 match ty.TryTypeParameter with
@@ -1740,7 +1740,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                     else
                         partialTyInst
 
-                if not ty.IsError_t (* error recovery *) then
+                if not ty.IsError_ste (* error recovery *) then
                     if ty.TypeParameters.Length <> tyArgs.Length || (ty.HasTypeVariableArity && resTyArity.IsZero) then
                         let syntaxNode =
                             if syntaxTyArgsRoot.IsDummy then
@@ -1752,13 +1752,13 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 if ty.Arity = tyArgs.Length then
                     (ty.TypeParameters, tyArgs)
                     ||> ImArray.map2 (fun tyPar tyArg ->
-                        if tyArg.IsError_t then
+                        if tyArg.IsError_ste then
                             tyArg
-                        elif not tyPar.HasArity && tyArg.IsTypeConstructor then
+                        elif not tyPar.HasArity && tyArg.IsTypeConstructor_steea then
                             cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used a type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
                             TypeSymbol.Error(Some tyPar, None)
                         elif tyPar.HasArity then
-                            if tyArg.IsTypeConstructor then
+                            if tyArg.IsTypeConstructor_steea then
                                 if tyArg.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
                                     cenv.diagnostics.Error($"'{printType env.benv tyArg}' has type parameters that require type constructors, therefore, cannot be used as a type constructor.", 10, syntaxTyArgsRoot)
                                     TypeSymbol.Error(Some tyPar, None)
@@ -1795,7 +1795,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 (* skipUnsolved *) true
                 syntaxTyArgs 
                 ty
-        if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor then
+        if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor_steea then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
 
         ty
@@ -2021,7 +2021,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                 constrTy
 
         let constrTy =
-            match constrTy.TryEntity with
+            match constrTy.TryEntityNoAlias with
             | ValueSome(ent) when ent.IsShape && ent.IsAnonymous && cenv.pass <> Pass1 ->
                 OlyAssert.True(ent.TypeParameters.IsEmpty)
 
@@ -2078,7 +2078,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
             None
         else
             if isTraitConstr then
-                if not constrTy.IsError_t && not constrTy.IsInterface && not constrTy.IsShape then
+                if not constrTy.IsError_ste && not constrTy.IsInterface_ste && not constrTy.IsShape_ste then
                     cenv.diagnostics.Error("Interfaces and shapes are only allowed for trait constraints.", 10, syntaxConstrTy)
                 ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(constrTy))
                 |> Some
@@ -2147,7 +2147,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<u
             | TypeSymbol.Variable(tyPar) -> 
                 tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                if tyArgs |> Seq.exists (fun x -> x.IsSolved && not x.IsError_t) then
+                if tyArgs |> Seq.exists (fun x -> x.IsSolved && not x.IsError_ste) then
                     cenv.diagnostics.Error("A type parameter with a generic instantiation is not allowed.", 10, syntaxTy)
                 tyPar
             | _ ->

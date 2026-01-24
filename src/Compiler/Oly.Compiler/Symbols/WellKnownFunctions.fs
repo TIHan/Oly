@@ -38,7 +38,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 if func.Parameters.Length <> 2 then false
                 else
                     let parTy = func.Parameters[0].Type
-                    func.Parameters[1].Type.IsInteger &&
+                    func.Parameters[1].Type.IsAnyInteger_ste &&
                     (areTypesEqual func.ReturnType parTy)
 
             | WellKnownFunction.BitwiseNot ->
@@ -105,20 +105,20 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.AddressOf ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    not func.Parameters[0].Type.IsByRef_t &&
-                    func.ReturnType.IsByRef_t
+                    not func.Parameters[0].Type.IsAnyByRef_ste &&
+                    func.ReturnType.IsAnyByRef_ste
 
             | WellKnownFunction.UnsafeAddressOf ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    not func.Parameters[0].Type.IsByRef_t &&
-                    func.ReturnType.IsNativePtr_t
+                    not func.Parameters[0].Type.IsAnyByRef_ste &&
+                    func.ReturnType.IsNativePtr_ste
 
             | WellKnownFunction.FromAddress ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    (func.Parameters[0].Type.IsByRef_t || func.Parameters[0].Type.IsNativePtr_t) &&
-                    not func.ReturnType.IsByRef_t
+                    (func.Parameters[0].Type.IsAnyByRef_ste || func.Parameters[0].Type.IsNativePtr_ste) &&
+                    not func.ReturnType.IsAnyByRef_ste
 
             | WellKnownFunction.LoadNullPtr ->
                 // REVIEW: Does LoadNullPtr need a type-parameter?
@@ -135,28 +135,28 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.GetArrayLength ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsAnyNonFixedArray &&
-                    func.ReturnType.IsInteger
+                    func.Parameters[0].Type.IsAnyNonFixedArray_ste &&
+                    func.ReturnType.IsAnyInteger_ste
 
             | WellKnownFunction.GetArrayElement ->
                 if func.Parameters.Length > 0 then
                     let par1Ty = func.Parameters[0].Type
-                    if par1Ty.IsByRef_t then
-                        par1Ty.FirstTypeArgument.IsAnyFixedArray &&
-                        func.Parameters[1].Type.IsInteger &&
+                    if par1Ty.IsAnyByRef_ste then
+                        par1Ty.FirstTypeArgument.IsAnyFixedArray_ste &&
+                        func.Parameters[1].Type.IsAnyInteger_ste &&
                         (
                             areTypesEqual func.ReturnType par1Ty.FirstTypeArgument.FirstTypeArgument ||
-                            (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument.FirstTypeArgument)
+                            (func.ReturnType.IsAnyByRef_ste && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument.FirstTypeArgument)
                         )
                     else                  
                         // TODO: Handle multi-dimensional arrays.
                         if func.Parameters.Length < 2 then false
                         else
-                            par1Ty.IsAnyNonFixedArray &&
-                            func.Parameters[1].Type.IsInteger &&
+                            par1Ty.IsAnyNonFixedArray_ste &&
+                            func.Parameters[1].Type.IsAnyInteger_ste &&
                             (
                                 areTypesEqual func.ReturnType par1Ty.FirstTypeArgument ||
-                                (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument)
+                                (func.ReturnType.IsAnyByRef_ste && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument)
                             )
                 else
                     false
@@ -167,19 +167,19 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 else
                     let isPar1Valid =
                         let par1Ty = func.Parameters[0].Type
-                        if par1Ty.IsByRef_t then
-                            par1Ty.FirstTypeArgument.IsAnyFixedArray
+                        if par1Ty.IsAnyByRef_ste then
+                            par1Ty.FirstTypeArgument.IsAnyFixedArray_ste
                         else
-                            par1Ty.IsAnyNonFixedArray
+                            par1Ty.IsAnyNonFixedArray_ste
                     isPar1Valid &&
-                    func.Parameters[1].Type.IsInteger &&
+                    func.Parameters[1].Type.IsAnyInteger_ste &&
                     (areTypesEqual func.ReturnType TypeSymbol.Unit)
 
             | WellKnownFunction.NewMutableArray ->
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsInteger &&
+                    func.Parameters[0].Type.IsAnyInteger_ste &&
                     func.ReturnType.IsMutableArray_t
 
             | WellKnownFunction.LoadFunctionPtr ->

@@ -47,10 +47,10 @@ let mkHigherInferenceVariableType tyParOpt (tyArgs: TypeSymbol imarray) =
 
 let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
-    if not ty.IsError_t then
-        if not tyPar.HasArity && ty.IsTypeConstructor then
+    if not ty.IsError_ste then
+        if not tyPar.HasArity && ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
-        if tyPar.HasArity && not ty.IsTypeConstructor then
+        if tyPar.HasArity && not ty.IsTypeConstructor_steea then
             failwith "Expected type constructor."
 #endif
     let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
@@ -60,10 +60,10 @@ let mkSolvedInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) 
 
 let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: TypeSymbol) =
 #if DEBUG || CHECKED
-    if not ty.IsError_t then
-        if not tyPar.HasArity && ty.IsTypeConstructor then
+    if not ty.IsError_ste then
+        if not tyPar.HasArity && ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
-        if tyPar.HasArity && not ty.IsTypeConstructor then
+        if tyPar.HasArity && not ty.IsTypeConstructor_steea then
             failwith "Expected type constructor."
 #endif
     let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
@@ -449,10 +449,10 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
             OlyAssert.Fail("Invalid enclosing to change")
 
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
-    if ty.IsError_t then ty
+    if ty.IsError_ste then ty
     else
 
-    OlyAssert.True(ty.IsFormal)
+    OlyAssert.True(ty.IsFormal_steea)
     OlyAssert.Equal(ty.Arity, tyArgs.Length)
 
     if tyArgs.IsEmpty then ty
@@ -460,7 +460,7 @@ let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
 
     match ty with
     | TypeSymbol.ForAll(tyPars, innerTy) -> 
-        OlyAssert.False(innerTy.IsFormal)
+        OlyAssert.False(innerTy.IsFormal_steea)
 
         match stripTypeEquations innerTy with
         | TypeSymbol.Tuple _ ->
@@ -544,7 +544,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
                 let exists =
                     tyArgs 
                     |> ImArray.exists (fun x -> 
-                        match (x.TryImmedateTypeParameter: TypeParameterSymbol voption) with 
+                        match (x.TryImmediateTypeParameter: TypeParameterSymbol voption) with 
                         | ValueSome x -> x.Id = tyPar.Id 
                         | _ -> false
                     )
@@ -563,7 +563,7 @@ let actualType (tyArgs: TypeArgumentSymbol imarray) (ty: TypeSymbol) =
                 let tyArgs = 
                     (ent.TypeParameters, ent.TypeArguments)
                     ||> ImArray.map2 (fun tyPar tyArg ->
-                        if tyPar.HasArity && not tyArg.IsTypeVariable then
+                        if tyPar.HasArity && not tyArg.IsAnyVariable_ste then
                             tyArg
                         else
                             instTy tyArg
@@ -614,7 +614,7 @@ let actualEntities (tyArgs: TypeArgumentSymbol imarray) (ents: EntitySymbol imar
     )
 
 let private filterForTypeParameterVariableSolution (tyPar: TypeParameterSymbol) (varSolution: VariableSolutionSymbol) =
-    (not varSolution.HasSolution) || (not varSolution.Solution.IsTypeConstructor) || (varSolution.Solution.Arity = tyPar.Arity)
+    (not varSolution.HasSolution) || (not varSolution.Solution.IsTypeConstructor_steea) || (varSolution.Solution.Arity = tyPar.Arity)
 
 let filterForTypeParameters (tys: TypeSymbol seq) =
     tys
@@ -675,7 +675,7 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
         // TODO: We need to remove TryImmediateTypeParameter and avoid having to rely on it.
         (ent.TypeParameters, tyArgs)
         ||> ImArray.map2 (fun tyPar tyArg ->
-            match tyArg.TryImmedateTypeParameter with
+            match tyArg.TryImmediateTypeParameter with
             | ValueSome tyPar2 when tyPar.Id = tyPar2.Id -> tyArg
             | _ ->
                 mkSolvedInferenceVariableType tyPar tyArg
@@ -844,11 +844,11 @@ let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
         (ent.TypeParameters, ent.TypeArguments)
         ||> ImArray.map2 (fun tyPar tyArg -> 
             if tyPar.HasArity then
-                if tyArg.IsTypeVariable then
+                if tyArg.IsAnyVariable_ste then
                     tyArg
                 else
                     let tyArg2 = tyArgs[tyPar.Index]
-                    if tyArg2.IsTypeConstructor then
+                    if tyArg2.IsTypeConstructor_steea then
                         tyArg2
                     else
                         tyArg
@@ -876,7 +876,7 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
 #if DEBUG || CHECKED
             pars
             |> ImArray.iter (fun par ->
-                if not par.Type.IsError_t && par.Type.IsTypeConstructor then
+                if not par.Type.IsError_ste && par.Type.IsTypeConstructor_steea then
                     failwith "Unexpected type constructor"
             )
 #endif
@@ -886,7 +886,7 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
 
 #if DEBUG || CHECKED
     do
-        if not returnTy.IsError_t && returnTy.IsTypeConstructor then
+        if not returnTy.IsError_ste && returnTy.IsTypeConstructor_steea then
             failwith "Unexpected type constructor"
 #endif
     
@@ -1215,7 +1215,7 @@ let tryActualType (tys: IReadOnlyDictionary<int64, TypeSymbol>) (ty: TypeSymbol)
             let tyArgs = 
                 (ent.TypeParameters, ent.TypeArguments)
                 ||> ImArray.map2 (fun tyPar tyArg ->
-                    if tyPar.HasArity && not tyArg.IsTypeVariable then
+                    if tyPar.HasArity && not tyArg.IsAnyVariable_ste then
                         tyArg
                     else
                         instTy tyArg
@@ -1415,7 +1415,7 @@ let tryActualEntity (tys: IReadOnlyDictionary<_, _>) (ent: EntitySymbol) =
     let tyArgs2 = 
         (ent.TypeParameters, ent.TypeArguments)
         ||> ImArray.map2 (fun tyPar tyArg -> 
-            if tyPar.HasArity && not tyArg.IsTypeVariable then
+            if tyPar.HasArity && not tyArg.IsAnyVariable_ste then
                 tyArg
             else
                 tryActualType tys tyArg
@@ -1453,7 +1453,7 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
         if solution.HasSolution then
             let ty2 = solution.Solution
             match tyParOpt with
-            | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_t ->
+            | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_ste ->
                 TypeSymbolRealUnit
             | _ ->
                 stripTypeEquationsAux skipAlias skipModifiers ty2
@@ -1583,9 +1583,9 @@ let private stripTypeEquations_Tuple skipAlias skipModifiers (ty: TypeSymbol) =
     | TypeSymbol.Tuple(argTys, _) ->
         if argTys.Length = 1 then
             let argTy = argTys[0]
-            if argTy.IsUnit_t then
+            if argTy.IsUnit_ste then
                 TypeSymbolRealUnit
-            elif (argTy.IsRealUnit || argTy.IsOneTuple) then
+            elif (argTy.IsRealUnit_ste || argTy.IsOneTuple) then
                stripTypeEquations argTy
             elif argTy.IsSolved then
                 match argTy with
@@ -1645,10 +1645,10 @@ let stripTypeEquationsAndBuiltIn (ty: TypeSymbol) =
     let ty = stripTypeEquationsAux false true ty
     match ty.TryGetIntrinsicType() with
     | true, intrinTy -> 
-        OlyAssert.False(intrinTy.IsAlias)
+        OlyAssert.False(intrinTy.IsAlias_steea)
         intrinTy
     | _ -> 
-        OlyAssert.False(ty.IsAlias)
+        OlyAssert.False(ty.IsAlias_steea)
         ty
 
 let stripTypeEquationsExceptAlias (ty: TypeSymbol) =
@@ -2213,14 +2213,14 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
 #if DEBUG || CHECKED
     do
         match funcTy.TryFunction with
-        | ValueSome(_, outputTy: TypeSymbol) when not outputTy.IsError_t && outputTy.IsTypeConstructor ->
+        | ValueSome(_, outputTy: TypeSymbol) when not outputTy.IsError_ste && outputTy.IsTypeConstructor_steea ->
             failwith "Unexpected type constructor."
         | _ ->
             ()
 
         pars
         |> ImArray.iter (fun par ->
-            if not par.Type.IsError_t && par.Type.IsTypeConstructor then
+            if not par.Type.IsError_ste && par.Type.IsTypeConstructor_steea then
                 failwith "Unexpected type constructor."
         )
 #endif
@@ -2885,13 +2885,13 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
     //         We assume there is already an error reported if we encounter a type constructor here.
     // TODO: Remove this as we should never have to report this error.
     let ty =
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             TypeSymbol.Error(None, Some "Internal Error: Type constructor is used illegally.")
         else
             ty
 #if DEBUG || CHECKED
     do
-        if not ty.IsError_t && ty.IsTypeConstructor then
+        if not ty.IsError_ste && ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
     
@@ -2971,13 +2971,13 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
     //         We assume there is already an error reported if we encounter a type constructor here.
     // TODO: Remove this as we should never have to report this error.
     let ty =
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             TypeSymbol.Error(None, Some "Internal Error: Type constructor is used illegally.")
         else
             ty
 #if DEBUG || CHECKED
     do
-        if not ty.IsError_t && ty.IsTypeConstructor then
+        if not ty.IsError_ste && ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
     let id = newId()
@@ -3057,13 +3057,13 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
     //         We assume there is already an error reported if we encounter a type constructor here.
     // TODO: Remove this as we should never have to report this error.
     let ty =
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             TypeSymbol.Error(None, Some "Internal Warning: Type constructor is used illegally.")
         else
             ty
 #if DEBUG || CHECKED
     do
-        if not ty.IsError_t && ty.IsTypeConstructor then
+        if not ty.IsError_ste && ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
     
@@ -3312,9 +3312,9 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
     /// Mutability
     member this.SetSolution(value: TypeSymbol) =
 #if DEBUG || CHECKED
-            if not value.IsError_t then
+            if not value.IsError_ste then
                 if this.IsTypeConstructor then
-                    if not value.IsTypeConstructor then
+                    if not value.IsTypeConstructor_steea then
                         failwith "Expected type constructor."
                     if value.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
                         failwith "Unexpected type parameter with arity."
@@ -3548,6 +3548,13 @@ type FunctionKind =
     | Normal
     | Scoped
 
+/// The main representation of a type in the Oly language.
+///
+/// Instance 'Is*' members WITHOUT the postfix '_ste' will not strip type equations before doing the check.
+///
+/// Instance 'Is*' members WITH the postfix '_ste' will strip type equations before doing the check.
+///
+/// Other instance members with 'Immediate' as part of the name WILL NOT strip type equations.
 [<RequireQualifiedAccess;DebuggerDisplay("{DebugName}");NoComparison;ReferenceEquality>]
 type TypeSymbol =
     | BaseObject
@@ -3590,7 +3597,10 @@ type TypeSymbol =
 
     | DependentIndexer of inputValueTy: TypeSymbol * innerTy: TypeSymbol
 
-    | Error of tyParOpt: TypeParameterSymbol option * msgOpt: string option // 'msgOpt' will display an error message in post inference checks
+    /// Error for the compiler.
+    ///
+    /// 'msgOpt' will display an error message in post inference checks
+    | Error of tyParOpt: TypeParameterSymbol option * msgOpt: string option
 
     static member GetFormalByRef(kind) =
         match kind with
@@ -3627,7 +3637,7 @@ type TypeSymbol =
 
         tyArgs
         |> ImArray.iter (fun tyArg ->
-            OlyAssert.False(tyArg.IsTypeConstructor)
+            OlyAssert.False(tyArg.IsTypeConstructor_steea)
         )
 
         OlyAssert.False(externalSolution.IsMostFlexible)
@@ -3642,14 +3652,17 @@ type TypeSymbol =
         OlyAssert.False(eagerTy.IsHigherInferenceVariable)
         OlyAssert.False(eagerTy.IsEagerInferenceVariable)
         OlyAssert.False(eagerTy.IsVariable)
-        OlyAssert.False(eagerTy.IsAlias)
+        OlyAssert.False(eagerTy.IsAlias_steea)
 #endif
         TypeSymbol.EagerInferenceVariable(solution, eagerTy)
 
     member this.ToInstantiation() =
         applyType this this.TypeArguments
 
-    member this.IsBuiltIn =
+    /// Is the type symbol a built-in type?
+    /// 
+    /// Strips type equations.
+    member this.IsBuiltIn_ste =
         match stripTypeEquations this with
         | BaseObject
         | Void
@@ -3681,24 +3694,19 @@ type TypeSymbol =
         | DependentIndexer _ -> true
         | _ -> false
 
-    member this.IsEagerInferenceVariable_t =
+    /// Is the type symbol an eager inference variable?
+    /// 
+    /// Strips type equations.
+    member this.IsEagerInferenceVariable_ste =
         match stripTypeEquations this with
         | EagerInferenceVariable _ -> true
         | _ -> false
 
-    member this.TryEagerType =
-        match stripTypeEquations this with
-        | EagerInferenceVariable(_, eagerTy) -> Some eagerTy
-        | _ -> None
-
-    member this.IsOrWasInferenceVariable =
-        match this with
-        | EagerInferenceVariable _ 
-        | InferenceVariable _
-        | HigherInferenceVariable _ -> true
-        | _ -> false
-
-    member this.IsRealUnit =
+    /// Is the type symbol a real unit type.
+    /// This means that the unit type will not be compiled to an IL void type.
+    /// 
+    /// Strips type equations.
+    member this.IsRealUnit_ste =
         stripTypeEquations this = TypeSymbolRealUnit 
 
     member this.Formal =
@@ -3787,22 +3795,10 @@ type TypeSymbol =
         | Error _ -> 
             "??"
 
-    /// Returns false for NativeInt or NativeUInt
-    /// TODO: rename to 'IsAnyFixedInteger'
-    member this.IsFixedInteger =
-        match stripTypeEquations this with
-        | TypeSymbol.UInt8
-        | TypeSymbol.Int8
-        | TypeSymbol.UInt16
-        | TypeSymbol.Int16
-        | TypeSymbol.UInt32
-        | TypeSymbol.Int32
-        | TypeSymbol.UInt64
-        | TypeSymbol.Int64 -> true
-        | _ -> false
-
-    /// TODO: rename to 'IsAnyInteger'
-    member this.IsInteger =
+    /// Is the type symbol any kind of integer.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyInteger_ste =
         match stripTypeEquations this with
         | TypeSymbol.UInt8
         | TypeSymbol.Int8
@@ -3816,27 +3812,47 @@ type TypeSymbol =
         | TypeSymbol.NativeUInt -> true
         | _ -> false
 
-    /// Is the type a float32 or float64?
-    member this.IsReal =
+    /// Is the type symbol any kind of integer except for NativeInt anddd NativeUInt.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyFixedInteger_ste =
+        match stripTypeEquations this with
+        | TypeSymbol.UInt8
+        | TypeSymbol.Int8
+        | TypeSymbol.UInt16
+        | TypeSymbol.Int16
+        | TypeSymbol.UInt32
+        | TypeSymbol.Int32
+        | TypeSymbol.UInt64
+        | TypeSymbol.Int64 -> true
+        | _ -> false
+
+    /// Is the type symbol any kind of float?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyFloat_ste =
         match stripTypeEquations this with
         | TypeSymbol.Float32
         | TypeSymbol.Float64 -> true
         | _ -> false
 
+    /// The name used in the debugger when debugging the Oly compiler.
+    /// Special cases a real unit type.
     member this.DebugName = 
-        if this.IsRealUnit then
+        if this.IsRealUnit_ste then
             "UNIT"
         else
-            if this.TypeArguments.IsEmpty && not(this.IsTypeConstructor) then
+            if this.TypeArguments.IsEmpty && not(this.IsTypeConstructor_steea) then
                 this.Name
             else
                 let prefix =
-                    if this.IsTypeConstructor then
+                    if this.IsTypeConstructor_steea then
                         "(type constructor) "
                     else
                         String.Empty    
-                prefix + this.Name + "<" + (this.TypeArguments |> Seq.map (fun x -> if this.IsTypeConstructor then "_" else x.DebugName) |> String.concat ", ") + ">"
+                prefix + this.Name + "<" + (this.TypeArguments |> Seq.map (fun x -> if this.IsTypeConstructor_steea then "_" else x.DebugName) |> String.concat ", ") + ">"
 
+    /// Strips type equations except alias.
     member this.Arity =
         match stripTypeEquationsExceptAlias this with
         | Variable(tyPar)
@@ -3879,6 +3895,7 @@ type TypeSymbol =
         | FixedArray _ -> 3
         | _ -> 0
 
+    /// Strips type equations except alias.
     member this.TypeParameters: TypeParameterSymbol imarray =
         match stripTypeEquationsExceptAlias this with
         | Unit
@@ -3925,6 +3942,7 @@ type TypeSymbol =
             // REVIEW: Perhaps higher inference variables ALWAYS need a type parameter associated with.
             tyArgs |> ImArray.mapi (fun i _ -> TypeParameterSymbol("_", i, 0, TypeParameterKind.Type, ref ImArray.empty))
 
+    /// Strips type equations except alias.
     member this.TypeArguments : TypeArgumentSymbol imarray =
         match stripTypeEquationsExceptAlias this with
         | Unit
@@ -3982,6 +4000,7 @@ type TypeSymbol =
         | InferenceVariable _ ->
             ImArray.empty
 
+    /// Strips type equations except alias.
     member this.FormalId =
         match stripTypeEquationsExceptAlias this with
         | Error _ -> 0L
@@ -4028,6 +4047,7 @@ type TypeSymbol =
         | DependentIndexer _ -> 40
         | Entity(ent) -> ent.FormalId
 
+    /// DOES NOT strip type equations.
     member this.Enclosing =
         match this with
         | Unit
@@ -4067,19 +4087,27 @@ type TypeSymbol =
         | Error _ -> EnclosingSymbol.RootNamespace
         | Entity(ent) -> ent.Enclosing
 
-    /// TODO: Rename to 'IsAnyTypeVariable'
-    member this.IsTypeVariable =
+    /// Is the type symbol a variable or higher variable?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyVariable_ste =
         match stripTypeEquations this with
         | Variable _
         | HigherVariable _ -> true
         | _ -> false
 
-    member this.IsTypeVariableZeroArity =
+    /// Is the type symbol a variable with zero arity?
+    /// 
+    /// Strips type equations.
+    member this.IsVariableZeroArity_ste =
         match stripTypeEquations this with
         | Variable(tyPar) -> tyPar.Arity = 0
         | _ -> false
 
-    member this.IsAnyTypeVariableWithNotStructConstraint =
+    /// Is the type symbol a variable or higher variable with a 'not struct' constraint?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyVariableWithNotStructConstraint_ste =
         match stripTypeEquations this with
         | Variable(tyPar)
         | HigherVariable(tyPar, _) ->
@@ -4090,7 +4118,10 @@ type TypeSymbol =
             )
         | _ -> false
 
-    member this.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint =
+    /// Is the type symbol a variable or higher variable without a 'struct', 'umanaged', 'blittable', or 'not struct' constraint?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste =
         match stripTypeEquations this with
         | Variable(tyPar)
         | HigherVariable(tyPar, _) ->
@@ -4105,22 +4136,31 @@ type TypeSymbol =
             |> not
         | _ -> false
 
-    member this.IsAnyNonStruct =
-        (not this.IsAnyStruct) || this.IsAnyTypeVariableWithNotStructConstraint
+    /// Is the type symbol any kind non-'struct' type? This includes checking type variables for constraint that make the variable a struct.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyNonStruct_ste =
+        (not this.IsAnyStruct_ste) || this.IsAnyVariableWithNotStructConstraint_ste
 
-    member this.IsTypeConstructor =
-        this.Arity > 0 && this.IsFormal
+    /// Is the type symbol a type constructor?
+    /// 
+    /// Strips type equations.
+    member this.IsTypeConstructor_steea =
+        this.Arity > 0 && this.IsFormal_steea
 
+    /// Strips type equations.
     member this.TryEnumUnderlyingType =
         match stripTypeEquations this with
         | Entity(ent) when ent.IsEnum -> Some(ent.UnderlyingTypeOfEnumOrNewtype)
         | _ -> None
 
+    /// Strips type equations.
     member this.Inherits =
         match stripTypeEquations this with
         | Entity(ent) -> ent.Extends
         | _ -> ImArray.empty
 
+    /// Strips type equations.
     member this.Implements =
         match stripTypeEquations this with
         | Entity(ent) -> ent.Implements
@@ -4142,22 +4182,37 @@ type TypeSymbol =
             )
         | _ -> ImArray.empty
 
-    // TODO: Rename this to TryEntityNoAlias.
-    member this.TryEntity: EntitySymbol voption =
+    /// Try to extract the entity out of the type symbol.
+    /// The returned entity will never be an alias.
+    ///
+    /// Strips type equations.
+    member this.TryEntityNoAlias: EntitySymbol voption =
         match stripTypeEquations this with
         | Entity(ent) -> ValueSome(ent)
         | _ -> ValueNone
 
+    /// Convert the type symbol to an entity symbol.
+    ///
+    /// Throws an exception if the conversion fails.
+    ///
+    /// Strips type equations except alias.
     member this.AsEntity: EntitySymbol =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
 
+    /// Convert the type symbol to an entity symbol.
+    /// The returned entity will never be an alias.
+    ///
+    /// Throws an exception if the conversion fails.
+    ///
+    /// Strips type equations.
     member this.AsEntityNoAlias: EntitySymbol =
         match stripTypeEquations this with
         | Entity(ent) -> ent
         | _ -> OlyAssert.Fail("Expected type to be an entity.")
 
+    /// Strips type equations.
     member this.TryTypeParameter =
         match stripTypeEquations this with
         | Variable(tyPar)
@@ -4167,10 +4222,11 @@ type TypeSymbol =
         | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
-    // TODO: Rename to 'TryImmediateTypeParameter'.
     /// Try to get a type parameter without stripping the type.
-    // TODO: We need to remove TryImmediateTypeParameter and avoid having to rely on it.
-    member this.TryImmedateTypeParameter =
+    /// TODO: We need to remove TryImmediateTypeParameter and avoid having to rely on it.
+    ///
+    /// DOES NOT strip type equations.
+    member this.TryImmediateTypeParameter =
         match this with
         | Variable(tyPar)
         | HigherVariable(tyPar, _)
@@ -4179,32 +4235,45 @@ type TypeSymbol =
         | Error(Some tyPar, _) -> ValueSome tyPar
         | _ -> ValueNone
 
+    /// DOES NOT strip type equations.
     member this.HasImmediateNonVariadicInferenceVariableTypeParameter =
         match this with
         | InferenceVariable(Some tyPar, _) -> not tyPar.IsVariadic
         | HigherInferenceVariable(_, _, _, _) -> true
         | _ -> false
 
-    member this.IsAnyFunction =
+    /// Is the type symbol any kind of function type? Includes Function, NativeFunctionPtr, and ForAll(Function).
+    /// 
+    /// Strips type equations.
+    member this.IsAnyFunction_ste =
         match stripTypeEquations this with
         | Function _
         | NativeFunctionPtr _
         | ForAll(_, TypeSymbol.Function _) -> true
         | _ -> false
 
-    member this.IsFunctionNotPtr =
+    /// Is the type symbol a Function or ForAll(Function).
+    /// 
+    /// Strips type equations.
+    member this.IsFunctionNotPtr_ste =
         match stripTypeEquations this with
         | Function _
         | ForAll(_, TypeSymbol.Function _) -> true
         | _ -> false
 
-    member this.IsScopedFunction =
+    /// Is the type symbol a scoped Function or ForAll(scopedFunction).
+    /// 
+    /// Strips type equations.
+    member this.IsScopedFunction_ste =
         match stripTypeEquations this with
         | Function(kind=FunctionKind.Scoped)
         | ForAll(_, TypeSymbol.Function(kind=FunctionKind.Scoped)) -> true
         | _ -> false
 
-    member this.IsScoped =
+    /// Is the type symbol a scoped type?
+    /// 
+    /// Strips type equations.
+    member this.IsScoped_ste =
         match stripTypeEquations this with
         | ByRef _ -> true
         | Entity(ent) -> ent.Flags.HasFlag(EntityFlags.Scoped)
@@ -4215,127 +4284,199 @@ type TypeSymbol =
                 | ConstraintSymbol.Scoped -> true
                 | _ -> false
             )
-        | this -> this.IsScopedFunction
+        | this -> this.IsScopedFunction_ste
 
-    member this.IsNativeFunctionPtr_t =
+    /// Is the type symbol a NativeFunctionPtr?
+    /// 
+    /// Strips type equations.
+    member this.IsNativeFunctionPtr_ste =
         match stripTypeEquations this with
         | NativeFunctionPtr _ -> true
         | _ -> false
 
-    member this.IsUnit_t =
+    /// Is the type symbol a unit type?
+    /// 
+    /// Strips type equations.
+    member this.IsUnit_ste =
         match stripTypeEquations this with
         | TypeSymbol.Unit -> true
         | _ -> false
 
-    member this.IsVoid_t =
+    /// Is the type symbol a unit type?
+    /// 
+    /// Strips type equations.
+    member this.IsVoid_ste =
         match stripTypeEquations this with
         | TypeSymbol.Void -> true
         | _ -> false
 
-    member this.IsError_t =
+    /// Is the type symbol an error for the compiler?
+    /// 
+    /// Strips type equations.
+    member this.IsError_ste =
         match stripTypeEquations this with
         | Error _ -> true
         | _ -> false
 
+    /// Strips type equations.
     member this.HasTypeVariableArity =
         match stripTypeEquations this with
         | Variable(tyPar) -> tyPar.HasArity
         | HigherVariable _ -> true
         | _ -> false
 
-    member this.IsQuantifiedFunction =
+    /// Is the type symbol any kind of function that needs to be computed from a ForAll? ForAll(any Function).
+    /// 
+    /// Strips type equations.
+    member this.IsQuantifiedFunction_ste =
         match stripTypeEquations this with
-        | ForAll(_, ty) -> ty.IsAnyFunction
+        | ForAll(_, ty) -> ty.IsAnyFunction_ste
         | _ -> false
 
-    member this.IsTypeExtension =
-        match this.TryEntity with
+    /// Is the type symbol a type extension?
+    /// 
+    /// Strips type equations.
+    member this.IsTypeExtension_ste =
+        match this.TryEntityNoAlias with
         | ValueSome ent -> ent.IsTypeExtension
         | _ -> false
 
-    member this.IsEnum =
-        match this.TryEntity with
+    /// Is the type symbol an enum?
+    /// 
+    /// Strips type equations.
+    member this.IsEnum_ste =
+        match this.TryEntityNoAlias with
         | ValueSome ent -> ent.IsEnum
         | _ -> false
 
-    member this.IsShape =
-        match this.TryEntity with
+    /// Is the type symbol a shape?
+    /// 
+    /// Strips type equations.
+    member this.IsShape_ste =
+        match this.TryEntityNoAlias with
         | ValueSome(ent) -> ent.IsShape
         | _ -> false
 
-    member this.IsAnonymous =
-        match this.TryEntity with
+    /// Is the type symbol an anonymous type?
+    /// 
+    /// Strips type equations.
+    member this.IsAnonymous_ste =
+        match this.TryEntityNoAlias with
         | ValueSome(ent) -> ent.IsAnonymous
         | _ -> false
 
-    member this.IsAnonymousShape =
-        match this.TryEntity with
+    /// Is the type symbol an anonymous shape?
+    /// 
+    /// Strips type equations.
+    member this.IsAnonymousShape_ste =
+        match this.TryEntityNoAlias with
         | ValueSome(ent) -> ent.IsAnonymousShape
         | _ -> false
 
-    member this.IsInterface =
-        match this.TryEntity with
+    /// Is the type symbol an interface?
+    /// 
+    /// Strips type equations.
+    member this.IsInterface_ste =
+        match this.TryEntityNoAlias with
         | ValueSome ent -> ent.IsInterface
         | _ -> false
 
-    member this.IsAbstract =
-        match this.TryEntity with
+    /// Is the type symbol an abstract type?
+    /// 
+    /// Strips type equations.
+    member this.IsAbstract_ste =
+        match this.TryEntityNoAlias with
         | ValueSome ent -> ent.IsAbstract
         | _ -> false
 
-    /// Returns true if the type is a class type.
-    member this.IsClass =
+    /// Is the type symbol a class?
+    /// 
+    /// Strips type equations.
+    member this.IsClass_ste =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsClass
-        | BaseObject 
-        | Utf16
-        | RefCell _
-        | Tuple _ 
-        | Array _ 
-        | Function _ -> true
         | _ -> false
 
-    member this.IsAlias: bool =
+    /// Is the type symbol an alias?
+    /// 
+    /// Strips type equations except alias.
+    member this.IsAlias_steea: bool =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> ent.IsAlias
         | _ -> false
 
-    member this.IsAliasAndNotCompilerIntrinsic =
-        this.IsAlias && (not this.AsEntity.IsCompilerIntrinsic)
+    /// Is the type symbol an alias and not a compiler intrinsic?
+    /// 
+    /// Strips type equations.
+    member this.IsAliasAndNotCompilerIntrinsic_ste =
+        this.IsAlias_steea && (not this.AsEntity.IsCompilerIntrinsic)
 
-    member this.IsClosure =
+    /// Is the type symbol a closure?
+    /// 
+    /// Strips type equations.
+    member this.IsClosure_ste =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsClosure
         | _ -> false
 
-    member this.IsModule =
-        match this.TryEntity with
+    /// Is the type symbol a module?
+    /// 
+    /// Strips type equations.
+    member this.IsModule_ste =
+        match this.TryEntityNoAlias with
         | ValueSome ent -> ent.IsModule
         | _ -> false
 
-    /// TODO: rename to 'IsAnyByRef'
-    member this.IsByRef_t =
+    /// Is the type symbol a reference type?
+    /// 
+    /// Strips type equations.
+    member this.IsReference_ste =
+        match stripTypeEquations this with
+        | Entity(ent) -> ent.IsClass || ent.IsInterface
+        | BaseObject 
+        | Utf16
+        | RefCell _
+        | Array _ 
+        | Function _ -> true
+        | _ -> false
+
+    /// Is the type symbol any kind of byref type?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyByRef_ste =
         match stripTypeEquations this with
         | TypeSymbol.ByRef _ -> true
         | _ -> false
 
-    member this.IsNativePtr_t =
+    /// Is the type symbol a NativePtr?
+    /// 
+    /// Strips type equations.
+    member this.IsNativePtr_ste =
         match stripTypeEquations this with
         | TypeSymbol.NativePtr _ -> true
         | _ -> false
 
-    member this.IsAnyArray =
+    /// Is the type symbol any kind of array? Incluedes fixed and non-fixed array types.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyArray_ste =
         match stripTypeEquations this with
         | TypeSymbol.Array _ 
         | TypeSymbol.FixedArray _ -> true
         | _ -> false
 
-    member this.IsAnyFixedArray =
+    /// Is the type symbol any kind of fixed array?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyFixedArray_ste =
         match stripTypeEquations this with
         | TypeSymbol.FixedArray _ -> true
         | _ -> false
 
-    member this.IsAnyNonFixedArray =
+    /// Is the type symbol any kind of non-fixed array?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyNonFixedArray_ste =
         match stripTypeEquations this with
         | TypeSymbol.Array _ -> true
         | _ -> false
@@ -4378,7 +4519,7 @@ type TypeSymbol =
 
     member this.IsReadOnlyByRefOfAnyStruct =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsAnyStruct
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsAnyStruct_ste
         | _ -> false
 
     member this.IsReadWriteByRef =
@@ -4388,7 +4529,7 @@ type TypeSymbol =
 
     member this.IsReadWriteByRefOfAnyStruct =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite) -> ty.IsAnyStruct
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite) -> ty.IsAnyStruct_ste
         | _ -> false
 
     member this.TryByReferenceElementType =
@@ -4431,7 +4572,10 @@ type TypeSymbol =
         | TypeSymbol.Variable(tyPar) -> tyPar.IsVariadic
         | _ -> false
 
-    member this.IsStruct =
+    /// Is the type symbol a struct? TODO: This isn't just looking for a entity struct, but looks at other value types. We should change the name to something more consistent. 'IsStruct' should only mean an entity struct.
+    /// 
+    /// Strips type equations.
+    member this.IsStruct_ste =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsStruct
         | Int8
@@ -4453,7 +4597,11 @@ type TypeSymbol =
         | _ -> false
 
     /// TODO: Exclude looking at type variables.
-    member this.IsAnyStruct =
+    /// TODO: Rename to 'IsValue_ste'.
+    /// Is the type symbol any kind of 'struct' type?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyStruct_ste =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsAnyStruct
         | Int8
@@ -4534,7 +4682,7 @@ type TypeSymbol =
         | EagerInferenceVariable _ -> false
         | _ -> true
 
-    member this.IsFormal =
+    member this.IsFormal_steea =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> obj.ReferenceEquals(ent, ent.Formal)
         | ForAll _ -> true
@@ -4704,7 +4852,7 @@ type TypeSymbol =
 
     static member CreateFunctionChecked(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
         let inputTy =
-            if inputTy.HasImmediateNonVariadicInferenceVariableTypeParameter || (not inputTy.IsSolved && inputTy.TryImmedateTypeParameter.IsNone) then
+            if inputTy.HasImmediateNonVariadicInferenceVariableTypeParameter || (not inputTy.IsSolved && inputTy.TryImmediateTypeParameter.IsNone) then
                 TypeSymbol.Tuple(ImArray.createOne inputTy, ImArray.empty)
             else
                 inputTy
@@ -5061,7 +5209,7 @@ module SymbolExtensions =
             member this.AsProperty = this :?> IPropertySymbol
 
             member this.MorphShapeConstructor(concreteTy, shapeTy: TypeSymbol) =
-                OlyAssert.True(shapeTy.IsShape)
+                OlyAssert.True(shapeTy.IsShape_ste)
                 OlyAssert.True(this.IsInstanceConstructor)
                 match this with
                 | :? IFunctionSymbol as func when func.IsInstanceConstructor ->
@@ -5531,7 +5679,7 @@ module SymbolExtensions =
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsStruct
+                    | Some realTy -> realTy.IsStruct_ste
                     | _ -> false
                 | _ ->
                     false
@@ -5542,11 +5690,11 @@ module SymbolExtensions =
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsAnyStruct
+                    | Some realTy -> realTy.IsAnyStruct_ste
                     | _ -> false
                 | EntityKind.Enum
-                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsAnyStruct
-                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct
+                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsAnyStruct_ste
+                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct_ste
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false
@@ -5756,7 +5904,7 @@ module OtherExtensions =
                     | _ ->
                         false
             | _ -> 
-                if this.IsBuiltIn then
+                if this.IsBuiltIn_ste then
                     outTy <- this
                     true
                 else
@@ -5936,7 +6084,7 @@ module SymbolHelpers =
             let tyArgs =
                 (extendTy.TypeArguments, tyArgs)
                 ||> ImArray.choose2 (fun ty tyArg ->
-                    if ty.IsTypeVariable then
+                    if ty.IsAnyVariable_ste then
                         mkSolvedInferenceVariableType ty.TryTypeParameter.Value tyArg
                         |> Some
                     else
@@ -5959,7 +6107,7 @@ module SymbolHelpers =
                 this
             else
                 match tyParLookup.TryGetValue this.Id with
-                | true, ty -> ty.TryImmedateTypeParameter.Value
+                | true, ty -> ty.TryImmediateTypeParameter.Value
                 | _ -> this
 
     type WitnessSolution with
@@ -5982,7 +6130,7 @@ module SymbolHelpers =
                         //            Otherwise it would create a type that is not a type constructor and
                         //            make the constraint solutions invalid.
                         match witness with
-                        | WitnessSymbol.Type(ty) when not ty.IsTypeConstructor ->
+                        | WitnessSymbol.Type(ty) when not ty.IsTypeConstructor_steea ->
                             WitnessSymbol.Type(ty.Substitute(tyParLookup))
                         | WitnessSymbol.TypeExtension(tyExt, funcOpt) when not tyExt.IsTypeConstructor ->
                             let funcOpt =
@@ -6017,7 +6165,7 @@ module SymbolHelpers =
                 substituteType tyArgs ty
 
         member this.GetClosureInvoke() =
-            OlyAssert.Equal(true, this.IsClosure)
+            OlyAssert.Equal(true, this.IsClosure_ste)
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) ->
                 ent.Functions |> ImArray.filter (fun x -> not x.IsConstructor) |> Seq.head
@@ -6073,12 +6221,12 @@ let assertNoForAllTypes (func: IFunctionSymbol) =
         | TypeSymbol.ForAll _ -> OlyAssert.Fail("Parameters cannot be typed with 'ForAll'.")
         | _ -> ()
 
-        if par.Type.IsTypeVariable then ()
-        elif par.Type.IsTypeConstructor && enclosingTy.FormalId <> par.Type.FormalId then 
+        if par.Type.IsAnyVariable_ste then ()
+        elif par.Type.IsTypeConstructor_steea && enclosingTy.FormalId <> par.Type.FormalId then 
             
             // REVIEW/TODO: This is a little strange, but two shapes can be considered equivelant across assembly boundaries.
             //              Maybe the "FormalId" check above is just bad as we can't rely on it.
-            if not enclosingTy.IsAnonymousShape && not par.Type.IsAnonymousShape then
+            if not enclosingTy.IsAnonymousShape_ste && not par.Type.IsAnonymousShape_ste then
                 OlyAssert.Fail("Parameters cannot be typed with a non-variable type constructor.")
     )
 
@@ -6086,8 +6234,8 @@ let assertNoForAllTypes (func: IFunctionSymbol) =
     | TypeSymbol.ForAll _ -> OlyAssert.Fail("Return types cannot be 'ForAll'.")
     | _ -> ()
 
-    if func.ReturnType.IsTypeVariable then ()
-    elif func.ReturnType.IsTypeConstructor && enclosingTy.FormalId <> func.ReturnType.FormalId then OlyAssert.Fail("Return types cannot be a non-variable type constructor.")
+    if func.ReturnType.IsAnyVariable_ste then ()
+    elif func.ReturnType.IsTypeConstructor_steea && enclosingTy.FormalId <> func.ReturnType.FormalId then OlyAssert.Fail("Return types cannot be a non-variable type constructor.")
 #endif
     ()
 

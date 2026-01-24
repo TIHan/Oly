@@ -71,14 +71,14 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
     (**)
 
     let getDefaultExtendType (ty: TypeSymbol) =
-        if ty.IsEnum then
+        if ty.IsEnum_ste then
             // DEFAULT
             match env.benv.implicitExtendsForEnum with
             | Some(extendsTy) ->
                 extendsTy
             | _ ->
                 TypeSymbol.BaseObject
-        elif ty.IsAnyStruct then
+        elif ty.IsAnyStruct_ste then
             // DEFAULT
             match env.benv.implicitExtendsForStruct with
             | Some(extendsTy) ->
@@ -120,7 +120,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 extends 
             else
                 let runtimeTy = extends[0]
-                if not runtimeTy.IsInteger then
+                if not runtimeTy.IsAnyInteger_ste then
                     cenv.diagnostics.Error($"'{printEntity env.benv ent}' can only extend integers.", 10, syntaxNode)
                 entBuilder.SetRuntimeType(cenv.pass, runtimeTy, MemberFlags.Private, "value", ValueFlags.Generated)
                 ImArray.empty
@@ -149,7 +149,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
             else
                 ent.Extends
                 |> Seq.iter (fun ty ->
-                    if ty.IsShape then
+                    if ty.IsShape_ste then
                         cenv.diagnostics.Error(sprintf "'%s' is not extendable through a type extension." (printType env.benv ty), 10, syntaxNode)
                 )
         elif not ent.IsInterface && not ent.IsNewtype then
@@ -166,7 +166,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
         implements
         |> ImArray.iter (fun implementsTy ->
-            if not implementsTy.IsInterface then
+            if not implementsTy.IsInterface_ste then
                 cenv.diagnostics.Error(sprintf "Cannot implement non-interfaces.", 10, syntaxNode)
         )
 
@@ -196,7 +196,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then
-                            if not extendTy.IsAnyStruct || extendTy.IsTypeVariable then
+                            if not extendTy.IsAnyStruct_ste || extendTy.IsAnyVariable_ste then
                                 cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.", 10, syntaxIdent)
                                 ValueFlags.None
                             else
@@ -222,7 +222,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 // Lack of 'T1' uses makes 'ExampleAlias' a phantom type.
                 // If this were supported for extensions, because this is an alias, '__oly_int32' does not know what 'T1' will ever be.
                 // However, intrinsic alias types can never be phantom types.
-                if not extends.IsEmpty && extends[0].IsAliasAndNotCompilerIntrinsic then
+                if not extends.IsEmpty && extends[0].IsAliasAndNotCompilerIntrinsic_ste then
                     cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is an alias and cannot be used with a type extension.", 10, syntaxExtends.Children[1])
                     ImArray.createOne(TypeSymbolError), implements
                 else
@@ -236,13 +236,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         let extends =
             extends
             |> ImArray.filter (fun x -> 
-                match x.TryEntity with
+                match x.TryEntityNoAlias with
                 | ValueSome(x) ->
                     let notValid =
                         x.Formal.AllInherits.Add(x.Formal.AsType)
                         |> TypeSymbol.Distinct
                         |> Seq.exists (fun x ->
-                            match x.TryEntity with
+                            match x.TryEntityNoAlias with
                             | ValueSome(x) -> x.FormalId = ent.FormalId
                             | _ -> false
                         )
@@ -259,13 +259,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         let implements =
             implements
             |> ImArray.filter (fun x -> 
-                match x.TryEntity with
+                match x.TryEntityNoAlias with
                 | ValueSome(x) ->
                     let notValid =
                         x.Formal.AllImplements.Add(x.Formal.AsType)
                         |> TypeSymbol.Distinct
                         |> Seq.exists (fun x ->
-                            match x.TryEntity with
+                            match x.TryEntityNoAlias with
                             | ValueSome(x) -> x.FormalId = ent.FormalId
                             | _ -> false
                         )

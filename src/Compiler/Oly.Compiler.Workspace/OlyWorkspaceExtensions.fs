@@ -133,15 +133,15 @@ let private classifyTypeKind (tySymbol: OlyTypeSymbol) =
     if tySymbol.IsTypeParameter then
         OlyClassificationKind.TypeParameter
     elif tySymbol.IsEnum then
-        if tySymbol.IsStruct then
+        if tySymbol.IsValue then
             OlyClassificationKind.EnumStruct
         else
             OlyClassificationKind.Enum
-    elif tySymbol.IsStruct then
+    elif tySymbol.IsValue then
         OlyClassificationKind.Struct
     elif tySymbol.IsInterface then
         OlyClassificationKind.Interface
-    elif tySymbol.IsClass then
+    elif tySymbol.IsReference then
         OlyClassificationKind.Class
     elif tySymbol.IsShape then
         OlyClassificationKind.Shape

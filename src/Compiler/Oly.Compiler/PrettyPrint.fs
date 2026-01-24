@@ -57,7 +57,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             printEntityAux benv isDefinition ent   
 
     | TypeSymbol.Tuple(tyArgs, names) -> 
-        if ty.IsRealUnit then
+        if ty.IsRealUnit_ste then
             "(())"
         elif Seq.isEmpty tyArgs then
             "()"
@@ -84,7 +84,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
 
         let elementText = printTypeAux benv isDefinition false elementTy
         let elementText =
-            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction then
+            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction_ste then
                 "(" + elementText + ")"
             else
                 elementText
@@ -107,7 +107,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.FixedArray(elementTy, lengthTy, kind) -> 
         let elementText = printTypeAux benv isDefinition false elementTy
         let elementText =
-            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction then
+            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction_ste then
                 "(" + elementText + ")"
             else
                 elementText
@@ -162,7 +162,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
         if solution.HasSolution && solution.Solution.IsSolved then
             match tyPar with
-            | Some tyPar when not tyPar.IsVariadic && solution.Solution.IsUnit_t ->
+            | Some tyPar when not tyPar.IsVariadic && solution.Solution.IsUnit_ste ->
                 "(())"
             | _ ->
                 printTypeAux benv isDefinition isTyCtor solution.Solution
@@ -269,7 +269,7 @@ and private printEntityAux (benv: BoundEnvironment) isDefinition (ent: EntitySym
             sprintf "%s%s"
                 (
                     let ty = tyArgs[0]
-                    if ty.IsAnyFunction then
+                    if ty.IsAnyFunction_ste then
                         "(" + printTypeAux benv isDefinition true ty + ")"
                     else
                         printTypeAux benv isDefinition true ty
@@ -358,12 +358,12 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
                         | ConstraintSymbol.Scoped ->
                             "scoped"
                         | ConstraintSymbol.SubtypeOf(ty) ->
-                            let isTyCtor = ty.Value.IsTypeConstructor
+                            let isTyCtor = ty.Value.IsTypeConstructor_steea
                             printTypeAux benv false isTyCtor ty.Value
                         | ConstraintSymbol.ConstantType(ty) ->
                             "constant " + printTypeAux benv (* isDefinition *) false (* isTyCtor *) false ty.Value
                         | ConstraintSymbol.TraitType(ty) ->
-                            let isTyCtor = ty.Value.IsTypeConstructor
+                            let isTyCtor = ty.Value.IsTypeConstructor_steea
                             "trait " + printTypeAux benv false isTyCtor ty.Value
                     )
                     |> String.concat ", "
@@ -473,7 +473,7 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             else
                 let printedOutput = 
                     let returnTy = func.ReturnType
-                    if returnTy.IsShape then // handles anonymous shapes with ctors, ex: '{ new() }'
+                    if returnTy.IsShape_ste then // handles anonymous shapes with ctors, ex: '{ new() }'
                         String.Empty
                     else
                         printTypeAux benv false false func.ReturnType

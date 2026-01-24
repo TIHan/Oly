@@ -296,29 +296,31 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         ty.FindNestedEntities(BoundEnvironment.Empty, None, ResolutionTypeArity.Any)
         |> ImArray.map (fun x -> OlyTypeSymbol(x.AsType))
 
-    member _.IsInterface = ty.IsInterface
+    member _.IsInterface = ty.IsInterface_ste
 
-    member _.IsTypeExtension = ty.IsTypeExtension
+    member _.IsTypeExtension = ty.IsTypeExtension_ste
 
-    member _.IsEnum = ty.IsEnum
+    member _.IsEnum = ty.IsEnum_ste
 
-    member _.IsClass = ty.IsClass
+    /// Is type symbol a reference type?
+    member _.IsReference = ty.IsReference_ste
 
-    member _.IsShape = ty.IsShape
+    member _.IsShape = ty.IsShape_ste
 
     member _.IsTuple = ty.IsAnyTuple
 
-    member _.IsStruct = ty.IsAnyStruct
+    /// Is type symbol a reference type?
+    member _.IsValue = ty.IsAnyStruct_ste
 
-    member _.IsBuiltIn = ty.IsBuiltIn
+    member _.IsBuiltIn = ty.IsBuiltIn_ste
 
-    member _.IsModule = ty.IsModule
+    member _.IsModule = ty.IsModule_ste
 
-    member _.IsAlias = ty.IsAlias
+    member _.IsAlias = ty.IsAlias_steea
 
-    member _.IsUnit = ty.IsUnit_t
+    member _.IsUnit = ty.IsUnit_ste
 
-    member _.IsAnyArray = ty.IsAnyArray
+    member _.IsAnyArray = ty.IsAnyArray_ste
 
     /// Is it an immutable array?
     member _.IsArray = ty.IsArray
@@ -326,7 +328,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     /// Is it a mutable array?
     member _.IsMutableArray = ty.IsMutableArray_t
 
-    member _.IsTypeAnyByRef = ty.IsByRef_t
+    member _.IsTypeAnyByRef = ty.IsAnyByRef_ste
 
     member _.GetTupleItemSignatureTexts() =
         match stripTypeEquations ty with
@@ -404,7 +406,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
                     | TypeSymbol.Int64 
                     | TypeSymbol.Float64 -> 8
                     | ty ->
-                        if ty.IsAnyStruct then
+                        if ty.IsAnyStruct_ste then
                             let mutable isValid = true
                             let fieldBytes =
                                 ty.GetInstanceFields()
@@ -1031,7 +1033,7 @@ type OlySymbolUseInfo internal (symbol: OlySymbol, subModel: OlyBoundSubModel) =
         let benv = this.InternalEnvironment
         if symbol.IsType then
             let ty = symbol.AsType.Internal
-            if ty.IsAlias then
+            if ty.IsAlias_steea then
                 match ty with
                 | TypeSymbol.Entity(ent) ->
                     if ent.Extends.IsEmpty then
@@ -1495,7 +1497,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode
 
 let private getTypeSymbolByIdentifier (bm: OlyBoundModel) (collector: ISymbolCollector) (syntaxIdent: OlySyntaxToken) (boundNode: IBoundNode) (ty: TypeSymbol) =
     if collector.FilterSyntax syntaxIdent then
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) when ent.IsNamespace ->
             collector.CollectSymbol(OlySymbolUseInfo(OlyNamespaceSymbol(ent), OlyBoundSubModel(bm, syntaxIdent, boundNode)))
         | _ ->
@@ -1515,7 +1517,7 @@ let private getTypeSymbolByName bm (collector: ISymbolCollector) (syntaxName: Ol
 
     | OlySyntaxName.Qualified _ ->
 
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) ->
             (ent.AsEnclosing, syntaxName.AllNames |> List.rev)
             ||> List.fold (fun enclosing syntaxName ->

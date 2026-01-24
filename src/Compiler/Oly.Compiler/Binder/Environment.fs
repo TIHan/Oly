@@ -151,7 +151,7 @@ type BinderEnvironment =
             env
 
     member this.TryFindConcreteEntityByType(ty: TypeSymbol) =
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent -> ValueSome ent
         | _ -> this.TryFindIntrinsicType ty
 
@@ -193,12 +193,12 @@ type BinderEnvironment =
         if arity < 0 then
             invalidArg (nameof(arity)) "Less than zero."
 
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent when ent.IsNamespace -> failwith "Cannot add a namespace as a type."
         | _  ->
 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
 #endif
 
@@ -208,7 +208,7 @@ type BinderEnvironment =
             | _ -> NameMap.empty
         let arityGroup = 
             // Type variables and locals will override what's in scope.
-            if ty.IsTypeVariable || ty.Enclosing.IsLocalEnclosing then
+            if ty.IsAnyVariable_ste || ty.Enclosing.IsLocalEnclosing then
                 arityGroup.SetItem(name, ImArray.createOne ty)
             else
                 match arityGroup.TryGetValue(name) with
@@ -218,8 +218,8 @@ type BinderEnvironment =
                         tys 
                         |> ImArray.exists (fun x -> 
                             (
-                                if x.IsAlias then
-                                    match ty.TryEntity with
+                                if x.IsAlias_steea then
+                                    match ty.TryEntityNoAlias with
                                     | ValueSome _ ->
                                         areEntitiesEqual x.AsEntity ty.AsEntity
                                     | _ ->
@@ -251,13 +251,13 @@ type BinderEnvironment =
         if arity < 0 then
             invalidArg (nameof(arity)) "Less than zero."
 
-        match ty.TryEntity with
-        | ValueSome ent when ent.IsNamespace && not(ty.IsAlias) -> 
+        match ty.TryEntityNoAlias with
+        | ValueSome ent when ent.IsNamespace && not(ty.IsAlias_steea) -> 
             OlyAssert.Fail("Cannot add a namespace as a type.")
         | _ ->
 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
 #endif
 
@@ -273,7 +273,7 @@ type BinderEnvironment =
             tys
             |> ImArray.iter (fun ty ->
                 OlyAssert.True(ty.IsSolved)
-                if ty.IsTypeExtension then
+                if ty.IsTypeExtension_ste then
                     if ty.Inherits.Length > 0 then
                         OlyAssert.True(ty.Inherits[0].IsSolved)
                         OlyAssert.Equal(1, ty.Inherits.Length)
@@ -607,7 +607,7 @@ type BinderEnvironment =
 
                 let tyExts2 = tyExts.AddRange(funcs.AddRange(props))
 
-                if extendsTy.IsError_t then
+                if extendsTy.IsError_ste then
                     typeExtensionMembers
                 else
                     OlyAssert.True(extendsTy.IsSolved)
@@ -634,7 +634,7 @@ type BinderEnvironment =
                 let tyExts2 = 
                     (tyExts, implementsTys)
                     ||> Seq.fold (fun tyExts ty ->
-                        match ty.TryEntity with
+                        match ty.TryEntityNoAlias with
                         | ValueSome withEnt when withEnt.IsInterface ->
                             tyExts.SetItem(withEnt, tyExt)
                         | _ ->
@@ -697,10 +697,10 @@ type BinderEnvironment =
         | true, UnqualifiedSymbol.FunctionGroup funcGroup ->
             funcGroup.Functions
             |> ImArray.exists (fun func ->
-                func.IsPatternFunction && func.ReturnType.IsUnit_t
+                func.IsPatternFunction && func.ReturnType.IsUnit_ste
             )
         | true, UnqualifiedSymbol.Function(func) ->
-            func.IsPatternFunction && func.ReturnType.IsUnit_t
+            func.IsPatternFunction && func.ReturnType.IsUnit_ste
 
         | true, UnqualifiedSymbol.Field(field) when field.Constant.IsSome ->
             true

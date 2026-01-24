@@ -54,7 +54,7 @@ let private canScore (func: IFunctionSymbol) =
 
     if argTys.IsEmpty then
         None
-    elif argTys.Length = 1 && argTys[0].IsAnyFunction then
+    elif argTys.Length = 1 && argTys[0].IsAnyFunction_ste then
         Some(argTys)
     else
         let rec exists (tys: TypeSymbol imarray) =
@@ -117,13 +117,13 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
         let ty = stripTypeEquationsAndBuiltIn ty
 
         // Error does not necessarily mean there was an error, this could be coming from the return type of a FunctionGroup.
-        if ty.IsError_t then
+        if ty.IsError_ste then
             (currentRigidWeight, currentWeight)
         else
-            if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
+            if ((ty.IsSolved || (ty.IsEagerInferenceVariable_ste && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
                 let currentWeight = currentWeight + 1
                 let currentRigidWeight =
-                    if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsTypeVariable && ty.IsTypeVariable) then
+                    if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsAnyVariable_ste && ty.IsAnyVariable_ste) then
                         currentRigidWeight + 1
                     else
                         currentRigidWeight
@@ -228,7 +228,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy ->
                     match argTy.TryGetFunctionWithParameters() with
-                    | ValueSome(argTys, _) when par.Type.IsAnyFunction -> 
+                    | ValueSome(argTys, _) when par.Type.IsAnyFunction_ste -> 
                         match par.Type.TryGetFunctionWithParameters() with
                         | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
                             // Variadic variables will always return true.

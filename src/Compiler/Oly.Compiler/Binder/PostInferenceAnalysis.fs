@@ -95,7 +95,7 @@ let reportExpressionOutOfScope acenv (syntaxNode: OlySyntaxNode) =
     acenv.cenv.diagnostics.Error($"Expression is scoped and might escape its scope at this point.", 10, syntaxNode)
 
 let reportAddressValueCannotBeCaptured acenv (syntaxNode: OlySyntaxNode) (value: IValueSymbol) =
-    OlyAssert.True(value.Type.IsScoped)
+    OlyAssert.True(value.Type.IsScoped_ste)
     acenv.cenv.diagnostics.Error($"'{value.Name}' is an address and cannot be captured.", 10, syntaxNode)
 
 let reportRestrictedTypeParameter acenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
@@ -191,7 +191,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
         )
 
     | TypeSymbol.NativePtr(elementTy) ->
-        if not elementTy.IsVoid_t then
+        if not elementTy.IsVoid_ste then
             analyzeType acenv aenv syntaxNode elementTy
 
     | TypeSymbol.Void ->
@@ -420,14 +420,14 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                 | ValueSome(WellKnownFunction.LoadNullPtr) ->
                     func.TypeArguments
                     |> ImArray.iter (fun tyArg ->
-                        if not tyArg.IsVoid_t then
+                        if not tyArg.IsVoid_ste then
                             analyzeType acenv aenv syntaxNode tyArg
                     )
 
                 | ValueSome(WellKnownFunction.UnsafeCast) ->
                     func.TypeArguments
                     |> ImArray.iter (fun tyArg ->
-                        if not tyArg.IsVoid_t then
+                        if not tyArg.IsVoid_ste then
                             analyzeTypePermitByRef acenv aenv syntaxNode tyArg
                     )
 
@@ -435,7 +435,7 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                     ()
 
                 match stripTypeEquations func.ReturnType with
-                | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_t -> ()
+                | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_ste -> ()
                 | _ ->
                     analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
             | _ ->
@@ -722,7 +722,7 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
         if not ty.IsNullable && ty.IsSolved then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        if not ty.IsAnyStruct && not ty.IsNullable && ty.IsSolved && not isUnchecked then
+        if not ty.IsAnyStruct_ste && not ty.IsNullable && ty.IsSolved && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->
@@ -829,8 +829,8 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
     | AddressOf(E.GetField(receiver=AddressOf(E.Value(value=value)))) ->
         createScopeResult false value
 
-    | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) when value.Type.IsScoped ->
-        if value.Type.IsByRef_t then
+    | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) when value.Type.IsScoped_ste ->
+        if value.Type.IsAnyByRef_ste then
             createScopeResultForReceiver value
         else
             // TODO: What is this doing here again?
@@ -851,16 +851,16 @@ and analyzeReceiverExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: 
 and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool) (expectedTy: TypeSymbol) =
     let exprTy = expr.Type
     let willBox = 
-        if exprTy.IsScoped then
-            not isReceiver && expectedTy.IsAnyNonStruct && not expectedTy.IsScoped
+        if exprTy.IsScoped_ste then
+            not isReceiver && expectedTy.IsAnyNonStruct_ste && not expectedTy.IsScoped_ste
         else
-            (exprTy.IsAnyStruct || exprTy.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint) && expectedTy.IsAnyNonStruct
+            (exprTy.IsAnyStruct_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
 
     // Context Analysis: UnmanagedAllocationOnly
     if willBox && aenv.IsInUnmanagedAllocationOnlyContext then
         reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
 
-    if willBox && exprTy.IsScoped then
+    if willBox && exprTy.IsScoped_ste then
         reportScopedTypeBoxing acenv aenv.benv exprTy expr.Syntax.BestSyntaxForReporting
 
 and analyzeExpression acenv aenv (expr: E) : ScopeResult =
@@ -898,7 +898,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
     let syntaxNode = expr.Syntax
     match expr with
     | E.Value(syntaxInfo, value) ->
-        if value.Type.IsScoped then
+        if value.Type.IsScoped_ste then
             match acenv.scopes.TryGetValue value.Id with
             | true, scope ->
                 if aenv.isLastExprOfScope && scope.Value = aenv.scope then
@@ -984,7 +984,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let bodyTy = bodyExpr.Type   
         if subsumesTypeWith Generalizable exprTy bodyTy then
             checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv, PostInferenceAnalysis)) bodyExpr.Syntax exprTy bodyTy
-        elif exprTy.IsEnum && areTypesEqual exprTy.TryEnumUnderlyingType.Value bodyTy then
+        elif exprTy.IsEnum_ste && areTypesEqual exprTy.TryEnumUnderlyingType.Value bodyTy then
             ()
         else
             match tryFindTypeHasTypeExtensionImplementedType benv exprTy bodyTy with
@@ -1068,7 +1068,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                 reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
 
             // Scope lambda call
-            if value.Type.IsScoped then
+            if value.Type.IsScoped_ste then
                 match acenv.scopes.TryGetValue(value.Formal.Id) with
                 | true, scope ->
                     if scope.ValueLambda < aenv.scopeLambda then
@@ -1160,7 +1160,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         match value.Type.TryFunction with
         | ValueSome(_, returnTy) ->
-            if aenv.isLastExprOfScope && returnTy.IsByRef_t && scopeResult2.ScopeLimits.HasFlag(ScopeLimits.StackReferringByRef) then
+            if aenv.isLastExprOfScope && returnTy.IsAnyByRef_ste && scopeResult2.ScopeLimits.HasFlag(ScopeLimits.StackReferringByRef) then
                 if scopeResult2.ScopeValue >= aenv.scope then
                     match expr with
                     | AddressOf(AutoDereferenced(expr2)) ->
@@ -1221,7 +1221,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let aenv = handleLambda acenv aenv lambdaFlags pars
 
         OlyAssert.True(lazyBodyExpr.HasExpression)
-        OlyAssert.True(lazyTy.Type.IsAnyFunction)
+        OlyAssert.True(lazyTy.Type.IsAnyFunction_ste)
 
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then

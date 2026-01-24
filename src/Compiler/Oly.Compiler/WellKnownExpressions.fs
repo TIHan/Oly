@@ -134,7 +134,7 @@ let private createCallExpression syntaxInfo (formalValue: IValueSymbol) (tyArgs:
             (formalValue.TypeParameters, tyArgs)
             ||> ImArray.map2 (fun tyPar tyArg -> 
 #if DEBUG || CHECKED
-                match tyArg.TryImmedateTypeParameter with
+                match tyArg.TryImmediateTypeParameter with
                 | ValueSome(tyPar2) ->
                     OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
                 | _ ->
@@ -159,7 +159,7 @@ let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol)
             (formalValue.TypeParameters, tyArgs)
             ||> ImArray.map2 (fun tyPar tyArg -> 
 #if DEBUG || CHECKED
-                match tyArg.TryImmedateTypeParameter with
+                match tyArg.TryImmediateTypeParameter with
                 | ValueSome(tyPar2) ->
                     OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
                 | _ ->
@@ -256,7 +256,7 @@ let FromAddress (expr: BoundExpression) =
 let rec AutoDereferenceIfPossible (expr: BoundExpression) =
     let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
-    if exprTy.IsByRef_t then
+    if exprTy.IsAnyByRef_ste then
         // We want to dereference non-generated expressions.
         match expr with
         | BoundExpression.Value _ 
@@ -301,11 +301,11 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable then
+    if (exprTy.IsAnyStruct_ste && (enclosingTy.IsAnyStruct_ste || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsAnyVariable_ste then
         match expr with
         // Cannot take the address of a constant.
         | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
-            if value.IsImmutable && not exprTy.IsTypeVariable then
+            if value.IsImmutable && not exprTy.IsAnyVariable_ste then
                 AddressOf expr
             else
                 if isMutable then
@@ -323,7 +323,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                 else
                     expr
 
-            if exprTy.IsTypeVariable then
+            if exprTy.IsAnyVariable_ste then
                 if isMutable then
                     AddressOfMutable expr
                 else
@@ -332,7 +332,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                 AddressOf expr
             else
                 match stripTypeEquations receiver.Type with
-                | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct ->
+                | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct_ste ->
                     match kind with
                     | ByRefKind.ReadWrite
                     | ByRefKind.WriteOnly -> 
@@ -386,7 +386,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
         // This prevents an inref of T to not mutate the reference.
         // inref T -> deref T -> byref T
         match exprTy.TryByReferenceElementType with
-        | ValueSome(exprElementTy) when exprTy.IsReadOnlyByRef && (enclosingTy.IsTypeVariable && areTypesEqual enclosingTy exprElementTy) ->
+        | ValueSome(exprElementTy) when exprTy.IsReadOnlyByRef && (enclosingTy.IsAnyVariable_ste && areTypesEqual enclosingTy exprElementTy) ->
             let newExpr, _ = createMutableLocalDeclarationReturnExpression (FromAddress expr)
             match newExpr with
             | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->

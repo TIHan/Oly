@@ -143,7 +143,7 @@ let private bindAttributeExpressionAux (cenv: cenv) (env: BinderEnvironment) (ex
                 | BoundExpression.Call(value=value;args=argExprs) when value.IsInstanceConstructor && isValidAttributeArguments cenv env argExprs ->
                     expr
                 | _ ->
-                    if not expr.Type.IsError_t then
+                    if not expr.Type.IsError_ste then
                         errorAttribute cenv env syntaxExpr
                     expr
         | _ ->

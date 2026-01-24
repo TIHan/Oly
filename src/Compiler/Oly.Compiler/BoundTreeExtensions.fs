@@ -312,7 +312,7 @@ module private FreeVariablesHelper =
                 addTyPars tyPars
                 visitType innerTy
             | _ ->
-                if not ty.IsTypeConstructor then
+                if not ty.IsTypeConstructor_steea then
                     ty.TypeArguments
                     |> ImArray.iter (fun ty -> visitType ty)
 
@@ -755,9 +755,9 @@ type BoundExpression with
         rewriter.Rewrite(this)
 
     static member TryImplicitCall_LoadFunction(argExpr: BoundExpression, argTy: TypeSymbol) =
-        if argTy.IsAnyFunction then
+        if argTy.IsAnyFunction_ste then
             let argExprTy = argExpr.Type
-            if argExprTy.IsClosure then
+            if argExprTy.IsClosure_ste then
                 let cloInvoke = argExprTy.GetClosureInvoke()
                 let funcExpr =
                     BoundExpression.CreateValue(
@@ -829,7 +829,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // non-second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> false | _ -> true)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor_steea -> false | _ -> true)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -840,7 +840,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> true | _ -> false)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor_steea -> true | _ -> false)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -855,9 +855,9 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
 // ************************************************************************
 
 let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) (ty: TypeSymbol) : _ imarray =
-    OlyAssert.True(superShapeTy.IsShape)
+    OlyAssert.True(superShapeTy.IsShape_ste)
 
-    if ty.IsTypeConstructor then
+    if ty.IsTypeConstructor_steea then
         ImArray.empty
     else
 
@@ -915,7 +915,7 @@ let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) 
     )
 
 let subsumesTypeOrShapeWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
-    if superTy.IsShape then
+    if superTy.IsShape_ste then
         subsumesShapeWith benv rigidity superTy ty
     else
         subsumesTypeWith rigidity superTy ty
@@ -924,9 +924,9 @@ let subsumesTypeOrShape benv superTy ty =
     subsumesTypeOrShapeWith benv Rigid superTy ty
 
 let subsumesShapeWith benv rigidity (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
-    OlyAssert.True(superShapeTy.IsShape)
+    OlyAssert.True(superShapeTy.IsShape_ste)
     
-    if ty.IsTypeConstructor then
+    if ty.IsTypeConstructor_steea then
         false
     else
         let areFuncsValid =
@@ -944,11 +944,11 @@ let subsumesShape benv (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
 let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if subsumesTypeOrShapeWith benv rigidity superTy ty then true
     else
-        if superTy.IsTypeConstructor then
+        if superTy.IsTypeConstructor_steea then
             subsumesTypeConstructorWith rigidity superTy ty
         else
             match stripTypeEquations ty, stripTypeEquations superTy with
-            | TypeSymbol.ForAll(_, innerTy), superTy when not superTy.IsTypeConstructor ->
+            | TypeSymbol.ForAll(_, innerTy), superTy when not superTy.IsTypeConstructor_steea ->
                 subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy innerTy
             | TypeSymbol.Variable(tyPar), superTy ->
                 tyPar.Constraints

@@ -414,7 +414,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             match casePatArgs.Length with
             | 0 ->
-                OlyAssert.True(callExpr.Type.IsUnit_t)
+                OlyAssert.True(callExpr.Type.IsUnit_ste)
                 createInfo (Some matchValueLetExpr) callGuardExpr (Ignore callExpr)
 
             | 1 ->
@@ -499,7 +499,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             match casePatArgs.Length with
             | 0 ->
-                OlyAssert.True(callExpr.Type.IsUnit_t)
+                OlyAssert.True(callExpr.Type.IsUnit_ste)
                 createInfo None trueLiteralExpr (Ignore callExpr)
             | 1 ->
                 transformPattern cenv valueLookup matchPatternIndex callExpr casePatArgs[0] contExprOpt

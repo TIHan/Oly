@@ -55,13 +55,13 @@ let private solveTypesWithSubsumptionNoErrorWith (env: SolverEnvironment) rigidi
     //         Typically, this is due to a Call expression returning an error type because it's
     //         currently a function group; which could be resolved later from function overloading.
     //         Not the greatest thing to do, but it works in this scenario.
-    if ty.IsError_t then true
+    if ty.IsError_ste then true
     else
     // Rules:
     //     1. Perform inference type unification when checking the argument type.
     //     2. If '1.' fails, then see if the expected type subsumes the given type.
     //     3. If '2.' fails, then check for shape subsumption if the expected type is a shape.
-    if not (UnifyTypes rigidity expectedTy ty || subsumesTypeWith rigidity expectedTy ty || (if expectedTy.IsShape then subsumesShapeWith env.benv rigidity expectedTy ty else false)) then
+    if not (UnifyTypes rigidity expectedTy ty || subsumesTypeWith rigidity expectedTy ty || (if expectedTy.IsShape_ste then subsumesShapeWith env.benv rigidity expectedTy ty else false)) then
         false
     else
         true
@@ -86,7 +86,7 @@ let private tryFindMostSpecificTypeForExtension benv (tyExt: EntitySymbol) targe
     |> Seq.tryExactlyOne
 
 let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg (isAttempt: bool) : Result<unit, ConstraintSolverError> =
-    OlyAssert.True(targetShape.IsShape)
+    OlyAssert.True(targetShape.IsShape_ste)
 
     let filteredWitnessArgs =
         witnessArgs
@@ -166,7 +166,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                 if funcs.IsEmpty then
                     let formalAbstractFunc = abstractFunc.Formal
                     // If the struct doesn't have an instance constructor, we will still allow it for the shape member '{ new() }' since it can technically be constructed.
-                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsAnyStruct && not principalTyArg.IsTypeVariable then
+                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsAnyStruct_ste && not principalTyArg.IsAnyVariable_ste then
                         ()
                     else
                         if not isAttempt then
@@ -187,9 +187,9 @@ let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solve
         |> Seq.choose (fun constr ->
             match constr.TryGetAnySubtypeOf() with
             | ValueSome constrTy when (solver = WitnessSolver.Trait) || not constr.IsTrait ->
-                if actualTarget.IsShape then
+                if actualTarget.IsShape_ste then
                     let constrTy =
-                        if constrTy.IsTypeConstructor && constrTy.Arity = tyParTyArgs.Length then
+                        if constrTy.IsTypeConstructor_steea && constrTy.Arity = tyParTyArgs.Length then
                             applyType constrTy tyParTyArgs
                         else
                             constrTy
@@ -234,7 +234,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
         // Built-in types themselves are not entities, but an entity can be equivelant to a built-in type.
         // These entities might inherit or implement types, or contain functions that will make solving
         // the constraint pass.
-        if ty.IsBuiltIn then
+        if ty.IsBuiltIn_ste then
             match env.benv.TryFindEntityByIntrinsicType ty with
             | ValueSome ent -> ent.AsType
             | _ -> ty
@@ -242,7 +242,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             ty
 
     let solveSubsumption () =
-        if target.IsShape then
+        if target.IsShape_ste then
             solveShape env syntaxNode tyArgs witnessArgs target tyPar ty isAttempt
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then
@@ -317,7 +317,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
                 |> ignore
                 let appliedTyExt = 
                     // Note: This is necessary to do!
-                    if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not ty.IsFormal then
+                    if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not ty.IsFormal_steea then
                         applyEntity ty.TypeArguments tyExt
                     else
                         tyExt
@@ -364,7 +364,7 @@ let private solveConstraintStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: Type
         |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
 
     | tyArg ->
-        tyArg.IsAnyStruct
+        tyArg.IsAnyStruct_ste
 
 let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -374,7 +374,7 @@ let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: T
         |> ImArray.exists (function ConstraintSymbol.NotStruct -> true | _ -> false)
 
     | tyArg ->
-        not tyArg.IsAnyStruct
+        not tyArg.IsAnyStruct_ste
 
 let private solveConstraintUnmanaged env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     tyArg.IsUnmanaged(env.pass)
@@ -406,7 +406,7 @@ let private solveConstraintConstantType _env (_syntaxNode: OlySyntaxNode) (const
 let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
     OlyAssert.True(tyArg.IsSolved)
 
-    if tyArg.IsError_t then
+    if tyArg.IsError_ste then
         // Error recovery: always assume the constraint is solved for an error type
         Ok()
     else
@@ -479,7 +479,7 @@ let private inferTypeArgumentFromTypeParameterConstraints env (tyPar: TypeParame
                     let tyExt = tyExts[0]
                     let appliedTyExt = 
                         // Note: This is necessary to do!
-                        if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not tyArg.IsFormal then
+                        if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not tyArg.IsFormal_steea then
                             applyEntity tyArg.TypeArguments tyExt
                         else
                             tyExt
@@ -501,9 +501,9 @@ let private reportUnimplementedStaticMembers env syntaxNode (ty, unimplementedMo
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
 let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (isAttempt: bool) (constr: ConstraintSymbol, tyArg: TypeArgumentSymbol) =
     // Checks if a solution for a witness is an abstract type, except shape types (illegal anyway), has a most specific implementation for static abstract members.
-    if not isAttempt && tyArg.IsAbstract && not tyArg.IsShape then
+    if not isAttempt && tyArg.IsAbstract_ste && not tyArg.IsShape_ste then
         match constr.TryGetAnySubtypeOf() with
-        | ValueSome(subty) when subty.IsAbstract && not subty.IsShape && subsumesType subty tyArg ->
+        | ValueSome(subty) when subty.IsAbstract_ste && not subty.IsShape_ste && subsumesType subty tyArg ->
             let unimplementedMostSpecificStaticFuncs =
                 subty.FindMostSpecificFunctions(env.benv, QueryMemberFlags.Static, FunctionFlags.None, QueryFunction.Intrinsic)
                 |> ImArray.filter (fun func -> func.IsAbstract)
@@ -548,7 +548,7 @@ let reportUnableToInferTypeParameter (env: SolverEnvironment) syntaxNode (witnes
     env.diagnostics.Error($"Type parameter '{(printType env.benv tyArg)}' was unable to be inferred.", 10, syntaxNode)
 
     // Error recovery
-    match tyArg.TryImmedateTypeParameter with
+    match tyArg.TryImmediateTypeParameter with
     | ValueSome tyParToCheck ->
         OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
         witnessArgs
@@ -585,7 +585,7 @@ let solveConstraints
     tyArgs
     |> ImArray.iteri (fun i tyArg ->
         if tyArg.IsSolved then
-            match tyArg.TryImmedateTypeParameter with
+            match tyArg.TryImmediateTypeParameter with
             | ValueSome tyParToCheck ->
                 let tyPar = tyPars[i]
                 OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)

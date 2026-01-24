@@ -182,8 +182,8 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsAnyStruct then
-                    match field.Type.TryEntity with
+                if field.IsInstance && field.Type.IsAnyStruct_ste then
+                    match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
                     | _ ->
@@ -318,7 +318,7 @@ let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: Ol
             // If the constraint type has any type parameter constructors, then we skip this check
             // as it has already failed elsewhere. We do not support further "higher-rank" types.
             | ValueSome(constrTy) when constrTy.TypeParameters |> ImArray.forall (fun x -> x.HasArity |> not) ->
-                if constrTy.IsTypeConstructor then
+                if constrTy.IsTypeConstructor_steea then
                     checkTypeConstructorDepth env syntaxNode syntaxTys (applyType constrTy tyArgs)
                 else
                     checkTypeConstructorDepth env syntaxNode ImArray.empty (actualType tyArgs constrTy)
@@ -494,7 +494,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 possibleFuncs
 
         let possibleFuncs =
-            if possibleFuncs.IsEmpty && func.Enclosing.IsInterface && not ty.IsInterface then
+            if possibleFuncs.IsEmpty && func.Enclosing.IsInterface && not ty.IsInterface_ste then
                 let enclosingTy = func.Enclosing.AsType
                 ty.AllImplements
                 |> ImArray.collect (fun x ->
@@ -526,7 +526,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
 and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
     ent.Extends
     |> ImArray.iter (fun ty ->
-        if not ty.IsInterface then
+        if not ty.IsInterface_ste then
             env.diagnostics.Error(sprintf "Cannot inherit the construct '%s'." (printType env.benv ty), 10, syntaxNode)
     )
 
@@ -620,7 +620,7 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
             let fields = expr.GetThisSetInstanceFields()
             let fieldNames = fields |> ImArray.map (fun x -> x.Name)
     
-            let expectedFieldSet = HashSet(expectedFields |> Seq.filter (fun x -> not x.Type.IsError_t) |> Seq.map (fun x -> x.Name))
+            let expectedFieldSet = HashSet(expectedFields |> Seq.filter (fun x -> not x.Type.IsError_ste) |> Seq.map (fun x -> x.Name))
             expectedFieldSet.ExceptWith(fieldNames)
             expectedFieldSet
             |> Seq.sort
@@ -800,8 +800,8 @@ and checkExpressionType (env: SolverEnvironment) (mode: CheckExpressionMode) (ex
 
     if expectedTy.IsSolved && 
        exprTy.IsSolved && 
-       not expectedTy.IsError_t && 
-       not exprTy.IsError_t && 
+       not expectedTy.IsError_ste && 
+       not exprTy.IsError_ste && 
        subsumesTypeInEnvironment env.benv expectedTy exprTy then
         let expectedTyArgs = expectedTy.TypeArguments
         let tyArgs =
@@ -821,7 +821,7 @@ and checkExpressionType (env: SolverEnvironment) (mode: CheckExpressionMode) (ex
     else
         // REVIEW: If either type is an error, then just solve it without subsumption 
         //         because subsumption skips solving if it sees an error type. We should *review* that logic.
-        if exprTy.IsError_t || expectedTy.IsError_t then
+        if exprTy.IsError_ste || expectedTy.IsError_ste then
             if env.reportTypeErrors then
                 solveTypes env expr.Syntax expectedTy exprTy
         else
@@ -862,14 +862,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid && not value.Type.IsError_t then
+            if ((not value.IsMutable && (value.Type.IsAnyStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid && not value.Type.IsError_ste then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsAnyStruct && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
+                if field.Type.IsAnyStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -894,13 +894,13 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env CheckExpressionMode.Flexible value.Type rhs
-        if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_t then
+        if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_ste then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env CheckExpressionMode.Flexible field.Type rhs
         if check false receiver then
-            if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_t then
+            if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
@@ -1064,7 +1064,7 @@ let checkParameter (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (func: I
     |> ImArray.iter (fun attr ->
         match attr with
         | AttributeSymbol.Inline(inlineArg) ->
-            if par.Type.IsAnyFunction && not par.Type.IsNativeFunctionPtr_t then
+            if par.Type.IsAnyFunction_ste && not par.Type.IsNativeFunctionPtr_ste then
                 match inlineArg with
                 | InlineArgumentSymbol.None ->
                     if not func.IsInline then

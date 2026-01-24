@@ -40,7 +40,7 @@ let private getAccessibleInstanceConstructors onlyPrivateOrProtected env (ent: E
 let scopeInInstanceConstructors canReplace onlyPrivateOrProtected (env: BinderEnvironment) (ent: EntitySymbol) =
     let instanceCtors = 
         if ent.IsAlias then
-            match (stripTypeEquations ent.AsType).TryEntity with
+            match (stripTypeEquations ent.AsType).TryEntityNoAlias with
             | ValueSome(ent) -> 
                 getAccessibleInstanceConstructors
                     onlyPrivateOrProtected
@@ -236,7 +236,7 @@ let openContentsOfEntityAndOverride declTable env openContent ent =
 
 let addTypeParameter (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
     let tys = env.benv.GetUnqualifiedType(tyPar.Name, tyPar.Arity)
-    if tys |> ImArray.exists (fun x -> x.IsTypeVariable && not env.isInEntityDefinitionTypeParameters) then
+    if tys |> ImArray.exists (fun x -> x.IsAnyVariable_ste && not env.isInEntityDefinitionTypeParameters) then
         cenv.diagnostics.Error(sprintf "Type parameter '%s' has already been declared." tyPar.Name, 10, syntaxNode)
         env, tyPar
     else

@@ -467,12 +467,12 @@ let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (exp
     // Unit
     if syntaxExprList.ChildrenOfType.IsEmpty then
         match expectedTyOpt with
-        | Some(expectedTy) when not expectedTy.IsRealUnit ->
+        | Some(expectedTy) when not expectedTy.IsRealUnit_ste ->
             checkTypes (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode expectedTy TypeSymbol.Unit
         | _ ->
             ()
         match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsRealUnit ->
+        | Some(expectedTy) when expectedTy.IsRealUnit_ste ->
             env, BoundExpression.Unit(BoundSyntaxInfo.User(syntaxNode, env.benv))
         | _ ->
             env, BoundExpression.None(BoundSyntaxInfo.User(syntaxNode, env.benv))
@@ -1255,7 +1255,7 @@ let private bindIndexer cenv (env: BinderEnvironment) syntaxToCapture syntaxBody
 let private bindNewArrayExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxExpression) (isMutable: bool) (syntaxElements: OlySyntaxExpression imarray) =
     let elementTyOpt =
         match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsAnyArray ->
+        | Some(expectedTy) when expectedTy.IsAnyArray_ste ->
             Some expectedTy.FirstTypeArgument
         | _ ->
             None
@@ -1307,7 +1307,7 @@ let private bindNameAsExpressionWithoutChecking (cenv: cenv) (env: BinderEnviron
         // If the expected type is a function, our resInfo should include the arg types.
         match expectedTyOpt with
         | Some(ty) ->
-            if ty.IsAnyFunction then
+            if ty.IsAnyFunction_ste then
                 { resInfo with resArgs = ResolutionArguments.ByFunctionType(ty) }
             else
                 resInfo
@@ -1366,7 +1366,7 @@ let private bindSetExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapt
 
             // Undo the automatic dereference when we are trying to set the value of the by-ref.
             | AutoDereferenced(undoDerefLhsExpr) ->
-                if undoDerefLhsExpr.Type.IsByRef_t then
+                if undoDerefLhsExpr.Type.IsAnyByRef_ste then
                     BoundExpression.SetContentsOfAddress(BoundSyntaxInfo.User(syntaxToCapture, env.benv), undoDerefLhsExpr, rhsExpr)
                 else
                     cenv.diagnostics.Error("Left-hand expression is not a valid mutation.", 10, syntaxLhsExpr)
@@ -1546,7 +1546,7 @@ let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxT
         OlyAssert.Fail("Unmatched syntax expression.")
 
 let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) =
-    if not ty.Inherits.IsEmpty && not ty.IsAnyStruct then
+    if not ty.Inherits.IsEmpty && not ty.IsAnyStruct_ste then
         let implicitParameterlessBaseInstanceCtorOpt =
             if env.implicitThisOpt.IsNone then
                 None
@@ -1674,7 +1674,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                 env, bodyExpr
 
         let handleRecordExpression (ty: TypeSymbol) syntaxInitializer =
-            if ty.IsError_t then
+            if ty.IsError_ste then
                 env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
             else
                 cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
@@ -1687,10 +1687,10 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                 | Choice1Of2(_, bodyExpr) ->
                     match bodyExpr with
                     // Only do this for generated FromAddress.
-                    | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsStruct && bodyExpr.IsGenerated ->
+                    | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsStruct_ste && bodyExpr.IsGenerated ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (valueExpr.Syntax, value) ty syntaxInitializer
 
-                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct ->
+                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct_ste ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (bodyExpr.Syntax, value) ty syntaxInitializer
 
                     | E.Call(value=value) when value.IsBase && value.IsFunction ->
@@ -2014,7 +2014,7 @@ let private bindPatternByResolutionItem
                 if isActive then
                     match value with
                     | :? IFunctionSymbol as func ->
-                        if func.ReturnType.IsUnit_t then
+                        if func.ReturnType.IsUnit_ste then
                             cenv.diagnostics.Error($"'{func.Name}' returns '()' which requires not to be explicit with '()'.", 10, syntaxInfo.Syntax)
                     | _ ->
                         ()

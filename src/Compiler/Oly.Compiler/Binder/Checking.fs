@@ -164,7 +164,7 @@ let checkEntityExport cenv syntaxNode (ent: EntitySymbol) =
 
             ent.Extends
             |> ImArray.iter (fun x -> 
-                if not x.IsExported && not x.IsImported && not x.IsBuiltIn then
+                if not x.IsExported && not x.IsImported && not x.IsBuiltIn_ste then
                     cenv.diagnostics.Error($"'{ent.Name}' cannot be exported as its inheritance of '{x.Name}' is not imported or exported.", 10, syntaxNode)
                 x.TypeArguments
                 |> ImArray.iter (fun tyArg ->
@@ -287,7 +287,7 @@ let tryOverloadResolution
     else
 
     match expectedReturnTyOpt with
-    | Some expectedTy when expectedTy.IsError_t -> None
+    | Some expectedTy when expectedTy.IsError_ste -> None
     | _ ->
 
     let filteredFuncs =
@@ -394,7 +394,7 @@ let tryOverloadPartialCallExpression
 
     let resArgs =
         match expectedTyOpt with
-        | Some(expectedTy) when expectedTy.IsAnyFunction ->
+        | Some(expectedTy) when expectedTy.IsAnyFunction_ste ->
             ResolutionArguments.ByFunctionType(expectedTy)
         | _ ->
             ResolutionArguments.Any
@@ -467,12 +467,12 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
                 | ValueSome(WellKnownFunction.GetArrayElement) -> ()
                 | _ ->
                     let argExprTy = argExpr.Type
-                    if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
+                    if argExprTy.IsAnyByRef_ste || argExprTy.IsError_ste then ()
                     else
                         cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
             | _ ->
                 let argExprTy = argExpr.Type
-                if argExprTy.IsByRef_t || argExprTy.IsError_t then ()
+                if argExprTy.IsAnyByRef_ste || argExprTy.IsError_ste then ()
                 else
                     cenv.diagnostics.Error("Invalid address of.", 10, syntaxInfo.Syntax)
 
@@ -494,7 +494,7 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
 
         match argExprs[0] with
         | AutoDereferenced(argInnerExpr) ->
-            if value.IsFunctionGroup && argInnerExpr.Type.IsByRef_t then
+            if value.IsFunctionGroup && argInnerExpr.Type.IsAnyByRef_ste then
                 let byRefKind =
                     if argInnerExpr.Type.IsReadOnlyByRef then
                         ByRefKind.ReadOnly
@@ -522,7 +522,7 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
                 expr
         | E.Call(syntaxInfoCall, receiverExprOptCall, witnessArgsCall, argExprsCall, valueCall, flagsCall) when valueCall.IsFunctionGroup ->
             match receiverExprOptCall with
-            | Some(receiverExprCall) when receiverExprCall.Type.IsByRef_t ->
+            | Some(receiverExprCall) when receiverExprCall.Type.IsAnyByRef_ste ->
                 let byRefKind = determineByRefKind receiverExprCall
 
                 let funcs = (valueCall :?> FunctionGroupSymbol).Functions
@@ -576,7 +576,7 @@ let checkImplicitArgumentsOfCallExpression (env: BinderEnvironment) expr =
         let newFuncOpt, newArgExprs = 
             if value.IsFunction then
                 ImplicitRules.ImplicitArgumentsForFunction env.benv value.AsFunction argExprs
-            elif value.Type.IsAnyFunction then
+            elif value.Type.IsAnyFunction_ste then
                 let argExprs = ImplicitRules.ImplicitArgumentsForFunctionType value.Type argExprs
                 (None, argExprs)
             else           
@@ -797,7 +797,7 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
             else
                 match expr with
-                | AutoDereferenced expr when expectedTy.IsByRef_t ->
+                | AutoDereferenced expr when expectedTy.IsAnyByRef_ste ->
                     checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
                 | _ ->
                     checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
@@ -1062,7 +1062,7 @@ let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution i
             | ConstraintSymbol.TraitType(lazyConstrTy)
             | ConstraintSymbol.SubtypeOf(lazyConstrTy) ->
                 let constrTy = lazyConstrTy.Value
-                if constrTy.IsShape then
+                if constrTy.IsShape_ste then
                     let result = 
                         subsumesShapeMembersWith env.benv Generalizable QueryFunction.IntrinsicAndExtrinsic constrTy tyArg
                         |> ImArray.forall (fun (_, xs) -> xs.Length = 1)
@@ -1114,7 +1114,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
 let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking: TypeChecking) expr =
     match expr with
     | E.NewArray(syntaxExpr, benv, argExprs, exprTy) ->
-        OlyAssert.True(exprTy.IsAnyArray)
+        OlyAssert.True(exprTy.IsAnyArray_ste)
 
         if argExprs.IsEmpty then
             expr
@@ -1151,7 +1151,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
-        if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_t then
+        if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_ste then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let newArgExprs =

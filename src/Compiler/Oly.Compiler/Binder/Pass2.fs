@@ -86,12 +86,12 @@ let private isValidEntryPoint (cenv: cenv) env (enclosing: EnclosingSymbol) (fun
 let private createInstanceFunctionParameters (cenv: cenv) syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
         if checkMutable && valueExplicitness.IsExplicitMutable then
-            if not ty.IsAnyStruct then
+            if not ty.IsAnyStruct_ste then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be a struct." name, 10, syntaxNode)
-            if ty.IsAnyStruct && enclosing.IsReadOnly then
+            if ty.IsAnyStruct_ste && enclosing.IsReadOnly then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxNode)
 
-        if ty.IsAnyStruct || ty.IsShape then
+        if ty.IsAnyStruct_ste || ty.IsShape_ste then
             let kind = 
                 if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
                     ByRefKind.ReadWrite
@@ -668,7 +668,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
             let parsWithInstance =
                 if memberFlags &&& MemberFlags.Instance = MemberFlags.Instance then
                     let tryAddrTy (ty: TypeSymbol) =
-                        if ty.IsAnyStruct then
+                        if ty.IsAnyStruct_ste then
                             TypeSymbol.CreateByRef(ty, ByRefKind.ReadWrite)
                         else
                             ty
@@ -1241,7 +1241,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
             // TODO: We do something similar in Logic.fs, we should re-use some of it.
             let parsWithInstance =
                 let tryAddrTy (ty: TypeSymbol) =
-                    if ty.IsAnyStruct then
+                    if ty.IsAnyStruct_ste then
                         TypeSymbol.CreateByRef(ty, ByRefKind.ReadWrite)
                     else
                         ty

@@ -553,7 +553,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             match ty.TryFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ ->
-                ty.TryEntity
+                ty.TryEntityNoAlias
                 |> ValueOption.bind (fun ent -> ent.TryClosureInvoke : IFunctionSymbol voption)
                 |> ValueOption.map (fun x -> x.ReturnType)
                 |> ValueOption.defaultValue ty
@@ -1221,7 +1221,7 @@ let freshWitnessesWithTypeArguments (tyArgs: TypeArgumentSymbol imarray) (tyPar:
         | ValueSome _ ->
             let constr = constr.Substitute(tyArgs)
             let constrTy = constr.TryGetAnySubtypeOf().Value;
-            if constrTy.IsShape then
+            if constrTy.IsShape_ste then
                 constrTy.Functions
                 |> ImArray.map (fun func ->
                     WitnessSolution(tyPar, constr, Some func)

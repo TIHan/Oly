@@ -31,13 +31,13 @@ let private isIntrinsicForEnum (func: IFunctionSymbol) =
         false
 
 let private hasAllEnumTypes (tys: TypeSymbol imarray) =
-    tys |> ImArray.forall (fun x -> x.IsEnum)
+    tys |> ImArray.forall (fun x -> x.IsEnum_ste)
 
 let private isFirstExpressionAnEnumType (exprs: E imarray) =
     if exprs.IsEmpty then
         false
     else
-        exprs[0].Type.IsEnum
+        exprs[0].Type.IsEnum_ste
 
 let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol) (ty: TypeSymbol) =
     match func with
@@ -129,9 +129,9 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
             }
 
 let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =
-    if expectedTy.IsUnit_t && expr.Type.IsRealUnit then
+    if expectedTy.IsUnit_ste && expr.Type.IsRealUnit_ste then
         Ignore expr
-    elif expectedTy.IsRealUnit && expr.Type.IsUnit_t then
+    elif expectedTy.IsRealUnit_ste && expr.Type.IsUnit_ste then
         E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
             expr,
             E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
@@ -179,10 +179,10 @@ let private tryMorphPartialCall (expr: E) =
 let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
     let expr = tryMorphSimpleImplicit expectedTy expr
     let exprTy = expr.Type
-    if expectedTy.IsFunctionNotPtr && exprTy.IsFunctionNotPtr then
+    if expectedTy.IsFunctionNotPtr_ste && exprTy.IsFunctionNotPtr_ste then
         match expectedTy.TryFunction, exprTy.TryFunction with
-        | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_t ->
-            if (expectedReturnTy.IsRealUnit || expectedReturnTy.IsTypeVariableZeroArity) && returnTy.IsUnit_t then
+        | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_ste ->
+            if (expectedReturnTy.IsRealUnit_ste || expectedReturnTy.IsVariableZeroArity_ste) && returnTy.IsUnit_ste then
                 match expr with
                 | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
                     E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
@@ -247,7 +247,7 @@ let private tryImplicitArguments (parTys: TypeSymbol imarray) (argExprs: E imarr
         for i = 0 to argExprs.Length - 1 do
             let argExpr = argExprs[i]
             let parTy = parTys[i]
-            if parTy.IsScopedFunction then                          
+            if parTy.IsScopedFunction_ste then                          
                 match argExpr with
                 | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
                     let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
@@ -280,7 +280,7 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
             let argTys =
                 argTys
                 |> ImArray.map (fun x ->
-                    match x.TryEntity with
+                    match x.TryEntityNoAlias with
                     | ValueSome(ent) when ent.IsEnum ->
                         ent.UnderlyingTypeOfEnumOrNewtype
                     | _ ->
@@ -293,7 +293,7 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
         funcs, argTys
 
 let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) =
-    OlyAssert.True(funcTy.IsAnyFunction)
+    OlyAssert.True(funcTy.IsAnyFunction_ste)
     match tryImplicitArguments funcTy.FunctionArgumentTypes argExprs with
     | ValueSome(newArgExprs) -> newArgExprs
     | _ -> argExprs
@@ -336,7 +336,7 @@ let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) 
             when not value.IsFunctionGroup && 
-                 value.Type.IsAnyFunction && 
+                 value.Type.IsAnyFunction_ste && 
                  value.LogicalType.FunctionParameterCount = argExprs.Length ->
         match tryImplicitArguments value.LogicalType.FunctionArgumentTypes argExprs with
         | ValueSome(newArgExprs) ->

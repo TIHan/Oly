@@ -222,7 +222,7 @@ let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironm
             ent.FlattenHierarchy()
         |> ImArray.iter (fun x ->
             let queryMemberFlags =
-                if x.IsInterface && isNotTypeExtensionOrInterface then
+                if x.IsInterface_ste && isNotTypeExtensionOrInterface then
                     QueryMemberFlags.Static
                 else
                     queryMemberFlags
@@ -402,7 +402,7 @@ let private queryExtensionFunctionsOfType (benv: BoundEnvironment) queryMemberFl
             |> Seq.choose (fun extMember ->
                 match extMember with
                 | ExtensionMemberSymbol.Function(func) -> 
-                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)
+                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic_ste)
                     tryFreshenAndSolveExtensionMember func ty
                 | _ ->
                     None
@@ -429,7 +429,7 @@ let private queryMostSpecificInterfaceExtensionFunctionsOfType (benv: BoundEnvir
     | ValueSome(tyExts) ->
         tyExts
         |> ImArray.map (fun tyExt ->
-            if tyExt.IsFormal && not ty.IsFormal then
+            if tyExt.IsFormal && not ty.IsFormal_steea then
                 tyExt.SubstituteExtension(ty.TypeArguments)
             else
                 tyExt
@@ -517,7 +517,7 @@ let private queryIntrinsicFieldsOfEntity ac queryMemberFlags valueFlags (nameOpt
     let inheritedFields =
         ent.Extends
         |> Seq.map (fun x ->
-            match x.TryEntity with
+            match x.TryEntityNoAlias with
             | ValueSome x ->
                 queryIntrinsicFieldsOfEntity ac queryMemberFlags valueFlags nameOpt x
             | _ ->
@@ -725,21 +725,21 @@ module Extensions =
             queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
 
         member this.FindIntrinsicFields(benv, queryMemberFlags) =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome(ent) ->
                 ent.FindIntrinsicFields(benv, queryMemberFlags)
             | _ ->
                 Seq.empty
 
         member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome(ent) ->
                 ent.FindIntrinsicFields(benv, queryMemberFlags, name)
             | _ ->
                 Seq.empty
 
         member this.FindField(name: string) =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome ent ->
                 let asmIdent =
                     match ent.ContainingAssembly with
@@ -820,7 +820,7 @@ let private queryFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (exist
                 for i = 0 to tyTyArgs.Length - 1 do
                     implType tyTyArgs[i]
 
-    if ty.IsAnonymousShape then
+    if ty.IsAnonymousShape_ste then
         ty.Fields
         |> ImArray.iter (fun x -> implType x.Type)
 

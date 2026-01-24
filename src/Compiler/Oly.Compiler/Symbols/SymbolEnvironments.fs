@@ -231,13 +231,13 @@ type BoundEnvironment =
         this.senv.typeParameters
 
     member this.TryFindEntityByIntrinsicType(ty: TypeSymbol): EntitySymbol voption =
-        if ty.IsBuiltIn then
+        if ty.IsBuiltIn_ste then
             this.senv.entitiesByIntrinsicTypes.TryFind(ty)
         else
             ValueNone
 
     member this.TryFindIntrinsicTypeByAliasType(aliasTy: TypeSymbol) =
-        if aliasTy.IsAlias then
+        if aliasTy.IsAlias_steea then
             this.senv.intrinsicTypesByAliasTypes.TryFind(aliasTy)
         else
             ValueNone
@@ -246,7 +246,7 @@ type BoundEnvironment =
         this.senv.aliasTypesByIntrinsicTypes.TryFind(intrinsicTy)
 
     member this.TryGetEntity(ty: TypeSymbol) =
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent -> ValueSome ent
         | _ -> ValueNone
 
@@ -350,7 +350,7 @@ type BoundEnvironment =
             false
 
 let tryFindTypeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) ty =
-    match targetTy.TryEntity with
+    match targetTy.TryEntityNoAlias with
     | ValueSome(ent) ->
         benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty)
         |> ValueOption.bind (fun x -> x.TryFind(ent))
@@ -358,7 +358,7 @@ let tryFindTypeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) ty =
         ValueNone
 
 let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSymbol) =
-    match targetTy.TryEntity with
+    match targetTy.TryEntityNoAlias with
     | ValueSome(ent) ->
         benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty)
         |> ValueOption.map (fun x -> x.ContainsKey(ent))
@@ -369,7 +369,7 @@ let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSym
 let subsumesTypeInEnvironmentWith (benv: BoundEnvironment) rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if subsumesTypeWith rigidity superTy ty then
         true
-    elif ty.IsBuiltIn then
+    elif ty.IsBuiltIn_ste then
         match benv.TryFindEntityByIntrinsicType(ty) with
         | ValueSome(ent) ->
             subsumesTypeWith rigidity superTy ent.AsType

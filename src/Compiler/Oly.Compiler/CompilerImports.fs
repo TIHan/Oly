@@ -539,14 +539,14 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
                 TypeSymbol.Entity(formalREnt.Apply(tyArgs))
 
     | TypeSymbol.Tuple(_, names) ->
-        if ty.IsFormal then
+        if ty.IsFormal_steea then
             ty
         else
             let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
             TypeSymbol.Tuple(tyArgs, names)
 
     | TypeSymbol.Function(inputTy, returnTy, kind) ->
-        if ty.IsFormal then
+        if ty.IsFormal_steea then
             ty
         else
             let inputTy = retargetType currentAsmIdent importer tyPars inputTy
@@ -555,7 +555,7 @@ let private retargetType currentAsmIdent (importer: Importer) (tyPars: TypeParam
 
     | _ ->
         if ty.Arity > 0 then
-            if ty.IsFormal then
+            if ty.IsFormal_steea then
                 ty
             else
                 let tyArgs = ty.TypeArguments |> ImArray.map (retargetType currentAsmIdent importer tyPars)
@@ -1456,7 +1456,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 #if DEBUG || CHECKED
             pars
             |> ImArray.iter (fun par ->
-                if par.Type.IsError_t && par.Type.IsTypeConstructor then
+                if par.Type.IsError_ste && par.Type.IsTypeConstructor_steea then
                     failwith "Unexpected type constructor."
             )
 #endif
@@ -1496,7 +1496,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         let tyPars = evalTyPars()
                         importTypeSymbol cenv enclosingEnt.TypeParameters tyPars ilFuncSpec.ReturnType
 #if DEBUG || CHECKED
-                if not returnTy.IsError_t && returnTy.IsTypeConstructor then
+                if not returnTy.IsError_ste && returnTy.IsTypeConstructor_steea then
                     failwith "Unexpected type constructor."
 #endif
                 returnTy

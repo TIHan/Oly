@@ -285,7 +285,7 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
         false
 
 let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSymbol) : bool =
-    UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit = returnTy2.IsRealUnit
+    UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit_ste = returnTy2.IsRealUnit_ste
 
 let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) (ty: TypeSymbol) : bool = 
     OlyAssert.False(solution.HasSolution)
@@ -436,14 +436,14 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.EagerInferenceVariable(varSolution, eagerTy), ty 
         | ty, TypeSymbol.EagerInferenceVariable(varSolution, eagerTy) when (rigidity = Flexible) || (rigidity = MostFlexible) ->
             OlyAssert.True(eagerTy.IsSolved)
-            OlyAssert.False(eagerTy.IsTypeVariable)
+            OlyAssert.False(eagerTy.IsAnyVariable_ste)
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
                 tySolution.SetSolution(eagerTy)
                 varSolution.SetSolution(ty)
                 UnifyTypes rigidity ty1 ty2
             | _ ->
-                if ty.IsAnyStruct then
+                if ty.IsAnyStruct_ste then
                     match ty with
                     | TypeSymbol.UInt8
                     | TypeSymbol.Int8
@@ -452,11 +452,11 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     | TypeSymbol.UInt32
                     | TypeSymbol.Int32
                     | TypeSymbol.UInt64
-                    | TypeSymbol.Int64 when eagerTy.IsFixedInteger ->
+                    | TypeSymbol.Int64 when eagerTy.IsAnyFixedInteger_ste ->
                         varSolution.SetSolution(ty)
                         UnifyTypes rigidity ty1 ty2
                     | TypeSymbol.Float32
-                    | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
+                    | TypeSymbol.Float64 when eagerTy.IsAnyFloat_ste || eagerTy.IsAnyFixedInteger_ste ->
                         varSolution.SetSolution(ty)
                         UnifyTypes rigidity ty1 ty2
                     | _ ->
@@ -472,8 +472,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
         | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
             OlyAssert.True(eagerTy.IsSolved)
-            OlyAssert.False(eagerTy.IsTypeVariable)
-            if targetTy.IsAnyStruct && not targetTy.IsTypeVariable then
+            OlyAssert.False(eagerTy.IsAnyVariable_ste)
+            if targetTy.IsAnyStruct_ste && not targetTy.IsAnyVariable_ste then
                 match targetTy with
                 | TypeSymbol.UInt8
                 | TypeSymbol.Int8
@@ -482,20 +482,20 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 | TypeSymbol.UInt32
                 | TypeSymbol.Int32
                 | TypeSymbol.UInt64
-                | TypeSymbol.Int64 when eagerTy.IsFixedInteger ->
+                | TypeSymbol.Int64 when eagerTy.IsAnyFixedInteger_ste ->
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy eagerTy 
                     else
                         rigidity = Generalizable
                 | TypeSymbol.Float32
-                | TypeSymbol.Float64 when eagerTy.IsReal || eagerTy.IsFixedInteger ->
+                | TypeSymbol.Float64 when eagerTy.IsAnyFloat_ste || eagerTy.IsAnyFixedInteger_ste ->
                     if rigidity = Rigid then
                         UnifyTypes rigidity targetTy eagerTy 
                     else
                         rigidity = Generalizable
                 | _ ->
                     false
-            elif targetTy.IsTypeVariable then
+            elif targetTy.IsAnyVariable_ste then
                 rigidity = Generalizable
             else
                 subsumesTypeWith rigidity eagerTy targetTy
@@ -552,9 +552,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                             UnifyTypes rigidity inputTy1 inputTy2
 
                         | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
-                        | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
+                        | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
                             let elementTy = elementTys[0]
-                            if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
+                            if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_ste then
                                 UnifyTypes rigidity elementTy ty
                             else
                                 UnifyTypes rigidity tupTy ty
@@ -578,9 +578,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                         UnifyTypes rigidity inputTy1 inputTy2
 
                     | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
-                    | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_t ->
+                    | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
                         let elementTy = elementTys[0]
-                        if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_t then
+                        if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_ste then
                             UnifyTypes rigidity elementTy ty
                         else
                             UnifyTypes rigidity tupTy ty
@@ -681,8 +681,8 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
             rigidity = Generalizable && not solution.HasSolution
 
         | _ ->
-            if origTy1.IsRealUnit then
-                origTy2.IsRealUnit
+            if origTy1.IsRealUnit_ste then
+                origTy2.IsRealUnit_ste
             else
                 false
     res
@@ -713,9 +713,9 @@ let areConstraintsEqualWith rigidity (constr1: ConstraintSymbol) (constr2: Const
         | ConstraintSymbol.TraitType(ty1), ConstraintSymbol.TraitType(ty2) -> 
             let ty1 = ty1.Value
             let ty2 = ty2.Value
-            if ty1.IsShape && ty2.IsShape then
+            if ty1.IsShape_ste && ty2.IsShape_ste then
                 areShapesEqualWith rigidity ty1 ty2
-            elif ty1.IsShape || ty2.IsShape then
+            elif ty1.IsShape_ste || ty2.IsShape_ste then
                 false
             else
                 areTypesEqualWithRigidity rigidity ty1 ty2
@@ -988,8 +988,8 @@ let areValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
 
 // TODO: Practically identical to 'subsumesShapeMembersWith'. There a way to re-use logic between them?
 let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
-    OlyAssert.True(ty1.IsShape)
-    OlyAssert.True(ty2.IsShape)
+    OlyAssert.True(ty1.IsShape_ste)
+    OlyAssert.True(ty2.IsShape_ste)
 
     let funcs1: IFunctionSymbol imarray = ty1.Functions
     let funcs2: IFunctionSymbol imarray = ty2.Functions
@@ -1002,7 +1002,7 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
                 if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                         // TODO: This really isn't right.
                         let isInstance = func.IsInstance
-                        if not isInstance || not ty2.IsAnyStruct || (if superFunc.IsImmutable then func.IsImmutable else true) then
+                        if not isInstance || not ty2.IsAnyStruct_ste || (if superFunc.IsImmutable then func.IsImmutable else true) then
                             let result =
                                 (superFunc.Parameters, func.Parameters)
                                 ||> ImArray.foralli2 (fun i par1 par2 ->
@@ -1032,7 +1032,7 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
 type TypeSymbolGeneralizedMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
 
     member this.SetItem(key: TypeSymbol, value) =
-        if key.IsError_t then
+        if key.IsError_ste then
             this
         else
             TypeSymbolGeneralizedMap(map.SetItem(key, value))
@@ -1052,7 +1052,7 @@ type TypeSymbolGeneralizedMap<'T> private (map: ImmutableDictionary<TypeSymbol, 
 type TypeSymbolMap<'T> private (map: ImmutableDictionary<TypeSymbol, 'T>) =
 
     member this.SetItem(key: TypeSymbol, value) =
-        if key.IsError_t then
+        if key.IsError_ste then
             this
         else
             TypeSymbolMap(map.SetItem(key, value))
@@ -1406,7 +1406,7 @@ type TypeSymbol with
 
         member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
             let ty = stripTypeEquationsAndBuiltIn this
-            match ty.TryEntity with
+            match ty.TryEntityNoAlias with
             | ValueSome ent -> ent.Hierarchy(f, set)
             | _ ->
                 match ty.TryTypeParameter with
@@ -1433,7 +1433,7 @@ type TypeSymbol with
 
         member this.HierarchyExists(f: TypeSymbol -> bool): bool =
             let ty = stripTypeEquationsAndBuiltIn this
-            match ty.TryEntity with
+            match ty.TryEntityNoAlias with
             | ValueSome ent -> ent.HierarchyExists(f)
             | _ ->
                 let mutable exists = false
@@ -1464,25 +1464,25 @@ type TypeSymbol with
             this.FlattenHierarchy()
 
         member this.AllLogicalImplements =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllLogicalImplements
             // TODO: type parameters?
             | _ -> ImArray.empty
 
         member this.AllLogicalInherits =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllLogicalInherits
             // TODO: type parameters?
             | _ -> ImArray.empty
 
         member this.AllInherits =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllInherits
             // TODO: type parameters?
             | _ -> ImArray.empty
 
         member this.AllImplements =
-            match this.TryEntity with
+            match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllImplements
             // TODO: type parameters?
             | _ -> ImArray.empty
@@ -1822,7 +1822,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) ->
             ent.CheckUnmanaged(pass, hash)
         | _ ->
@@ -1857,7 +1857,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) ->
             ent.CheckBlittable(pass, hash)
         | _ ->
@@ -1946,7 +1946,7 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
         if ent.TypeArguments.Length = super.TypeArguments.Length then
             (ent.TypeArguments, super.TypeArguments)
             ||> ImArray.forall2 (fun ty superTy ->
-                if superTy.IsTypeConstructor then
+                if superTy.IsTypeConstructor_steea then
                     match stripTypeEquations superTy with
                     | TypeSymbol.Variable(tyPar) ->
                         tyPar.Constraints
@@ -1980,8 +1980,8 @@ let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
 
 let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if UnifyTypes rigidity ty superTy then
-        if ty.IsTypeVariable then
-            if superTy.IsBaseObject_t || superTy.IsTypeVariable then
+        if ty.IsAnyVariable_ste then
+            if superTy.IsBaseObject_t || superTy.IsAnyVariable_ste then
                 true
             else
                 false
@@ -2004,7 +2004,7 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                 | ConstraintSymbol.SubtypeOf(ty)
                 | ConstraintSymbol.TraitType(ty) ->
                     let ty = ty.Value
-                    if superTy.IsShape || ty.IsShape then
+                    if superTy.IsShape_ste || ty.IsShape_ste then
                         // Skip shape checks as these checks are done in the constraint solver for solved type variables.
                         // REVIEW: If Oly ever implements 'dynamic dispatched' shapes, we may need to alter this logic.
                         //         Perhaps this is fine and we introduce a new entity kind, `DispatchShape' or 'DynamicShape'
@@ -2022,7 +2022,7 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
             subsumesTypeWith rigidity superTy ty
 
         | _ -> 
-            match ty.TryEntity, superTy.TryEntity with
+            match ty.TryEntityNoAlias, superTy.TryEntityNoAlias with
             | ValueSome(ent), ValueSome(super) ->
                 subsumesEntityWith rigidity super ent
             | _ ->
@@ -2033,7 +2033,7 @@ let subsumesType superTy ty =
     subsumesTypeWith Rigid superTy ty
 
 let subsumesTypeConstructorWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
-    if not superTy.IsTypeConstructor || not ty.IsTypeConstructor then
+    if not superTy.IsTypeConstructor_steea || not ty.IsTypeConstructor_steea then
         false
     else
         if UnifyTypes rigidity superTy ty then true
@@ -2048,11 +2048,11 @@ let subsumesTypeConstructor superTy ty =
 
 let filterTypesAsInterfaces (tys: TypeSymbol imarray) =
     tys
-    |> ImArray.filter (fun x -> x.IsInterface)
+    |> ImArray.filter (fun x -> x.IsInterface_ste)
 
 let filterTypesAsAbstract (tys: TypeSymbol imarray) =
     tys
-    |> ImArray.filter (fun x -> x.IsAbstract)
+    |> ImArray.filter (fun x -> x.IsAbstract_ste)
 
 let filterMostSpecificTypes (tys: TypeSymbol imarray) =
     tys
@@ -2345,7 +2345,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
             let parTy = pars.[0].Type
             match enclosing.TryType with
             | Some(enclosingTy) ->
-                if not (enclosingTy.IsAnyStruct && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
+                if not (enclosingTy.IsAnyStruct_ste && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
                    not (areTypesEqual enclosingTy parTy) then
                     failwith "First parameter of an instance constructor is not the same as the enclosing."
             | _ ->
@@ -2460,7 +2460,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsAnyStruct then
+        if ty.IsAnyStruct_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 
@@ -2483,7 +2483,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsAnyStruct then
+        if ty.IsAnyStruct_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 
@@ -2650,7 +2650,7 @@ let invalidValue (enclosingTyOpt: TypeSymbol option) =
     let enclosing =
         match enclosingTyOpt with
         | Some enclosingTy ->
-            match enclosingTy.TryEntity with
+            match enclosingTy.TryEntityNoAlias with
             | ValueSome ent ->
                 EnclosingSymbol.Entity ent
             | _ ->
@@ -2723,7 +2723,7 @@ let invalidField name (enclosingTyOpt: TypeSymbol option) =
     let enclosing =
         match enclosingTyOpt with
         | Some enclosingTy ->
-            match enclosingTy.TryEntity with
+            match enclosingTy.TryEntityNoAlias with
             | ValueSome ent ->
                 EnclosingSymbol.Entity ent
             | _ ->

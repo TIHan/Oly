@@ -198,7 +198,7 @@ let substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, liter
 
 let handleCallExpression syntaxInfo receiverOpt subbedWitnessArgs argExprs (appliedNewValue: IValueSymbol) isVirtualCall =
     let newArgExprs =
-        if appliedNewValue.Type.IsTypeVariable then
+        if appliedNewValue.Type.IsAnyVariable_ste then
             argExprs
         else
             BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
@@ -372,10 +372,10 @@ let substitute
                             // Special!
                             if value.IsLocal && newValue.IsInstance then
                                 if newValue.IsFunction then
-                                    OlyAssert.True(value.Type.IsAnyFunction)
+                                    OlyAssert.True(value.Type.IsAnyFunction_ste)
                                     OlyAssert.False(newValue.IsConstructor)
                                     OlyAssert.True(newValue.Enclosing.IsClosure)
-                                    OlyAssert.True(value.Type.IsAnyFunction)
+                                    OlyAssert.True(value.Type.IsAnyFunction_ste)
                                     handleReceiverExpr newValue
                                 else
                                     OlyAssert.True(newValue.IsField)
@@ -388,14 +388,14 @@ let substitute
                                             appliedNewValue :?> IFieldSymbol
                                         )
                                     // Special!
-                                    if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
+                                    if newValue.Type.IsAnyByRef_ste && not value.Type.IsAnyByRef_ste then
                                         WellKnownExpressions.FromAddress getFieldExpr
                                     else
                                         getFieldExpr                                      
                             else
                                 let valueExpr = BoundExpression.Value(syntaxInfo, appliedNewValue)
                                 // Special!
-                                if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
+                                if newValue.Type.IsAnyByRef_ste && not value.Type.IsAnyByRef_ste then
                                     WellKnownExpressions.FromAddress valueExpr
                                 else
                                     valueExpr
@@ -434,7 +434,7 @@ let substitute
                         let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
 
                         // Special!
-                        if appliedNewValue.Type.IsByRef_t && not value.Type.IsByRef_t then
+                        if appliedNewValue.Type.IsAnyByRef_ste && not value.Type.IsAnyByRef_ste then
                             match appliedNewValue with
                             | :? IFieldSymbol as appliedNewField ->
                                 BoundExpression.SetContentsOfAddress(
@@ -476,7 +476,7 @@ let substitute
 
                         let closureInvokeOpt =
                             // Special!
-                            if newValue.Type.IsClosure then
+                            if newValue.Type.IsClosure_ste then
                                 newValue.Type.GetClosureInvoke()
                                 |> Some
                             else
@@ -488,7 +488,7 @@ let substitute
                             | None when newValue.IsInstanceNotConstructor ->
                                 Some(handleReceiverExpr newValue)
                             | _ ->
-                                if newValue.Type.IsClosure then
+                                if newValue.Type.IsClosure_ste then
                                     BoundExpression.Value(syntaxInfo, newValue)
                                     |> Some
                                 else
@@ -537,7 +537,7 @@ let substitute
                         | _ ->
                             let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
 
-                            if appliedNewValue.Type.IsByRef_t then
+                            if appliedNewValue.Type.IsAnyByRef_ste then
                                 let rhsExpr =
                                     if appliedNewValue.IsField && receiverOpt.IsSome then
                                         OlyAssert.True(appliedNewValue.IsInstance)
@@ -571,7 +571,7 @@ let substitute
                             ||> ImArray.map2 (fun tyPar tyArg -> 
                                 let newTyArg = tyArg.Substitute(tyParLookup)
                                 let newTyArg =
-                                    if newTyArg.IsUnit_t then
+                                    if newTyArg.IsUnit_ste then
                                         TypeSymbolRealUnit
                                     else
                                         newTyArg
@@ -593,7 +593,7 @@ let substitute
                                 appliedValue
 
                         let newArgExprs =
-                            if appliedValue.Type.IsTypeVariable then
+                            if appliedValue.Type.IsAnyVariable_ste then
                                 argExprs
                             else
                                 BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
@@ -697,14 +697,14 @@ let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary
             pars
             |> ImArray.map (fun par ->
                 OlyAssert.True(par.Type.IsSolved)
-                OlyAssert.False(par.Type.IsError_t)
+                OlyAssert.False(par.Type.IsError_ste)
                 createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
             )
         let returnTy =
             match funcTy.TryFunction with
             | ValueSome(_, returnTy) -> 
                 OlyAssert.True(returnTy.IsSolved)
-                OlyAssert.False(returnTy.IsError_t)
+                OlyAssert.False(returnTy.IsError_ste)
                 returnTy.Substitute(tyParLookup)
             | _ -> 
                 failwith "Expected function type."
@@ -882,7 +882,7 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
     let ctorArgExprs =
         (freeLocals, ctorArgTys)
         ||> ImArray.map2 (fun x argTy -> 
-            if not x.Type.IsByRef_t && argTy.IsByRef_t then
+            if not x.Type.IsAnyByRef_ste && argTy.IsAnyByRef_ste then
                 if argTy.IsReadOnlyByRef then
                    WellKnownExpressions.AddressOf (E.CreateValue(syntaxTree, x))
                 else
@@ -1065,7 +1065,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 let field =
                     let fieldTy = x.Type.Substitute(closureTyParLookup)
                     let fieldTy =
-                        if closureBuilder.Entity.IsScoped && not x.Type.IsByRef_t then
+                        if closureBuilder.Entity.IsScoped && not x.Type.IsAnyByRef_ste then
                             if x.IsMutable then
                                 TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
 
@@ -1073,7 +1073,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                             // We mainly do this to keep optimizations working for inlining functions
                             // when scoped lambda capture other scoped lambdas.
                             // REVIEW: We should just create a byref type as a stress test and fix the optimizations in the runtime.
-                            elif fieldTy.IsAnyStruct then
+                            elif fieldTy.IsAnyStruct_ste then
                                 fieldTy
 
                             // TODO: We technically do not need to create read-only byrefs.
@@ -1084,7 +1084,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                             OlyAssert.False(x.IsMutable)
                             fieldTy
 
-                    if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped then
+                    if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped_ste then
                         failwith "Cannot capture a value whose type is scoped in a closure."
 
                     createFieldValue
@@ -1294,7 +1294,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                             let parTy =
                                 let parTy = x.Type.Substitute(tyParLookup)
                                 if x.IsMutable then
-                                    OlyAssert.False(x.Type.IsByRef_t)
+                                    OlyAssert.False(x.Type.IsAnyByRef_ste)
                                     TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
                                 else
                                     parTy
@@ -1308,7 +1308,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                                 let parTy =
                                     let parTy = x.Type.Substitute(tyParLookup)
                                     if x.IsMutable then
-                                        OlyAssert.False(x.Type.IsByRef_t)
+                                        OlyAssert.False(x.Type.IsAnyByRef_ste)
                                         TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
                                     else
                                         parTy
@@ -1383,7 +1383,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                                     | ValueSome(parTys, _) ->
                                         (parTys, argExprs)
                                         ||> ImArray.map2 (fun parTy argExpr -> 
-                                            if parTy.IsByRef_t && not argExpr.Type.IsByRef_t then
+                                            if parTy.IsAnyByRef_ste && not argExpr.Type.IsAnyByRef_ste then
                                                 if parTy.IsReadOnlyByRef then
                                                     AddressOf argExpr
                                                 else

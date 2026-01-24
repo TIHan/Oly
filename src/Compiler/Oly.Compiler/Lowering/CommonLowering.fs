@@ -191,7 +191,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
         match field.Constant with
         | ValueSome constant ->
-            if field.Type.IsEnum then
+            if field.Type.IsEnum_ste then
                 E.Literal(syntaxInfo, BoundLiteral.ConstantEnum(constant, field.Type))
             else
                 let literal = constant.ToLiteral()
@@ -405,7 +405,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                         | _ -> baseTy
                                     | _ ->
                                         baseTy
-                                match baseTy.TryEntity with
+                                match baseTy.TryEntityNoAlias with
                                 | ValueSome(baseEnt) ->
                                     let baseDefaultInstanceCtorOpt =
                                         createBaseInstanceConstructors baseEnt

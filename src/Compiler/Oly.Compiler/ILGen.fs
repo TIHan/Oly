@@ -62,7 +62,7 @@ and deterministicEntityName (ent: EntitySymbol) =
         enclosingName + "_" + ent.Name
 
 and deterministicTypeName (ty: TypeSymbol) =
-    match ty.TryEntity with
+    match ty.TryEntityNoAlias with
     | ValueSome ent -> deterministicEntityName ent
     | _ -> ty.Name
 
@@ -345,7 +345,7 @@ and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol)
         |> ImArray.map (emitILType cenv env)
 
     let ilReturnTy =
-        if returnTy.IsAnyFunction then
+        if returnTy.IsAnyFunction_ste then
             emitILType cenv env returnTy
         else
             GenReturnType cenv env returnTy
@@ -431,7 +431,7 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeConstantInt32(n)
 
     | TypeSymbol.ByRef(innerTy, kind) ->
-        OlyAssert.False(ty.IsTypeConstructor)
+        OlyAssert.False(ty.IsTypeConstructor_steea)
         let ilTy =
             match kind with
             | ByRefKind.ReadWrite ->
@@ -495,14 +495,14 @@ and emitILTypes cenv env (tys: TypeSymbol imarray) =
 
 and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
 #if DEBUG || CHECKED
-    if not ty.TypeParameters.IsEmpty && ty.IsFormal then
+    if not ty.TypeParameters.IsEmpty && ty.IsFormal_steea then
         failwith "Unexpected formal type."
 #endif
     match stripTypeEquations ty with
     | TypeSymbol.Unit -> OlyILTypeVoid
     | ty -> 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
         emitILType cenv env ty
@@ -547,7 +547,7 @@ and emitILEnclosingForMember cenv env (func: IValueSymbol) =
     | EnclosingSymbol.Entity(ent) ->
         emitILEnclosingEntityNoNamespace cenv env ent
     | EnclosingSymbol.Witness(concreteTy, tr) ->
-        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal_steea)
         OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
@@ -567,7 +567,7 @@ and emitILEnclosingForEntity cenv env (ent: EntitySymbol) =
     | EnclosingSymbol.RootNamespace ->
         OlyILEnclosing.Namespace(ImArray.empty, getAssemblyIdentity ent)
     | EnclosingSymbol.Witness(concreteTy, tr) ->
-        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal_steea)
         OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
@@ -590,9 +590,9 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
 
         let parTy = par.Type
 #if DEBUG || CHECKED
-        if not parTy.TypeParameters.IsEmpty && parTy.IsFormal then
+        if not parTy.TypeParameters.IsEmpty && parTy.IsFormal_steea then
             failwith "Unexpected formal type."
-        if parTy.IsTypeConstructor then
+        if parTy.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
 
@@ -1307,7 +1307,7 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
         |> ImArray.map (function
             | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
 #if DEBUG || CHECKED
-                if value.Type.IsTypeConstructor then
+                if value.Type.IsTypeConstructor_steea then
                     failwith "Unexpected type constructor."
 #endif
                 let ilTy = emitILType cenv env value.Type
@@ -1365,7 +1365,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
                 OlyILOperation.Cast(GenExpression cenv env bodyExpr, emitILType cenv env exprTy)
             )
         | Some(witnessArg) ->
-            if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then
+            if not witnessArg.IsTypeExtension_ste && not witnessArg.IsAnyVariable_ste then
                 failwith "Expected type extension or type parameter."
             OlyILExpression.Operation(ilTextRange, 
                 OlyILOperation.Witness(
@@ -1551,7 +1551,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
             failwith "Value must be mutable."
 
         OlyAssert.False(value.IsFunction)
-        OlyAssert.False(value.Type.IsByRef_t)
+        OlyAssert.False(value.Type.IsAnyByRef_ste)
 #endif
         GenSetValueExpression cenv env ilTextRange value rhs
 
@@ -1616,7 +1616,7 @@ and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
 
 and GenSetContentsOfAddressExpression (cenv: cenv) env _ilTextRange lhsExpr rhsExpr =
 #if DEBUG || CHECKED
-    OlyAssert.True(lhsExpr.Type.IsByRef_t || lhsExpr.Type.IsAnyPtr)
+    OlyAssert.True(lhsExpr.Type.IsAnyByRef_ste || lhsExpr.Type.IsAnyPtr)
     OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef)
 #endif
     let ilLhsExpr = GenExpression cenv env lhsExpr
@@ -1722,7 +1722,7 @@ and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs:
                 OlyILExpression.Value(OlyILDebugSourceTextRange.Empty, OlyILValue.Unit)
             )
         else
-            if expectedArgTy.IsAnyFunction && argExprTy.IsClosure then
+            if expectedArgTy.IsAnyFunction_ste && argExprTy.IsClosure_ste then
                 failwith "Should be handled earlier in lowering."
             else
                 ilArgExpr                
@@ -1745,7 +1745,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     let ilReceiverOpt =
         receiverOpt
         |> Option.map (fun receiver ->
-            if value.IsInstance && value.Enclosing.IsAnyStruct && not receiver.Type.IsByRef_t then
+            if value.IsInstance && value.Enclosing.IsAnyStruct && not receiver.Type.IsAnyByRef_ste then
                 failwith "Expected a by-reference type for function call."
             GenExpression cenv { env with isReturnable = false } receiver
         )
@@ -1790,7 +1790,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     | ValueSome(WellKnownFunction.UnsafeAddressOf)
     | ValueSome(WellKnownFunction.AddressOf) when argExprs.Length = 1 && ilReceiverOpt.IsNone ->
         let argExpr = argExprs.[0]
-        if argExpr.Type.IsByRef_t then GenExpression cenv { env with isReturnable = false; isInArg = true } argExpr
+        if argExpr.Type.IsAnyByRef_ste then GenExpression cenv { env with isReturnable = false; isInArg = true } argExpr
         else
 
         let rec emitAddressOf ilByRefKind argExpr =
@@ -1853,7 +1853,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             GenExpression cenv env argExprs[0]
         let ilFuncInst =               
             match argExprs[1] with
-            | E.Value(_, value) when value.IsFunction && value.Enclosing.AsType.IsClosure && value.IsInstance && value.Name = "Invoke" ->
+            | E.Value(_, value) when value.IsFunction && value.Enclosing.AsType.IsClosure_ste && value.IsInstance && value.Name = "Invoke" ->
                 GenFunctionAsILFunctionInstance cenv env witnessArgs (value :?> IFunctionSymbol)
             | _ ->
                 failwith "Expected closure instance invoke."
@@ -2010,7 +2010,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsAnyStruct && not value.Type.IsNativeFunctionPtr_t then
+                            if value.Type.IsAnyStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),
@@ -2049,7 +2049,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 OlyAssert.Equal(0, ilTyInst.Length)
                 OlyAssert.Equal(0, ilWitnesses.Length)
 
-                if value.Type.IsScopedFunction then
+                if value.Type.IsScopedFunction_ste then
                     let ilFunArgExpr =
                         match ilFunArgExpr with
                         | OlyILExpression.Value(ilTextRange, OlyILValue.Local n) ->
@@ -2105,12 +2105,12 @@ and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E)
         let mustBeRealUnit = 
             match stripTypeEquations value.Type with
             | TypeSymbol.Unit -> true
-            | ty -> ty.IsRealUnit
+            | ty -> ty.IsRealUnit_ste
         let ilRhsExpr = GenExpression cenv { env with isReturnable = false } rhsExpr
         let value = bindingInfo.Value
 
 #if DEBUG || CHECKED
-        if value.Type.IsTypeConstructor then
+        if value.Type.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
 
@@ -2149,7 +2149,7 @@ and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E)
 
         if mustBeRealUnit then
             match stripTypeEquations rhsExpr.Type with
-            | ty when ty.IsRealUnit ->
+            | ty when ty.IsRealUnit_ste ->
                 OlyILExpression.Let(ilLocal.Index, ilRhsExpr, ilBodyExpr)
             | _ ->
                 let ilNewRhsExpr =
