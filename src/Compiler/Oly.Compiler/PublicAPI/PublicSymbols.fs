@@ -307,10 +307,10 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
 
     member _.IsShape = ty.IsShape_ste
 
-    member _.IsTuple = ty.IsAnyTuple
+    member _.IsTuple = ty.IsTuple_ste
 
-    /// Is type symbol a reference type?
-    member _.IsValue = ty.IsAnyStruct_ste
+    /// Is type symbol a value type?
+    member _.IsValue = ty.IsValue_ste
 
     member _.IsBuiltIn = ty.IsBuiltIn_ste
 
@@ -320,15 +320,14 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
 
     member _.IsUnit = ty.IsUnit_ste
 
-    member _.IsAnyArray = ty.IsAnyArray_ste
+    member _.IsArray = ty.IsAnyArray_ste
 
-    /// Is it an immutable array?
-    member _.IsArray = ty.IsArray
+    member _.IsFixedArray = ty.IsAnyFixedArray_ste
 
     /// Is it a mutable array?
-    member _.IsMutableArray = ty.IsMutableArray_t
+    member _.IsMutableArray = ty.IsAnyMutableArray_ste
 
-    member _.IsTypeAnyByRef = ty.IsAnyByRef_ste
+    member _.IsByRef = ty.IsAnyByRef_ste
 
     member _.GetTupleItemSignatureTexts() =
         match stripTypeEquations ty with
@@ -406,7 +405,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
                     | TypeSymbol.Int64 
                     | TypeSymbol.Float64 -> 8
                     | ty ->
-                        if ty.IsAnyStruct_ste then
+                        if ty.IsValue_ste then
                             let mutable isValid = true
                             let fieldBytes =
                                 ty.GetInstanceFields()
@@ -934,7 +933,7 @@ type OlyEnclosingSymbol internal (enclosing: EnclosingSymbol) =
 
     member this.IsStruct =
         match enclosing with
-        | EnclosingSymbol.Entity(ent) -> ent.IsAnyStruct
+        | EnclosingSymbol.Entity(ent) -> ent.IsValue
         | _ -> false
 
     member this.IsTypeExtension =
@@ -1352,7 +1351,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode
                                 match matchExpr.TryEnvironment with
                                 | Some benv ->
                                     let ty = matchExpr.Type 
-                                    if ty.IsSolved then
+                                    if ty.IsSolved_ste then
                                         matchTyOpt <- Some(matchExpr.Syntax, ty, boundNode)
                                 | _ ->
                                     ()
@@ -1366,9 +1365,9 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode
                             match stripTypeEquations returnTy with
                             | TypeSymbol.Tuple(itemTys, _) when matchIndex < itemTys.Length ->
                                 let ty = itemTys[matchIndex]
-                                if ty.IsSolved then
+                                if ty.IsSolved_ste then
                                     matchTyOpt <- Some(syntaxInfo.Syntax, ty, boundNode)
-                            | ty when ty.IsSolved ->
+                            | ty when ty.IsSolved_ste ->
                                 matchTyOpt <- Some(syntaxInfo.Syntax, ty, boundNode)
                             | _ ->
                                 ()

@@ -719,19 +719,19 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
         analyzeType acenv aenv syntaxNode ty
 
     | BoundLiteral.NullInference(ty) ->
-        if not ty.IsNullable && ty.IsSolved then
+        if not ty.IsNullable_ste && ty.IsSolved_ste then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        if not ty.IsAnyStruct_ste && not ty.IsNullable && ty.IsSolved && not isUnchecked then
+        if not ty.IsValue_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             match literal with
-            | BoundLiteral.ConstantEnum(_, enumTy) when not (enumTy.IsUnmanaged(PostInferenceAnalysis)) ->
+            | BoundLiteral.ConstantEnum(_, enumTy) when not (enumTy.IsUnmanaged_ste(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
-            | BoundLiteral.Constant(cns) when not (cns.Type.IsUnmanaged(PostInferenceAnalysis)) ->
+            | BoundLiteral.Constant(cns) when not (cns.Type.IsUnmanaged_ste(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
             | _ ->
                 ()
@@ -854,7 +854,7 @@ and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool)
         if exprTy.IsScoped_ste then
             not isReceiver && expectedTy.IsAnyNonStruct_ste && not expectedTy.IsScoped_ste
         else
-            (exprTy.IsAnyStruct_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
+            (exprTy.IsValue_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
 
     // Context Analysis: UnmanagedAllocationOnly
     if willBox && aenv.IsInUnmanagedAllocationOnlyContext then
@@ -1158,7 +1158,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         let scopeResult2 = analyzeAddressOf acenv aenv scopeResult.ScopeValue scopeResult.ScopeLimits expr
 
-        match value.Type.TryFunction with
+        match value.Type.TryAnyFunction with
         | ValueSome(_, returnTy) ->
             if aenv.isLastExprOfScope && returnTy.IsAnyByRef_ste && scopeResult2.ScopeLimits.HasFlag(ScopeLimits.StackReferringByRef) then
                 if scopeResult2.ScopeValue >= aenv.scope then
@@ -1227,7 +1227,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
-        match lazyTy.Type.TryFunction with
+        match lazyTy.Type.TryAnyFunction with
         | ValueSome(_, outputTy) ->
             let syntaxPars =
                 match syntaxNode with

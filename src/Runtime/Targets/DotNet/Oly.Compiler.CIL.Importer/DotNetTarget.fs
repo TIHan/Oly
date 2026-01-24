@@ -781,14 +781,14 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                                 (func.Parameters, func2.Parameters)
                                 ||> ImArray.iter2 (fun par1 par2 ->
                                     if not(par1.Type.IsEqualTo(par2.Type)) then
-                                        if not par1.Type.IsTypeAnyByRef || not par2.Type.IsTypeAnyByRef then
+                                        if not par1.Type.IsByRef || not par2.Type.IsByRef then
                                             allParsAreSame <- false     
                                 )
 
                                 match func.ReturnType, func2.ReturnType with
                                 | Some(returnTy1), Some(returnTy2) ->
                                     if not(returnTy1.IsEqualTo(returnTy2)) then
-                                        if not returnTy1.IsTypeAnyByRef || not returnTy2.IsTypeAnyByRef then
+                                        if not returnTy1.IsByRef || not returnTy2.IsByRef then
                                             allParsAreSame <- false
                                     elif func.Parameters.IsEmpty then
                                         allParsAreSame <- false

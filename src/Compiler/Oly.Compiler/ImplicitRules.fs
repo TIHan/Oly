@@ -180,7 +180,7 @@ let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
     let expr = tryMorphSimpleImplicit expectedTy expr
     let exprTy = expr.Type
     if expectedTy.IsFunctionNotPtr_ste && exprTy.IsFunctionNotPtr_ste then
-        match expectedTy.TryFunction, exprTy.TryFunction with
+        match expectedTy.TryAnyFunction, exprTy.TryAnyFunction with
         | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_ste ->
             if (expectedReturnTy.IsRealUnit_ste || expectedReturnTy.IsVariableZeroArity_ste) && returnTy.IsUnit_ste then
                 match expr with

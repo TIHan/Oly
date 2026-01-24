@@ -550,7 +550,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewArray(ty=ty) -> ty
         | Call(value=value) ->
             let ty = value.Type
-            match ty.TryFunction with
+            match ty.TryAnyFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ ->
                 ty.TryEntityNoAlias

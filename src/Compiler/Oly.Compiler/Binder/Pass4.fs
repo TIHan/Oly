@@ -486,7 +486,7 @@ let private bindParenthesisExpression (cenv: cenv) (env: BinderEnvironment) (exp
     else
         let tupleTyOpt = 
             match expectedTyOpt with
-            | Some expectedTy when expectedTy.IsAnyTuple && expectedTy.TypeArguments.Length = syntaxExprList.ChildrenOfType.Length ->
+            | Some expectedTy when expectedTy.IsTuple_ste && expectedTy.TypeArguments.Length = syntaxExprList.ChildrenOfType.Length ->
                 Some expectedTy
             | _ ->
                 None
@@ -1546,7 +1546,7 @@ let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxT
         OlyAssert.Fail("Unmatched syntax expression.")
 
 let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) =
-    if not ty.Inherits.IsEmpty && not ty.IsAnyStruct_ste then
+    if not ty.Inherits.IsEmpty && not ty.IsValue_ste then
         let implicitParameterlessBaseInstanceCtorOpt =
             if env.implicitThisOpt.IsNone then
                 None
@@ -1569,7 +1569,7 @@ let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderE
         | None ->
             // This is a special case. 
             // The Oly runtime does not require that we need to call the base object constructor.
-            if ty.Inherits[0].IsBaseObject_t |> not then
+            if ty.Inherits[0].IsBaseObject_ste |> not then
                 cenv.diagnostics.Error($"Cannot implicitly call parameterless base constructor for type '{printType env.benv ty}' as it does not exist.", 10, syntaxToCapture)
             None
         | Some(baseCtor) ->
@@ -1690,7 +1690,7 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                     | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsStruct_ste && bodyExpr.IsGenerated ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (valueExpr.Syntax, value) ty syntaxInitializer
 
-                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsAnyStruct_ste ->
+                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsValue_ste ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (bodyExpr.Syntax, value) ty syntaxInitializer
 
                     | E.Call(value=value) when value.IsBase && value.IsFunction ->

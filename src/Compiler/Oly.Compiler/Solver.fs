@@ -166,7 +166,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                 if funcs.IsEmpty then
                     let formalAbstractFunc = abstractFunc.Formal
                     // If the struct doesn't have an instance constructor, we will still allow it for the shape member '{ new() }' since it can technically be constructed.
-                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsAnyStruct_ste && not principalTyArg.IsAnyVariable_ste then
+                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsValue_ste && not principalTyArg.IsAnyVariable_ste then
                         ()
                     else
                         if not isAttempt then
@@ -336,7 +336,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             Ok() // Return true for recovery
 
 let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (isAttempt: bool): Result<unit, ConstraintSolverError> =
-    OlyAssert.True(tyArg.IsSolved)
+    OlyAssert.True(tyArg.IsSolved_ste)
 
     let ty = stripTypeEquations tyArg
     match ty with
@@ -354,7 +354,7 @@ let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolve
         solveWitnessesByType env syntaxNode solver tyArgs witnessArgs target tyPar ty isAttempt
 
 let private solveConstraintNull _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    tyArg.IsNullable
+    tyArg.IsNullable_ste
 
 let private solveConstraintStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -364,7 +364,7 @@ let private solveConstraintStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: Type
         |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
 
     | tyArg ->
-        tyArg.IsAnyStruct_ste
+        tyArg.IsValue_ste
 
 let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -374,13 +374,13 @@ let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: T
         |> ImArray.exists (function ConstraintSymbol.NotStruct -> true | _ -> false)
 
     | tyArg ->
-        not tyArg.IsAnyStruct_ste
+        not tyArg.IsValue_ste
 
 let private solveConstraintUnmanaged env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    tyArg.IsUnmanaged(env.pass)
+    tyArg.IsUnmanaged_ste(env.pass)
 
 let private solveConstraintBlittable env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
-    tyArg.IsBlittable(env.pass)
+    tyArg.IsBlittable_ste(env.pass)
 
 let private solveConstraintScoped _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -404,7 +404,7 @@ let private solveConstraintConstantType _env (_syntaxNode: OlySyntaxNode) (const
         | _ -> false
 
 let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
-    OlyAssert.True(tyArg.IsSolved)
+    OlyAssert.True(tyArg.IsSolved_ste)
 
     if tyArg.IsError_ste then
         // Error recovery: always assume the constraint is solved for an error type
@@ -543,7 +543,7 @@ let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyAr
     )
 
 let reportUnableToInferTypeParameter (env: SolverEnvironment) syntaxNode (witnessArgs: WitnessSolution imarray) (tyPar: TypeParameterSymbol, tyArg: TypeArgumentSymbol) =
-    OlyAssert.False(tyArg.IsSolved)
+    OlyAssert.False(tyArg.IsSolved_ste)
 
     env.diagnostics.Error($"Type parameter '{(printType env.benv tyArg)}' was unable to be inferred.", 10, syntaxNode)
 
@@ -584,7 +584,7 @@ let solveConstraints
 
     tyArgs
     |> ImArray.iteri (fun i tyArg ->
-        if tyArg.IsSolved then
+        if tyArg.IsSolved_ste then
             match tyArg.TryImmediateTypeParameter with
             | ValueSome tyParToCheck ->
                 let tyPar = tyPars[i]

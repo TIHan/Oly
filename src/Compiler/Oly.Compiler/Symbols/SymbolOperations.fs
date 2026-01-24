@@ -223,7 +223,7 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) (tyArg
 
 let private unifyVariadicInferenceVariable rigidity (variadicTyVar: TypeSymbol) (tyArgs: TypeSymbol imarray) : bool =
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
-    if variadicTyVar.IsVariadicInferenceVariable then
+    if variadicTyVar.IsVariadicInferenceVariable_ste then
         // TODO: Kind of a hack using TypeSymbol.Tuple.
         let inputTy = 
             if tyArgs.IsEmpty then
@@ -240,7 +240,7 @@ let private unifyVariadicInferenceVariable rigidity (variadicTyVar: TypeSymbol) 
 let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: TypeSymbol imarray) : bool =
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
     if tyArgs1.Length = 1 then
-        if tyArgs1[0].IsVariadicInferenceVariable then
+        if tyArgs1[0].IsVariadicInferenceVariable_ste then
             unifyVariadicInferenceVariable rigidity tyArgs1[0] tyArgs2
         else
             match tyArgs1[0] with
@@ -257,10 +257,10 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
                                 when not externalSolution.HasSolution && not solution.HasSolution ->
                             match tyArgs[0] with
                             | TypeSymbol.InferenceVariable(Some tyPar, innerSolution) 
-                                    when tyPar.IsVariadic && innerSolution.HasSolution && innerSolution.Solution.IsAnyTuple ->
+                                    when tyPar.IsVariadic && innerSolution.HasSolution && innerSolution.Solution.IsTuple_ste ->
                                 let isValid =
                                     if tyArgs.Length = 1 && tyArgs2.Length = 1 && 
-                                       tyArgs[0].IsAnyTuple && tyArgs2[0].IsAnyTuple then
+                                       tyArgs[0].IsTuple_ste && tyArgs2[0].IsTuple_ste then
                                         (tyArgs, tyArgs2)
                                         ||> ImArray.forall2 (UnifyTypes rigidity)
                                     else
@@ -351,7 +351,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
     match origTy1, origTy2 with
     | TypeSymbol.InferenceVariable(_, solution1), _
     | TypeSymbol.EagerInferenceVariable(solution1, _), _ when isMostFlexible solution1 origTy2 ->
-        if origTy1.IsSolved then
+        if origTy1.IsSolved_ste then
             unifyMostFlexibleAux origTy1 solution1 origTy2
         else
             match origTy2 with
@@ -363,7 +363,7 @@ let private unifyMostFlexible (origTy1: TypeSymbol) (origTy2: TypeSymbol) : bool
     
     | _, TypeSymbol.InferenceVariable(_, solution2)
     | _, TypeSymbol.EagerInferenceVariable(solution2, _) when isMostFlexible solution2 origTy1 ->
-        if origTy2.IsSolved then
+        if origTy2.IsSolved_ste then
             unifyMostFlexibleAux origTy2 solution2 origTy1
         else
             match origTy1 with
@@ -435,7 +435,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.EagerInferenceVariable(varSolution, eagerTy), ty 
         | ty, TypeSymbol.EagerInferenceVariable(varSolution, eagerTy) when (rigidity = Flexible) || (rigidity = MostFlexible) ->
-            OlyAssert.True(eagerTy.IsSolved)
+            OlyAssert.True(eagerTy.IsSolved_ste)
             OlyAssert.False(eagerTy.IsAnyVariable_ste)
             match ty with
             | TypeSymbol.InferenceVariable(_, tySolution) ->
@@ -443,7 +443,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 varSolution.SetSolution(ty)
                 UnifyTypes rigidity ty1 ty2
             | _ ->
-                if ty.IsAnyStruct_ste then
+                if ty.IsValue_ste then
                     match ty with
                     | TypeSymbol.UInt8
                     | TypeSymbol.Int8
@@ -471,9 +471,9 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
 
         | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
         | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
-            OlyAssert.True(eagerTy.IsSolved)
+            OlyAssert.True(eagerTy.IsSolved_ste)
             OlyAssert.False(eagerTy.IsAnyVariable_ste)
-            if targetTy.IsAnyStruct_ste && not targetTy.IsAnyVariable_ste then
+            if targetTy.IsValue_ste && not targetTy.IsAnyVariable_ste then
                 match targetTy with
                 | TypeSymbol.UInt8
                 | TypeSymbol.Int8
@@ -554,13 +554,13 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                         | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
                         | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
                             let elementTy = elementTys[0]
-                            if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_ste then
+                            if (not elementTy.IsTuple_ste || elementTy.IsOneItemTuple) && not elementTy.IsUnit_ste then
                                 UnifyTypes rigidity elementTy ty
                             else
                                 UnifyTypes rigidity tupTy ty
 
                         | TypeSymbol.Tuple _, ty
-                        | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
+                        | ty, TypeSymbol.Tuple _ when not ty.IsSolved_ste && not ty.IsVariadicInferenceVariable_ste ->
                             false
 
                         | _ ->
@@ -580,13 +580,13 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                     | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
                     | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
                         let elementTy = elementTys[0]
-                        if (not elementTy.IsAnyTuple || elementTy.IsOneTuple) && not elementTy.IsUnit_ste then
+                        if (not elementTy.IsTuple_ste || elementTy.IsOneItemTuple) && not elementTy.IsUnit_ste then
                             UnifyTypes rigidity elementTy ty
                         else
                             UnifyTypes rigidity tupTy ty
 
                     | TypeSymbol.Tuple _, ty
-                    | ty, TypeSymbol.Tuple _ when not ty.IsSolved && not ty.IsVariadicInferenceVariable ->
+                    | ty, TypeSymbol.Tuple _ when not ty.IsSolved_ste && not ty.IsVariadicInferenceVariable_ste ->
                         false
 
                     | _ ->
@@ -1002,7 +1002,7 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
                 if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                         // TODO: This really isn't right.
                         let isInstance = func.IsInstance
-                        if not isInstance || not ty2.IsAnyStruct_ste || (if superFunc.IsImmutable then func.IsImmutable else true) then
+                        if not isInstance || not ty2.IsValue_ste || (if superFunc.IsImmutable then func.IsImmutable else true) then
                             let result =
                                 (superFunc.Parameters, func.Parameters)
                                 ||> ImArray.foralli2 (fun i par1 par2 ->
@@ -1376,6 +1376,7 @@ type TypeSymbol with
         static member DistinctByGeneralization(tys: TypeSymbol seq) =
             HashSet(tys, TypeSymbolGeneralizedComparer()) :> _ seq
 
+        /// Strips type equations except alias - IF the type symbol is not an entity.
         member this.LogicalTypeArguments : TypeSymbol imarray =
             match this with
             | TypeSymbol.Entity(ent) -> ent.LogicalTypeArguments
@@ -1383,6 +1384,8 @@ type TypeSymbol with
 
         /// Returns the type parameters of the entity but excludes its enclosing's type parameters.
         /// Useful when dealing with nested types.
+        ///
+        /// Strips type equations except alias - EXCEPT when getting enclosing's type parameters.
         member this.LogicalTypeParameters =
             let enclosingTyPars = this.Enclosing.TypeParameters
             if enclosingTyPars.IsEmpty then
@@ -1392,6 +1395,7 @@ type TypeSymbol with
                 |> Seq.skip enclosingTyPars.Length
                 |> ImArray.ofSeq
 
+        /// Strips type equations except alias - EXCEPT when getting enclosing's type parameters.
         member this.LogicalTypeParameterCount =
             let enclosingTyPars = this.Enclosing.TypeParameters
             if enclosingTyPars.IsEmpty then
@@ -1399,11 +1403,15 @@ type TypeSymbol with
             else
                 this.TypeParameters.Length - enclosingTyPars.Length
 
-        member this.IsBaseObject_t =
+        /// Is the type symbol the object type?
+        ///
+        /// Strips type equations and built-in.
+        member this.IsBaseObject_ste =
             match stripTypeEquationsAndBuiltIn this with
             | TypeSymbol.BaseObject -> true
             | _ -> false
 
+        /// Strips type equations and built-in.
         member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
             let ty = stripTypeEquationsAndBuiltIn this
             match ty.TryEntityNoAlias with
@@ -1427,10 +1435,12 @@ type TypeSymbol with
                 | _ ->
                     ()
 
+        /// Strips type equations and built-in.
         member this.Hierarchy(f: TypeSymbol -> bool): unit =
             let set = HashSet(SymbolComparers.TypeSymbolComparer())
             this.Hierarchy(f, set)
 
+        /// Strips type equations and built-in.
         member this.HierarchyExists(f: TypeSymbol -> bool): bool =
             let ty = stripTypeEquationsAndBuiltIn this
             match ty.TryEntityNoAlias with
@@ -1443,44 +1453,53 @@ type TypeSymbol with
                 )
                 exists
 
+        /// Strips type equations and built-in.
         member this.FlattenHierarchy(): TypeSymbol imarray =
             let builder = ImArray.builder()
             this.Hierarchy(fun x -> builder.Add(x); true)
             builder.ToImmutable()
 
+        /// Strips type equations and built-in.
         member this.FlattenHierarchyIncluding(): TypeSymbol imarray =
             let builder = ImArray.builder()
             builder.Add(this)
             this.Hierarchy(fun x -> builder.Add(x); true)
             builder.ToImmutable()
 
+        /// Strips type equations and built-in.
         member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
             if f(this) then
                 let set = HashSet(SymbolComparers.TypeSymbolComparer())
                 this.Hierarchy(f, set)
 
-        // TODO: Remove this.
+        /// TODO: Remove this.
+        ///
+        /// Strips type equations and built-in.
         member this.AllLogicalInheritsAndImplements: _ imarray =
             this.FlattenHierarchy()
 
+        /// Strips type equations.
         member this.AllLogicalImplements =
             match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllLogicalImplements
             // TODO: type parameters?
             | _ -> ImArray.empty
 
+        /// Strips type equations.
         member this.AllLogicalInherits =
             match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllLogicalInherits
             // TODO: type parameters?
             | _ -> ImArray.empty
 
+        /// Strips type equations.
         member this.AllInherits =
             match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllInherits
             // TODO: type parameters?
             | _ -> ImArray.empty
 
+        /// Strips type equations.
         member this.AllImplements =
             match this.TryEntityNoAlias with
             | ValueSome ent -> ent.AllImplements
@@ -1488,12 +1507,16 @@ type TypeSymbol with
             | _ -> ImArray.empty
 
         /// Immediate functions directly on type. Does not include inherited/implemeted types' functions.
+        ///
+        /// Strips type equations.
         member this.Functions: _ imarray =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.Functions
             | _ -> ImArray.empty
 
         /// Immediate fields. Does not include fields from inherited/implemented types.
+        ///
+        /// Strips type equations.
         member this.Fields =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.Fields
@@ -1501,23 +1524,30 @@ type TypeSymbol with
             | _ -> ImArray.empty
 
         /// Immediate properties. Does not include properties from inherited/implemented types.
+        ///
+        /// Strips type equations.
         member this.Properties =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.Properties
             // TODO: Type parameter?
             | _ -> ImArray.empty
 
+        /// DOES NOT strip type equations.
         member this.IsImported =
             match this with
             | TypeSymbol.Entity(ent) -> ent.IsImported
             | _ -> false
 
+        /// DOES NOT strip type equations.
         member this.IsExported =
             match this with
             | TypeSymbol.Entity(ent) -> ent.IsExported
             | _ -> false
 
-        member this.IsUnmanaged(pass) =
+        /// Is the type symbol an unmanaged type.
+        ///
+        /// Strips type equations.
+        member this.IsUnmanaged_ste(pass) =
 #if DEBUG || CHECKED
             match pass with
             | Pass3
@@ -1545,14 +1575,17 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.IsUnmanaged(pass)
             | TypeSymbol.Tuple(itemTys, _) ->
                 itemTys
-                |> ImArray.forall (fun x -> x.IsUnmanaged(pass))
+                |> ImArray.forall (fun x -> x.IsUnmanaged_ste(pass))
             | TypeSymbol.Variable(tyPar) ->
                 tyPar.Constraints 
                 |> ImArray.exists (function ConstraintSymbol.Unmanaged | ConstraintSymbol.Blittable -> true | _ -> false)
             | _ -> 
                 false
 
-        member this.IsBlittable(pass) =
+        /// Is the type symbol a blittable type?
+        ///
+        /// Strips type equations.
+        member this.IsBlittable_ste(pass) =
 #if DEBUG || CHECKED
             match pass with
             | Pass3
@@ -1573,7 +1606,7 @@ type TypeSymbol with
             | TypeSymbol.Float64
             | TypeSymbol.NativeInt
             | TypeSymbol.NativeUInt -> true
-            | TypeSymbol.NativePtr(elementTy) -> elementTy.IsBlittable(pass)
+            | TypeSymbol.NativePtr(elementTy) -> elementTy.IsBlittable_ste(pass)
             | TypeSymbol.NativeFunctionPtr(ilCallConv, _, _) ->
                 match ilCallConv with
                 | Oly.Metadata.OlyILCallingConvention.Blittable ->
@@ -1583,7 +1616,7 @@ type TypeSymbol with
             | TypeSymbol.Entity(ent) -> ent.IsBlittable(pass)
             | TypeSymbol.Tuple(itemTys, _) ->
                 itemTys
-                |> ImArray.forall (fun x -> x.IsBlittable(pass))
+                |> ImArray.forall (fun x -> x.IsBlittable_ste(pass))
             | TypeSymbol.Variable(tyPar) ->
                 tyPar.Constraints 
                 |> ImArray.exists (function ConstraintSymbol.Blittable -> true | _ -> false)
@@ -1826,7 +1859,7 @@ type EntitySymbol with
         | ValueSome(ent) ->
             ent.CheckUnmanaged(pass, hash)
         | _ ->
-            ty.IsUnmanaged(pass)
+            ty.IsUnmanaged_ste(pass)
 
     member private this.CheckUnmanaged(pass, hash: HashSet<EntitySymbol>) =
 #if DEBUG || CHECKED
@@ -1836,7 +1869,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        if this.IsAnyStruct then
+        if this.IsValue then
             if hash.Add(this) then
                 if this.IsAlias && this.Extends.Length > 0 then
                     EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
@@ -1861,7 +1894,7 @@ type EntitySymbol with
         | ValueSome(ent) ->
             ent.CheckBlittable(pass, hash)
         | _ ->
-            ty.IsBlittable(pass)
+            ty.IsBlittable_ste(pass)
 
     member private this.CheckBlittable(pass, hash: HashSet<EntitySymbol>) =
 #if DEBUG || CHECKED
@@ -1871,7 +1904,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        if this.IsAnyStruct then
+        if this.IsValue then
             if hash.Add(this) then
                 if this.IsAlias && this.Extends.Length > 0 then
                     EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
@@ -1898,7 +1931,7 @@ type EntitySymbol with
         else if flags.HasFlag(EntityCachedFlags.Unmanaged) then
             true
         else
-            if this.IsAnyStruct then
+            if this.IsValue then
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
@@ -1926,7 +1959,7 @@ type EntitySymbol with
         else if flags.HasFlag(EntityCachedFlags.Blittable) then
             true
         else
-            if this.IsAnyStruct then
+            if this.IsValue then
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
@@ -1981,7 +2014,7 @@ let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
 let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if UnifyTypes rigidity ty superTy then
         if ty.IsAnyVariable_ste then
-            if superTy.IsBaseObject_t || superTy.IsAnyVariable_ste then
+            if superTy.IsBaseObject_ste || superTy.IsAnyVariable_ste then
                 true
             else
                 false
@@ -2345,7 +2378,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
             let parTy = pars.[0].Type
             match enclosing.TryType with
             | Some(enclosingTy) ->
-                if not (enclosingTy.IsAnyStruct_ste && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
+                if not (enclosingTy.IsValue_ste && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
                    not (areTypesEqual enclosingTy parTy) then
                     failwith "First parameter of an instance constructor is not the same as the enclosing."
             | _ ->
@@ -2460,7 +2493,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsAnyStruct_ste then
+        if ty.IsValue_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 
@@ -2483,7 +2516,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsAnyStruct_ste then
+        if ty.IsValue_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 

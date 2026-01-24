@@ -212,7 +212,7 @@ let determineByRefKind argExpr =
         match value.TryWellKnownFunction with
         | ValueSome(WellKnownFunction.GetArrayElement) ->
             let par = (value :?> IFunctionSymbol).Parameters[0]
-            if par.Type.IsReadOnly then
+            if par.Type.IsReadOnly_ste then
                 ByRefKind.ReadOnly
             else
                 ByRefKind.ReadWrite
@@ -231,9 +231,9 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
             let argExpr = argExprs[0]
             match argExpr with
             | E.Value(value=value) when value.IsLocal ->
-                if value.IsMutable && x.ReturnType.IsReadWriteByRef then
+                if value.IsMutable && x.ReturnType.IsReadWriteByRef_ste then
                     true
-                elif not value.IsMutable && x.ReturnType.IsReadOnlyByRef then
+                elif not value.IsMutable && x.ReturnType.IsReadOnlyByRef_ste then
                     true
                 else
                     false
@@ -243,12 +243,12 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
                         true
                     else
                         if field.Enclosing.IsAnyStruct then
-                            receiverExpr.Type.IsReadOnlyByRef
+                            receiverExpr.Type.IsReadOnlyByRef_ste
                         else
                             false
-                if isReadOnly && x.ReturnType.IsReadOnlyByRef then
+                if isReadOnly && x.ReturnType.IsReadOnlyByRef_ste then
                     true
-                elif not isReadOnly && x.ReturnType.IsReadWriteByRef then
+                elif not isReadOnly && x.ReturnType.IsReadWriteByRef_ste then
                     true
                 else
                     false
@@ -258,9 +258,9 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
                 match value.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.GetArrayElement) ->
                     let par = (value :?> IFunctionSymbol).Parameters[0]
-                    if par.Type.IsReadOnly && x.ReturnType.IsReadOnlyByRef then
+                    if par.Type.IsReadOnly_ste && x.ReturnType.IsReadOnlyByRef_ste then
                         true
-                    elif not par.Type.IsReadOnly && x.ReturnType.IsReadWriteByRef then
+                    elif not par.Type.IsReadOnly_ste && x.ReturnType.IsReadWriteByRef_ste then
                         true
                     else
                         false
@@ -496,7 +496,7 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
         | AutoDereferenced(argInnerExpr) ->
             if value.IsFunctionGroup && argInnerExpr.Type.IsAnyByRef_ste then
                 let byRefKind =
-                    if argInnerExpr.Type.IsReadOnlyByRef then
+                    if argInnerExpr.Type.IsReadOnlyByRef_ste then
                         ByRefKind.ReadOnly
                     else
                         ByRefKind.ReadWrite
@@ -507,8 +507,8 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
                     funcs
                     |> ImArray.filter (fun x ->
                         match byRefKind with
-                        | ByRefKind.ReadOnly -> x.ReturnType.IsReadOnlyByRef
-                        | ByRefKind.ReadWrite -> x.ReturnType.IsReadWriteByRef
+                        | ByRefKind.ReadOnly -> x.ReturnType.IsReadOnlyByRef_ste
+                        | ByRefKind.ReadWrite -> x.ReturnType.IsReadWriteByRef_ste
                         | _ -> false
                     )
 
@@ -531,8 +531,8 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
                     funcs
                     |> ImArray.filter (fun x ->
                         match byRefKind with
-                        | ByRefKind.ReadOnly when x.ReturnType.IsReadOnlyByRef -> true
-                        | _ -> x.ReturnType.IsReadWriteByRef
+                        | ByRefKind.ReadOnly when x.ReturnType.IsReadOnlyByRef_ste -> true
+                        | _ -> x.ReturnType.IsReadWriteByRef_ste
                     )
 
                 if newFuncs.IsEmpty || newFuncs.Length = funcs.Length then
@@ -600,7 +600,7 @@ let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager 
 
             if funcGroup.IsAddressOf then
                 match expectedTyOpt with
-                | Some expectedTy when not expectedTy.IsSolved ->
+                | Some expectedTy when not expectedTy.IsSolved_ste ->
                     match argExprs[0] with
                     | AutoDereferenced(argExpr) ->
                         UnifyTypes Flexible expectedTy argExpr.Type
@@ -761,7 +761,7 @@ let lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env expr =
         | _ ->
             cenv.diagnostics.Error("Invalid use of 'LoadFunctionPtr'.", 10, syntaxInfo.Syntax) 
             expr
-    | FromAddress(expr) when expr.Type.IsWriteOnlyByRef ->
+    | FromAddress(expr) when expr.Type.IsWriteOnlyByRef_ste ->
         cenv.diagnostics.Error("Cannot dereference a write-only by-reference expression.", 10, expr.Syntax) 
         expr
     | E.Call _ ->
@@ -791,9 +791,9 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     let recheckExpectedTy =
         match expectedTyOpt with
-        | Some expectedTy when expectedTy.IsSolved ->
+        | Some expectedTy when expectedTy.IsSolved_ste ->
             let exprTy = expr.Type
-            if exprTy.IsSolved then
+            if exprTy.IsSolved_ste then
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
             else
                 match expr with
@@ -904,9 +904,9 @@ let checkCalleeArgumentExpression cenv env (tyChecking: TypeChecking) (caller: I
     match argExpr with
     | E.Call(value=funcGroup) when funcGroup.IsFunctionGroup && caller.IsAddressOf ->
         let expectedTy =
-            match caller.Type.TryFunction with
+            match caller.Type.TryAnyFunction with
             | ValueSome(_, outputTy) ->
-                if outputTy.IsReadOnlyByRef then
+                if outputTy.IsReadOnlyByRef_ste then
                     TypeSymbol.CreateByRef(parTy, ByRefKind.ReadOnly)
                 else
                     TypeSymbol.CreateByRef(parTy, ByRefKind.ReadWrite)

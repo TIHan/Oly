@@ -44,7 +44,7 @@ type EntitySymbolBuilder private (
     member _.SetExtends(pass: CompilerPass, extends: TypeSymbol imarray) = 
 #if DEBUG || CHECKED
         extends
-        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 
         if (not extendsHole.contents.IsEmpty && ent.IsCompilerIntrinsic) then
             OlyAssert.Fail("Cannot set extends for a built-in type at this point.")
@@ -60,7 +60,7 @@ type EntitySymbolBuilder private (
     member _.SetImplements(pass: CompilerPass, implements: TypeSymbol imarray) = 
 #if DEBUG || CHECKED
         implements
-        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
         match pass with
         | Pass1 ->
@@ -69,7 +69,7 @@ type EntitySymbolBuilder private (
             failwith "Invalid pass."
 
     member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol, memberAccessFlags: MemberFlags, name: string, valueFlags: ValueFlags) =
-        OlyAssert.True(runtimeTy.IsSolved)
+        OlyAssert.True(runtimeTy.IsSolved_ste)
         OlyAssert.True(ent.IsEnum || ent.IsNewtype)
         match pass with
         | Pass1 ->

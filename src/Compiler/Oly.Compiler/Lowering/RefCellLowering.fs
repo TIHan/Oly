@@ -88,7 +88,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
             origExpr
 
     | E.SetContentsOfAddress(syntaxInfo, lhsExpr, rhsExpr) ->
-        if lhsExpr.Type.IsRefCell_t then
+        if lhsExpr.Type.IsRefCell_ste then
             raise(System.NotImplementedException())
         origExpr
 

@@ -301,7 +301,7 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if (exprTy.IsAnyStruct_ste && (enclosingTy.IsAnyStruct_ste || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsAnyVariable_ste then
+    if (exprTy.IsValue_ste && (enclosingTy.IsValue_ste || enclosingTy.IsExtendingValue_ste)) || exprTy.IsAnyVariable_ste then
         match expr with
         // Cannot take the address of a constant.
         | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
@@ -332,7 +332,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
                 AddressOf expr
             else
                 match stripTypeEquations receiver.Type with
-                | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct_ste ->
+                | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsValue_ste ->
                     match kind with
                     | ByRefKind.ReadWrite
                     | ByRefKind.WriteOnly -> 
@@ -386,7 +386,7 @@ let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (
         // This prevents an inref of T to not mutate the reference.
         // inref T -> deref T -> byref T
         match exprTy.TryByReferenceElementType with
-        | ValueSome(exprElementTy) when exprTy.IsReadOnlyByRef && (enclosingTy.IsAnyVariable_ste && areTypesEqual enclosingTy exprElementTy) ->
+        | ValueSome(exprElementTy) when exprTy.IsReadOnlyByRef_ste && (enclosingTy.IsAnyVariable_ste && areTypesEqual enclosingTy exprElementTy) ->
             let newExpr, _ = createMutableLocalDeclarationReturnExpression (FromAddress expr)
             match newExpr with
             | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->

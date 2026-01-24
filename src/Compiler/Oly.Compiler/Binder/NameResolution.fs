@@ -792,7 +792,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
     | Choice1Of2(receiver) ->
         match receiver with
         // For member accesses, we only want to undo auto-dereferencing if it is a struct type only.
-        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsAnyStruct_ste ->
+        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsValue_ste ->
             bind cenv env receiverAsAddr syntaxMemberExpr
         | _ ->
             bind cenv env receiver syntaxMemberExpr
@@ -1430,7 +1430,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     | _ ->
                         raise(InternalCompilerUnreachedException())
 
-                if isFuncInput && (ty.IsUnit_ste || ty.IsAnyTuple) && not ty.IsRealUnit_ste then
+                if isFuncInput && (ty.IsUnit_ste || ty.IsTuple_ste) && not ty.IsRealUnit_ste then
                     // TODO: Kind of a hack using TypeSymbol.Tuple.
                     TypeSymbol.Tuple(ImArray.createOne ty, ImArray.empty)
                 else
@@ -2147,7 +2147,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<u
             | TypeSymbol.Variable(tyPar) -> 
                 tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                if tyArgs |> Seq.exists (fun x -> x.IsSolved && not x.IsError_ste) then
+                if tyArgs |> Seq.exists (fun x -> x.IsSolved_ste && not x.IsError_ste) then
                     cenv.diagnostics.Error("A type parameter with a generic instantiation is not allowed.", 10, syntaxTy)
                 tyPar
             | _ ->
@@ -2750,7 +2750,7 @@ let bindExtends (cenv: cenv) (env: BinderEnvironment) (syntaxExtends: OlySyntaxE
         | _ ->
             raise(InternalCompilerException())
 #if DEBUG || CHECKED
-    extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+    extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
     extends
 
@@ -2766,7 +2766,7 @@ let bindImplements (cenv: cenv) (env: BinderEnvironment) (syntaxImplements: OlyS
         | _ ->
             raise(InternalCompilerException())
 #if DEBUG || CHECKED
-    implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+    implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
     implements
 

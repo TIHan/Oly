@@ -14,9 +14,9 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.Binder.OpenDeclarations
 
 let private stripNewtype (ty: TypeSymbol) =
-    OlyAssert.True(ty.IsNewtype)
+    OlyAssert.True(ty.IsNewtype_ste)
     let underlyingTy = ty.AsEntity.UnderlyingTypeOfEnumOrNewtype
-    if underlyingTy.IsNewtype then
+    if underlyingTy.IsNewtype_ste then
         stripNewtype underlyingTy
     else
         underlyingTy
@@ -78,7 +78,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 extendsTy
             | _ ->
                 TypeSymbol.BaseObject
-        elif ty.IsAnyStruct_ste then
+        elif ty.IsValue_ste then
             // DEFAULT
             match env.benv.implicitExtendsForStruct with
             | Some(extendsTy) ->
@@ -102,7 +102,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 ImArray.createOne extendsTy
             | _ ->
                 ImArray.createOne TypeSymbol.BaseObject
-        elif ent.IsAnyStruct && extends.IsEmpty then
+        elif ent.IsValue && extends.IsEmpty then
             // DEFAULT
             match env.benv.implicitExtendsForStruct with
             | Some(extendsTy) ->
@@ -138,7 +138,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         elif not ent.IsEnum && not ent.IsClass && not ent.IsNewtype && not ent.IsTypeExtension then // TODO: This logic is a bit weird, we should look at this closely.
             ent.Extends
             |> ImArray.iter (fun ty ->
-                if ty.IsSealed then
+                if ty.IsSealed_ste then
                     cenv.diagnostics.Error(sprintf "'%s' is not inheritable." ent.Name, 10, syntaxNode)
             )
 
@@ -158,7 +158,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                     cenv.diagnostics.Error(sprintf "Only classes and interfaces can inherit and be inherited. Consider using 'class %s' or 'interface %s'." ent.Name ent.Name, 10, syntaxNode)
             elif inheritCount > 1 then
                 cenv.diagnostics.Error("Multiple inheritance is not enabled.", 10, syntaxNode)
-            elif inheritCount = 1 && extends[0].IsSealed then
+            elif inheritCount = 1 && extends[0].IsSealed_ste then
                 cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is sealed and cannot be inherited.", 10, syntaxNode)
         elif ent.IsInterface then
             if implements.IsEmpty |> not then
@@ -196,7 +196,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then
-                            if not extendTy.IsAnyStruct_ste || extendTy.IsAnyVariable_ste then
+                            if not extendTy.IsValue_ste || extendTy.IsAnyVariable_ste then
                                 cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.", 10, syntaxIdent)
                                 ValueFlags.None
                             else

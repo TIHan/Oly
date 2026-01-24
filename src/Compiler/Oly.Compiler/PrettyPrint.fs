@@ -160,7 +160,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         "<" + (tyPars |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">" + " " + printTypeAux benv isDefinition false innerTy
 
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
-        if solution.HasSolution && solution.Solution.IsSolved then
+        if solution.HasSolution && solution.Solution.IsSolved_ste then
             match tyPar with
             | Some tyPar when not tyPar.IsVariadic && solution.Solution.IsUnit_ste ->
                 "(())"
@@ -172,7 +172,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             | _ -> "?"
 
     | TypeSymbol.HigherInferenceVariable(tyPar, tyArgs, _, solution) ->
-        if solution.HasSolution && solution.Solution.IsSolved then
+        if solution.HasSolution && solution.Solution.IsSolved_ste then
             printTypeAux benv isDefinition isTyCtor solution.Solution
         else
             // TODO: Do we need to do anything else here? What happens if we don't have a solution with tyArgs?

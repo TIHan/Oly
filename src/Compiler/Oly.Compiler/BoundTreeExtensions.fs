@@ -507,6 +507,7 @@ type BoundExpression with
 
 type TypeSymbol with
 
+    /// Strips type equations.
     member this.ReplaceInferenceVariablesWithError() =
         match stripTypeEquations this with
         | TypeSymbol.InferenceVariable(tyParOpt, _)

@@ -337,6 +337,7 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
     funcs
     |> filterMostSpecificFunctions
 
+/// Strips type equations.
 let private queryMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) : _ imarray =
     let ty = findIntrinsicTypeIfPossible benv ty
     match stripTypeEquations ty with
@@ -696,6 +697,8 @@ module Extensions =
     type TypeSymbol with
 
         /// All logical functions from the type and logical inherited/implemented types
+        ///
+        /// Strips type equations.
         member this.AllLogicalFunctions =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.AllLogicalFunctions
@@ -714,16 +717,20 @@ module Extensions =
             | _ ->
                 Seq.empty
 
+        /// Strips type equations.
         member this.GetInstanceFields() =
             this.Fields
             |> ImArray.filter (fun x -> x.IsInstance)
 
+        /// Strips type equations.
         member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags) =
             queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags None this
 
+        /// Strips type equations.
         member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags, name) =
             queryMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
 
+        /// Strips type equations.
         member this.FindIntrinsicFields(benv, queryMemberFlags) =
             match this.TryEntityNoAlias with
             | ValueSome(ent) ->
@@ -731,6 +738,7 @@ module Extensions =
             | _ ->
                 Seq.empty
 
+        /// Strips type equations.
         member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
             match this.TryEntityNoAlias with
             | ValueSome(ent) ->
@@ -738,6 +746,7 @@ module Extensions =
             | _ ->
                 Seq.empty
 
+        /// Strips type equations.
         member this.FindField(name: string) =
             match this.TryEntityNoAlias with
             | ValueSome ent ->
@@ -752,29 +761,42 @@ module Extensions =
                 failwith "Expected an entity"
 
         /// Find fields from the type.
+        ///
+        /// Strips type equations.
         member this.FindFields(benv, queryMemberFlags) =
             queryFieldsOfType benv queryMemberFlags ValueFlags.None None this
 
         /// Find fields from the type.
+        ///
+        /// Strips type equations.
         member this.FindFields(benv, queryMemberFlags, name) =
             queryFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
 
         /// Find most specific properties from the type.
+        ///
+        /// Strips type equations.
         member this.FindMostSpecificProperties(benv, queryMemberFlags, queryField) =
             queryPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
 
         /// Find most specific properties from the type.
+        ///
+        /// Strips type equations.
         member this.FindMostSpecificProperties(benv, queryMemberFlags, queryField, name) =
             queryPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
 
         /// Find most specific functions from the type.
+        ///
+        /// Strips type equations.
         member this.FindMostSpecificFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
             queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
 
         /// Find most specific functions from the type.
+        ///
+        /// Strips type equations.
         member this.FindMostSpecificFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
             queryMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
 
+        /// Strips type equations.
         member this.FindNestedEntities(benv, nameOpt, resTyArity) =
             let ty = findIntrinsicTypeIfPossible benv this
             match stripTypeEquations ty with
@@ -783,6 +805,8 @@ module Extensions =
             | _ ->
                 ImArray.empty
 
+/// Strips type equations except alias when looking at the given type's type parameters.
+/// Then it will strip type equations.
 let private queryFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (existing: HashSet<int64>) add (ty: TypeSymbol) =
     ty.TypeParameters
     |> ImArray.iter (fun x ->
@@ -831,6 +855,8 @@ let private queryFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (exist
 
 type TypeSymbol with
     
+    /// Strips type equations except alias when looking at the given type's type parameters.
+    /// Then it will strip type equations.
     member this.GetFreeTypeParameters() : TypeParameterSymbol imarray =
         let builder = ImArray.builder()
         queryFreeTypeParametersFromType (TypeSymbolMutableSet.Create()) (HashSet()) builder.Add this

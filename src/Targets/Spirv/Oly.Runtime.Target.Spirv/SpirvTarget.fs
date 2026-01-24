@@ -243,10 +243,10 @@ type SpirvTarget() =
                 if not isGreaterOrEqualToVersion_1_3 && isStorageBuffer then
                     diagnostics.Error("Storage buffers are only available in version 1.3 or greater.", 10, useSyntax)
                 if isUniform then
-                    if retTy.IsMutableArray then
+                    if retTy.IsMutableArray && not retTy.IsFixedArray then
                         diagnostics.Error("Uniforms cannot be a mutable array type.", 10, useSyntax)
 
-                if retTy.IsAnyArray then
+                if retTy.IsArray then
                     checkAlignment retTy.TypeArguments[0] useSyntax
             | _ ->
                 ()
@@ -287,7 +287,7 @@ type SpirvTarget() =
                             ()
             )
 
-            if valueSymbol.ReturnType.Value.IsAnyArray then
+            if valueSymbol.ReturnType.Value.IsArray then
                 let report() =
                     diagnostics.Error($"Invalid use of runtime array.", 10, useSyntax)
                 match useSyntax.TryFindParent<OlySyntaxExpression>(ct) with

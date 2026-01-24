@@ -120,7 +120,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
         if ty.IsError_ste then
             (currentRigidWeight, currentWeight)
         else
-            if ((ty.IsSolved || (ty.IsEagerInferenceVariable_ste && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
+            if ((ty.IsSolved_ste || (ty.IsEagerInferenceVariable_ste && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
                 let currentWeight = currentWeight + 1
                 let currentRigidWeight =
                     if (areTypesEqual expectedTy.Formal ty.Formal) || (expectedTy.IsAnyVariable_ste && ty.IsAnyVariable_ste) then
@@ -158,7 +158,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
             )
             
         match returnTyOpt with
-        | Some returnTy when returnTy.IsSolved ->
+        | Some returnTy when returnTy.IsSolved_ste ->
             let struct(rigidWeight, weight) = computeWeight (0, 0) func.ReturnType returnTy
             currentRigidWeight <- currentRigidWeight + rigidWeight
             currentWeight <- currentWeight + weight
@@ -230,7 +230,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                     match argTy.TryGetFunctionWithParameters() with
                     | ValueSome(argTys, _) when par.Type.IsAnyFunction_ste -> 
                         match par.Type.TryGetFunctionWithParameters() with
-                        | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
+                        | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicVariable_ste ->
                             // Variadic variables will always return true.
                             true
                         | _ ->
@@ -251,7 +251,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
         | ResolutionArguments.NotAFunctionCall -> ImArray.empty
         | ResolutionArguments.Any ->
             match returnTyOpt with
-            | Some returnTy when returnTy.IsSolved ->
+            | Some returnTy when returnTy.IsSolved_ste ->
                 funcs
                 |> ImArray.filter (fun func ->
                     subsumesTypeWith Generalizable returnTy func.ReturnType
@@ -262,7 +262,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
             funcs
             |> ImArray.filter (fun func ->
                 match returnTyOpt with
-                | Some returnTy when returnTy.IsSolved ->
+                | Some returnTy when returnTy.IsSolved_ste ->
                     subsumesTypeWith Generalizable returnTy func.ReturnType &&
                     checkArgTys func argTys
                 | _ ->
@@ -314,7 +314,7 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
         | ResolutionArguments.NotAFunctionCall -> ImArray.empty
         | ResolutionArguments.Any -> 
             match returnTyOpt with
-            | Some returnTy when returnTy.IsSolved ->
+            | Some returnTy when returnTy.IsSolved_ste ->
                 funcs
                 |> ImArray.filter (fun func ->
                     UnifyTypes rigidity returnTy func.ReturnType
@@ -352,7 +352,7 @@ let private filterFunctionsForOverloadingPhase2 (returnTyOpt: TypeSymbol option)
     else
 
     match returnTyOpt with
-    | Some returnTy when returnTy.IsSolved ->
+    | Some returnTy when returnTy.IsSolved_ste ->
         let results =
             candidates
             |> ImArray.filter (fun func ->

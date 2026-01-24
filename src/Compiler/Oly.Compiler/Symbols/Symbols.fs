@@ -68,7 +68,7 @@ let mkSolvedMostFlexibleInferenceVariableType (tyPar: TypeParameterSymbol) (ty: 
 #endif
     let varSolutionFlags = if tyPar.HasArity then VariableSolutionFlags.TypeConstructor else VariableSolutionFlags.Default
     let varSolutionFlags =
-        if ty.IsSolved || tyPar.HasArity then
+        if ty.IsSolved_ste || tyPar.HasArity then
             varSolutionFlags
         else
             varSolutionFlags ||| VariableSolutionFlags.MostFlexible
@@ -448,6 +448,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
         | _ ->
             OlyAssert.Fail("Invalid enclosing to change")
 
+/// DOES NOT strips type equations.
 let applyType (ty: TypeSymbol) (tyArgs: ImmutableArray<TypeSymbol>) =
     if ty.IsError_ste then ty
     else
@@ -1439,7 +1440,7 @@ let tryComputeDependentType (inputValueTy: TypeSymbol) (innerTy: TypeSymbol) =
         | TypeSymbol.Tuple(tyArgs, _) when value < tyArgs.Length && value >= 0 ->
             tyArgs[value]
             |> ValueSome
-        | ty when ty.IsSolved && value = 0 ->
+        | ty when ty.IsSolved_ste && value = 0 ->
             ty
             |> ValueSome
         | _ ->
@@ -1562,7 +1563,7 @@ let private stripTypeEquations_Function skipAlias skipModifiers (ty: TypeSymbol)
     // 'Function' is a built-in type whose formal definition has a variadic type parameter as a single argument.
     // This handles the actual expansion of the variadic type, which is stored as a tuple type.
     | TypeSymbol.Function(inputTy, returnTy, kind) ->
-        if inputTy.IsSolved then
+        if inputTy.IsSolved_ste then
             match inputTy with
             | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
                 match stripTypeEquationsAux skipAlias skipModifiers inputTy with
@@ -1585,9 +1586,9 @@ let private stripTypeEquations_Tuple skipAlias skipModifiers (ty: TypeSymbol) =
             let argTy = argTys[0]
             if argTy.IsUnit_ste then
                 TypeSymbolRealUnit
-            elif (argTy.IsRealUnit_ste || argTy.IsOneTuple) then
+            elif (argTy.IsRealUnit_ste || argTy.IsOneItemTuple) then
                stripTypeEquations argTy
-            elif argTy.IsSolved then
+            elif argTy.IsSolved_ste then
                 match argTy with
                 | TypeSymbol.InferenceVariable(Some tyPar, _) when tyPar.IsVariadic ->
                     match stripTypeEquationsAux skipAlias skipModifiers argTy with
@@ -1905,7 +1906,7 @@ type EnclosingSymbol =
 
     member this.IsAnyStruct =
         match this with
-        | Entity(ent) -> ent.IsAnyStruct
+        | Entity(ent) -> ent.IsValue
         | _ -> false
 
     member this.IsReadOnly =
@@ -2212,7 +2213,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
 
 #if DEBUG || CHECKED
     do
-        match funcTy.TryFunction with
+        match funcTy.TryAnyFunction with
         | ValueSome(_, outputTy: TypeSymbol) when not outputTy.IsError_ste && outputTy.IsTypeConstructor_steea ->
             failwith "Unexpected type constructor."
         | _ ->
@@ -2342,7 +2343,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         member _.Type = funcTy
         member _.Parameters = pars
         member _.ReturnType =
-            match funcTy.TryFunction with
+            match funcTy.TryAnyFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ -> funcTy
 
@@ -3523,10 +3524,10 @@ let private FormalDependentIndexerTypeParameters =
 let private FormalDependentIndexerType =
     TypeSymbol.DependentIndexer(FormalDependentIndexerTypeParameters[0].AsType, FormalDependentIndexerTypeParameters[1].AsType)
 
-let private ByReferenceTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
-let private FormalReadWriteByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadWrite))
-let private FormalReadOnlyByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.ReadOnly))
-let private FormalWriteOnlyByRef = TypeSymbol.ForAll(ByReferenceTypeParameters, TypeSymbol.ByRef(ByReferenceTypeParameters.[0].AsType, ByRefKind.WriteOnly))
+let private ByRefTypeParameters = TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty) |> ImArray.createOne
+let private FormalReadWriteByRef = TypeSymbol.ForAll(ByRefTypeParameters, TypeSymbol.ByRef(ByRefTypeParameters.[0].AsType, ByRefKind.ReadWrite))
+let private FormalReadOnlyByRef = TypeSymbol.ForAll(ByRefTypeParameters, TypeSymbol.ByRef(ByRefTypeParameters.[0].AsType, ByRefKind.ReadOnly))
+let private FormalWriteOnlyByRef = TypeSymbol.ForAll(ByRefTypeParameters, TypeSymbol.ByRef(ByRefTypeParameters.[0].AsType, ByRefKind.WriteOnly))
 
 let TypeSymbolError =
     TypeSymbol.Error(None, None)
@@ -3549,10 +3550,15 @@ type FunctionKind =
     | Scoped
 
 /// The main representation of a type in the Oly language.
+/// This type is immutable, with the exception of inference variables.
 ///
-/// Instance 'Is*' members WITHOUT the postfix '_ste' will not strip type equations before doing the check.
+/// Instance 'Is*' members WITHOUT the postfix '_ste' and '_steea' WILL NOT strip type equations before doing the check.
 ///
-/// Instance 'Is*' members WITH the postfix '_ste' will strip type equations before doing the check.
+/// Instance 'Is*' members WITH the postfix '_ste' or '_steea' WILL strip type equations before doing the check.
+///
+/// '_ste' refers to: strip type equations.
+///
+/// '_steea' refers to: strip type equations except alias.
 ///
 /// Other instance members with 'Immediate' as part of the name WILL NOT strip type equations.
 [<RequireQualifiedAccess;DebuggerDisplay("{DebugName}");NoComparison;ReferenceEquality>]
@@ -3612,7 +3618,7 @@ type TypeSymbol =
             FormalWriteOnlyByRef
 
     static member CreateByRef(elementTy, kind) =
-        ByRef(mkSolvedInferenceVariableType ByReferenceTypeParameters.[0] elementTy, kind)
+        ByRef(mkSolvedInferenceVariableType ByRefTypeParameters.[0] elementTy, kind)
 
     static member CreateInferenceVariable(tyParOpt: TypeParameterSymbol option, solution: VariableSolutionSymbol) =
 #if DEBUG || CHECKED
@@ -3922,7 +3928,7 @@ type TypeSymbol =
         | RefCell _ -> FormalRefCellTypeParameters
         | Function _ -> FormalFunctionTypeParameters
         | ForAll(tyPars, _) -> tyPars
-        | ByRef _ -> ByReferenceTypeParameters
+        | ByRef _ -> ByRefTypeParameters
         | Entity(ent) -> ent.TypeParameters
         | Array _ -> FormalArray.TypeParameters
         | FixedArray _ -> FormalFixedArray.TypeParameters
@@ -4140,7 +4146,7 @@ type TypeSymbol =
     /// 
     /// Strips type equations.
     member this.IsAnyNonStruct_ste =
-        (not this.IsAnyStruct_ste) || this.IsAnyVariableWithNotStructConstraint_ste
+        (not this.IsValue_ste) || this.IsAnyVariableWithNotStructConstraint_ste
 
     /// Is the type symbol a type constructor?
     /// 
@@ -4465,7 +4471,16 @@ type TypeSymbol =
         | TypeSymbol.FixedArray _ -> true
         | _ -> false
 
-    /// Is the type symbol any kind of fixed array?
+    /// Is the type symbol any kind of mutable array? Incluedes fixed and non-fixed array types.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyMutableArray_ste =
+        match stripTypeEquations this with
+        | TypeSymbol.Array(kind=ArrayKind.Mutable) 
+        | TypeSymbol.FixedArray(kind=ArrayKind.Mutable) -> true
+        | _ -> false
+
+    /// Is the type symbol any kind of fixed array type?
     /// 
     /// Strips type equations.
     member this.IsAnyFixedArray_ste =
@@ -4473,7 +4488,7 @@ type TypeSymbol =
         | TypeSymbol.FixedArray _ -> true
         | _ -> false
 
-    /// Is the type symbol any kind of non-fixed array?
+    /// Is the type symbol any kind of non-fixed array type?
     /// 
     /// Strips type equations.
     member this.IsAnyNonFixedArray_ste =
@@ -4481,93 +4496,127 @@ type TypeSymbol =
         | TypeSymbol.Array _ -> true
         | _ -> false
 
-    member this.IsMutableArray_t =
+    /// Is the type symbol any kind of non-fixed mutable array type?
+    /// 
+    /// Strips type equations.
+    member this.IsAnyNonFixedMutableArray_ste =
         match stripTypeEquations this with
         | TypeSymbol.Array(_, _, ArrayKind.Mutable) -> true
         | _ -> false
 
-    member this.IsAnyTuple =
+    /// Is the type symbol a tuple type?
+    /// 
+    /// Strips type equations.
+    member this.IsTuple_ste =
         match stripTypeEquations this with
         | TypeSymbol.Tuple _ -> true
         | _ -> false
 
-    member this.IsOneTuple =
+    /// Is the type symbol a one item tuple?
+    /// 
+    /// Strips type equations.
+    member this.IsOneItemTuple =
         match stripTypeEquations this with
         | TypeSymbol.Tuple(tyArgs, _) -> tyArgs.Length = 1
         | _ -> false
 
-    member this.IsAnyPtr =
+    /// Is the type symbol any kind of pointer type? Includes NativePtr and NativeFunctionPtr.
+    /// 
+    /// Strips type equations.
+    member this.IsAnyPtr_ste =
         match stripTypeEquations this with
         | TypeSymbol.NativePtr _
         | TypeSymbol.NativeFunctionPtr _ -> true
         | _ -> false
 
-    member this.IsRefCell_t =
+    /// Is the type symbol a ref-cell?
+    /// 
+    /// Strips type equations.
+    member this.IsRefCell_ste =
         match stripTypeEquations this with
         | TypeSymbol.RefCell _ -> true
         | _ -> false
 
-    member this.IsReadOnlyByRef =
+    /// Is the type symbol a read-only by-ref type?
+    /// 
+    /// Strips type equations.
+    member this.IsReadOnlyByRef_ste =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(_, ByRefKind.ReadOnly) -> true
         | _ -> false
 
-    member this.IsWriteOnlyByRef =
+    /// Is the type symbol a write-only by-ref type?
+    /// 
+    /// Strips type equations.
+    member this.IsWriteOnlyByRef_ste =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(_, ByRefKind.WriteOnly) -> true
         | _ -> false
 
-    member this.IsReadOnlyByRefOfAnyStruct =
+    /// Is the type symbol a read-only by-ref type of a value type?
+    /// 
+    /// Strips type equations.
+    member this.IsReadOnlyByRefOfValue_ste =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsAnyStruct_ste
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsValue_ste
         | _ -> false
 
-    member this.IsReadWriteByRef =
+    /// Is the type symbol a read-write by-ref type?
+    /// 
+    /// Strips type equations.
+    member this.IsReadWriteByRef_ste =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(_, ByRefKind.ReadWrite) -> true
         | _ -> false
 
-    member this.IsReadWriteByRefOfAnyStruct =
-        match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite) -> ty.IsAnyStruct_ste
-        | _ -> false
-
+    /// Strips type equations.
     member this.TryByReferenceElementType =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(elementTy, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
+    /// Strips type equations.
     member this.GetByReferenceElementType() =
         match stripTypeEquations this with
         | TypeSymbol.ByRef(elementTy, _) -> elementTy
         | _ -> OlyAssert.Fail("Expected ByRef type.")
 
+    /// Strips type equations.
     member this.TryGetArrayElementType() =
         match stripTypeEquations this with
         | TypeSymbol.Array(elementTy, _, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
+    /// Strips type equations.
     member this.TryGetFixedArrayElementType() =
         match stripTypeEquations this with
         | TypeSymbol.FixedArray(elementTy, _, _) -> elementTy |> ValueSome
         | _ -> ValueNone
 
+    /// Strips type equations.
     member this.TryGetTupleItemTypes() =
         match stripTypeEquations this with
         | TypeSymbol.Tuple(itemTys, _) -> itemTys |> ValueSome
         | _ -> ValueNone
 
+    /// Strips type equations.
     member this.TryGetReferenceCellElement =
         match stripTypeEquations this with
         | TypeSymbol.RefCell(elementTy) -> elementTy |> ValueSome
         | _ -> ValueNone
 
-    member this.IsVariadicInferenceVariable =
+    /// Is the type symbol a variadic inference variable type?
+    /// 
+    /// Strips type equations.
+    member this.IsVariadicInferenceVariable_ste =
         match stripTypeEquations this with
         | TypeSymbol.InferenceVariable(Some tyPar, _) -> tyPar.IsVariadic
         | _ -> false
 
-    member this.IsVariadicTypeVariable =
+    /// Is the type symbol a variadic variable type?
+    /// 
+    /// Strips type equations.
+    member this.IsVariadicVariable_ste =
         match stripTypeEquations this with
         | TypeSymbol.Variable(tyPar) -> tyPar.IsVariadic
         | _ -> false
@@ -4577,7 +4626,7 @@ type TypeSymbol =
     /// Strips type equations.
     member this.IsStruct_ste =
         match stripTypeEquations this with
-        | Entity(ent) -> ent.IsStruct
+        | Entity(ent) -> ent.IsStructOrAliasStruct
         | Int8
         | UInt8
         | Int16
@@ -4597,13 +4646,12 @@ type TypeSymbol =
         | _ -> false
 
     /// TODO: Exclude looking at type variables.
-    /// TODO: Rename to 'IsValue_ste'.
-    /// Is the type symbol any kind of 'struct' type?
+    /// Is the type symbol a value type?
     /// 
     /// Strips type equations.
-    member this.IsAnyStruct_ste =
+    member this.IsValue_ste =
         match stripTypeEquations this with
-        | Entity(ent) -> ent.IsAnyStruct
+        | Entity(ent) -> ent.IsValue
         | Int8
         | UInt8
         | Int16
@@ -4635,22 +4683,31 @@ type TypeSymbol =
             )
         | _ -> false
 
-    member this.IsTypeExtendingAStruct =
+    /// Does the type extend a value type?
+    /// 
+    /// Strips type equations.
+    member this.IsExtendingValue_ste =
         match stripTypeEquations this with
         | Entity(ent) when ent.IsTypeExtension ->
             if ent.Extends.IsEmpty then
                 false
             else
-                ent.IsAnyStruct
+                ent.IsValue
         | _ ->
             false
 
-    member this.IsSealed =
+    /// Checks if the type is considered sealed.
+    /// 
+    /// Strips type equations.
+    member this.IsSealed_ste =
         match stripTypeEquations this with
         | Entity(ent) -> ent.IsSealed
         | _ -> true
 
-    member this.IsReadOnly =
+    /// Is the type symbol a read-only type?
+    /// 
+    /// Strips type equations.
+    member this.IsReadOnly_ste =
         match stripTypeEquations this with
         | Entity ent -> ent.IsReadOnly
         | Unit
@@ -4674,8 +4731,11 @@ type TypeSymbol =
         | Array(_, _, ArrayKind.Immutable) 
         | FixedArray(_, _, ArrayKind.Immutable) -> true
         | _ -> false
-        
-    member this.IsSolved =
+       
+    /// Is the type symbol solved? Will only return false if any inference variables have not been solved.
+    ///
+    /// Strips type equations.
+    member this.IsSolved_ste =
         match stripTypeEquations this with
         | InferenceVariable _
         | HigherInferenceVariable _
@@ -4733,8 +4793,8 @@ type TypeSymbol =
         | _ -> 
             false
 
-    /// TODO: Rename to "TryAnyFunction".
-    member this.TryFunction =
+    /// Strips type equations.
+    member this.TryAnyFunction =
         match stripTypeEquations this with
         | TypeSymbol.Function(inputTy, outputTy, _)
         | TypeSymbol.NativeFunctionPtr(_, inputTy, outputTy)
@@ -4749,7 +4809,7 @@ type TypeSymbol =
                     | ConstraintSymbol.TraitType(ty) ->
                         match stripTypeEquations ty.Value with
                         | TypeSymbol.Function _ ->
-                            match ty.Value.TryFunction with
+                            match ty.Value.TryAnyFunction with
                             | ValueSome x -> Some x
                             | _ -> None
                         | _ ->
@@ -4765,8 +4825,9 @@ type TypeSymbol =
         | _ -> 
             ValueNone
 
+    /// Strips type equations.
     member this.FunctionParameterCount =
-        match this.TryFunction with
+        match this.TryAnyFunction with
         | ValueSome(inputTy, _) ->
             match inputTy with
             | TypeSymbol.Unit -> 0
@@ -4775,21 +4836,25 @@ type TypeSymbol =
         | _ -> 
             0
 
+    /// Strips type equations except alias.
     member this.FirstTypeArgument =
         this.TypeArguments[0]
 
+    /// DOES NOT strip type equations.
     member this.AsParameters(): TypeSymbol imarray =
         match this with
         | TypeSymbol.Unit -> ImArray.empty
         | TypeSymbol.Tuple(argTys, _) -> argTys
         | _ -> ImArray.createOne this
 
+    /// DOES NOT strip type equations.
     member inline this.ForEachParameter ([<InlineIfLambda>] f) =
         match this with
         | TypeSymbol.Unit ->()
         | TypeSymbol.Tuple(argTys, _) -> argTys |> ImArray.iter f
         | _ -> f this
 
+    /// Strips type equations.
     member this.TryGetFunctionWithParameters() =
         match stripTypeEquations this with
         | TypeSymbol.Function(inputTy, outputTy, _)
@@ -4799,15 +4864,17 @@ type TypeSymbol =
         | _ -> 
             ValueNone
 
+    /// Strips type equations.
     member this.FunctionArgumentTypes: TypeSymbol imarray =
-        match this.TryFunction with
+        match this.TryAnyFunction with
         | ValueSome(inputTy, _) ->
             inputTy.AsParameters()
         | _ -> 
             ImArray.empty
 
+    /// Strips type equations.
     member this.TryAnyFunctionReturnType: TypeSymbol voption =
-        match this.TryFunction with
+        match this.TryAnyFunction with
         | ValueSome(_, returnTy) ->
             ValueSome returnTy
         | _ -> 
@@ -4852,7 +4919,7 @@ type TypeSymbol =
 
     static member CreateFunctionChecked(inputTy: TypeSymbol, outputTy: TypeSymbol, kind) =
         let inputTy =
-            if inputTy.HasImmediateNonVariadicInferenceVariableTypeParameter || (not inputTy.IsSolved && inputTy.TryImmediateTypeParameter.IsNone) then
+            if inputTy.HasImmediateNonVariadicInferenceVariableTypeParameter || (not inputTy.IsSolved_ste && inputTy.TryImmediateTypeParameter.IsNone) then
                 TypeSymbol.Tuple(ImArray.createOne inputTy, ImArray.empty)
             else
                 inputTy
@@ -5011,7 +5078,7 @@ module SymbolExtensions =
             /// TODO: Move this to IValueSymbol so we do not have to recompute this everytime we call this.
             member this.LogicalType =
                 if this.IsInstance && this.IsFunction then
-                    match this.Type.TryFunction with
+                    match this.Type.TryAnyFunction with
                     | ValueSome(inputTy, outputTy) ->
                         TypeSymbol.CreateFunction(inputTy.AsParameters().RemoveAt(0), outputTy, FunctionKind.Normal)
                     | _ ->
@@ -5546,7 +5613,7 @@ module SymbolExtensions =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Internal
 
             member this.IsNullable =
-                if this.IsAnyStruct || this.IsNamespaceOrModule then false
+                if this.IsValue || this.IsNamespaceOrModule then false
                 else
                     this.Flags.HasFlag(EntityFlags.Nullable) ||
                     (this.Flags.HasFlag(EntityFlags.Abstract) && not(this.Flags.HasFlag(EntityFlags.Final)))
@@ -5674,7 +5741,7 @@ module SymbolExtensions =
             member this.IsAnonymousModule =
                 this.IsPrivate && this.IsModule && this.IsAnonymous
 
-            member this.IsStruct =
+            member this.IsStructOrAliasStruct =
                 match this.Kind with
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
@@ -5685,16 +5752,16 @@ module SymbolExtensions =
                     false
     
             /// Returns true if the entity is a struct, an enum struct, or a newtype struct.
-            member this.IsAnyStruct =
+            member this.IsValue =
                 match this.Kind with
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsAnyStruct_ste
+                    | Some realTy -> realTy.IsValue_ste
                     | _ -> false
                 | EntityKind.Enum
-                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsAnyStruct_ste
-                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsAnyStruct_ste
+                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsValue_ste
+                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsValue_ste
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false
@@ -5730,7 +5797,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsClassOrStructOrModuleOrNewtype =
-                this.IsClass || this.IsStruct || this.IsModule || this.IsNewtype
+                this.IsClass || this.IsStructOrAliasStruct || this.IsModule || this.IsNewtype
     
             member this.IsReadOnly =
                 this.Flags &&& EntityFlags.ReadOnly = EntityFlags.ReadOnly
@@ -5747,7 +5814,7 @@ module SymbolExtensions =
                 this.TryCompilerIntrinsic.IsSome
 
             member this.CanDeclareConstructor = 
-                (this.IsClass || this.IsAnyStruct || this.IsShape) && not this.IsAlias
+                (this.IsClass || this.IsValue || this.IsShape) && not this.IsAlias
 
         type EnclosingSymbol with
 
@@ -5870,12 +5937,18 @@ module OtherExtensions =
 
     type TypeSymbol with
 
-        member this.IsNewtype =
+        /// Is the type symbol a newtype?
+        ///
+        /// Strips type equations.
+        member this.IsNewtype_ste =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.IsNewtype
             | _ -> false
 
-        member this.IsNullable =
+        /// Is the type symbol a type that can be nullable?
+        ///
+        /// Strips type equations.
+        member this.IsNullable_ste =
             match stripTypeEquations this with
             | TypeSymbol.Entity(ent) -> ent.IsNullable
             | TypeSymbol.Variable(tyPar) 
@@ -6150,20 +6223,23 @@ module SymbolHelpers =
 
     type TypeSymbol with
 
+        /// Strips type equations except alias.
         member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>) =
-            match stripTypeEquations this with
+            match stripTypeEquationsExceptAlias this with
             | TypeSymbol.ForAll(tyPars, innerTy) ->
                 TypeSymbol.ForAll(tyPars, tryActualType tyParLookup innerTy)
             | ty ->
                 tryActualType tyParLookup ty
 
+        /// Strips type equations except alias.
         member this.Substitute(tyArgs: TypeArgumentSymbol imarray) =
-            match stripTypeEquations this with
+            match stripTypeEquationsExceptAlias this with
             | TypeSymbol.ForAll(tyPars, innerTy) ->
                 TypeSymbol.ForAll(tyPars, substituteType tyArgs innerTy)
             | ty ->
                 substituteType tyArgs ty
 
+        /// Strips type equations.
         member this.GetClosureInvoke() =
             OlyAssert.Equal(true, this.IsClosure_ste)
             match stripTypeEquations this with

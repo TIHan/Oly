@@ -272,10 +272,10 @@ type BinderEnvironment =
         |> Seq.iter (fun tys ->
             tys
             |> ImArray.iter (fun ty ->
-                OlyAssert.True(ty.IsSolved)
+                OlyAssert.True(ty.IsSolved_ste)
                 if ty.IsTypeExtension_ste then
                     if ty.Inherits.Length > 0 then
-                        OlyAssert.True(ty.Inherits[0].IsSolved)
+                        OlyAssert.True(ty.Inherits[0].IsSolved_ste)
                         OlyAssert.Equal(1, ty.Inherits.Length)
             )
         )
@@ -610,7 +610,7 @@ type BinderEnvironment =
                 if extendsTy.IsError_ste then
                     typeExtensionMembers
                 else
-                    OlyAssert.True(extendsTy.IsSolved)
+                    OlyAssert.True(extendsTy.IsSolved_ste)
                     typeExtensionMembers.SetItem(extendsTy, tyExts2)
             { this with
                 benv =

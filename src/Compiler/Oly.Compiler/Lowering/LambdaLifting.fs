@@ -696,14 +696,14 @@ let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary
         let invokePars =
             pars
             |> ImArray.map (fun par ->
-                OlyAssert.True(par.Type.IsSolved)
+                OlyAssert.True(par.Type.IsSolved_ste)
                 OlyAssert.False(par.Type.IsError_ste)
                 createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
             )
         let returnTy =
-            match funcTy.TryFunction with
+            match funcTy.TryAnyFunction with
             | ValueSome(_, returnTy) -> 
-                OlyAssert.True(returnTy.IsSolved)
+                OlyAssert.True(returnTy.IsSolved_ste)
                 OlyAssert.False(returnTy.IsError_ste)
                 returnTy.Substitute(tyParLookup)
             | _ -> 
@@ -883,7 +883,7 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
         (freeLocals, ctorArgTys)
         ||> ImArray.map2 (fun x argTy -> 
             if not x.Type.IsAnyByRef_ste && argTy.IsAnyByRef_ste then
-                if argTy.IsReadOnlyByRef then
+                if argTy.IsReadOnlyByRef_ste then
                    WellKnownExpressions.AddressOf (E.CreateValue(syntaxTree, x))
                 else
                    WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))   
@@ -1073,7 +1073,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                             // We mainly do this to keep optimizations working for inlining functions
                             // when scoped lambda capture other scoped lambdas.
                             // REVIEW: We should just create a byref type as a stress test and fix the optimizations in the runtime.
-                            elif fieldTy.IsAnyStruct_ste then
+                            elif fieldTy.IsValue_ste then
                                 fieldTy
 
                             // TODO: We technically do not need to create read-only byrefs.
@@ -1188,7 +1188,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                     let local = createTemporaryValue origExpr.Type
 
                     let returnTy =
-                        match local.Type.TryFunction with
+                        match local.Type.TryAnyFunction with
                         | ValueSome(_, returnTy) -> returnTy
                         | _ -> OlyAssert.Fail("Expected function type")
 
@@ -1384,7 +1384,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                                         (parTys, argExprs)
                                         ||> ImArray.map2 (fun parTy argExpr -> 
                                             if parTy.IsAnyByRef_ste && not argExpr.Type.IsAnyByRef_ste then
-                                                if parTy.IsReadOnlyByRef then
+                                                if parTy.IsReadOnlyByRef_ste then
                                                     AddressOf argExpr
                                                 else
                                                     AddressOfMutable argExpr

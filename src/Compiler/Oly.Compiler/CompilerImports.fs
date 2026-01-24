@@ -1440,7 +1440,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         let ilTyArgs = ImArray.init enclosingEnt.TypeParameters.Length (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
                         let ilEnclosingTy = OlyILTypeEntity(OlyILEntityInstance(ilEnclosingEntDefHandle, ilTyArgs))
                         let ilEnclosingTy =
-                            if enclosingEnt.IsAnyStruct then
+                            if enclosingEnt.IsValue then
                                 if enclosingEnt.IsReadOnly then
                                     OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.ReadOnly)
                                 else

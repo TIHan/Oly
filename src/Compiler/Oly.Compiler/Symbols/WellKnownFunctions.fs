@@ -124,7 +124,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 // REVIEW: Does LoadNullPtr need a type-parameter?
                 if not func.Parameters.IsEmpty || func.TypeParameters.Length <> 1 then false
                 else
-                    func.ReturnType.IsAnyPtr
+                    func.ReturnType.IsAnyPtr_ste
 
             | WellKnownFunction.GetTupleElement ->
                 if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 2 then false
@@ -180,7 +180,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 if func.Parameters.Length <> 1 then false
                 else
                     func.Parameters[0].Type.IsAnyInteger_ste &&
-                    func.ReturnType.IsMutableArray_t
+                    func.ReturnType.IsAnyNonFixedMutableArray_ste
 
             | WellKnownFunction.LoadFunctionPtr ->
                 // TODO: Add better validation.

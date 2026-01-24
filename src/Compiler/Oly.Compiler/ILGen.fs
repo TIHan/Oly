@@ -1426,8 +1426,8 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         failwith "Cannot generate an error expression."
 
     | E.NewTuple(_, exprs, exprTy) ->
-        OlyAssert.True(exprTy.IsAnyTuple)
-        OlyAssert.False(exprTy.IsOneTuple)
+        OlyAssert.True(exprTy.IsTuple_ste)
+        OlyAssert.False(exprTy.IsOneItemTuple)
         OlyAssert.Equal(exprs.Length, exprTy.TypeArguments.Length)
 
         let ilItemTys =
@@ -1484,7 +1484,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         // TODO: Just turn this into an assert since it is technically legal to do it in the Oly runtime.
         match value.Enclosing with
-        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsAnyStruct ->
+        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsValue ->
             failwith "Virtual call on a struct function."
         | _ ->
             ()
@@ -1616,8 +1616,8 @@ and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
 
 and GenSetContentsOfAddressExpression (cenv: cenv) env _ilTextRange lhsExpr rhsExpr =
 #if DEBUG || CHECKED
-    OlyAssert.True(lhsExpr.Type.IsAnyByRef_ste || lhsExpr.Type.IsAnyPtr)
-    OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef)
+    OlyAssert.True(lhsExpr.Type.IsAnyByRef_ste || lhsExpr.Type.IsAnyPtr_ste)
+    OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef_ste)
 #endif
     let ilLhsExpr = GenExpression cenv env lhsExpr
     let ilRhsExpr = GenExpression cenv env rhsExpr
@@ -1690,7 +1690,7 @@ and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind
 and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs: E imarray) =
     let valueTy = value.LogicalType
 #if DEBUG || CHECKED
-    match valueTy.TryFunction with
+    match valueTy.TryAnyFunction with
     | ValueSome _ -> ()
     | _ -> OlyAssert.Fail("Expected function type.")
 #endif
@@ -1811,8 +1811,8 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 let ilElementTy = emitILType cenv env expr.Type.TryGetReferenceCellElement.Value
                 let ilExpr = GenExpression cenv env expr
                 let ilByRefKind =
-                    OlyAssert.False(argExpr.Type.IsWriteOnlyByRef)
-                    if argExpr.Type.IsReadOnlyByRef then
+                    OlyAssert.False(argExpr.Type.IsWriteOnlyByRef_ste)
+                    if argExpr.Type.IsReadOnlyByRef_ste then
                         OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
@@ -1827,8 +1827,8 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             | _ ->
                 match value with
                 | :? IFunctionSymbol as func ->
-                    OlyAssert.False(func.ReturnType.IsWriteOnlyByRef)
-                    if func.ReturnType.IsReadOnlyByRef then
+                    OlyAssert.False(func.ReturnType.IsWriteOnlyByRef_ste)
+                    if func.ReturnType.IsReadOnlyByRef_ste then
                         OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
@@ -2010,7 +2010,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsAnyStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
+                            if value.Type.IsValue_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),

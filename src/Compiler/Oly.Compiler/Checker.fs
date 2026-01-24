@@ -182,7 +182,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsAnyStruct_ste then
+                if field.IsInstance && field.Type.IsValue_ste then
                     match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
@@ -195,7 +195,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         result
 
 let checkStructCycle env syntaxNode (ent: EntitySymbol) =
-    OlyAssert.True(ent.IsAnyStruct)
+    OlyAssert.True(ent.IsValue)
 
     let mutable hash = Unchecked.defaultof<_>
     let usedPool = tryPopCheckStructCycleDictionary(&hash)
@@ -220,7 +220,7 @@ let checkStructCycle env syntaxNode (ent: EntitySymbol) =
 let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) -> 
-        if ent.IsAnyStruct then
+        if ent.IsValue then
             checkStructCycle env syntaxNode ent
         else
             true
@@ -248,7 +248,7 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 // --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
-    if ent.IsAnyStruct then
+    if ent.IsValue then
         checkStructCycle env syntaxNode ent
         |> ignore
 
@@ -339,7 +339,7 @@ and checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
     | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) 
     | OlySyntaxType.FunctionPtr(_, _, syntaxInputTy, _, syntaxOutputTy) 
     | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
-        match ty.TryFunction with
+        match ty.TryAnyFunction with
         | ValueSome(inputTy, outputTy) ->
             let syntaxInputTy =
                 match syntaxInputTy with
@@ -690,7 +690,7 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 
     let returnTy = 
         if firstReturnExpression.IsLambdaExpression then
-            match firstReturnExpression.Type.TryFunction with
+            match firstReturnExpression.Type.TryAnyFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ -> failwith "Expected a function type."
         else 
@@ -798,8 +798,8 @@ and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: O
 and checkExpressionType (env: SolverEnvironment) (mode: CheckExpressionMode) (expectedTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
 
-    if expectedTy.IsSolved && 
-       exprTy.IsSolved && 
+    if expectedTy.IsSolved_ste && 
+       exprTy.IsSolved_ste && 
        not expectedTy.IsError_ste && 
        not exprTy.IsError_ste && 
        subsumesTypeInEnvironment env.benv expectedTy exprTy then
@@ -841,7 +841,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let rec checkCall syntaxOfFuncCall (receiverOpt: BoundExpression option) (value: IValueSymbol) =
         match receiverOpt with
         | Some receiver ->
-            if receiver.Type.IsWriteOnlyByRef then
+            if receiver.Type.IsWriteOnlyByRef_ste then
                 reportWriteOnlyError receiver.Syntax
             elif (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) then
                 if value.IsMutable then
@@ -862,14 +862,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsAnyStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRefOfAnyStruct) && not value.IsInvalid && not value.Type.IsError_ste then
+            if ((not value.IsMutable && (value.Type.IsValue_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfValue_ste) && not value.IsInvalid && not value.Type.IsError_ste then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsAnyStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+                if field.Type.IsValue_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -904,7 +904,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
-        if not lhsExpr.Type.IsReadWriteByRef && not lhsExpr.Type.IsWriteOnlyByRef then
+        if not lhsExpr.Type.IsReadWriteByRef_ste && not lhsExpr.Type.IsWriteOnlyByRef_ste then
             env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)  
 
     | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
@@ -925,7 +925,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
 
     | BoundExpression.GetField(receiver=receiverExpr) ->
-        if receiverExpr.Type.IsWriteOnlyByRef then
+        if receiverExpr.Type.IsWriteOnlyByRef_ste then
             reportWriteOnlyError expr.Syntax
 
     | _ ->
