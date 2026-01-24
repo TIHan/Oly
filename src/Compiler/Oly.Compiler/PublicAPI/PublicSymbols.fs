@@ -26,25 +26,95 @@ type ISymbolCollector =
 
     abstract CollectSymbol : symbolUseInfo: OlySymbolUseInfo -> unit
 
-let private stripRetargetedEntitySymbol (symbol: EntitySymbol) : EntitySymbol =
-    match symbol with
-    | :? RetargetedEntitySymbol as symbol ->
-        symbol.Original
-    | _ ->
-        symbol
+// Cross-assembly functions have relaxed equality and is meant for tooling scenarios.
 
-let private stripRetargetedValueSymbol (symbol: IValueSymbol) : IValueSymbol =
-    match symbol with
-    | :? RetargetedFieldSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedFunctionSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedPatternSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedPropertySymbol as symbol ->
-        symbol.Original
+/// Relaxed equality.
+let private crossAssemblyAreEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
+    match ent1.TryCompilerIntrinsic, ent2.TryCompilerIntrinsic with
+    | Some(name1), Some(name2) -> name1 = name2
+    | Some _, None -> false
+    | None, Some _ -> false
     | _ ->
-        symbol
+
+    if ent1.Name <> ent2.Name then false
+    else
+
+    if ent1.TypeParameters.Length <> ent2.TypeParameters.Length then false
+    else
+    
+    crossAssemblyAreEnclosingsEqual ent1.Enclosing ent2.Enclosing
+
+/// Relaxed equality.
+let private crossAssemblySubsumesEntity (superEnt: EntitySymbol) (ent: EntitySymbol) =
+    ent.HierarchyExists (fun ent ->
+        match ent.TryEntityNoAlias with
+        | ValueSome(ent) ->
+            crossAssemblyAreEntitiesEqual superEnt ent
+        | _ ->
+            false
+    )
+
+/// Relaxed equality.
+let private crossAssemblySubsumesType (superTy: TypeSymbol) (ty: TypeSymbol) =
+    match stripTypeEquationsAndBuiltIn superTy, stripTypeEquationsAndBuiltIn ty with
+    | TypeSymbol.Entity(superEnt), TypeSymbol.Entity(ent) ->
+        crossAssemblySubsumesEntity superEnt ent
+    | _ ->
+        subsumesType superTy ty
+
+/// Relaxed equality.
+let private crossAssemblyAreEnclosingsEqual (enclosing1: EnclosingSymbol) (enclosing2: EnclosingSymbol) =
+    if areEnclosingsEqual enclosing1 enclosing2 then true
+    else
+        match enclosing1.TryEntity, enclosing2.TryEntity with
+        | Some(ent1), Some(ent2) ->
+            crossAssemblyAreEntitiesEqual ent1 ent2
+        | _ ->
+            false
+
+/// Relaxed equality.
+let private crossAssemblyAreTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
+    if areTypesEqual ty1 ty2 then true
+    else
+        match ty1.TryEntityNoAlias, ty2.TryEntityNoAlias with
+        | ValueSome(ent1), ValueSome(ent2) -> crossAssemblyAreEntitiesEqual ent1 ent2
+        | _ -> false
+
+/// Relaxed equality.
+let private crossAssemblyAreValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
+    if value1.IsFunctionGroup || value2.IsFunctionGroup then
+        false
+    elif value1.Name <> value2.Name then false
+    else
+        match value1, value2 with
+        | (:? IFunctionSymbol as func1), (:? IFunctionSymbol as func2) ->
+            func1.IsStatic = func2.IsStatic &&
+            func1.Parameters.Length = func2.Parameters.Length &&
+            func1.TypeParameters.Length = func2.TypeParameters.Length &&
+            (
+                (func1.LogicalParameters, func2.LogicalParameters)
+                ||> ROMem.forall2 (fun par1 par2 ->
+                    crossAssemblyAreTypesEqual par1.Type par2.Type
+                )  
+            )
+
+        | (:? IFieldSymbol as field1), (:? IFieldSymbol as field2) ->
+            crossAssemblyAreTypesEqual field1.Type field2.Type
+
+        | (:? IPropertySymbol as prop1), (:? IPropertySymbol as prop2) ->
+            crossAssemblyAreTypesEqual prop1.Type prop2.Type
+
+        | (:? IPatternSymbol as pat1), (:? IPatternSymbol as pat2) ->
+            crossAssemblyAreValueSignaturesEqual pat1.PatternFunction pat2.PatternFunction &&
+            (
+                match pat1.PatternGuardFunction, pat2.PatternGuardFunction with
+                | None, None -> true
+                | Some(func1), Some(func2) -> crossAssemblyAreValueSignaturesEqual func1 func2
+                | _ -> false
+            )
+
+        | _ ->
+            false
 
 [<AbstractClass>]
 type OlySymbol internal () =
@@ -216,46 +286,21 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     override this.IsSimilarTo(symbol) =
         match symbol with
         | :? OlyTypeSymbol as symbol ->
-            match this.Internal, symbol.Internal with
-            | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
-                let formal1 = stripRetargetedEntitySymbol ent1.Formal
-                let formal2 = stripRetargetedEntitySymbol ent2.Formal
-                areEntitiesEqual formal1 formal2
-            | _ ->
-                areTypesEqual this.Internal symbol.Internal
+            crossAssemblyAreTypesEqual this.Internal symbol.Internal
         | _ ->
             false
-
-    static member private IsEqualToInternal(ty1: TypeSymbol, ty2: TypeSymbol) =
-        match ty1, ty2 with
-        | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
-            if ent1.TypeArguments.Length = ent2.TypeArguments.Length then
-                let formal1 = stripRetargetedEntitySymbol ent1.Formal
-                let formal2 = stripRetargetedEntitySymbol ent2.Formal
-
-                areEntitiesEqual formal1 formal2 &&
-                (
-                    (ent1.TypeArguments, ent2.TypeArguments)
-                    ||> ImArray.forall2 (fun x y -> 
-                        OlyTypeSymbol.IsEqualToInternal(x, y)
-                    )
-                )
-            else
-                false
-        | _ ->
-            areTypesEqual ty1 ty2
 
     override this.IsEqualTo(symbol) =
         match symbol with
         | :? OlyTypeSymbol as symbol ->
-            OlyTypeSymbol.IsEqualToInternal(this.Internal, symbol.Internal)
+            crossAssemblyAreTypesEqual this.Internal symbol.Internal
         | _ ->
             false
 
     override this.IsFormalEqualTo(symbol) =
         match symbol with
         | :? OlyTypeSymbol as symbol ->
-            OlyTypeSymbol.IsEqualToInternal(this.Internal.Formal, symbol.Internal.Formal)
+            crossAssemblyAreTypesEqual this.Internal.Formal symbol.Internal.Formal
         | _ ->
             false
 
@@ -364,14 +409,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(ty.Enclosing)
 
     member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
-        match superTy.Internal, this.Internal with
-        | TypeSymbol.Entity(superEnt), TypeSymbol.Entity(ent) ->
-            let superFormal = stripRetargetedEntitySymbol superEnt.Formal
-            let formal = stripRetargetedEntitySymbol ent.Formal
-            subsumesEntity superFormal formal
-        | _ ->
-            subsumesType superTy.Internal this.Internal
-            //subsumesTypeInEnvironment benv superTy.Internal this.Internal
+        crossAssemblySubsumesType superTy.Internal this.Internal
 
     member this.Documentation =
         match ty with
@@ -590,7 +628,7 @@ type OlyFunctionGroupSymbol internal (funcGroup: FunctionGroupSymbol) =
         |> Seq.map (fun x -> OlyValueSymbol(x))
         |> ImmutableArray.CreateRange
 
-    // TODO: Consider creating an OlyFunctionSymbol
+/// TODO: Consider creating an OlyFunctionSymbol
 [<DebuggerDisplay("{SignatureText}")>] 
 type OlyValueSymbol internal (value: IValueSymbol) =
     inherit OlySymbol()
@@ -623,33 +661,47 @@ type OlyValueSymbol internal (value: IValueSymbol) =
             | true, true ->
                 this.Internal.Formal.Id = symbol.Internal.Formal.Id
             | false, false ->
-                let formal1 = stripRetargetedValueSymbol this.Internal.Formal
-                let formal2 = stripRetargetedValueSymbol symbol.Internal.Formal
-                if areValueSignaturesEqual formal1 formal2 then
-                    true
-                else
-                    if formal1.IsProperty && formal2.IsField then
-                        match formal2 with
-                        | :? IFieldSymbol as field ->
-                            match field.AssociatedFormalPropertyId with
-                            | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = formal1.Id
-                            | _ ->
-                                false
-                        | _ ->
-                            false
-                    elif formal1.IsField && formal2.IsProperty then
-                        match formal1 with
-                        | :? IFieldSymbol as field ->
-                            match field.AssociatedFormalPropertyId with
-                            | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = formal2.Id
-                            | _ ->
-                                false
+                let formal1 = this.Internal.Formal
+                let formal2 = symbol.Internal.Formal
+                let areEnclosingsSimilar =
+                    if crossAssemblyAreEnclosingsEqual formal1.Enclosing formal2.Enclosing then
+                        true
+                    elif formal1.IsVirtual && formal2.IsVirtual then
+                        match formal1.Enclosing.TryEntity, formal2.Enclosing.TryEntity with
+                        | Some(ent1), Some(ent2) ->
+                            crossAssemblySubsumesEntity ent1 ent2 || crossAssemblySubsumesEntity ent2 ent1
                         | _ ->
                             false
                     else
                         false
+
+                if not areEnclosingsSimilar then false
+                else
+                    if crossAssemblyAreValueSignaturesEqual formal1 formal2 then true
+                    else
+                        // TODO: This isn't quite right as we cannot rely on Id equality due to cross assemblies.
+                        if formal1.IsProperty && formal2.IsField then
+                            match formal2 with
+                            | :? IFieldSymbol as field ->
+                                match field.AssociatedFormalPropertyId with
+                                | Some(associatedFormalPropId) ->
+                                    associatedFormalPropId = formal1.Id
+                                | _ ->
+                                    false
+                            | _ ->
+                                false
+                        elif formal1.IsField && formal2.IsProperty then
+                            match formal1 with
+                            | :? IFieldSymbol as field ->
+                                match field.AssociatedFormalPropertyId with
+                                | Some(associatedFormalPropId) ->
+                                    associatedFormalPropId = formal2.Id
+                                | _ ->
+                                    false
+                            | _ ->
+                                false
+                        else
+                            false
             | _ ->
                 false
         | :? OlyTypeSymbol when this.IsConstructor ->

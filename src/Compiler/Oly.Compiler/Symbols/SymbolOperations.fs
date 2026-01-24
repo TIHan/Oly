@@ -970,6 +970,23 @@ let areFieldsEqual (field1: IFieldSymbol) (field2: IFieldSymbol) =
     field1.ValueFlags = field2.ValueFlags &&
     areEnclosingsEqual field1.Enclosing field2.Enclosing
 
+let arePropertySignaturesEqual (prop1: IPropertySymbol) (prop2: IPropertySymbol) =
+    if obj.ReferenceEquals(prop1, prop2) then true
+    else
+        prop1.Name = prop2.Name && areTypesEqual prop1.Type prop2.Type
+
+let areLogicalPatternSignaturesEqual (pat1: IPatternSymbol) (pat2: IPatternSymbol) =
+    if obj.ReferenceEquals(pat1, pat2) then true
+    else
+        pat1.Name = pat2.Name && 
+        areValueSignaturesEqual pat1.PatternFunction pat2.PatternFunction &&
+        (
+            match pat1.PatternGuardFunction, pat2.PatternGuardFunction with
+            | None, None -> true
+            | Some(func1), Some(func2) -> areValueSignaturesEqual func1 func2
+            | _ -> false
+        )
+
 let areValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
     // IMPORTANT: If either value is a function group, then return false. No such thing as equality for function groups.
     if value1.IsFunctionGroup || value2.IsFunctionGroup then
@@ -978,10 +995,16 @@ let areValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
     else
         match value1, value2 with
         | (:? IFunctionSymbol as func1), (:? IFunctionSymbol as func2) ->
-            value1.Name = value2.Name && areLogicalFunctionSignaturesEqual func1 func2
+            areLogicalFunctionSignaturesEqual func1 func2
 
         | (:? IFieldSymbol as field1), (:? IFieldSymbol as field2) ->
-            value1.Name = value2.Name && areFieldSignaturesEqual field1 field2
+            areFieldSignaturesEqual field1 field2
+
+        | (:? IPropertySymbol as prop1), (:? IPropertySymbol as prop2) ->
+            arePropertySignaturesEqual prop1 prop2
+
+        | (:? IPatternSymbol as pat1), (:? IPatternSymbol as pat2) ->
+            areLogicalPatternSignaturesEqual pat1 pat2
 
         | _ ->
             false
