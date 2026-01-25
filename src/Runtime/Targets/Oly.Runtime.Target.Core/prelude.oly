@@ -1181,6 +1181,10 @@ module Unsafe =
 
 #if DOTNET
     #[unmanaged(allocation_only)]
+    As<TTo, TFrom>(value: TFrom): TTo where TFrom: not struct where TTo: not struct =
+        _cast(value)
+
+    #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsPointer<T>(int32): T*
     
@@ -1198,7 +1202,11 @@ module Unsafe =
     
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
-    AsPointer<T, TResult>(T*): TResult*
+    AsPointer<TTo, TFrom>(TFrom*): TTo* where TFrom: unmanaged where TTo: unmanaged
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsPointer<TFrom>(TFrom*): void* where TFrom: unmanaged
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
@@ -1215,11 +1223,15 @@ module Unsafe =
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsFunctionPointer<TArguments...>(nuint): static blittable (TArguments...) -> ()
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsEnum<TTo>(object): TTo where TTo: Enum
 #end
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
-    AsByRef<T, TResult>(valueRef: inref<T>): byref<TResult>
+    AsByRef<TTo, TFrom>(valueRef: inref<TFrom>): byref<TTo>
 
 #[intrinsic("new_array")]
 zeroArray<T>(length: int32): mutable T[]
@@ -1519,6 +1531,9 @@ module DotNet =
 
     #[import("intrinsic-CLR", "", "is")]
     IsSubtypeOf<require T>(object): bool
+
+    AsArray<T>(value: mutable T[]): System.Array =
+        Unsafe.Cast(value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
