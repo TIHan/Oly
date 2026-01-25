@@ -213,7 +213,7 @@ let UnsafeCast =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Cast None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.UnsafeCast None false
 
 let addFunc =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("add"))
