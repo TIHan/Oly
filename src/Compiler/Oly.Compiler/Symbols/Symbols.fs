@@ -1906,7 +1906,7 @@ type EnclosingSymbol =
 
     member this.IsAnyStruct =
         match this with
-        | Entity(ent) -> ent.IsValue
+        | Entity(ent) -> ent.IsStruct
         | _ -> false
 
     member this.IsReadOnly =
@@ -4146,7 +4146,7 @@ type TypeSymbol =
     /// 
     /// Strips type equations.
     member this.IsAnyNonStruct_ste =
-        (not this.IsValueOrVariableConstraintValue_ste) || this.IsAnyVariableWithNotStructConstraint_ste
+        (not this.IsStructOrVariableConstraintStruct_ste) || this.IsAnyVariableWithNotStructConstraint_ste
 
     /// Is the type symbol a type constructor?
     /// 
@@ -4553,12 +4553,12 @@ type TypeSymbol =
         | TypeSymbol.ByRef(_, ByRefKind.WriteOnly) -> true
         | _ -> false
 
-    /// Is the type symbol a read-only by-ref type of a value type?
+    /// Is the type symbol a read-only by-ref type of a struct type?
     /// 
     /// Strips type equations.
-    member this.IsReadOnlyByRefOfValue_ste =
+    member this.IsReadOnlyByRefOfStruct_ste =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsValueOrVariableConstraintValue_ste
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsStructOrVariableConstraintStruct_ste
         | _ -> false
 
     /// Is the type symbol a read-write by-ref type?
@@ -4621,12 +4621,13 @@ type TypeSymbol =
         | TypeSymbol.Variable(tyPar) -> tyPar.IsVariadic
         | _ -> false
 
-    /// Is the type symbol a value type?
+    /// TODO: Should we just have on `IsStruct_ste` that also looks at the type variable?
+    /// Is the type symbol a struct?
     /// 
     /// Strips type equations.
-    member this.IsValue_ste =
+    member this.IsStruct_ste =
         match stripTypeEquations this with
-        | Entity(ent) -> ent.IsValue
+        | Entity(ent) -> ent.IsStruct
         | Int8
         | UInt8
         | Int16
@@ -4650,11 +4651,12 @@ type TypeSymbol =
         | Function(kind=FunctionKind.Scoped) -> true
         | _ -> false
 
-    /// Is the type symbol a value type or a variable type that has a constraint that ensures a value type?
+    /// TODO: Should we just have on `IsStruct_ste` that also looks at the type variable?
+    /// Is the type symbol a struct or a variable type that has a constraint that ensures a struct?
     /// 
     /// Strips type equations.
-    member this.IsValueOrVariableConstraintValue_ste =
-        if this.IsValue_ste then true
+    member this.IsStructOrVariableConstraintStruct_ste =
+        if this.IsStruct_ste then true
         else
             match stripTypeEquations this with
             | Variable(tyPar)
@@ -4668,7 +4670,7 @@ type TypeSymbol =
                 )
             | _ -> false
 
-    /// Does the type extend a value type?
+    /// Does the type extend a struct?
     /// 
     /// Strips type equations.
     member this.IsExtendingValue_ste =
@@ -4677,7 +4679,7 @@ type TypeSymbol =
             if ent.Extends.IsEmpty then
                 false
             else
-                ent.IsValue
+                ent.IsStruct
         | _ ->
             false
 
@@ -5598,7 +5600,7 @@ module SymbolExtensions =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Internal
 
             member this.IsNullable =
-                if this.IsValue || this.IsNamespaceOrModule then false
+                if this.IsStruct || this.IsNamespaceOrModule then false
                 else
                     this.Flags.HasFlag(EntityFlags.Nullable) ||
                     (this.Flags.HasFlag(EntityFlags.Abstract) && not(this.Flags.HasFlag(EntityFlags.Final)))
@@ -5726,27 +5728,27 @@ module SymbolExtensions =
             member this.IsAnonymousModule =
                 this.IsPrivate && this.IsModule && this.IsAnonymous
 
-            member this.IsStructOrAliasValue =
+            member this.IsDefinedStructOrAliasStruct =
                 match this.Kind with
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsValue_ste
+                    | Some realTy -> realTy.IsStruct_ste
                     | _ -> false
                 | _ ->
                     false
     
-            /// Returns true if the entity is a struct, an enum struct, or a newtype struct.
-            member this.IsValue =
+            /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct, a type extension extending a struct or a closure struct.
+            member this.IsStruct =
                 match this.Kind with
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsValueOrVariableConstraintValue_ste
+                    | Some realTy -> realTy.IsStructOrVariableConstraintStruct_ste
                     | _ -> false
                 | EntityKind.Enum
-                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsValueOrVariableConstraintValue_ste
-                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsValueOrVariableConstraintValue_ste
+                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsStructOrVariableConstraintStruct_ste
+                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsStructOrVariableConstraintStruct_ste
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false
@@ -5782,7 +5784,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsClassOrStructOrModuleOrNewtype =
-                this.IsClass || this.IsStructOrAliasValue || this.IsModule || this.IsNewtype
+                this.IsClass || this.IsDefinedStructOrAliasStruct || this.IsModule || this.IsNewtype
     
             member this.IsReadOnly =
                 this.Flags &&& EntityFlags.ReadOnly = EntityFlags.ReadOnly
@@ -5799,7 +5801,7 @@ module SymbolExtensions =
                 this.TryCompilerIntrinsic.IsSome
 
             member this.CanDeclareConstructor = 
-                (this.IsClass || this.IsValue || this.IsShape) && not this.IsAlias
+                (this.IsClass || this.IsStruct || this.IsShape) && not this.IsAlias
 
         type EnclosingSymbol with
 

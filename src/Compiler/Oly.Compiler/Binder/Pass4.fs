@@ -1546,7 +1546,7 @@ let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxT
         OlyAssert.Fail("Unmatched syntax expression.")
 
 let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) =
-    if not ty.Inherits.IsEmpty && not ty.IsValueOrVariableConstraintValue_ste then
+    if not ty.Inherits.IsEmpty && not ty.IsStructOrVariableConstraintStruct_ste then
         let implicitParameterlessBaseInstanceCtorOpt =
             if env.implicitThisOpt.IsNone then
                 None
@@ -1687,10 +1687,10 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
                 | Choice1Of2(_, bodyExpr) ->
                     match bodyExpr with
                     // Only do this for generated FromAddress.
-                    | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsValue_ste && bodyExpr.IsGenerated ->
+                    | FromAddress(E.Value(value=value) as valueExpr) when value.IsThis && not value.IsFunction && ty.IsStruct_ste && bodyExpr.IsGenerated ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (valueExpr.Syntax, value) ty syntaxInitializer
 
-                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsValueOrVariableConstraintValue_ste ->
+                    | E.Value(value=value) when value.IsThis && not value.IsFunction && not ty.IsStructOrVariableConstraintStruct_ste ->
                         bindThisConstructorInitializer cenv env syntaxToCapture (bodyExpr.Syntax, value) ty syntaxInitializer
 
                     | E.Call(value=value) when value.IsBase && value.IsFunction ->

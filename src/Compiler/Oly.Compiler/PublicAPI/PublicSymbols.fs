@@ -347,15 +347,14 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
 
     member _.IsEnum = ty.IsEnum_ste
 
-    /// Is type symbol a reference type?
-    member _.IsReference = ty.IsReference_ste
+    member _.IsClass = ty.IsClass_ste
 
     member _.IsShape = ty.IsShape_ste
 
     member _.IsTuple = ty.IsTuple_ste
 
-    /// Is type symbol a value type?
-    member _.IsValue = ty.IsValueOrVariableConstraintValue_ste
+    /// Is the type symbol a struct?
+    member _.IsStruct = ty.IsStructOrVariableConstraintStruct_ste
 
     member _.IsBuiltIn = ty.IsBuiltIn_ste
 
@@ -443,7 +442,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
                     | TypeSymbol.Int64 
                     | TypeSymbol.Float64 -> 8
                     | ty ->
-                        if ty.IsValueOrVariableConstraintValue_ste then
+                        if ty.IsStructOrVariableConstraintStruct_ste then
                             let mutable isValid = true
                             let fieldBytes =
                                 ty.GetInstanceFields()
@@ -985,7 +984,7 @@ type OlyEnclosingSymbol internal (enclosing: EnclosingSymbol) =
 
     member this.IsStruct =
         match enclosing with
-        | EnclosingSymbol.Entity(ent) -> ent.IsValue
+        | EnclosingSymbol.Entity(ent) -> ent.IsStruct
         | _ -> false
 
     member this.IsTypeExtension =

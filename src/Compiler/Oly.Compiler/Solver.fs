@@ -166,7 +166,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                 if funcs.IsEmpty then
                     let formalAbstractFunc = abstractFunc.Formal
                     // If the struct doesn't have an instance constructor, we will still allow it for the shape member '{ new() }' since it can technically be constructed.
-                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsValueOrVariableConstraintValue_ste && not principalTyArg.IsAnyVariable_ste then
+                    if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsStructOrVariableConstraintStruct_ste && not principalTyArg.IsAnyVariable_ste then
                         ()
                     else
                         if not isAttempt then
@@ -364,7 +364,7 @@ let private solveConstraintStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: Type
         |> ImArray.exists (function ConstraintSymbol.Struct -> true | _ -> false)
 
     | tyArg ->
-        tyArg.IsValueOrVariableConstraintValue_ste
+        tyArg.IsStructOrVariableConstraintStruct_ste
 
 let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     match stripTypeEquations tyArg with
@@ -374,7 +374,7 @@ let private solveConstraintNotStruct _env (_syntaxNode: OlySyntaxNode) (tyArg: T
         |> ImArray.exists (function ConstraintSymbol.NotStruct -> true | _ -> false)
 
     | tyArg ->
-        not tyArg.IsValueOrVariableConstraintValue_ste
+        not tyArg.IsStructOrVariableConstraintStruct_ste
 
 let private solveConstraintUnmanaged env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     tyArg.IsUnmanaged_ste(env.pass)

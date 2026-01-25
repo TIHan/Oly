@@ -308,7 +308,7 @@ type SpirvTarget() =
                     checkPropertyDefinition symbolInfo.Symbol.AsValue symbolInfo.Syntax
 
                 let isStructTy (ty: OlyTypeSymbol) =
-                    not ty.IsBuiltIn && not ty.IsAlias && ty.IsValue && not ty.IsImported
+                    not ty.IsBuiltIn && not ty.IsAlias && ty.IsStruct && not ty.IsImported
 
                 if not isGreaterOrEqualToVersion_1_3 then
                     if symbolInfo.Symbol.IsFieldOrAutoProperty then

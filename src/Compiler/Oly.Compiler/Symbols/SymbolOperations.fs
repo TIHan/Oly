@@ -443,7 +443,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 varSolution.SetSolution(ty)
                 UnifyTypes rigidity ty1 ty2
             | _ ->
-                if ty.IsValueOrVariableConstraintValue_ste then
+                if ty.IsStructOrVariableConstraintStruct_ste then
                     match ty with
                     | TypeSymbol.UInt8
                     | TypeSymbol.Int8
@@ -473,7 +473,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
             OlyAssert.True(eagerTy.IsSolved_ste)
             OlyAssert.False(eagerTy.IsAnyVariable_ste)
-            if targetTy.IsValueOrVariableConstraintValue_ste && not targetTy.IsAnyVariable_ste then
+            if targetTy.IsStructOrVariableConstraintStruct_ste && not targetTy.IsAnyVariable_ste then
                 match targetTy with
                 | TypeSymbol.UInt8
                 | TypeSymbol.Int8
@@ -1025,7 +1025,7 @@ let areShapesEqualWith rigidity (ty1: TypeSymbol) (ty2: TypeSymbol) =
                 if func.IsInstance = superFunc.IsInstance && func.Name = superFunc.Name && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                         // TODO: This really isn't right.
                         let isInstance = func.IsInstance
-                        if not isInstance || not ty2.IsValueOrVariableConstraintValue_ste || (if superFunc.IsImmutable then func.IsImmutable else true) then
+                        if not isInstance || not ty2.IsStructOrVariableConstraintStruct_ste || (if superFunc.IsImmutable then func.IsImmutable else true) then
                             let result =
                                 (superFunc.Parameters, func.Parameters)
                                 ||> ImArray.foralli2 (fun i par1 par2 ->
@@ -1892,7 +1892,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        if this.IsValue then
+        if this.IsStruct then
             if hash.Add(this) then
                 if this.IsAlias && this.Extends.Length > 0 then
                     EntitySymbol.CheckUnmanaged(pass, hash, this.Extends[0])
@@ -1927,7 +1927,7 @@ type EntitySymbol with
         | PostInferenceAnalysis -> ()
         | _ -> OlyAssert.Fail("Invalid pass")
 #endif
-        if this.IsValue then
+        if this.IsStruct then
             if hash.Add(this) then
                 if this.IsAlias && this.Extends.Length > 0 then
                     EntitySymbol.CheckBlittable(pass, hash, this.Extends[0])
@@ -1954,7 +1954,7 @@ type EntitySymbol with
         else if flags.HasFlag(EntityCachedFlags.Unmanaged) then
             true
         else
-            if this.IsValue then
+            if this.IsStruct then
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
@@ -1982,7 +1982,7 @@ type EntitySymbol with
         else if flags.HasFlag(EntityCachedFlags.Blittable) then
             true
         else
-            if this.IsValue then
+            if this.IsStruct then
                 // TODO: Allocation, maybe an object pool would be better?
                 //       We only try to do this once so maybe it is ok.
                 let hash = HashSet<EntitySymbol>(EntitySymbolComparer())
@@ -2401,7 +2401,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
             let parTy = pars.[0].Type
             match enclosing.TryType with
             | Some(enclosingTy) ->
-                if not (enclosingTy.IsValueOrVariableConstraintValue_ste && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
+                if not (enclosingTy.IsStructOrVariableConstraintStruct_ste && (areTypesEqual (TypeSymbol.CreateByRef(enclosingTy.ToInstantiation(), ByRefKind.ReadWrite)) parTy)) &&
                    not (areTypesEqual enclosingTy parTy) then
                     failwith "First parameter of an instance constructor is not the same as the enclosing."
             | _ ->
@@ -2516,7 +2516,7 @@ let createThisValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsValueOrVariableConstraintValue_ste then
+        if ty.IsStructOrVariableConstraintStruct_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 
@@ -2539,7 +2539,7 @@ let createBaseValue name isCtor mightBeReadOnly (ent: EntitySymbol) =
                     TypeSymbolError
             else
                 ent.AsType
-        if ty.IsValueOrVariableConstraintValue_ste then
+        if ty.IsStructOrVariableConstraintStruct_ste then
             let kind =
                 if isCtor then ByRefKind.ReadWrite
                 else 

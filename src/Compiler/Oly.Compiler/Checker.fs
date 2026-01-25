@@ -182,7 +182,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsValueOrVariableConstraintValue_ste then
+                if field.IsInstance && field.Type.IsStructOrVariableConstraintStruct_ste then
                     match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
@@ -195,7 +195,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         result
 
 let checkStructCycle env syntaxNode (ent: EntitySymbol) =
-    OlyAssert.True(ent.IsValue)
+    OlyAssert.True(ent.IsStruct)
 
     let mutable hash = Unchecked.defaultof<_>
     let usedPool = tryPopCheckStructCycleDictionary(&hash)
@@ -220,7 +220,7 @@ let checkStructCycle env syntaxNode (ent: EntitySymbol) =
 let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) -> 
-        if ent.IsValue then
+        if ent.IsStruct then
             checkStructCycle env syntaxNode ent
         else
             true
@@ -248,7 +248,7 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 // --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
-    if ent.IsValue then
+    if ent.IsStruct then
         checkStructCycle env syntaxNode ent
         |> ignore
 
@@ -862,14 +862,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsValueOrVariableConstraintValue_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfValue_ste) && not value.IsInvalid && not value.Type.IsError_ste then
+            if ((not value.IsMutable && (value.Type.IsStructOrVariableConstraintStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid && not value.Type.IsError_ste then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsValueOrVariableConstraintValue_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+                if field.Type.IsStructOrVariableConstraintStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else

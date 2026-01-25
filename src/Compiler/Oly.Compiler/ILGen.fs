@@ -1484,7 +1484,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         // TODO: Just turn this into an assert since it is technically legal to do it in the Oly runtime.
         match value.Enclosing with
-        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsValue ->
+        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsStruct ->
             failwith "Virtual call on a struct function."
         | _ ->
             ()
@@ -2010,7 +2010,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsValueOrVariableConstraintValue_ste && not value.Type.IsNativeFunctionPtr_ste then
+                            if value.Type.IsStructOrVariableConstraintStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),

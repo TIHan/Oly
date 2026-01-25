@@ -361,7 +361,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     // Implicit default constructors
     | E.EntityDefinition(syntaxInfo, bodyExpr, ent) 
         when not ent.IsCompilerIntrinsic && 
-             not ent.IsImported && (ent.IsClass || ent.IsStructOrAliasValue || ent.IsNewtype || ent.IsModule) 
+             not ent.IsImported && (ent.IsClass || ent.IsDefinedStructOrAliasStruct || ent.IsNewtype || ent.IsModule) 
              ->
 
         OlyAssert.True(ent.IsFormal)
@@ -392,7 +392,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                     let thisExpr = E.CreateValue(syntaxInfo.Syntax.Tree, thisPar)
                     let newBodyExpr =
                         let firstExprOpt =
-                            if ent.Extends.IsEmpty || ent.IsNewtype || ent.IsValue then None
+                            if ent.Extends.IsEmpty || ent.IsNewtype || ent.IsStruct then None
                             else
                                 let baseTy = ent.Extends.[0]
                                 let baseTy =
