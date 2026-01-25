@@ -1073,7 +1073,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                             // We mainly do this to keep optimizations working for inlining functions
                             // when scoped lambda capture other scoped lambdas.
                             // REVIEW: We should just create a byref type as a stress test and fix the optimizations in the runtime.
-                            elif fieldTy.IsValue_ste then
+                            elif fieldTy.IsValueOrVariableConstraintValue_ste then
                                 fieldTy
 
                             // TODO: We technically do not need to create read-only byrefs.

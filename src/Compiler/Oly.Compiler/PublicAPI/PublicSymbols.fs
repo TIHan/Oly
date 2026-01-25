@@ -355,7 +355,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     member _.IsTuple = ty.IsTuple_ste
 
     /// Is type symbol a value type?
-    member _.IsValue = ty.IsValue_ste
+    member _.IsValue = ty.IsValueOrVariableConstraintValue_ste
 
     member _.IsBuiltIn = ty.IsBuiltIn_ste
 
@@ -443,7 +443,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
                     | TypeSymbol.Int64 
                     | TypeSymbol.Float64 -> 8
                     | ty ->
-                        if ty.IsValue_ste then
+                        if ty.IsValueOrVariableConstraintValue_ste then
                             let mutable isValid = true
                             let fieldBytes =
                                 ty.GetInstanceFields()

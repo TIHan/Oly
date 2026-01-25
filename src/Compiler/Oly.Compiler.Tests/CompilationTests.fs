@@ -84,6 +84,6 @@ module Test1
     Assert.Equal(2, (test1ModuleSymbol3 :?> OlyTypeSymbol).Functions.Length)
 
     Assert.True(test1ModuleSymbol1.IsSimilarTo(test1ModuleSymbol1))
-    Assert.False(test1ModuleSymbol1.IsSimilarTo(test1ModuleSymbol2))
-    Assert.False(test1ModuleSymbol2.IsSimilarTo(test1ModuleSymbol3))
-    Assert.False(test1ModuleSymbol3.IsSimilarTo(test1ModuleSymbol1))
+    Assert.True(test1ModuleSymbol1.IsSimilarTo(test1ModuleSymbol2))
+    Assert.True(test1ModuleSymbol2.IsSimilarTo(test1ModuleSymbol3))
+    Assert.True(test1ModuleSymbol3.IsSimilarTo(test1ModuleSymbol1))

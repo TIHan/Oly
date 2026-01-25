@@ -722,7 +722,7 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
         if not ty.IsNullable_ste && ty.IsSolved_ste then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        if not ty.IsValue_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
+        if not ty.IsValueOrVariableConstraintValue_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->
@@ -854,7 +854,7 @@ and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool)
         if exprTy.IsScoped_ste then
             not isReceiver && expectedTy.IsAnyNonStruct_ste && not expectedTy.IsScoped_ste
         else
-            (exprTy.IsValue_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
+            (exprTy.IsValueOrVariableConstraintValue_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
 
     // Context Analysis: UnmanagedAllocationOnly
     if willBox && aenv.IsInUnmanagedAllocationOnlyContext then

@@ -182,7 +182,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsValue_ste then
+                if field.IsInstance && field.Type.IsValueOrVariableConstraintValue_ste then
                     match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
@@ -862,14 +862,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsValue_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfValue_ste) && not value.IsInvalid && not value.Type.IsError_ste then
+            if ((not value.IsMutable && (value.Type.IsValueOrVariableConstraintValue_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfValue_ste) && not value.IsInvalid && not value.Type.IsError_ste then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsValue_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+                if field.Type.IsValueOrVariableConstraintValue_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else

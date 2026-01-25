@@ -2010,7 +2010,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsValue_ste && not value.Type.IsNativeFunctionPtr_ste then
+                            if value.Type.IsValueOrVariableConstraintValue_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),

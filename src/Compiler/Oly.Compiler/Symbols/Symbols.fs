@@ -4146,7 +4146,7 @@ type TypeSymbol =
     /// 
     /// Strips type equations.
     member this.IsAnyNonStruct_ste =
-        (not this.IsValue_ste) || this.IsAnyVariableWithNotStructConstraint_ste
+        (not this.IsValueOrVariableConstraintValue_ste) || this.IsAnyVariableWithNotStructConstraint_ste
 
     /// Is the type symbol a type constructor?
     /// 
@@ -4558,7 +4558,7 @@ type TypeSymbol =
     /// Strips type equations.
     member this.IsReadOnlyByRefOfValue_ste =
         match stripTypeEquations this with
-        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsValue_ste
+        | TypeSymbol.ByRef(ty, ByRefKind.ReadOnly) -> ty.IsValueOrVariableConstraintValue_ste
         | _ -> false
 
     /// Is the type symbol a read-write by-ref type?
@@ -4621,31 +4621,6 @@ type TypeSymbol =
         | TypeSymbol.Variable(tyPar) -> tyPar.IsVariadic
         | _ -> false
 
-    /// Is the type symbol a struct? TODO: This isn't just looking for a entity struct, but looks at other value types. We should change the name to something more consistent. 'IsStruct' should only mean an entity struct.
-    /// 
-    /// Strips type equations.
-    member this.IsStruct_ste =
-        match stripTypeEquations this with
-        | Entity(ent) -> ent.IsStructOrAliasStruct
-        | Int8
-        | UInt8
-        | Int16
-        | UInt16
-        | Int32
-        | UInt32 
-        | Int64
-        | UInt64
-        | Float32 
-        | Float64 
-        | Bool
-        | Char16
-        | NativeInt
-        | NativeUInt
-        | NativePtr _
-        | NativeFunctionPtr _ -> true
-        | _ -> false
-
-    /// TODO: Exclude looking at type variables.
     /// Is the type symbol a value type?
     /// 
     /// Strips type equations.
@@ -4673,15 +4648,25 @@ type TypeSymbol =
         | FixedArray _ -> true
         // Scoped function types are structs.
         | Function(kind=FunctionKind.Scoped) -> true
-        | Variable(tyPar)
-        | HigherVariable(tyPar, _) ->
-            tyPar.Constraints
-            |> ImArray.exists (function
-                | ConstraintSymbol.Struct
-                | ConstraintSymbol.Unmanaged -> true
-                | _ -> false
-            )
         | _ -> false
+
+    /// Is the type symbol a value type or a variable type that has a constraint that ensures a value type?
+    /// 
+    /// Strips type equations.
+    member this.IsValueOrVariableConstraintValue_ste =
+        if this.IsValue_ste then true
+        else
+            match stripTypeEquations this with
+            | Variable(tyPar)
+            | HigherVariable(tyPar, _) ->
+                tyPar.Constraints
+                |> ImArray.exists (function
+                    | ConstraintSymbol.Struct
+                    | ConstraintSymbol.Blittable
+                    | ConstraintSymbol.Unmanaged -> true
+                    | _ -> false
+                )
+            | _ -> false
 
     /// Does the type extend a value type?
     /// 
@@ -5741,12 +5726,12 @@ module SymbolExtensions =
             member this.IsAnonymousModule =
                 this.IsPrivate && this.IsModule && this.IsAnonymous
 
-            member this.IsStructOrAliasStruct =
+            member this.IsStructOrAliasValue =
                 match this.Kind with
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsStruct_ste
+                    | Some realTy -> realTy.IsValue_ste
                     | _ -> false
                 | _ ->
                     false
@@ -5757,11 +5742,11 @@ module SymbolExtensions =
                 | EntityKind.Struct -> true
                 | EntityKind.Alias ->
                     match this.Extends |> Seq.tryExactlyOne with
-                    | Some realTy -> realTy.IsValue_ste
+                    | Some realTy -> realTy.IsValueOrVariableConstraintValue_ste
                     | _ -> false
                 | EntityKind.Enum
-                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsValue_ste
-                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsValue_ste
+                | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsValueOrVariableConstraintValue_ste
+                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsValueOrVariableConstraintValue_ste
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false
@@ -5797,7 +5782,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsClassOrStructOrModuleOrNewtype =
-                this.IsClass || this.IsStructOrAliasStruct || this.IsModule || this.IsNewtype
+                this.IsClass || this.IsStructOrAliasValue || this.IsModule || this.IsNewtype
     
             member this.IsReadOnly =
                 this.Flags &&& EntityFlags.ReadOnly = EntityFlags.ReadOnly
