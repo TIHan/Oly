@@ -1175,7 +1175,7 @@ module Unsafe =
 #if DOTNET
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
-    BitCast<TTo, TFrom>(TFrom): TTo where TTo: unmanaged where TFrom: unmanaged
+    UnmanagedCast<TTo, TFrom>(TFrom): TTo where TTo: unmanaged where TFrom: unmanaged
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
