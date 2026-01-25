@@ -1164,22 +1164,23 @@ Cast<T>(object): T
 
 module Unsafe =
 
+    #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
-    Cast<T>(object): T
+    AsImmutable<T>(arr: mutable T[]): T[]
+
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsMutable<T>(arr: T[]): mutable T[]
+
+#if DOTNET
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    BitCast<TTo, TFrom>(TFrom): TTo where TTo: unmanaged where TFrom: unmanaged
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     private _cast<T>(object): T
 
-    #[unmanaged(allocation_only)]
-    AsImmutable<T>(arr: mutable T[]): T[] =
-        _cast(arr)
-
-    #[unmanaged(allocation_only)]
-    AsMutable<T>(arr: T[]): mutable T[] =
-        _cast(arr)
-
-#if DOTNET
     #[unmanaged(allocation_only)]
     As<TTo, TFrom>(value: TFrom): TTo where TFrom: not struct where TTo: not struct =
         _cast(value)
@@ -1226,7 +1227,7 @@ module Unsafe =
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
-    AsEnum<TTo>(object): TTo where TTo: Enum
+    AsEnum<TTo, TFrom>(TFrom): TTo where TTo: blittable, Enum
 #end
 
     #[unmanaged(allocation_only)]
@@ -1532,8 +1533,9 @@ module DotNet =
     #[import("intrinsic-CLR", "", "is")]
     IsSubtypeOf<require T>(object): bool
 
-    AsArray<T>(value: mutable T[]): System.Array =
-        Unsafe.Cast(value)
+    #[unmanaged(allocation_only)]
+    #[intrinsic("unsafe_cast")]
+    AsArray<T>(value: mutable T[]): System.Array
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
