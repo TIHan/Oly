@@ -222,7 +222,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 // Lack of 'T1' uses makes 'ExampleAlias' a phantom type.
                 // If this were supported for extensions, because this is an alias, '__oly_int32' does not know what 'T1' will ever be.
                 // However, intrinsic alias types can never be phantom types.
-                if not extends.IsEmpty && extends[0].IsAliasAndNotCompilerIntrinsic_ste then
+                if not extends.IsEmpty && extends[0].IsAliasAndNotCompilerIntrinsic_steea then
                     cenv.diagnostics.Error($"'{printType env.benv extends[0]}' is an alias and cannot be used with a type extension.", 10, syntaxExtends.Children[1])
                     ImArray.createOne(TypeSymbolError), implements
                 else

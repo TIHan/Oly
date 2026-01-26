@@ -403,7 +403,7 @@ let private queryExtensionFunctionsOfType (benv: BoundEnvironment) queryMemberFl
             |> Seq.choose (fun extMember ->
                 match extMember with
                 | ExtensionMemberSymbol.Function(func) -> 
-                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic_ste)
+                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic_steea)
                     tryFreshenAndSolveExtensionMember func ty
                 | _ ->
                     None

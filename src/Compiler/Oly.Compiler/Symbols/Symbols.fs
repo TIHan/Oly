@@ -4419,8 +4419,8 @@ type TypeSymbol =
 
     /// Is the type symbol an alias and not a compiler intrinsic?
     /// 
-    /// Strips type equations.
-    member this.IsAliasAndNotCompilerIntrinsic_ste =
+    /// Strips type equations except alias.
+    member this.IsAliasAndNotCompilerIntrinsic_steea =
         this.IsAlias_steea && (not this.AsEntity.IsCompilerIntrinsic)
 
     /// Is the type symbol a closure?
