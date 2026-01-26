@@ -1904,6 +1904,7 @@ type EnclosingSymbol =
         | Entity(ent) -> ent.IsAbstract
         | _ -> false
 
+    /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct or a closure struct.
     member this.IsStruct =
         match this with
         | Entity(ent) -> ent.IsStruct
@@ -4629,6 +4630,8 @@ type TypeSymbol =
     /// TODO: Should we just have on `IsStruct_ste` that also looks at the type variable?
     /// Is the type symbol a struct or a variable type that has a constraint that ensures a struct?
     /// 
+    /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct or a closure struct.
+    ///
     /// Strips type equations.
     member this.IsStruct_ste =
         match stripTypeEquations this with
@@ -4668,15 +4671,10 @@ type TypeSymbol =
     /// Does the type extend a struct?
     /// 
     /// Strips type equations.
-    member this.IsExtendingValue_ste =
+    member this.IsTypeExtensionExtendingStruct_ste =
         match stripTypeEquations this with
-        | Entity(ent) when ent.IsTypeExtension ->
-            if ent.Extends.IsEmpty then
-                false
-            else
-                ent.IsStruct
-        | _ ->
-            false
+        | Entity(ent) -> ent.IsTypeExtensionExtendingStruct
+        | _ -> false
 
     /// Checks if the type is considered sealed.
     /// 
@@ -5723,7 +5721,7 @@ module SymbolExtensions =
             member this.IsAnonymousModule =
                 this.IsPrivate && this.IsModule && this.IsAnonymous
     
-            /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct, a type extension extending a struct or a closure struct.
+            /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct or a closure struct.
             member this.IsStruct =
                 match this.Kind with
                 | EntityKind.Struct -> true
@@ -5733,9 +5731,6 @@ module SymbolExtensions =
                     | _ -> false
                 | EntityKind.Enum
                 | EntityKind.Newtype -> this.UnderlyingTypeOfEnumOrNewtype.IsStruct_ste
-                // TODO: This case 'TypeExtension' feels weird to me. 
-                //       Therefore, in the case where this needs return true, use 'IsTypeExtensionExtendingStruct' instead.
-                | EntityKind.TypeExtension when this.Extends.Length = 1 -> this.Extends[0].IsStruct_ste
                 | EntityKind.Closure -> this.Flags.HasFlag(EntityFlags.Scoped)
                 | _ ->
                     false

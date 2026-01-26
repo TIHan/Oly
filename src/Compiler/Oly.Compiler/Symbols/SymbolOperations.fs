@@ -2385,7 +2385,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
     if (funcFlags &&& FunctionFlags.Constructor = FunctionFlags.Constructor) && not tyPars.IsEmpty then
         failwith "Constructors cannot contain type parameters."
 
-    if isMutable && not enclosing.IsStruct && not enclosing.IsShape then
+    if isMutable && not enclosing.IsTypeExtensionExtendingStruct && not enclosing.IsStruct && not enclosing.IsShape then
         failwith "Function marked with 'mutable' must have an enclosing struct or shape type."
 
     if isMutable && not (memberFlags.HasFlag(MemberFlags.Instance)) then

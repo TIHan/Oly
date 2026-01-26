@@ -301,7 +301,7 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if (exprTy.IsStruct_ste && (enclosingTy.IsStruct_ste || enclosingTy.IsExtendingValue_ste)) || exprTy.IsAnyVariable_ste then
+    if (exprTy.IsStruct_ste && (enclosingTy.IsTypeExtensionExtendingStruct_ste || enclosingTy.IsStruct_ste)) || exprTy.IsAnyVariable_ste then
         match expr with
         // Cannot take the address of a constant.
         | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 

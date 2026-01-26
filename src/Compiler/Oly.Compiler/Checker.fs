@@ -843,7 +843,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         | Some receiver ->
             if receiver.Type.IsWriteOnlyByRef_ste then
                 reportWriteOnlyError receiver.Syntax
-            elif (value.Enclosing.IsStruct || value.Enclosing.IsWitnessShape) then
+            elif (value.Enclosing.IsTypeExtensionExtendingStruct || value.Enclosing.IsStruct || value.Enclosing.IsWitnessShape) then
                 if value.IsMutable then
                     if check value.Enclosing.IsWitnessShape receiver |> not then
                         env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntaxOfFuncCall)

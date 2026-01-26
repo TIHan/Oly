@@ -2779,7 +2779,7 @@ let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnv
         |> fst
 
 let determineVirtual receiverExprOpt (func: IFunctionSymbol) =
-    if func.IsVirtual && not(func.Enclosing.IsStruct) then
+    if func.IsVirtual && not func.Enclosing.IsTypeExtension && not func.Enclosing.IsStruct then
         match receiverExprOpt with
         | Some(BoundExpression.Value(value=value)) ->
             not value.IsBase
