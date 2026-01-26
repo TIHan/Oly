@@ -4439,19 +4439,6 @@ type TypeSymbol =
         | ValueSome ent -> ent.IsModule
         | _ -> false
 
-    /// Is the type symbol a reference type?
-    /// 
-    /// Strips type equations.
-    member this.IsReference_ste =
-        match stripTypeEquations this with
-        | Entity(ent) -> ent.IsClass || ent.IsInterface
-        | BaseObject 
-        | Utf16
-        | RefCell _
-        | Array _ 
-        | Function _ -> true
-        | _ -> false
-
     /// Is the type symbol any kind of byref type?
     /// 
     /// Strips type equations.
