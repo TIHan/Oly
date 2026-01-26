@@ -1378,7 +1378,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         not ilFuncDef.IsStatic && 
                         (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)) && 
                         not (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor)) && 
-                        (enclosing.IsAnyStruct || enclosing.IsShape) then
+                        (enclosing.IsStruct || enclosing.IsShape) then
                     ValueFlags.Mutable
                 else
                     ValueFlags.None

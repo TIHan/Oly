@@ -78,7 +78,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
                 extendsTy
             | _ ->
                 TypeSymbol.BaseObject
-        elif ty.IsStructOrVariableConstraintStruct_ste then
+        elif ty.IsStruct_ste then
             // DEFAULT
             match env.benv.implicitExtendsForStruct with
             | Some(extendsTy) ->
@@ -196,7 +196,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
                     let valueFlags = 
                         if valueExplicitness.IsExplicitMutable then
-                            if not extendTy.IsStructOrVariableConstraintStruct_ste || extendTy.IsAnyVariable_ste then
+                            if not extendTy.IsStruct_ste || extendTy.IsAnyVariable_ste then
                                 cenv.diagnostics.Error($"Principal field for a newtype cannot be marked mutable if the underlying type is a type variable or not a struct.", 10, syntaxIdent)
                                 ValueFlags.None
                             else

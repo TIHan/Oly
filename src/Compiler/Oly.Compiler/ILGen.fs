@@ -1745,7 +1745,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     let ilReceiverOpt =
         receiverOpt
         |> Option.map (fun receiver ->
-            if value.IsInstance && value.Enclosing.IsAnyStruct && not receiver.Type.IsAnyByRef_ste then
+            if value.IsInstance && value.Enclosing.IsStruct && not receiver.Type.IsAnyByRef_ste then
                 failwith "Expected a by-reference type for function call."
             GenExpression cenv { env with isReturnable = false } receiver
         )
@@ -2010,7 +2010,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsStructOrVariableConstraintStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
+                            if value.Type.IsStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),

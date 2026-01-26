@@ -86,12 +86,12 @@ let private isValidEntryPoint (cenv: cenv) env (enclosing: EnclosingSymbol) (fun
 let private createInstanceFunctionParameters (cenv: cenv) syntaxNode valueExplicitness (enclosing: EnclosingSymbol) checkMutable name pars =
     let tryAddrTy (ty: TypeSymbol) =
         if checkMutable && valueExplicitness.IsExplicitMutable then
-            if not ty.IsStructOrVariableConstraintStruct_ste then
+            if not ty.IsStruct_ste then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be a struct." name, 10, syntaxNode)
-            if ty.IsStructOrVariableConstraintStruct_ste && enclosing.IsReadOnly then
+            if ty.IsStruct_ste && enclosing.IsReadOnly then
                 cenv.diagnostics.Error(sprintf "The function '%s' marked with 'mutable' must have its enclosing type be read-only." name, 10, syntaxNode)
 
-        if ty.IsStructOrVariableConstraintStruct_ste || ty.IsShape_ste then
+        if ty.IsStruct_ste || ty.IsShape_ste then
             let kind = 
                 if valueExplicitness.IsExplicitMutable && not enclosing.IsReadOnly then                              
                     ByRefKind.ReadWrite
@@ -335,7 +335,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
 
     let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
     let isMutable =
-        if (enclosing.IsAnyStruct || enclosing.IsShape) && isInstance then
+        if (enclosing.IsTypeExtensionExtendingStruct || enclosing.IsStruct || enclosing.IsShape) && isInstance then
             if valueExplicitness.IsExplicitMutable then
                 true
             else
@@ -536,7 +536,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
                                 else
                                     pars
                             let isMutable = 
-                                if (enclosing.IsAnyStruct || enclosing.IsShape) && isInstance then
+                                if (enclosing.IsStruct || enclosing.IsShape) && isInstance then
                                     true // Setter functions are always considered mutable.
                                 else
                                     false
@@ -580,7 +580,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
                         else
                             ValueFlags.None
 
-                    if not enclosingEnt.IsClass && not enclosingEnt.IsDefinedStructOrAliasStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
+                    if not enclosingEnt.IsClass && not enclosingEnt.IsStruct && not enclosingEnt.IsModule && not enclosingEnt.IsNewtype then
                         cenv.diagnostics.Error("Fields are not allowed here.", 10, syntaxIdent)
                         
                     createFieldValue enclosing attrs name ty memberFlags valueFlags (ref None) :> IValueSymbol
@@ -668,7 +668,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
             let parsWithInstance =
                 if memberFlags &&& MemberFlags.Instance = MemberFlags.Instance then
                     let tryAddrTy (ty: TypeSymbol) =
-                        if ty.IsStructOrVariableConstraintStruct_ste then
+                        if ty.IsStruct_ste then
                             TypeSymbol.CreateByRef(ty, ByRefKind.ReadWrite)
                         else
                             ty
@@ -1225,7 +1225,10 @@ let private bindTopLevelValueDeclaration
 let private canAddImplicitDefaultConstructor (ent: EntitySymbol) =
     not ent.IsCompilerIntrinsic && 
     not ent.IsImported && 
-    ((ent.IsClass || ent.IsDefinedStructOrAliasStruct || ent.IsNewtype || ent.IsModule) && not ent.IsAlias && not ent.IsEnum)
+    not ent.IsAlias &&
+    not ent.IsEnum &&
+    not ent.IsTypeExtension &&
+    (ent.IsClass || ent.IsStruct || ent.IsNewtype || ent.IsModule)
 
 let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbolBuilder) =
     let ent = entBuilder.Entity
@@ -1241,7 +1244,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
             // TODO: We do something similar in Logic.fs, we should re-use some of it.
             let parsWithInstance =
                 let tryAddrTy (ty: TypeSymbol) =
-                    if ty.IsStructOrVariableConstraintStruct_ste then
+                    if ty.IsStruct_ste then
                         TypeSymbol.CreateByRef(ty, ByRefKind.ReadWrite)
                     else
                         ty

@@ -242,7 +242,7 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
                     if not field.IsMutable then
                         true
                     else
-                        if field.Enclosing.IsAnyStruct then
+                        if field.Enclosing.IsStruct then
                             receiverExpr.Type.IsReadOnlyByRef_ste
                         else
                             false

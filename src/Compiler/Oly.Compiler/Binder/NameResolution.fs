@@ -792,7 +792,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
     | Choice1Of2(receiver) ->
         match receiver with
         // For member accesses, we only want to undo auto-dereferencing if it is a struct type only.
-        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsStructOrVariableConstraintStruct_ste ->
+        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsStruct_ste ->
             bind cenv env receiverAsAddr syntaxMemberExpr
         | _ ->
             bind cenv env receiver syntaxMemberExpr
@@ -2779,7 +2779,7 @@ let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnv
         |> fst
 
 let determineVirtual receiverExprOpt (func: IFunctionSymbol) =
-    if func.IsVirtual && not(func.Enclosing.IsAnyStruct) then
+    if func.IsVirtual && not(func.Enclosing.IsStruct) then
         match receiverExprOpt with
         | Some(BoundExpression.Value(value=value)) ->
             not value.IsBase

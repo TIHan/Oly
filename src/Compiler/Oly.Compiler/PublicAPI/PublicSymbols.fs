@@ -354,7 +354,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     member _.IsTuple = ty.IsTuple_ste
 
     /// Is the type symbol a struct?
-    member _.IsStruct = ty.IsStructOrVariableConstraintStruct_ste
+    member _.IsStruct = ty.IsStruct_ste
 
     member _.IsBuiltIn = ty.IsBuiltIn_ste
 
@@ -442,7 +442,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
                     | TypeSymbol.Int64 
                     | TypeSymbol.Float64 -> 8
                     | ty ->
-                        if ty.IsStructOrVariableConstraintStruct_ste then
+                        if ty.IsStruct_ste then
                             let mutable isValid = true
                             let fieldBytes =
                                 ty.GetInstanceFields()

@@ -182,7 +182,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsStructOrVariableConstraintStruct_ste then
+                if field.IsInstance && field.Type.IsStruct_ste then
                     match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
@@ -843,7 +843,7 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         | Some receiver ->
             if receiver.Type.IsWriteOnlyByRef_ste then
                 reportWriteOnlyError receiver.Syntax
-            elif (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) then
+            elif (value.Enclosing.IsStruct || value.Enclosing.IsWitnessShape) then
                 if value.IsMutable then
                     if check value.Enclosing.IsWitnessShape receiver |> not then
                         env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntaxOfFuncCall)
@@ -862,14 +862,14 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
         match receiver with
         | BoundExpression.Value(value=value) ->
             // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsStructOrVariableConstraintStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid && not value.Type.IsError_ste then
+            if ((not value.IsMutable && (value.Type.IsStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid && not value.Type.IsError_ste then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
             if check false receiver then
-                if field.Type.IsStructOrVariableConstraintStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+                if field.Type.IsStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
