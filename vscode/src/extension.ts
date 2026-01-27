@@ -46,12 +46,6 @@ async function build(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.
 	}
 }
 
-class DocumentRangeSemanticTokensProvider implements vscode.DocumentRangeSemanticTokensProvider {
-	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens> {
-		return await client.getSemanticClassification(document, range, token);
-	}
-}
-
 export function activate(context: ExtensionContext) {
 	let serverModule = context.asAbsolutePath(
 		path.join('out', 'net10.0', 'Oly.LanguageServer.dll')
@@ -169,7 +163,6 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		context.subscriptions.push(vscode.languages.registerDocumentRangeSemanticTokensProvider({ language: 'oly' }, new DocumentRangeSemanticTokensProvider(), OlyLanguageClient.legend));
 		OlySyntaxTreeView.register(context, syntaxTreeView);
 
 		let buildOutputChannel = vscode.window.createOutputChannel("Oly Build");

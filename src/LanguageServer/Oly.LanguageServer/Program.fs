@@ -32,6 +32,29 @@ open Oly.Compiler.Syntax
 
 open Oly.LanguageServer
 
+let tokenTypes =
+    [
+        "comment"; "string"; "keyword"; "number"; "regexp"; "operator"; "namespace";
+        "type"; "struct"; "class"; "interface"; "enum"; "enumMember"; "typeParameter"; "function";
+        "member"; "macro"; "variable"; "parameter"; "property"; "label"; "field"; "conditionalDirectiveBody"
+    ]
+
+let tokenModifiers =
+    [
+        "declaration"; "documentation"; "readonly"; "static"; "abstract"; "deprecated";
+        "modification"; "async"
+    ]
+
+let encodeTokenType(tokenType: string): int =
+    tokenTypes
+    |> Seq.tryFindIndex (fun x -> x = tokenType)
+    |> Option.defaultValue Int32.MaxValue
+
+let encodeTokenModifier(tokenModifier: string): int =
+    tokenModifiers
+    |> Seq.tryFindIndex (fun x -> x = tokenModifier)
+    |> Option.defaultValue Int32.MaxValue
+
 [<AutoOpen>]
 module OlyViewModels =
 
@@ -2025,6 +2048,85 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 | _ ->
                     return { resultPath = null; error = "Active project not set" }
             }
+
+    interface ISemanticTokensRangeHandler with
+
+        member this.GetRegistrationOptions(capability: SemanticTokensCapability, clientCapabilities: ClientCapabilities): SemanticTokensRegistrationOptions =
+
+                let tokenTypes =
+                    tokenTypes
+                    |> Seq.map SemanticTokenType
+
+                let tokenModifiers =
+                    tokenModifiers
+                    |> Seq.map SemanticTokenModifier
+
+                let options = SemanticTokensRegistrationOptions()
+                options.Full <- null
+                options.Range <- true
+                options.Id <- null
+                options.DocumentSelector <- documentSelector
+                options.WorkDoneProgress <- false
+                options.Legend <-
+                    SemanticTokensLegend(TokenTypes = Container(tokenTypes), TokenModifiers = Container(tokenModifiers))
+                options
+
+        member _.Handle(request, ct): Task<SemanticTokens> =
+            request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun doc ct ->
+                backgroundTask {
+                    let mutable prevLine = 0
+                    let mutable prevColumn = 0
+
+                    let classify line column width tokenType tokenModifiers (semanticTokenData: imarrayb<int>) : unit =
+                        // example: { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 }
+
+                        let deltaLine = line - prevLine
+                        let deltaStartChar = column - prevColumn
+                        let length = width
+                        let tokenType = encodeTokenType tokenType
+                        let tokenModifiers = 0
+
+                        semanticTokenData.Add(deltaLine)
+                        semanticTokenData.Add(deltaStartChar)
+                        semanticTokenData.Add(length)
+                        semanticTokenData.Add(tokenType)
+                        semanticTokenData.Add(tokenModifiers)
+
+                        prevLine <- line
+                        prevColumn <- column
+
+                    let semanticTokenData = ImArray.builder()
+
+                    let range = request.Range.ToOlyTextRange()
+
+                    doc.GetSemanticClassifications(range, ct)
+                    |> ImArray.iter (fun item ->
+                        let tokenType = item.Kind.ToLspClassificationKind()
+                        let tokenModifiers = item.Kind.ToLspClassificationModifiers()
+                        classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers semanticTokenData
+                    )
+
+                    // TODO: We should do this in GetSemanticClassifications
+                    let syntaxTree = doc.SyntaxTree
+                    let sourceText = doc.GetSourceText(ct)
+                    let lines = sourceText.Lines
+                    match syntaxTree.TryFindNode(range, ct) with
+                    | Some node ->
+                        node.GetDescendantTokens(false, (fun x -> x.IsConditionalDirective), ct)
+                        |> ImArray.iter (fun x ->
+                            let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
+                            let endLine = lines.GetLineFromPosition(x.TextSpan.End)
+                            for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
+                                let line = lines[lineIndex]
+                                let textRange = sourceText.GetTextRange(line.Span)
+                                classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty semanticTokenData
+                        )
+                    | _ ->
+                        ()
+
+                    return SemanticTokens(ResultId = null, Data = semanticTokenData.ToImmutable())
+                }
+            )
 
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 

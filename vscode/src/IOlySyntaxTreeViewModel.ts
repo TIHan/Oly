@@ -1,13 +1,5 @@
 import * as vscode from 'vscode';
 
-export interface IOlyToken {
-	line: number;
-	startCharacter: number;
-	length: number;
-	tokenType: string;
-	tokenModifiers: string[];
-}
-
 export class OlyTextPosition {
 	constructor(line: number, column: number) {
 		this.line = line;
