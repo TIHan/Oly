@@ -229,6 +229,10 @@ type OlySymbol with
 
 type OlyDocument with
 
+    member this.GetSemanticClassifications(ct: CancellationToken) : OlyClassificationItem imarray =
+        let range = this.SyntaxTree.GetRoot(ct).GetFullTextRange(ct)
+        this.GetSemanticClassifications(range, ct)
+
     member this.GetSemanticClassifications(range: OlyTextRange, ct: CancellationToken) : OlyClassificationItem imarray =
         ct.ThrowIfCancellationRequested()
 

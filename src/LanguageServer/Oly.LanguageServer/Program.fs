@@ -55,6 +55,16 @@ let encodeTokenModifier(tokenModifier: string): int =
     |> Seq.tryFindIndex (fun x -> x = tokenModifier)
     |> Option.defaultValue Int32.MaxValue
 
+[<Struct;NoEquality;NoComparison>]
+type LspSemanticToken =
+    {
+        DeltaLine: int
+        DeltaStartChar: int
+        Length: int
+        TokenType: int
+        TokenModifiers: int
+    }
+
 [<AutoOpen>]
 module OlyViewModels =
 
@@ -2049,7 +2059,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return { resultPath = null; error = "Active project not set" }
             }
 
-    interface ISemanticTokensRangeHandler with
+    interface ISemanticTokensFullHandler with
 
         member this.GetRegistrationOptions(capability: SemanticTokensCapability, clientCapabilities: ClientCapabilities): SemanticTokensRegistrationOptions =
 
@@ -2062,8 +2072,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     |> Seq.map SemanticTokenModifier
 
                 let options = SemanticTokensRegistrationOptions()
-                options.Full <- null
-                options.Range <- true
+                options.Full <- true
+                options.Range <- false
                 options.Id <- null
                 options.DocumentSelector <- documentSelector
                 options.WorkDoneProgress <- false
@@ -2071,39 +2081,29 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     SemanticTokensLegend(TokenTypes = Container(tokenTypes), TokenModifiers = Container(tokenModifiers))
                 options
 
-        member _.Handle(request, ct): Task<SemanticTokens> =
+        member _.Handle(request: SemanticTokensParams, ct): Task<SemanticTokens> =
             request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun doc ct ->
                 backgroundTask {
-                    let mutable prevLine = 0
-                    let mutable prevColumn = 0
+                    let classify line column width tokenType _tokenModifiers (semanticTokens: ResizeArray<LspSemanticToken>) : unit =
+                        semanticTokens.Add(
+                            { 
+                                DeltaLine = line
+                                DeltaStartChar = column
+                                Length = width
+                                TokenType = encodeTokenType tokenType
+                                TokenModifiers = 0
+                            }
+                        )
 
-                    let classify line column width tokenType tokenModifiers (semanticTokenData: imarrayb<int>) : unit =
-                        // example: { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 }
+                    let semanticTokens = ResizeArray()
 
-                        let deltaLine = line - prevLine
-                        let deltaStartChar = column - prevColumn
-                        let length = width
-                        let tokenType = encodeTokenType tokenType
-                        let tokenModifiers = 0
+                    let range = OlyTextRange(OlyTextPosition(0, 0), OlyTextPosition(System.Int32.MaxValue - 1, 0))
 
-                        semanticTokenData.Add(deltaLine)
-                        semanticTokenData.Add(deltaStartChar)
-                        semanticTokenData.Add(length)
-                        semanticTokenData.Add(tokenType)
-                        semanticTokenData.Add(tokenModifiers)
-
-                        prevLine <- line
-                        prevColumn <- column
-
-                    let semanticTokenData = ImArray.builder()
-
-                    let range = request.Range.ToOlyTextRange()
-
-                    doc.GetSemanticClassifications(range, ct)
+                    doc.GetSemanticClassifications(ct)
                     |> ImArray.iter (fun item ->
                         let tokenType = item.Kind.ToLspClassificationKind()
                         let tokenModifiers = item.Kind.ToLspClassificationModifiers()
-                        classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers semanticTokenData
+                        classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers semanticTokens
                     )
 
                     // TODO: We should do this in GetSemanticClassifications
@@ -2119,14 +2119,38 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
                                 let line = lines[lineIndex]
                                 let textRange = sourceText.GetTextRange(line.Span)
-                                classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty semanticTokenData
+                                classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty semanticTokens
                         )
                     | _ ->
                         ()
 
+                    // Fixup semantic tokens for encoding
+                    let mutable prevLine = 0
+                    let mutable prevStartChar = 0
+                    let semanticTokenData = ImArray.builder()
+                    semanticTokens
+                    |> Seq.sortBy (fun x -> x.DeltaStartChar)
+                    |> Seq.sortBy (fun x -> x.DeltaLine)
+                    |> Seq.iter (fun semanticToken ->
+                        if prevLine <> semanticToken.DeltaLine then
+                            prevStartChar <- 0
+
+                        semanticTokenData.Add(semanticToken.DeltaLine - prevLine)
+                        semanticTokenData.Add(semanticToken.DeltaStartChar - prevStartChar)
+                        semanticTokenData.Add(semanticToken.Length)
+                        semanticTokenData.Add(semanticToken.TokenType)
+                        semanticTokenData.Add(semanticToken.TokenModifiers)
+
+                        prevLine <- semanticToken.DeltaLine
+                        prevStartChar <- semanticToken.DeltaStartChar
+                    )
+
                     return SemanticTokens(ResultId = null, Data = semanticTokenData.ToImmutable())
                 }
             )
+
+
+        
 
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 
