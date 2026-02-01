@@ -38,7 +38,7 @@ create_jit_add_int64(): static blittable (int64, int64) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_add_uint64(): static blittable (uint64, uint64) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -52,7 +52,7 @@ create_jit_add_uint64(): static blittable (uint64, uint64) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_add_uint32(): static blittable (uint32, uint32) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -66,7 +66,7 @@ create_jit_add_uint32(): static blittable (uint32, uint32) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_add_uint16(): static blittable (uint16, uint16) -> uint16 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -80,7 +80,7 @@ create_jit_add_uint16(): static blittable (uint16, uint16) -> uint16 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_add_uint8(): static blittable (uint8, uint8) -> uint8 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -94,7 +94,7 @@ create_jit_add_uint8(): static blittable (uint8, uint8) -> uint8 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_sub_uint8(): static blittable (uint8, uint8) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -108,7 +108,7 @@ create_jit_sub_uint8(): static blittable (uint8, uint8) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_get_high_bits(): static blittable (uint16) -> uint8 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -121,7 +121,7 @@ create_jit_get_high_bits(): static blittable (uint16) -> uint8 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_mul_uint16(): static blittable (uint16, uint16) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -135,7 +135,7 @@ create_jit_mul_uint16(): static blittable (uint16, uint16) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_imul_int16(): static blittable (int16, int16) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -149,7 +149,7 @@ create_jit_imul_int16(): static blittable (int16, int16) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_imul_int16_2(): static blittable (int16, int16) -> uint64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -164,7 +164,7 @@ create_jit_imul_int16_2(): static blittable (int16, int16) -> uint64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_inc(): static blittable (int32) -> int32 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -178,7 +178,7 @@ create_jit_inc(): static blittable (int32) -> int32 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_add_two(): static blittable (int32) -> int32 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -192,7 +192,7 @@ create_jit_add_two(): static blittable (int32) -> int32 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_loop_uint32(): static blittable (uint32, uint32) -> uint32 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -208,7 +208,7 @@ create_jit_loop_uint32(): static blittable (uint32, uint32) -> uint32 =
     asmptr <- Emit(MOV, EDI, EDX, asmptr)
     asmptr <- Emit(ADD, ESI, EDI, asmptr)
     asmptr <- Emit(SUB, EAX, 1, asmptr)
-    let offset = -int32(Unsafe.Cast<uint64>(asmptr) - Unsafe.Cast<uint64>(ig1))
+    let offset = -int32(Unsafe.UnmanagedCast<uint64, _>(asmptr) - Unsafe.UnmanagedCast<uint64, _>(ig1))
     asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
     
     let ig3 = asmptr
@@ -218,7 +218,7 @@ create_jit_loop_uint32(): static blittable (uint32, uint32) -> uint32 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_loop_uint16(): static blittable (uint16, uint16) -> uint16 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -238,7 +238,7 @@ create_jit_loop_uint16(): static blittable (uint16, uint16) -> uint16 =
     asmptr <- Emit(ADD, SI, DI, asmptr)
     //asmptr <- Emit(ADD, ESI, EDI, asmptr)
     asmptr <- Emit(SUB, EAX, 1, asmptr)
-    let offset = -int32(Unsafe.Cast<uint64>(asmptr) - Unsafe.Cast<uint64>(ig1))
+    let offset = -int32(Unsafe.UnmanagedCast<uint64, _>(asmptr) - Unsafe.UnmanagedCast<uint64, _>(ig1))
     asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
     
     let ig3 = asmptr
@@ -248,7 +248,7 @@ create_jit_loop_uint16(): static blittable (uint16, uint16) -> uint16 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 create_jit_loop_int16(): static blittable (int16, int64) -> int64 =
     let bufferSize = nuint(128) // TODO: Get page size.
@@ -264,7 +264,7 @@ create_jit_loop_int16(): static blittable (int16, int64) -> int64 =
     asmptr <- Emit(MOV, EDI, EDX, asmptr)
     asmptr <- Emit(ADD, ESI, EDI, asmptr)
     asmptr <- Emit(SUB, EAX, 1, asmptr)
-    let offset = -int32(Unsafe.Cast<uint64>(asmptr) - Unsafe.Cast<uint64>(ig1))
+    let offset = -int32(Unsafe.UnmanagedCast<uint64, _>(asmptr) - Unsafe.UnmanagedCast<uint64, _>(ig1))
     asmptr <- EmitWithRelativeOffset(JNE, offset - 6, asmptr)
     
     let ig3 = asmptr
@@ -274,7 +274,7 @@ create_jit_loop_int16(): static blittable (int16, int64) -> int64 =
     if (!MarkBufferAsExecutable(asm, bufferSize))
         fail("Failed to mark buffer as executable.")
 
-    Unsafe.Cast(asm)
+    Unsafe.UnmanagedCast(asm)
 
 add_loop_uint32: static blittable (uint32, uint32) -> uint32 get = create_jit_loop_uint32()
 add_loop_int16: static blittable (int16, int64) -> int64 get = create_jit_loop_int16()
