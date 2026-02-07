@@ -163,6 +163,18 @@ floor(vec3): vec3
 #[import("spirv", "GLSL.std.450", "8")]
 floor(vec4): vec4
 
+#[import("spirv", "GLSL.std.450", "46")]
+mix(x: float, y: float, a: float): float
+
+#[import("spirv", "GLSL.std.450", "46")]
+mix(x: vec2, y: vec2, a: float): vec2
+
+#[import("spirv", "GLSL.std.450", "46")]
+mix(x: vec3, y: vec3, a: float): vec3
+
+#[import("spirv", "GLSL.std.450", "46")]
+mix(x: vec4, y: vec4, a: float): vec4
+
 #[import("spirv", "GLSL.std.450", "69")]
 normalize(v: vec2): vec2
 

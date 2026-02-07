@@ -55,6 +55,18 @@ floor(v: vec3): vec3 =
 floor(v: vec4): vec4 =
     vec4(floor(v.X), floor(v.Y), floor(v.Z), floor(v.W))
 
+mix(x: float32, y: float32, a: float32): float32 =
+    System.Single.Lerp(x, y, a)
+
+mix(x: vec2, y: vec2, a: float32): vec2 =
+    vec2.Lerp(x, y, a)
+
+mix(x: vec3, y: vec3, a: float32): vec3 =
+    vec3.Lerp(x, y, a)
+
+mix(x: vec4, y: vec4, a: float32): vec4 =
+    vec4.Lerp(x, y, a)
+
 normalize(v: vec2): vec2 =
     Vector2.Normalize(v)
 

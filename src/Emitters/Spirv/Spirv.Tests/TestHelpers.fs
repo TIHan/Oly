@@ -26,7 +26,7 @@ type GPU =
                     if isNull gpuTest then
                         failwith "User environment variable 'EVERGREEN_GPU_TEST_PATH' not set."
                     if File.Exists(gpuTest) |> not then
-                        failwith "Unable to find gpu_test program."
+                        failwithf "Unable to find gpu_test program at: %A" gpuTest
                     let result =
                         new Oly.Core.ExternalProcess(
                             "dotnet",

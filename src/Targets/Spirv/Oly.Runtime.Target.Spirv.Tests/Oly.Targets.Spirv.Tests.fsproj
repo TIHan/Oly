@@ -5,7 +5,6 @@
 
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
-    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,9 +18,20 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
 
-    <ItemGroup>
-		<PackageReference Include="Meziantou.Xunit.ParallelTestFramework" Version="2.3.0" />
-    </ItemGroup>
+	<ItemGroup>
+		<!-- this has issues when running in Debug. In Release, it works fine and is very fast. -->
+		<!--<PackageReference Include="Meziantou.Xunit.ParallelTestFramework" Version="2.3.0" />-->
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+		<PackageReference Include="xunit" Version="2.9.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="coverlet.collector" Version="6.0.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\..\..\Compiler\Oly.Compiler.Tests\Oly.Compiler.Tests.fsproj" />
