@@ -55,8 +55,10 @@ alias string
 #[intrinsic("char16")]
 alias char
 
+#if not SPIRV
 #[intrinsic("base_object")]
 alias object
+#end // not SPIRV
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -70,7 +72,7 @@ alias outref<T>
 #if DOTNET
 #[intrinsic("native_ptr")]
 alias (*)<T>
-#end
+#end // DOTNET
 
 #[intrinsic("native_int")]
 alias nint
@@ -284,7 +286,7 @@ nint<T>(T*): nint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint(void*): nint
-#end
+#end // DOTNET
 
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
@@ -306,7 +308,7 @@ nint<TArguments...>(static (TArguments...) -> ()): nint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 nint<TArguments...>(static blittable (TArguments...) -> ()): nint
-#end
+#end // DOTNET
 
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
@@ -352,7 +354,7 @@ nuint<TArguments...>(static blittable (TArguments...) -> ()): nuint
 #[unmanaged(allocation_only)]
 #[intrinsic("unsafe_cast")]
 (*)<T>(T*): byref<T>
-#end
+#end // DOTNET
 
 // Other Operations
 
@@ -360,7 +362,7 @@ nuint<TArguments...>(static blittable (TArguments...) -> ()): nuint
 #[unmanaged(allocation_only)]
 #[intrinsic("load_null_ptr")]
 nullptr<T>: T*
-#end
+#end // DOTNET
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -416,7 +418,7 @@ nullptr<T>: T*
 #[unmanaged(allocation_only)]
 (+)(ptr: void*, value: uint64): void* =
     ptr + nuint(value)
-#end
+#end // DOTNET
 
 #[unmanaged(allocation_only)]
 #[intrinsic("subtract")]
@@ -870,17 +872,30 @@ nullptr<T>: T*
 #[intrinsic("not")]
 (!)(bool): bool
 
+#if not SPIRV
 #[intrinsic("print")]
 print(object): ()
+#end // not SPIRV
 
+#if not SPIRV
 #[unmanaged(allocation_only)]
 #[intrinsic("get_element")]
 (`[]`)<T>(T[], index: int32): T
+#end // not SPIRV
 
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: uint32): T
+#end // SPIRV
+
+#if not SPIRV
 #[unmanaged(allocation_only)]
 #[intrinsic("get_element")]
 (`[,]`)<T>(T[,], index1: int32, index2: int32): T
+#end // not SPIRV
 
+#if not SPIRV
 #[unmanaged(allocation_only)]
 #[intrinsic("get_element")]
 (`[]`)<T>(mutable T[], index: int32): T
@@ -888,7 +903,19 @@ print(object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
+#end // not SPIRV
 
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: uint32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: uint32, T): ()
+#end // SPIRV
+
+#if not SPIRV
 #[unmanaged(allocation_only)]
 #[intrinsic("get_element")]
 (`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
@@ -896,12 +923,15 @@ print(object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("set_element")]
 (`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+#end // not SPIRV
 
+#if not SPIRV
 #[intrinsic("get_element")]
 (`[]`)<T, N>(inref<T[N]>, index: int32): T where N: constant int32
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(inref<mutable T[N]>, index: int32): T where N: constant int32
+#end // not SPIRV
 
 #[unmanaged(allocation_only)]
 #[intrinsic("equal")]
@@ -931,7 +961,7 @@ print(object): ()
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
-#end
+#end // DOTNET
 
 #[unmanaged(allocation_only)]
 #[intrinsic("bitwise_and")]
@@ -1157,8 +1187,9 @@ extension MutableArrayEnumerableExtension<T> =
             Dispose(): () = ()
 
         Impl(this)
-#end
+#end // DOTNET
 
+#if not SPIRV
 #[intrinsic("cast")]
 Cast<T>(object): T
 
@@ -1228,12 +1259,15 @@ module Unsafe =
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsEnum<TTo, TFrom>(TFrom): TTo where TTo: blittable, Enum
-#end
+#end // DOTNET
 
     #[unmanaged(allocation_only)]
     #[intrinsic("unsafe_cast")]
     AsByRef<TTo, TFrom>(valueRef: inref<TFrom>): byref<TTo>
+#end // not SPIRV
 
+
+#if not SPIRV
 #[intrinsic("new_array")]
 zeroArray<T>(length: int32): mutable T[]
 
@@ -1345,7 +1379,7 @@ filter<T>(arr: mutable T[], f: scoped T -> bool): mutable T[] =
         newArr[i] <- arr[indicesToInclude[i]]
         i <- i + 1
     newArr
-#end
+#end // DOTNET
 
 find<T>(arr: T[], predicate: scoped T -> bool): T =
     let mutable result: T = unchecked default
@@ -1393,7 +1427,7 @@ tryFindIndex<T>(arr: T[], predicate: scoped (index: int32, T) -> bool): int32 =
 
 #if DOTNET
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-#end
+#end // DOTNET
 findIndex<T>(arr: T[], predicate: scoped (index: int32, T) -> bool): int32 =
     let mutable isFound = false
     let mutable i = 0
@@ -1501,6 +1535,7 @@ assert(condition: bool, msg: string): () =
 #[inline(always)]
 assert(condition: bool): () =
     assert(condition, "assertion failed")
+#end // not SPIRV
 
 // DotNet Specific -----------------------------------------------------------------------------------------------------------------------
 
@@ -1586,7 +1621,7 @@ printLine<T>(value: T): () where T: trait { ToString(): string } =
 #[System.Diagnostics.DebuggerHiddenAttribute()]
 fail<TResult>(msg: string): TResult =
     throw System.Exception(msg)
-#end
+#end // DOTNET
 
 #if INTERPRETER
 #[intrinsic("throw")]
@@ -1594,7 +1629,7 @@ fail<TResult>(msg: string): TResult =
 
 fail<TResult>(msg: string): TResult =
     throw msg
-#end
+#end // INTERPRETER
 
 // ----------------------------------------
 
@@ -1778,3 +1813,61 @@ fixedCopy<T>(xs: (T[])[]): PtrPtrHandle where T: blittable =
     let gcHandle = GCHandle.Alloc(bytePtrs, GCHandleType.Pinned)
     PtrPtrHandle(handles, gcHandle)
 #end
+
+// SPIR-V Specific -----------------------------------------------------------------------------------------------------------------------
+
+#if SPIRV
+// Attributes
+
+#[import("spirv", "std", "position")]
+#[intrinsic("importer")]
+struct positionAttribute = new()
+
+#[import("spirv", "std", "point_size")]
+#[intrinsic("importer")]
+struct point_sizeAttribute = new()
+
+#[import("spirv", "std", "block")]
+#[intrinsic("importer")]
+struct blockAttribute = new()
+
+#[import("spirv", "std", "location")]
+#[intrinsic("importer")]
+struct locationAttribute = new(number: uint32)
+
+#[import("spirv", "std", "global_invocation_id")]
+#[intrinsic("importer")]
+struct global_invocation_idAttribute = new()
+
+#[import("spirv", "std", "uniform")]
+#[intrinsic("importer")]
+struct uniformAttribute = new()
+
+#[import("spirv", "std", "descriptor_set")]
+#[intrinsic("importer")]
+struct descriptor_setAttribute = new(uint32)
+
+#[import("spirv", "std", "binding")]
+#[intrinsic("importer")]
+struct bindingAttribute = new(uint32)
+
+#[import("spirv", "std", "buffer_block")]
+#[intrinsic("importer")]
+struct buffer_blockAttribute = new()
+
+#[import("spirv", "std", "storage_buffer")]
+#[intrinsic("importer")]
+struct storage_bufferAttribute = new()
+
+// BuiltIn
+
+Position: vec4
+    #[position]
+    set
+
+GlobalInvocationId: uvec3
+    #[global_invocation_id]
+    get
+#end // SPIRV
+
+// -----------------------------------------------------------------------------------------------------------------------

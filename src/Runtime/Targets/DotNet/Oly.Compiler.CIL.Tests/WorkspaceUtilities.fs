@@ -104,10 +104,10 @@ let buildHasErrorsWithPrefix target (expected: (string * string) list) src =
 
 let getNumericsDataKind<'T> =
     match typeof<'T> with
-    | x when x = typeof<float32> -> "float"
+    | x when x = typeof<float32> -> "float32"
     | x when x = typeof<Vector2> -> "vec2"
     | x when x = typeof<Vector3> -> "vec3"
     | x when x = typeof<Vector4> -> "vec4"
-    | x when x = typeof<int32> -> "int"
+    | x when x = typeof<int32> -> "int32"
     | x ->
         invalidOp $"Type '{x.FullName}' not supported or implemented."

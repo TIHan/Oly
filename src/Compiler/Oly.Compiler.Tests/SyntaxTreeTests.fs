@@ -1733,6 +1733,105 @@ test(): () =
         ]
 
 [<Fact>]
+let ``Simple conditional define should error 5``() =
+    let src =
+        """
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("No corresponding conditional directive was found.",
+                """
+#end
+^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Simple conditional define should error 6``() =
+    let src =
+        """
+#ifTEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("No corresponding conditional directive was found.",
+                """
+#end
+^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Simple conditional define should NOT error``() =
+    let src =
+        """
+#if TEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple conditional define should NOT error 2``() =
+    let src =
+        """
+#if TEST
+#if TEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
 let ``Extends type on same line``() =
     let src =
         """

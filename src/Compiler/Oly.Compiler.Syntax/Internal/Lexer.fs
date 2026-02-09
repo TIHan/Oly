@@ -642,6 +642,20 @@ module Lexer =
             advance lexer
             scanExplicitIdentifier lexer began
 
+    let checkDirectiveIndentation (lexer: Lexer) startColumn startPos =
+        let endPos = lexer.window.LexemeStart
+
+        if startColumn > 0 then
+            lexer.diagnostics.Add(startPos, endPos, "Directives may not be indented.", true, 150)
+
+    let recordNonConditionalDirective (lexer: Lexer) startPos directive =
+        let endPos = lexer.window.LexemeStart
+
+        if lexer.hasFirstNonTrivia then
+            lexer.diagnostics.Add(startPos, endPos, "Non-conditional directives must be declared at the top.", true, 151)
+        else
+            lexer.directives.Add(startPos, endPos, directive)
+
     let isNextTokenHashIf (lexer: Lexer) =
         match peek lexer with
         | '#' ->
@@ -657,6 +671,16 @@ module Lexer =
             | _ ->
                 false
         | _ ->
+            false
+
+    let tryAdvanceNextTokenHashIf (lexer: Lexer) =
+        if isNextTokenHashIf lexer then
+            advance lexer // #
+            advance lexer // i
+            advance lexer // f
+            lexer.currentConditionalCount <- lexer.currentConditionalCount + 1
+            true
+        else
             false
 
     let isNextTokenHashEnd (lexer: Lexer) =
@@ -676,166 +700,148 @@ module Lexer =
         | _ ->
             false
 
-    let checkDirectiveIndentation (lexer: Lexer) startColumn startPos =
-        let endPos = lexer.window.LexemeStart
-
-        if startColumn > 0 then
-            lexer.diagnostics.Add(startPos, endPos, "Directives may not be indented.", true, 150)
-
-    let recordNonConditionalDirective (lexer: Lexer) startPos directive =
-        let endPos = lexer.window.LexemeStart
-
-        if lexer.hasFirstNonTrivia then
-            lexer.diagnostics.Add(startPos, endPos, "Non-conditional directives must be declared at the top.", true, 151)
-        else
-            lexer.directives.Add(startPos, endPos, directive)
-
-    let endConditionalDirective (lexer: Lexer) =
-        let startColumn = lexer.currentColumn
-        let startPos = lexer.window.LexemeStart
-
-        // advance 4 - #end
-        advance lexer
-        advance lexer
-        advance lexer
-        advance lexer
-        resetLexeme lexer
-
-        checkDirectiveIndentation lexer startColumn startPos
-
-        if lexer.currentConditionalCount > 0 then
+    let tryAdvanceNextTokenHashEnd (lexer: Lexer) =
+        if isNextTokenHashEnd lexer then
+            advance lexer // #
+            advance lexer // e
+            advance lexer // n
+            advance lexer // d
             lexer.currentConditionalCount <- lexer.currentConditionalCount - 1
+            true
         else
-            let endPos = lexer.window.LexemeStart
-            lexer.diagnostics.Add(startPos, endPos, "No corresponding conditional directive was found.", true, 154)
+            false
 
-        HashEnd
-
-    let elseConditionalDirective (lexer: Lexer) =
+    let tryScanHashEnd (lexer: Lexer) =
         let startColumn = lexer.currentColumn
         let startPos = lexer.window.LexemeStart
+        if tryAdvanceNextTokenHashEnd lexer then
+            resetLexeme lexer
+            checkDirectiveIndentation lexer startColumn startPos
+            ValueSome(HashEnd)
+        else
+            ValueNone
 
-        // advance 5 - #else
-        advance lexer
-        advance lexer
-        advance lexer
-        advance lexer
-        advance lexer
-        resetLexeme lexer
-
-        checkDirectiveIndentation lexer startColumn startPos
-
-        if lexer.currentConditionalCount > 0 then
+    let rec advanceBodyTextOfConditionalDirective (lexer: Lexer) targetCount prevToken =
+        if peek lexer = InvalidCharacter then
+            ()
+        elif tryAdvanceNextTokenHashIf lexer then
+            advanceBodyTextOfConditionalDirective lexer targetCount prevToken
+        elif lexer.currentConditionalCount > targetCount && tryAdvanceNextTokenHashEnd lexer then
+            advanceBodyTextOfConditionalDirective lexer targetCount prevToken
+        elif isNextTokenHashEnd lexer then
             ()
         else
-            let endPos = lexer.window.LexemeStart
-            lexer.diagnostics.Add(startPos, endPos, "No corresponding conditional directive was found.", true, 154)
-
-        HashEnd
-
-    let tryEndConditionalDirective (lexer: Lexer) prevToken (outToken: outref<Token>) : bool =
-        match peek lexer with
-        | '#' ->
-            match peekN 1 lexer with
-            | 'e' ->
-                match peekN 2 lexer with
-                | 'n' ->
-                    match peekN 3 lexer with
-                    | 'd' ->
-                        let bodyText = lexeme lexer
-                        outToken <- ConditionalDirective(prevToken, bodyText, endConditionalDirective lexer)
-                        true
-                    | _ -> 
-                        false
-                | _ -> 
-                    false
-            | _ ->
-                false
-        | c ->
-            if c = InvalidCharacter then
-                let bodyText = lexeme lexer
-                resetLexeme lexer
-                outToken <- ConditionalDirective(prevToken, bodyText, EndOfSource)
-                true
-            else
-                false
-
-    let tryElseConditionalDirective (lexer: Lexer) prevToken (outToken: outref<Token>) : bool =
-        match peek lexer with
-        | '#' ->
-            match peekN 1 lexer with
-            | 'e' ->
-                match peekN 2 lexer with
-                | 'l' ->
-                    match peekN 3 lexer with
-                    | 's' ->
-                        match peekN 4 lexer with
-                        | 'e' ->
-                            let bodyText = lexeme lexer
-                            outToken <- ConditionalDirective(prevToken, bodyText, elseConditionalDirective lexer)
-                            true
-                        | _ ->
-                            false
-                    | _ -> 
-                        false
-                | _ -> 
-                    false
-            | _ ->
-                false
-        | c ->
-            if c = InvalidCharacter then
-                let bodyText = lexeme lexer
-                resetLexeme lexer
-                outToken <- ConditionalDirective(prevToken, bodyText, EndOfSource)
-                true
-            else
-                false
-
-    let rec scanTextOfConditionalDefine (lexer: Lexer) prevToken =     
-        let mutable token = Unchecked.defaultof<_>
-        // TODO: Figure out else
-        //match tryElseConditionalDirective lexer prevToken &token with
-        //| true -> token
-        //| _ ->
-        match tryEndConditionalDirective lexer prevToken &token with
-        | true -> token
-        | _ ->
             advance lexer
-            scanTextOfConditionalDefine lexer prevToken
+            advanceBodyTextOfConditionalDirective lexer targetCount prevToken
+
+    let rec scanKeywordsOrIdentifiersUntilNewLineAux (builder: (int * int * Token) imarrayb) (lexer: Lexer) =
+        let c = peek lexer
+        match c with
+        | InvalidCharacter 
+        | '\r' 
+        | '\n' ->
+            builder.ToImmutable()
+        | ' ' ->
+            let startPos = lexer.window.LexemeStart
+            let token = scanWhitespace lexer
+            let endPos = lexer.window.LexemeStart
+            builder.Add((startPos, endPos, token))
+            scanKeywordsOrIdentifiersUntilNewLineAux builder lexer
+        | _ ->
+            let startPos = lexer.window.LexemeStart
+            let token = scanKeywordOrIdentifier lexer
+            let endPos = lexer.window.LexemeStart
+            builder.Add((startPos, endPos, token))
+            scanKeywordsOrIdentifiersUntilNewLineAux builder lexer
+
+    let scanKeywordsOrIdentifiersUntilNewLine (lexer: Lexer) =
+        scanKeywordsOrIdentifiersUntilNewLineAux (ImArray.builder()) lexer
+
+    /// Does not advance the lexer.
+    let parseConditionalDirective (lexer: Lexer) (tokens: (int * int * Token) imarray) =
+        let mutable currentStartPos = 0
+        let mutable currentEndPos = 0
+        let mutable isNot = false
+        let mutable canScanBodyText = true
+
+        let checkIsNot() =
+            if isNot then
+                lexer.diagnostics.Add(currentStartPos, currentEndPos, "Missing define after 'not'.", true, 153)
+                isNot <- false
+
+        tokens
+        |> ImArray.iter (fun (startPos, endPos, token) ->
+            currentStartPos <- startPos
+            currentEndPos <- endPos
+
+            if token.IsTrivia then ()
+            else
+                match token with
+                | Not ->
+                    isNot <- true
+                | Identifier(ident) ->
+                    if lexer.conditionalDefinesLookup.Contains(ident) then
+                        if isNot then
+                            canScanBodyText <- false
+                            isNot <- false
+                    else
+                        if isNot then
+                            isNot <- false
+                        else
+                            canScanBodyText <- false
+                | _ ->
+                    checkIsNot()
+                    lexer.diagnostics.Add(currentStartPos, currentEndPos, "Invalid token in conditional directive.", true, 153)
+        )
+        checkIsNot()
+
+        (canScanBodyText, tokens |> ImArray.map (fun (_, _, token) -> token))
             
-    let beginScanTextOfConditionalDefine (lexer: Lexer) =
+    let tryScanConditionalDirectiveAux (lexer: Lexer) =
         let startColumn = lexer.currentColumn
         let startPos = lexer.window.LexemeStart
 
-        advance lexer // #
-        advance lexer // i
-        advance lexer // f
-        resetLexeme lexer
+        if tryAdvanceNextTokenHashIf lexer then
+            resetLexeme lexer
+            checkDirectiveIndentation lexer startColumn startPos
 
-        checkDirectiveIndentation lexer startColumn startPos
+            let (canScanBodyText, tokens) = 
+                scanKeywordsOrIdentifiersUntilNewLine lexer
+                |> parseConditionalDirective lexer
 
-        lexer.currentConditionalCount <- lexer.currentConditionalCount + 1
+            let hashIfToken = HashIf(tokens)
 
-        let whitespaceToken = scanWhitespace lexer
-        resetLexeme lexer
-
-        let startIdentPos = lexer.window.LexemeStart
-
-        let identToken = scanKeywordOrIdentifier lexer
-        resetLexeme lexer
-
-        let hashIfToken = HashIf(whitespaceToken, identToken)
-
-        match identToken with
-        | Token.Identifier ident -> 
-            if lexer.conditionalDefinesLookup.Contains(ident) then
+            if canScanBodyText then
                 hashIfToken
+                |> ValueSome
             else
-                scanTextOfConditionalDefine lexer hashIfToken
+                advanceBodyTextOfConditionalDirective lexer lexer.CurrentConditionalCount hashIfToken
+                let bodyText = lexeme lexer
+                match tryScanHashEnd lexer with
+                | ValueSome(hashEndToken) ->
+                    ConditionalDirective(hashIfToken, bodyText, hashEndToken)
+                | _ ->
+                    ConditionalDirective(hashIfToken, bodyText, Dummy)
+                |> ValueSome
+        else
+            ValueNone
+
+    let tryScanConditionalDirective (lexer: Lexer) =
+        let startPos = lexer.window.LexemeStart
+
+        match tryScanConditionalDirectiveAux lexer with
+        | ValueSome directive -> ValueSome(directive)
         | _ ->
-            let endPos = lexer.window.LexemeStart
-            lexer.diagnostics.Add(startIdentPos, endPos, "Invalid conditional define.", true, 153)
-            ConditionalDirective(hashIfToken, String.Empty, dummyToken.RawToken)
+
+        let conditionalCount = lexer.currentConditionalCount
+        match tryScanHashEnd lexer with
+        | ValueSome hashEndToken -> 
+            if conditionalCount <= 0 then
+                let endPos = lexer.window.LexemeStart
+                lexer.diagnostics.Add(startPos, endPos, "No corresponding conditional directive was found.", true, 150)
+            ValueSome(hashEndToken)
+        | _ ->
+            ValueNone
 
     let rec handleNonTriviaPeek (lexer: Lexer) peekedChar =
         lexer.hasFirstNonTrivia <- true
@@ -843,11 +849,9 @@ module Lexer =
     and handleNonTriviaPeekAux (lexer: Lexer) peekedChar =
         match peekedChar with
         | '#' ->
-            if isNextTokenHashIf lexer then
-                beginScanTextOfConditionalDefine lexer
-            elif isNextTokenHashEnd lexer then
-                endConditionalDirective lexer
-            else
+            match tryScanConditionalDirective lexer with
+            | ValueSome(directive) -> directive
+            | _ ->
                 advance lexer
                 Hash
 
@@ -1121,18 +1125,16 @@ module Lexer =
     let handlePeek (lexer: Lexer) peekedChar =
         match peekedChar with
         | '#' ->
-            if isNextTokenHashIf lexer then
-                beginScanTextOfConditionalDefine lexer
-            elif isNextTokenHashEnd lexer then
-                endConditionalDirective lexer
-            else
+            let startColumn = lexer.currentColumn
+            let startPos = lexer.window.LexemeStart
+
+            match tryScanConditionalDirective lexer with
+            | ValueSome(directive) -> directive
+            | _ ->
 
             match peekN 1 lexer with
             | c when isLetter c ->
                 // Directives
-
-                let startColumn = lexer.currentColumn
-                let startPos = lexer.window.LexemeStart
 
                 advance lexer
                 resetLexeme lexer
@@ -1176,9 +1178,8 @@ module Lexer =
                         | _ ->
                             Directive(Hash, token, whitespaceToken, valueToken)
 
-                checkDirectiveIndentation lexer startColumn startPos
                 recordNonConditionalDirective lexer startPos directive
-
+                checkDirectiveIndentation lexer startColumn startPos
                 directive
             | _ ->
                 handleNonTriviaPeek lexer '#'

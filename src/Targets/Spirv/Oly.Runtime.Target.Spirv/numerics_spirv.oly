@@ -3,10 +3,10 @@ module OlyNumerics
 
 #[import("spirv", "std", "vec2")]
 struct vec2 =
-    public field mutable X: float
-    public field mutable Y: float
-    new(float)
-    new(float, float)
+    public field mutable X: float32
+    public field mutable Y: float32
+    new(float32)
+    new(float32, float32)
 
 #[open]
 extension vec2Extensions =
@@ -19,12 +19,12 @@ extension vec2Extensions =
 
 #[import("spirv", "std", "vec3")]
 struct vec3 =
-    public field mutable X: float
-    public field mutable Y: float
-    public field mutable Z: float
-    new(float)
-    new(vec2, float)
-    new(float, float, float)
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+    new(float32)
+    new(vec2, float32)
+    new(float32, float32, float32)
 
 #[open]
 extension vec3Extensions =
@@ -50,14 +50,14 @@ extension vec3Extensions =
 
 #[import("spirv", "std", "vec4")]
 struct vec4 =
-    public field mutable X: float
-    public field mutable Y: float
-    public field mutable Z: float
-    public field mutable W: float
-    new(float)
-    new(vec3, float)
-    new(vec2, float, float)
-    new(float, float, float, float)
+    public field mutable X: float32
+    public field mutable Y: float32
+    public field mutable Z: float32
+    public field mutable W: float32
+    new(float32)
+    new(vec3, float32)
+    new(vec2, float32, float32)
+    new(float32, float32, float32, float32)
 
 #[open]
 extension vec4Extensions =
@@ -72,63 +72,90 @@ extension vec4Extensions =
 
 #[import("spirv", "std", "dvec2")]
 struct dvec2 =
-    public field mutable X: double
-    public field mutable Y: double
-    new(double)
-    new(double, double)
+    public field mutable X: float64
+    public field mutable Y: float64
+    new(float64)
+    new(float64, float64)
 
 #[import("spirv", "std", "dvec3")]
 struct dvec3 =
-    public field mutable X: double
-    public field mutable Y: double
-    public field mutable Z: double
-    new(double)
-    new(vec2, double)
-    new(double, double, double)
+    public field mutable X: float64
+    public field mutable Y: float64
+    public field mutable Z: float64
+    new(float64)
+    new(vec2, float64)
+    new(float64, float64, float64)
 
 #[import("spirv", "std", "dvec4")]
 struct dvec4 =
-    public field mutable X: double
-    public field mutable Y: double
-    public field mutable Z: double
-    public field mutable W: double
-    new(double)
-    new(vec3, double)
-    new(vec2, double, double)
-    new(double, double, double, double)
+    public field mutable X: float64
+    public field mutable Y: float64
+    public field mutable Z: float64
+    public field mutable W: float64
+    new(float64)
+    new(vec3, float64)
+    new(vec2, float64, float64)
+    new(float64, float64, float64, float64)
 
 #[import("spirv", "std", "uvec2")]
 struct uvec2 =
-    public field mutable X: uint
-    public field mutable Y: uint
-    new(uint)
-    new(uint, uint)
+    public field mutable X: uint32
+    public field mutable Y: uint32
+    new(uint32)
+    new(uint32, uint32)
 
 #[import("spirv", "std", "uvec3")]
 struct uvec3 =
-    public field mutable X: uint
-    public field mutable Y: uint
-    public field mutable Z: uint
-    new(uint)
-    new(uvec2, uint)
-    new(uint, uint, uint)
+    public field mutable X: uint32
+    public field mutable Y: uint32
+    public field mutable Z: uint32
+    new(uint32)
+    new(uvec2, uint32)
+    new(uint32, uint32, uint32)
 
 #[import("spirv", "std", "uvec4")]
 struct uvec4 =
-    public field mutable X: uint
-    public field mutable Y: uint
-    public field mutable Z: uint
-    public field mutable W: uint
-    new(uint)
-    new(uvec3, uint)
-    new(uvec2, uint, uint)
-    new(uint, uint, uint, uint)
+    public field mutable X: uint32
+    public field mutable Y: uint32
+    public field mutable Z: uint32
+    public field mutable W: uint32
+    new(uint32)
+    new(uvec3, uint32)
+    new(uvec2, uint32, uint32)
+    new(uint32, uint32, uint32, uint32)
+
+#[import("spirv", "std", "ivec2")]
+struct ivec2 =
+    public field mutable X: int32
+    public field mutable Y: int32
+    new(int32)
+    new(int32, int32)
+
+#[import("spirv", "std", "ivec3")]
+struct ivec3 =
+    public field mutable X: int32
+    public field mutable Y: int32
+    public field mutable Z: int32
+    new(int32)
+    new(ivec2, int32)
+    new(int32, int32, int32)
+
+#[import("spirv", "std", "ivec4")]
+struct ivec4 =
+    public field mutable X: int32
+    public field mutable Y: int32
+    public field mutable Z: int32
+    public field mutable W: int32
+    new(int32)
+    new(ivec3, int32)
+    new(ivec2, int32, int32)
+    new(int32, int32, int32, int32)
 
 // GLSL.std.450
 // https://registry.khronos.org/SPIR-V/specs/unified1/GLSL.std.450.html
 
 #[import("spirv", "GLSL.std.450", "1")]
-round(float): float
+round(float32): float32
 
 #[import("spirv", "GLSL.std.450", "1")]
 round(vec2): vec2
@@ -140,7 +167,7 @@ round(vec3): vec3
 round(vec4): vec4
 
 #[import("spirv", "GLSL.std.450", "2")]
-roundEven(float): float
+roundEven(float32): float32
 
 #[import("spirv", "GLSL.std.450", "2")]
 roundEven(vec2): vec2
@@ -152,7 +179,7 @@ roundEven(vec3): vec3
 roundEven(vec4): vec4
 
 #[import("spirv", "GLSL.std.450", "8")]
-floor(float): float
+floor(float32): float32
 
 #[import("spirv", "GLSL.std.450", "8")]
 floor(vec2): vec2
@@ -164,16 +191,16 @@ floor(vec3): vec3
 floor(vec4): vec4
 
 #[import("spirv", "GLSL.std.450", "46")]
-mix(x: float, y: float, a: float): float
+mix(x: float32, y: float32, a: float32): float32
 
 #[import("spirv", "GLSL.std.450", "46")]
-mix(x: vec2, y: vec2, a: float): vec2
+mix(x: vec2, y: vec2, a: float32): vec2
 
 #[import("spirv", "GLSL.std.450", "46")]
-mix(x: vec3, y: vec3, a: float): vec3
+mix(x: vec3, y: vec3, a: float32): vec3
 
 #[import("spirv", "GLSL.std.450", "46")]
-mix(x: vec4, y: vec4, a: float): vec4
+mix(x: vec4, y: vec4, a: float32): vec4
 
 #[import("spirv", "GLSL.std.450", "69")]
 normalize(v: vec2): vec2

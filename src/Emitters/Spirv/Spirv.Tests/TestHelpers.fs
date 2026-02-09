@@ -28,10 +28,7 @@ type GPU =
                     if File.Exists(gpuTest) |> not then
                         failwithf "Unable to find gpu_test program at: %A" gpuTest
                     let result =
-                        new Oly.Core.ExternalProcess(
-                            "dotnet",
-                            gpuTest
-                        )
+                        new Oly.Core.ExternalProcess(gpuTest, String.Empty)
                     result.Start()
                     GPU.gpuTestService <- Some result
                     result

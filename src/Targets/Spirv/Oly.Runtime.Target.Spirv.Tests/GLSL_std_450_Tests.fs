@@ -5,7 +5,7 @@ open System.Numerics
 open Oly.Targets.Spirv.OlySpirvTestHelpers
 
 [<Fact>]
-let ``round - float``() =
+let ``round - float32``() =
     "round(input)"
     |> run [|0.1f|] [|0.0f|]
 
@@ -52,7 +52,7 @@ let ``round - vec4``() =
     |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
 
 [<Fact>]
-let ``roundEven - float``() =
+let ``roundEven - float32``() =
     "roundEven(input)"
     |> run [|0.1f|] [|0.0f|]
 
@@ -99,7 +99,7 @@ let ``roundEven - vec4``() =
     |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
 
 [<Fact>]
-let ``floor - float``() =
+let ``floor - float32``() =
     "floor(input)"
     |> run [|0.1f|] [|0.0f|]
 
@@ -119,6 +119,6 @@ let ``floor - vec4``() =
     |> run [|Vector4(0.1f, 1.1f, 2.1f, -0.1f)|] [|Vector4(0.0f, 1.0f, 2.0f, -1.0f)|]
 
 [<Fact>]
-let ``mix - float``() =
+let ``mix - float32``() =
     "let result = mix(input.X, input.Y, input.W)\n    vec4(result, 0, 0, 0)"
     |> run [|Vector4(1.0f, 2.0f, 0.f, 0.5f)|] [|Vector4(1.5f, 0.f, 0.f, 0.f)|]

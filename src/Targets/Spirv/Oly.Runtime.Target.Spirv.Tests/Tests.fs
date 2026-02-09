@@ -702,7 +702,7 @@ let ``Basic compute shader`` () =
 //}
     let src =
         """
-buffer: mutable float[]
+buffer: mutable float32[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
@@ -729,7 +729,7 @@ let ``Basic compute shader 2 - verify use of local creation`` () =
 //}
     let src =
         """
-buffer: mutable float[]
+buffer: mutable float32[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
@@ -744,11 +744,11 @@ main(): () =
 let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
-buffer: mutable float[]
+buffer: mutable float32[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
-GetValue(x: float): float =
+GetValue(x: float32): float32 =
     x
 
 main(): () =
@@ -760,7 +760,7 @@ main(): () =
 let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
-buffer: mutable int[]
+buffer: mutable int32[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
@@ -774,7 +774,7 @@ let ``Basic compute shader 5 - verify struct`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float = 0
+    public field mutable Value: float32 = 0
 
 buffer: mutable TestData[]
     #[storage_buffer, descriptor_set(0), binding(0)]
@@ -798,7 +798,7 @@ let ``Basic compute shader 6 - verify nested struct`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float = 0
+    public field mutable Value: float32 = 0
 
 struct TestData2 =
     public field mutable Value: TestData = TestData()
@@ -822,7 +822,7 @@ let ``Basic compute shader 7 - verify doubly nested structs`` () =
     let src =
         """
 struct TestData =
-    public field mutable Value: float = 0
+    public field mutable Value: float32 = 0
 
 struct TestData2 =
     public field mutable Value: TestData = TestData()
@@ -869,7 +869,7 @@ let ``Basic compute shader 9 - verify vec3`` () =
         """
 struct new_vec4 =
     public field mutable XYZ: vec3 = vec3(0)
-    public field mutable W: float = 0
+    public field mutable W: float32 = 0
 
 buffer: mutable new_vec4[]
     #[storage_buffer, descriptor_set(0), binding(0)]
@@ -892,7 +892,7 @@ let ``Basic compute shader 9 - verify vec3 - 2`` () =
     let src =
         """
 struct new_vec4 =
-    public field mutable W: float = 0
+    public field mutable W: float32 = 0
     public field mutable XYZ: vec3 = vec3(0)
 
 buffer: mutable new_vec4[]
@@ -936,7 +936,7 @@ buffer: mutable vec4[]
     get
 
 struct Doot =
-    public field mutable X: float = 999
+    public field mutable X: float32 = 999
 
 main(): () =
     let mutable doot = Doot()
@@ -956,9 +956,9 @@ buffer: mutable vec4[]
     get
 
 struct Doot =
-    public field mutable X: float = 0
+    public field mutable X: float32 = 0
 
-    mutable SetX(x: float): () =
+    mutable SetX(x: float32): () =
         this.X <- x
 
 main(): () =
@@ -980,7 +980,7 @@ buffer: mutable vec4[]
     get
 
 struct Doot =
-    public field mutable X: float = 0
+    public field mutable X: float32 = 0
 
     mutable M(): () =
         this.X <- 999
@@ -1004,7 +1004,7 @@ buffer: mutable vec4[]
     get
 
 struct Doot =
-    public field mutable X: float = 0
+    public field mutable X: float32 = 0
 
     mutable M(): () =
         this.X <- 999
@@ -1032,7 +1032,7 @@ buffer: mutable vec4[]
     get
 
 struct NestedDoot =
-    public field mutable X: float = 0
+    public field mutable X: float32 = 0
 
     mutable M(): () =
         this.X <- 999
@@ -1059,7 +1059,7 @@ buffer: mutable vec4[]
     get
 
 struct NestedDoot =
-    public field mutable X: float = 0
+    public field mutable X: float32 = 0
 
     mutable M(): () =
         this.X <- 999
@@ -1088,10 +1088,10 @@ buffer: mutable vec4[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
-test(mutable x: float): () = x <- 555
+test(mutable x: float32): () = x <- 555
 
 main(): () =
-    let mutable y: float = 999
+    let mutable y: float32 = 999
     test(y)
     buffer[0] <- vec4(123, 456, 789, y)
         """

@@ -11,7 +11,7 @@ let ``Should error with incorrect use of runtime array``() =
     """
 #target "spirv: vertex, 1.0"
 
-buffer: float[]
+buffer: float32[]
     #[uniform, descriptor_set(0), binding(0)]
     get
 
@@ -70,7 +70,7 @@ let ``Should error with struct only supported in 1_3``() =
 #target "spirv: compute, 1.2"
 
 struct TestData =
-    public field mutable Value: float = 0
+    public field mutable Value: float32 = 0
 
 struct TestData2 =
     public field mutable Value: TestData = TestData()

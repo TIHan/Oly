@@ -50,7 +50,7 @@ type MSBuild() =
                 ""
         let publishKind =
             match publishKind with
-            | MSBuildPublishKind.ReadyToRun -> "<PublishReadyToRun>true</PublishReadyToRun>"
+            | MSBuildPublishKind.ReadyToRun -> "<PublishReadyToRun>true</PublishReadyToRun>\n<PublishSingleFile>true</PublishSingleFile>\n<SelfContained>true</SelfContained>"
             | MSBuildPublishKind.NativeAOT -> "<PublishAot>true</PublishAot>"
             | _ -> ""
 
@@ -77,6 +77,9 @@ type MSBuild() =
                     $"<PackageReference Include=\"{x.Substring(0, index)}\" Version=\"{x.Substring(index + 1)}\" />"
             )
             |> String.concat Environment.NewLine
+
+        let isPublish =
+            publishKind
         $"""
 <Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup>
@@ -84,6 +87,8 @@ type MSBuild() =
     {outputType}
     {publishKind}
     <TargetFramework>{targetName}</TargetFramework>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
 </PropertyGroup>
 <ItemGroup>
     <Compile Include="Program.cs" />
