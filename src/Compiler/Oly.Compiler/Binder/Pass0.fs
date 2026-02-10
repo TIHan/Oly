@@ -15,10 +15,10 @@ let private bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syn
     | OlySyntaxAccessor.Private _ -> EntityFlags.Private
     | OlySyntaxAccessor.Protected _ -> 
         cenv.diagnostics.Error("Types cannot be declared as 'protected'.", 10, syntaxAccessor)
-        EntityFlags.None
+        EntityFlags.Private
     | _ ->
         // Default is public.
-        EntityFlags.Public
+        EntityFlags.Private
 
 let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
     (flags, attrs)

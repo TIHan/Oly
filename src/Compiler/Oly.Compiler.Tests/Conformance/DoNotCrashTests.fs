@@ -142,7 +142,7 @@ module TestModule
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = this { Value = value }
+    public new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -466,7 +466,7 @@ private getLength<T>(mutable T[]): int32
 extension MutableArrayExtensions<T> =
     inherits mutable T[]
 
-    Length: int32 
+    public Length: int32 
         #[inline]
         get() = getLength(this)
 
