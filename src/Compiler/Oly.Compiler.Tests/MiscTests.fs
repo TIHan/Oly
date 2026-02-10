@@ -247,7 +247,7 @@ open extension Int32AddFloat64Extension
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine<T>(value: T): ()
+    public static WriteLine<T>(value: T): ()
 
 interface Add<T> =
 
@@ -275,7 +275,7 @@ f<T>(x: T, y: T): T where T: trait Add<T> =
        public field x: T
        field y: U
 
-       new(x: T, y: U) = this { x = x; y = y }
+       public new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
 
@@ -319,7 +319,7 @@ extension Int32AddInt32Extension =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine<T>(value: T): ()
+    public static WriteLine<T>(value: T): ()
 
 interface Add<T> =
 
@@ -340,7 +340,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = this { value = value }
+    public new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -367,7 +367,7 @@ example(): () =
 class Hoot<T> =
     public field value: T
 
-    new(value: T) = this { value = value }
+    public new(value: T) = this { value = value }
 
 extension HootAddExtension<T> where T: trait Add<T> =
     inherits Hoot<T>
@@ -386,7 +386,7 @@ g<T>(x: T, y: T): T where T: trait Add<T> =
     public field x: T
     field y: U
 
-    new(x: T, y: U) = this { x = x; y = y }
+    public new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
         """

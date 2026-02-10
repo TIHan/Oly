@@ -12,7 +12,7 @@ open System.Threading
 let ``Compilation should remain immutable - not affect previous compilations`` () =
     let src1 =
         """
-module Test1
+public module Test1
         """
     let tree1 = OlySyntaxTree.Parse(OlyPath.Create("test"), src1) 
     let c1 = OlyCompilation.Create("testasm", [tree1])
@@ -26,9 +26,9 @@ module Test1
 
     let src2 =
         """
-module Test1
+public module Test1
 
-test(): () = ()
+public test(): () = ()
         """
     let tree2 = tree1.ApplySourceText(OlySourceText.Create(src2))
     let c2 = c1.SetSyntaxTree(tree2)
@@ -45,10 +45,10 @@ test(): () = ()
 
     let src3 =
         """
-module Test1
+public module Test1
 
-test(): () = ()
-test2(): () = ()
+public test(): () = ()
+public test2(): () = ()
         """
     let tree3 = tree2.ApplySourceText(OlySourceText.Create(src3))
     let c3 = c2.SetSyntaxTree(tree3)
@@ -66,7 +66,7 @@ test2(): () = ()
 
     let src4 =
         """
-module Test1
+public module Test1
         """
     let tree4 = tree3.ApplySourceText(OlySourceText.Create(src4))
     let c4 = c3.SetSyntaxTree(tree4)

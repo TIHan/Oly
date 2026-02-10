@@ -1202,7 +1202,9 @@ let private bindTopLevelValueDeclaration
             valueExplicitness
 
     let defaultAccessorFlags =
-        if (enclosing.IsInterface || enclosing.IsShape) && not valueExplicitness.IsExplicitField then
+        if valueExplicitness.IsExplicitField then
+            MemberFlags.Private
+        elif (enclosing.IsInterface || enclosing.IsShape || (enclosing.IsTypeExtension && not enclosing.Implements.IsEmpty)) then
             MemberFlags.Public
         else
             MemberFlags.Private
