@@ -11,6 +11,17 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
+type AccessorBehavior =
+    | PublicByDefault
+    | PrivateByDefault
+
+[<NoEquality;NoComparison>]
+type BinderConfiguration =
+    {
+        AccessorBehavior: AccessorBehavior
+    }
+
+/// Compiler Environment
 [<NoEquality;NoComparison>]
 type cenv =
     {
@@ -21,6 +32,7 @@ type cenv =
         diagnostics: OlyDiagnosticLogger
         ct: CancellationToken
         pass: CompilerPass
+        config: BinderConfiguration
         mutable entryPoint: IFunctionSymbol option
         mutable entityDefIndex: int
         mutable memberDefIndex: int
@@ -43,6 +55,7 @@ let rec private getTopLevelEnclosingType (enclosing: EnclosingSymbol) =
     | _ ->
         enclosing
 
+/// This is the context environment of the current expression.
 type BinderEnvironment =
     {
        benv: BoundEnvironment

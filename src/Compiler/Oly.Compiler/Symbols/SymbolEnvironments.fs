@@ -161,6 +161,7 @@ module private BoundEnvironment =
             implicitExtendsForEnum = None
         }
 
+/// This is the environment of the current expression.
 [<NoEquality;NoComparison>]
 type BoundEnvironment =
     {

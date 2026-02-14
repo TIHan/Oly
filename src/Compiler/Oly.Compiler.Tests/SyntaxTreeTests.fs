@@ -2136,3 +2136,30 @@ main(,, x: int32): () =
             "Expected 'parameter' after ','."
         ]
     |> ignore
+
+[<Fact>]
+let ``Should error with invalid value for default_accessor directive``() =
+    let src =
+        """
+#default_accessor "bad"
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "'bad' is not a valid value for '#default_accessor'."
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for duplicate default_accessor directive``() =
+    let src =
+        """
+#default_accessor "public"
+#default_accessor "public"
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "The directive '#default_accessor' is already specified."
+        ]
+    |> ignore

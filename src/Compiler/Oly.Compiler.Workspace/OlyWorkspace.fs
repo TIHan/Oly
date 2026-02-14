@@ -302,16 +302,21 @@ type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfigura
         let name = config.Name
         let conditionalDefines = config.Defines |> ImArray.ofSeq
         let isDebuggable = config.Debuggable
-        OlyProjectConfiguration(name, conditionalDefines, isDebuggable)
+        OlyProjectConfiguration(name, conditionalDefines, isDebuggable, OlyDefaultAccessor.Public)
 
 [<Sealed>]
-type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool) =
+type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool, defaultAccessor: OlyDefaultAccessor) =
 
     member _.Name = name
 
     member _.Defines = defines
 
     member _.Debuggable = debuggable
+
+    member _.DefaultAccessor = defaultAccessor
+
+    member this.WithDefaultAccessor(accessorDefault) =
+        OlyProjectConfiguration(name, defines, debuggable, accessorDefault)
 
 [<Sealed>]
 type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
@@ -676,7 +681,15 @@ module WorkspaceHelpers =
         let isDebuggable = targetInfo.ProjectConfiguration.Debuggable
 
         let syntaxTrees = getSyntaxTrees documents
-        let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct; ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum }
+        let options = 
+            { 
+                Debuggable = isDebuggable
+                Parallel = true
+                Executable = targetInfo.IsExecutable
+                ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct
+                ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum
+                DefaultAccessor = targetInfo.ProjectConfiguration.DefaultAccessor
+            }
         let compilation = 
             CacheValue(fun ct ->
                 OlyAssert.True(newSolution.IsValueCreated)
@@ -1565,6 +1578,13 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     OlyOutputKind.Library
                 else
                     OlyOutputKind.Executable
+
+            let projConfig =
+                match config.DefaultAccessor with
+                | Some("public") -> projConfig
+                | Some("private") -> projConfig.WithDefaultAccessor(OlyDefaultAccessor.Private)
+                | Some(_) -> projConfig
+                | None -> projConfig
 
             OlyTrace.Log($"[Project] '{projPath}' - Configuring Target - Output: {outputKind}")
 

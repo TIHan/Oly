@@ -441,6 +441,7 @@ type OlyCompilationUnitConfiguration =
         properties: (OlyTextSpan * string * obj) imarray
         directiveDiagnostics: OlyDiagnostic imarray
         isLibrary: bool
+        defaultAccessor: string option
     }
 
     member this.Target = this.target
@@ -456,6 +457,8 @@ type OlyCompilationUnitConfiguration =
     member this.Properties = this.properties
 
     member this.IsLibrary = this.isLibrary
+
+    member this.DefaultAccessor = this.defaultAccessor
 
     member this.WithTarget(target) =
         { this with target = target }
@@ -617,15 +620,26 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         None
                 )
 
+            // REVIEW: While it's fast iterating through all directives for each value, 
+            //         we technically could still optimize this to not iterate through all each time.
             let loads = getDirectiveValues "load" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let references = getDirectiveValues "reference" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let packages = getDirectiveValues "package"
             let copyFiles = getDirectiveValues "copy" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let isLibrary = directiveFlagExists "library"
+            let defaultAccessors = getDirectiveValues "default_accessor"
 
             let properties = getPropertyDirectives()
 
-            // Validate directives
+            let defaultAccessor =
+                if defaultAccessors.IsEmpty then
+                    None
+                else
+                    let accessorDefault = defaultAccessors |> ImArray.head
+                    Some(accessorDefault)
+
+            // Begin validate directives
+
             directives
             |> ImArray.iter(fun (startPos, endPos, rawToken) ->
                 match rawToken with
@@ -636,14 +650,52 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     | "target"
                     | "load"
                     | "package" -> ()
-                    | "copy" -> () // TODO:
+                    | "copy"
+                    | "default_accessor" -> () // TODO:
                     | _ ->
                         diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", 202, OlySourceLocation.Create(textSpan, this)))
                 | _ ->
                     ()
             )
 
-            { target = target; references = references; loads = loads; packages = packages; copyFiles = copyFiles; properties = properties; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
+            // check duplicates - TODO: do this for other directives if possible. ex: two or more '#load' with the same value, two or more '#target', two or more '#library'
+            if defaultAccessors.Length > 1 then
+                for i = 1 to defaultAccessors.Length - 1 do
+                    let (textSpan, _) = defaultAccessors[i]
+                    diags.Add(
+                        OlyDiagnostic.CreateError(
+                            $"The directive '#default_accessor' is already specified.", 
+                            203, 
+                            OlySourceLocation.Create(textSpan, this)
+                        )
+                    )
+
+            match defaultAccessor with
+            | None
+            | Some(_, "public")
+            | Some(_, "private") -> ()
+            | Some(textSpan, invalidValue) ->
+                diags.Add(
+                    OlyDiagnostic.CreateError(
+                        $"'{invalidValue}' is not a valid value for '#default_accessor'.", 
+                        203, 
+                        OlySourceLocation.Create(textSpan, this)
+                    )
+                )
+
+            // End validate directives
+
+            { 
+                target = target
+                references = references
+                loads = loads
+                packages = packages
+                copyFiles = copyFiles
+                properties = properties
+                directiveDiagnostics = diags.ToImmutable()
+                isLibrary = isLibrary
+                defaultAccessor = defaultAccessor |> Option.map snd
+            }
         )
 
     abstract WithPath : OlyPath -> OlySyntaxTree

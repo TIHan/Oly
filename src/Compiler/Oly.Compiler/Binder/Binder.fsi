@@ -74,6 +74,6 @@ val CreateDefaultBinderEnvironment: OlyILAssemblyIdentity -> BinderEnvironment
 
 val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment
 
-val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> syntaxTree: OlySyntaxTree -> BinderPrePass
+val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> BinderConfiguration -> syntaxTree: OlySyntaxTree -> BinderPrePass
 
-val bindSyntaxTreeFast: AssemblySymbol -> syntaxTree: OlySyntaxTree -> CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray> -> BinderPrePass
+val bindSyntaxTreeFast: AssemblySymbol -> CacheValue<BinderEnvironment * BoundDeclarationTable * OlyDiagnostic imarray> -> BinderConfiguration -> syntaxTree: OlySyntaxTree -> BinderPrePass

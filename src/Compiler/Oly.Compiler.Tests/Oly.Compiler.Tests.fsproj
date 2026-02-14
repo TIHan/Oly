@@ -20,6 +20,7 @@
     <Compile Include="SyntaxTreeTests.fs" />
     <Compile Include="MiscTests.fs" />
     <Compile Include="CompilationTests.fs" />
+    <Compile Include="conformance\PrivateByDefaultTests.fs" />
     <Compile Include="Conformance\ContextualAnalysis\ByRef\ByRefTests.fs" />
     <Compile Include="Conformance\ContextualAnalysis\ScopedLambda\ScopedLambdaTests.fs" />
     <Compile Include="Conformance\ContextualAnalysis\UnmanagedAllocationOnly\UnmanagedAllocationOnlyTests.fs" />

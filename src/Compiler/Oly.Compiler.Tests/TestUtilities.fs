@@ -39,6 +39,11 @@ type TestCompilation =
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
+    static member CreatePrivateByDefault(src: string) =
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct; DefaultAccessor = OlyDefaultAccessor.Private }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
+        TestCompilation.Create(c)
+
     static member CreateWithConditionalDefines(src: string, conditionalDefines) =
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], defaultReferences, options = options)
@@ -395,6 +400,14 @@ let shouldCompile c = withCompileAux c |> ignore
 /// Will also assert that the syntax tree produced will equal the source.
 let Oly (src: string) =
     TestCompilation.Create(src)
+    |> stressTest src
+
+/// Will also assert that the syntax tree produced will equal the source.
+/// TODO: This is weird because the syntax tree should tell the compilation
+///        to be private by default as it does in the workspace. 
+///        We should normalize all of this.
+let OlyPrivateByDefault (src: string) =
+    TestCompilation.CreatePrivateByDefault(src)
     |> stressTest src
 
 /// Will also assert that the syntax tree produced will equal the source.

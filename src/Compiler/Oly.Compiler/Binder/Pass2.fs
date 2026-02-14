@@ -1205,7 +1205,13 @@ let private bindTopLevelValueDeclaration
         if valueExplicitness.IsExplicitField then 
             MemberFlags.Private 
         else 
-            MemberFlags.Public
+            if cenv.config.AccessorBehavior.IsPrivateByDefault then
+                if (enclosing.IsInterface || enclosing.IsShape || (enclosing.IsTypeExtension && not enclosing.Implements.IsEmpty)) then
+                    MemberFlags.Public
+                else
+                    MemberFlags.Private
+            else
+                MemberFlags.Public
 
     let defaultAccessorFlags = 
         propInfoOpt

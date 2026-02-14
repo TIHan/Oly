@@ -36,6 +36,12 @@ type private OlyCompilationEventSource() =
     member this.EndPass3(message: string) =
         this.WriteEvent(2, message)
 
+[<NoComparison;RequireQualifiedAccess>]
+type OlyDefaultAccessor =
+    | Public
+    | Private
+
+[<NoComparison;NoEquality>]
 type OlyCompilationOptions =
     {
         Debuggable: bool
@@ -43,6 +49,7 @@ type OlyCompilationOptions =
         Parallel: bool
         ImplicitExtendsForStruct: string option
         ImplicitExtendsForEnum: string option
+        DefaultAccessor: OlyDefaultAccessor
     }
 
     static member Default =
@@ -52,6 +59,17 @@ type OlyCompilationOptions =
             Parallel = true
             ImplicitExtendsForStruct = None
             ImplicitExtendsForEnum = None
+            DefaultAccessor = OlyDefaultAccessor.Public
+        }
+
+    member internal this.CreateBinderConfiguration(): BinderConfiguration =
+        {
+            AccessorBehavior =
+                match this.DefaultAccessor with
+                | OlyDefaultAccessor.Private ->
+                    AccessorBehavior.PrivateByDefault
+                | _ ->
+                    AccessorBehavior.PublicByDefault
         }
 
 type private CompilationSignature = (BinderPass4 * OlyDiagnostic imarray) imarray
@@ -162,12 +180,14 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                     let prePassEnv = oldInitialPass.PrePassEnvironment
                     CacheValue(fun ct ->
                         ct.ThrowIfCancellationRequested()
-                        bindSyntaxTreeFast asm syntaxTree prePassEnv
+                        let config = compRef.contents.Options.CreateBinderConfiguration()
+                        bindSyntaxTreeFast asm prePassEnv config syntaxTree
                     )
                 else
                     CacheValue(fun ct ->
                         let initial = initial.GetValue(ct)
-                        bindSyntaxTree asm initial.env syntaxTree
+                        let config = compRef.contents.Options.CreateBinderConfiguration()
+                        bindSyntaxTree asm initial.env config syntaxTree
                     )
             { unitState with
                 initialPass = initialPass
@@ -179,8 +199,9 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
     static member internal Create(asm, initial: CacheValue<InitialState>, compRef: OlyCompilation ref, tryGetLocation, syntaxTree: OlySyntaxTree) =
         let initialPass = 
             CacheValue(fun ct ->
+                let config = compRef.contents.Options.CreateBinderConfiguration()
                 let initial = initial.GetValue(ct)
-                bindSyntaxTree asm initial.env syntaxTree
+                bindSyntaxTree asm initial.env config syntaxTree
             )
 
         let implPass =
@@ -817,7 +838,7 @@ type OlyCompilation private (state: CompilationState) =
     member _.AssemblyIdentity = state.assembly.Identity
 
     member _.References = state.references
-    member _.Options = state.options
+    member _.Options: OlyCompilationOptions = state.options
 
     static member Create(assemblyName: string, syntaxTrees: OlySyntaxTree seq, ?references: OlyCompilationReference seq, ?options: OlyCompilationOptions) =
         let references = defaultArg (references |> Option.map ImArray.ofSeq) ImArray.empty

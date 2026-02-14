@@ -164,13 +164,15 @@ type OlyDocument =
 [<Sealed>]
 type OlyProjectConfiguration =
 
-    new : name: string * defines: string imarray * debuggable: bool -> OlyProjectConfiguration
+    new : name: string * defines: string imarray * debuggable: bool * defaultAccessor: OlyDefaultAccessor -> OlyProjectConfiguration
 
     member Name : string
 
     member Defines : string imarray
 
     member Debuggable : bool
+
+    member DefaultAccessor: OlyDefaultAccessor
 
 [<Sealed>]
 type OlyProjectProperties =
