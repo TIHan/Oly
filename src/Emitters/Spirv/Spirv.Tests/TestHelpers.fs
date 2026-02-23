@@ -52,7 +52,7 @@ type TestData3 =
         Value: TestData2
     }
 
-let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (spvCompute: SpirvModule, input: 'T array) =
+let compute<'T, 'TResult when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T) and 'T : unmanaged and 'TResult : struct and 'TResult :> ValueType and 'TResult : (new : unit-> 'TResult)> (spvCompute: SpirvModule, input: 'T array) : 'TResult array =
 
     let spvFilePath = Guid.NewGuid().ToString() + ".spv"
     let spvComputeBytes = new FileStream(spvFilePath, FileMode.Create)
@@ -61,7 +61,7 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
 
     let shaderPath = spvComputeBytes.Name
 
-    let dataKind =
+    let inputDataKind =
         let ty = typeof<'T>
         if ty = typeof<float32> then
             "float"
@@ -80,18 +80,38 @@ let compute<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : 
         elif ty = typeof<TestData3> then
             "TestData3"
         else
-            failwith $"Invalid data kind: {ty.FullName}"
+            failwith $"Invalid input data kind: {ty.FullName}"
+    let outputDataKind =
+        let ty = typeof<'TResult>
+        if ty = typeof<float32> then
+            "float"
+        elif ty = typeof<int32> then
+            "int"
+        elif ty = typeof<Vector2> then
+            "vec2"
+        elif ty = typeof<Vector3> then
+            "vec3"
+        elif ty = typeof<Vector4> then
+            "vec4"
+        elif ty = typeof<TestData> then
+            "TestData"
+        elif ty = typeof<TestData2> then
+            "TestData2"
+        elif ty = typeof<TestData3> then
+            "TestData3"
+        else
+            failwith $"Invalid output data kind: {ty.FullName}"
     let options = Json.JsonSerializerOptions()
     options.IncludeFields <- true
     let data = Json.JsonSerializer.Serialize<_>(input, options)
 
-    let inputJson = $"""{{ "ShaderKind": "compute", "DataKind": "{dataKind}", "Data": """ + data + " }"
+    let inputJson = $"""{{ "ShaderKind": "compute", "InputDataKind": "{inputDataKind}", "OutputDataKind": "{outputDataKind}", "InputData": """ + data + " }"
 
     let p = GPU.GetTestService()
 
     let output = p.SendLine($"shader;{inputJson};{shaderPath}", Unchecked.defaultof<_>)
     if String.IsNullOrWhiteSpace(output.Errors) then
-        Json.JsonSerializer.Deserialize<'T[]>(output.Output, options)
+        Json.JsonSerializer.Deserialize<'TResult[]>(output.Output, options)
     else
         failwith output.Errors
 

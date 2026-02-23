@@ -84,11 +84,11 @@ let ``roundEven - vec2``() =
 
 [<Fact>]
 let ``roundEven - vec3``() =
-    "let result = roundEven(vec3(input.Y, input.Z, input.W))\n    vec4(0, result.X, result.Y, result.Z)"
-    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
+    "roundEven(input)"
+    |> run [|Vector3(0.1f)|] [|Vector3(0.0f)|]
 
-    "let result = roundEven(vec3(input.Y, input.Z, input.W))\n    vec4(0, result.X, result.Y, result.Z)"
-    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
+    "roundEven(input)"
+    |> run [|Vector3(0.1f, 0.1f, 0.1f)|] [|Vector3(0.0f, 0.0f, 0.0f)|]
 
 [<Fact>]
 let ``roundEven - vec4``() =
@@ -110,8 +110,8 @@ let ``floor - vec2``() =
 
 [<Fact>]
 let ``floor - vec3``() =
-    "let result = floor(vec3(input.X, input.Y, input.Z))\n    vec4(result.X, result.Y, result.Z, 0)"
-    |> run [|Vector4(0.1f, 1.1f, 2.1f, 0.0f)|] [|Vector4(0.0f, 1.0f, 2.0f, 0.0f)|]
+    "floor(input)"
+    |> run [|Vector3(0.1f, 1.1f, 2.1f)|] [|Vector3(0.0f, 1.0f, 2.0f)|]
 
 [<Fact>]
 let ``floor - vec4``() =
@@ -120,5 +120,5 @@ let ``floor - vec4``() =
 
 [<Fact>]
 let ``mix - float32``() =
-    "let result = mix(input.X, input.Y, input.W)\n    vec4(result, 0, 0, 0)"
-    |> run [|Vector4(1.0f, 2.0f, 0.f, 0.5f)|] [|Vector4(1.5f, 0.f, 0.f, 0.f)|]
+    "mix(input.X, input.Y, input.Z)"
+    |> run [|Vector4(1.0f, 2.0f, 0.5f, 0.f)|] [|1.5f|]

@@ -20,24 +20,29 @@ let private runAux input (program: OlyProgram) =
     compute(sm, input)
 
 [<DebuggerHidden>]
-let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
+let run<'T, 'TResult when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T) and 'T : unmanaged and 'TResult : struct and 'TResult :> ValueType and 'TResult : (new : unit-> 'TResult)> (input: 'T array) (expectedOutput: 'TResult array) (src: string) =
     let tyName = getNumericsDataKind<'T>
+    let returnTyName = getNumericsDataKind<'TResult>
 
     let src = $"""
 #target "spirv: compute, 1.3"
 
-Buffer: mutable {tyName}[]
+InputBuffer: mutable {tyName}[]
     #[storage_buffer, descriptor_set(0), binding(0)]
     get
 
-Test(input: {tyName}): {tyName} =
+OutputBuffer: mutable {returnTyName}[]
+    #[storage_buffer, descriptor_set(1), binding(0)]
+    get
+
+Test(input: {tyName}): {returnTyName} =
     {src}
 
 main(): () =
     let index = GlobalInvocationId.X
-    Buffer[index] <- Test(Buffer[index])
+    OutputBuffer[index] <- Test(InputBuffer[index])
 """
     let output = build true src |> runAux input
-    Assert.Equal<'T>(expectedOutput, output)
+    Assert.Equal<'TResult>(expectedOutput, output)
     let output = build false src |> runAux input
-    Assert.Equal<'T>(expectedOutput, output)
+    Assert.Equal<'TResult>(expectedOutput, output)

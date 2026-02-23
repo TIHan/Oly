@@ -27,7 +27,7 @@ let private deserializeOutput<'T> (output: string) =
     options.IncludeFields <- true
     JsonSerializer.Deserialize<'T array>(output, options)
 
-let private runAux<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> dataKind (input: 'T array) (program: OlyProgram) : 'T array =
+let private runAux<'T, 'TResult when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T) and 'TResult : unmanaged and 'TResult : struct and 'TResult :> ValueType and 'TResult : (new : unit-> 'TResult)> dataKind (input: 'T array) (program: OlyProgram) : 'TResult array =
     let input = serializeInput dataKind input
 
     let fs = System.IO.File.OpenRead(program.Path.ToString())
@@ -41,7 +41,7 @@ let private runAux<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType an
     deserializeOutput output
 
 [<DebuggerHidden>]
-let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T)> (input: 'T array) (expectedOutput: 'T array) (src: string) =
+let run<'T, 'TResult when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new : unit-> 'T) and 'TResult : unmanaged and 'TResult : struct and 'TResult :> ValueType and 'TResult : (new : unit-> 'TResult)> (input: 'T array) (expectedOutput: 'TResult array) (src: string) =
     let tyName =
         match typeof<'T> with
         | x when x = typeof<float32> -> "float32"
@@ -51,8 +51,17 @@ let run<'T when 'T : unmanaged and 'T : struct and 'T :> ValueType and 'T : (new
         | x when x = typeof<int32> -> "int32"
         | x ->
             invalidOp $"Type '{x.FullName}' not supported or implemented."
+    let returnTyName =
+        match typeof<'TResult> with
+        | x when x = typeof<float32> -> "float32"
+        | x when x = typeof<Vector2> -> "vec2"
+        | x when x = typeof<Vector3> -> "vec3"
+        | x when x = typeof<Vector4> -> "vec4"
+        | x when x = typeof<int32> -> "int32"
+        | x ->
+            invalidOp $"Type '{x.FullName}' not supported or implemented."
 
-    let dataKind = getNumericsDataKind<'T>
+    let inputDataKind = getNumericsDataKind<'T>
 
     let src = $"""
 #target "dotnet: net10.0"
@@ -66,12 +75,13 @@ open System.Text.Json
 #[export]
 class InputDataKind =
 
-    DataKind: string get, set = ""
+    InputDataKind: string get, set = ""
+    OutputDataKind: string get, set = ""
 
 #[export]
 class InputData<T> =
 
-    Data: mutable T[] get, set = mutable []
+    InputData: mutable T[] get, set = mutable []
 
 SerializeOutput<T>(output: mutable T[]): string =
     let options = JsonSerializerOptions()
@@ -81,33 +91,34 @@ SerializeOutput<T>(output: mutable T[]): string =
 DeserializeInputKind(input: string): string =
     let options = JsonSerializerOptions()
     options.IncludeFields <- true
-    JsonSerializer.Deserialize<InputDataKind>(input, options).DataKind
+    JsonSerializer.Deserialize<InputDataKind>(input, options).InputDataKind
 
 DeserializeInput<T>(input: string): mutable T[] =
     let options = JsonSerializerOptions()
     options.IncludeFields <- true
-    JsonSerializer.Deserialize<InputData<T>>(input, options).Data
+    JsonSerializer.Deserialize<InputData<T>>(input, options).InputData
 
-Test(input: {tyName}): {tyName} =
+Test(input: {tyName}): {returnTyName} =
     {src}
 
-Run<T>(input: string, f: T -> T): () =
+Run<T, TResult>(input: string, f: T -> TResult): () =
     let xs = DeserializeInput<T>(input)
+    let output = zeroArray<TResult>(xs.Length)
 
     let mutable i = 0
     while (i < xs.Length)
-        xs[i] <- f(xs[i])
+        output[i] <- f(xs[i])
         i <- i + 1
 
-    print(SerializeOutput(xs))
+    print(SerializeOutput(output))
 
 main(args: string[]): () =
     if (args.Length != 1)
         fail("Invalid test input")
 
-    Run<{tyName}>(args[0], Test)  
+    Run<{tyName}, {returnTyName}>(args[0], Test)  
 """
-    let output = cachedBuild true src |> runAux dataKind input
-    Assert.Equal<'T>(expectedOutput, output)
-    let output = cachedBuild false src |> runAux dataKind input
-    Assert.Equal<'T>(expectedOutput, output)
+    let output = cachedBuild true src |> runAux inputDataKind input
+    Assert.Equal<'TResult>(expectedOutput, output)
+    let output = cachedBuild false src |> runAux inputDataKind input
+    Assert.Equal<'TResult>(expectedOutput, output)
