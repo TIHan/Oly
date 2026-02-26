@@ -2389,3 +2389,19 @@ class A // src2
 
     OlyWithRef src1 src2
     |> shouldCompile
+
+[<Fact>]
+let ``Class name with the same name as the property should resolve correctly when accessing the property``() =
+    let src =
+        """
+
+class InputDataKind =
+
+    InputDataKind: __oly_int32 get, set = 0
+
+main(): () =
+    let x = InputDataKind()
+    let y: __oly_int32 = x.InputDataKind
+        """
+    Oly src
+    |> shouldCompile

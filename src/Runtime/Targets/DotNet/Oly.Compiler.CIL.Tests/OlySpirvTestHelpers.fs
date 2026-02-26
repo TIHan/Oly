@@ -20,7 +20,7 @@ let private serializeInput dataKind input =
     options.IncludeFields <- true
     let data = JsonSerializer.Serialize<_>(input, options)
 
-    $"""{{ "DataKind": "{dataKind}", "Data": """ + data + " }"
+    $"""{{ "InputDataKind": "{dataKind}", "InputData": """ + data + " }"
 
 let private deserializeOutput<'T> (output: string) =
     let options = JsonSerializerOptions()
@@ -76,7 +76,6 @@ open System.Text.Json
 class InputDataKind =
 
     InputDataKind: string get, set = ""
-    OutputDataKind: string get, set = ""
 
 #[export]
 class InputData<T> =

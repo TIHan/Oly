@@ -36,16 +36,17 @@ let private combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol s
 
 [<RequireQualifiedAccess>]
 type QueryMemberFlags =
-    | StaticOrInstance =          0x00000
-    | Static =                    0x00001
-    | Instance =                  0x00010
-    | Overridable =               0x00100
+    | StaticOrInstance =          0x000000
+    | Static =                    0x000001
+    | Instance =                  0x000010
+    | Overridable =               0x000100
 
     /// This will by-pass any accessor logic.
-    | InstanceFunctionOverrides = 0x01010
+    | InstanceFunctionOverrides = 0x001010
     // TODO: Add StaticInstanceFunctionOverrides
 
-    | PatternFunction =           0x10001
+    | PatternFunction =           0x010001
+    | SkipConstructors =          0x100000
 
 [<RequireQualifiedAccess>]
 type QueryFunction =
@@ -149,8 +150,12 @@ let private filterFunctions (queryMemberFlags: QueryMemberFlags) (funcFlags: Fun
     let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
     let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
     let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
+    let skipCtors = queryMemberFlags &&& QueryMemberFlags.SkipConstructors = QueryMemberFlags.SkipConstructors
     funcs
     |> Seq.filter (fun func ->
+        if skipCtors && func.IsConstructor then false
+        else
+
         let func =
             if canCheckOverrides then
                 match func.FunctionOverrides with

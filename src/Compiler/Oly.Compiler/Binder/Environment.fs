@@ -424,6 +424,7 @@ type BinderEnvironment =
 #if DEBUG || CHECKED
                             // Check the enclosings to make sure we are not adding values who have the same enclosing multiple times.
                             // We prefer to add values in bulk for an individual enclosing.
+                            // We want to check for this because of performance reasons.
                             let exists =
                                 currentFuncs
                                 |> ImArray.exists (fun x ->
@@ -432,6 +433,8 @@ type BinderEnvironment =
                                         areEnclosingsEqual x.Enclosing y.Enclosing
 
                                         // It is possible to add the same constructor more than once because of aliases. So we ignore it for this assertion.
+                                        // REVIEW: Has the potential to cause performance issues, but does not seem to happen often.
+                                        // TODO: Add a test case where it fails in Debug if the condition below is removed.
                                         && not x.IsInstanceConstructor && not y.IsInstanceNotConstructor 
                                     )
                                 )

@@ -1238,9 +1238,9 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
     let value =
         let queryMemberFlags =
             if isStatic then
-                QueryMemberFlags.Static
+                QueryMemberFlags.SkipConstructors ||| QueryMemberFlags.Static
             else
-                QueryMemberFlags.Instance
+                QueryMemberFlags.SkipConstructors ||| QueryMemberFlags.Instance
 
         let funcs =
             ty.FindMostSpecificFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
