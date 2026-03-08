@@ -254,7 +254,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                 let namedTy = builder.CreateTypeStructBuilder(enclosing, name)
                 namedTy.AsType
             | OlyILEntityKind.TypeExtension ->
-                SpirvType.Invalid
+                SpirvType.Extension(name, SpirvSetOnce())
             | _ ->
                 raise(NotSupportedException())
 
@@ -270,6 +270,12 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
                             | _ ->
                                 None
                     )
+            else
+                match ty with
+                | SpirvType.Extension(_, underlyingTy) ->
+                    underlyingTy.SetValue(ImArray.head extends)
+                | _ ->
+                    ()
 
         member this.OnTypeDefinitionEmitted(ty) =
             if ty.IsStructBuilder then

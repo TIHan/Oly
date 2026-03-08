@@ -70,6 +70,8 @@ extension vec4Extensions =
     static UnitZ: vec4 get() = vec4(0, 0, 1, 0)
     static UnitW: vec4 get() = vec4(0, 0, 0, 1)
 
+    XYZ: vec3 get() = vec3(this.X, this.Y, this.Z)
+
 #[import("spirv", "std", "dvec2")]
 struct dvec2 =
     public field mutable X: float64

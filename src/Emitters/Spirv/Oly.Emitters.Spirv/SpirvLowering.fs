@@ -19,7 +19,8 @@ module rec SpirvLowering =
 
     let rec private isValidForwardSub loweredExpr =
         match loweredExpr with
-        | E.Value(value=V.Local _) -> true
+        | E.Value(value=V.Local _)
+        | E.Value(value=V.Argument _)-> true
         | E.Operation(op=BuiltInOperations.AccessChain(baseExpr, indexExprs, _)) ->
             isValidForwardSub baseExpr &&
             (indexExprs |> ROMem.forall(function E.Value(value=V.Constant _) -> true | _ -> false))

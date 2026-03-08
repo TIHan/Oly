@@ -63,6 +63,21 @@ type SpirvArrayKind =
     | Immutable
     | Mutable
 
+/// Not thread safe.
+[<Sealed>]
+type SpirvSetOnce<'T when 'T : not struct>() =
+    let mutable store = Unchecked.defaultof<'T>
+
+    member this.HasValue = not(isNull (store :> obj))
+    member this.Value =
+        if not this.HasValue then
+            raise(NullReferenceException())
+        store
+    member this.SetValue(value: 'T) =
+        if this.HasValue then
+            raise(InvalidOperationException("Value already set."))
+        store <- value
+
 [<RequireQualifiedAccess>]
 type SpirvType =
     | Invalid
@@ -91,6 +106,7 @@ type SpirvType =
 
     | Struct of SpirvTypeStructBuilder
     | Module of enclosing: Choice<string imarray, SpirvType> * name: string
+    | Extension of name: string * underlyingTy: SpirvSetOnce<SpirvType>
 
     /// ByRefs do not exist in spirv, but it is useful to track it.
     /// Note: We could get rid of this type if we can figure out a better way to handle emitting a byref and 
@@ -98,6 +114,11 @@ type SpirvType =
     | OlyByRef of kind: OlyIRByRefKind * elementTy: SpirvType
 
     | OlyConstantInt32 of value: int32
+
+    member this.StripExtension() =
+        match this with
+        | Extension(underlyingTy=underlyingTy) -> underlyingTy.Value
+        | _ -> this
 
     member this.GetSizeInBytes(): uint32 =
         match this with
@@ -133,6 +154,11 @@ type SpirvType =
         | Struct(structBuilder) ->
             structBuilder.Fields
             |> Seq.sumBy (fun x -> x.Type.GetSizeInBytes())
+        | Extension(_, underlyingTy) ->
+            if underlyingTy.HasValue then
+                underlyingTy.Value.GetSizeInBytes()
+            else
+                raise(InvalidOperationException("Newtype has no underlying type."))
         | Void _
         | Module _
         | Invalid ->
@@ -209,6 +235,11 @@ type SpirvType =
 
                 OpTypeStruct(structBuilder.IdResult, structBuilder.Fields |> Seq.map (fun x -> x.Type.IdResult) |> List.ofSeq)
             ]
+        | Extension(_, underlyingTy) ->
+            if underlyingTy.HasValue then
+                underlyingTy.Value.GetDefinitionInstructions()
+            else
+                raise(InvalidOperationException("Newtype has no underlying type."))
 
         | Module _ -> 
             failwith "Invalid type for 'GetDefinitionInstructions'."
@@ -236,6 +267,11 @@ type SpirvType =
         | Function(idResult, _, _)
         | RuntimeArray(idResult, _, _) -> idResult
         | Struct(namedTy) -> namedTy.IdResult
+        | Extension(_, underlyingTy) ->
+            if underlyingTy.HasValue then
+                underlyingTy.Value.IdResult
+            else
+                raise(InvalidOperationException("Newtype has no underlying type."))                
         | Module _ -> failwith "Invalid type for 'IdResult'."
         | OlyByRef _ 
         | OlyConstantInt32 _ -> 
@@ -1143,7 +1179,7 @@ type SpirvModuleBuilder(majorVersion: uint, minorVersion: uint, executionModel: 
         var
 
     member this.CreateFunctionBuilder(enclosingTy: SpirvType, name: string, irFlags: OlyIRFunctionFlags, irPars: OlyIRParameter<SpirvType, SpirvFunction> imarray, returnTy: SpirvType) =
-        let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy, name, irFlags, irPars, returnTy)
+        let func = SpirvFunctionBuilder(this, this.NewIdResult(), enclosingTy.StripExtension(), name, irFlags, irPars, returnTy)
         funcs.Add(func)
         if func.IsEntryPoint then
             if isNull(box entryPoint) then

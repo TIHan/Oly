@@ -37,11 +37,11 @@ let ``round - vec2``() =
 
 [<Fact>]
 let ``round - vec3``() =
-    "let result = round(vec3(input.Y, input.Z, input.W))\n    vec4(0, result.X, result.Y, result.Z)"
+    "vec4(round(input.XYZ), 0)"
     |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
 
-    "let result = round(vec3(input.Y, input.Z, input.W))\n    vec4(0, result.X, result.Y, result.Z)"
-    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
+    "vec4(round(input.XYZ), 0)"
+    |> run [|Vector4(0.9f, 0.1f, 0.1f, 0.0f)|] [|Vector4(1.0f, 0.0f, 0.0f, 0.0f)|]
 
 [<Fact>]
 let ``round - vec4``() =
@@ -84,11 +84,11 @@ let ``roundEven - vec2``() =
 
 [<Fact>]
 let ``roundEven - vec3``() =
-    "roundEven(input)"
-    |> run [|Vector3(0.1f)|] [|Vector3(0.0f)|]
+    "vec4(roundEven(input.XYZ), 0)"
+    |> run [|Vector4(Vector3(0.1f), 0.f)|] [|Vector4(0.0f)|]
 
-    "roundEven(input)"
-    |> run [|Vector3(0.1f, 0.1f, 0.1f)|] [|Vector3(0.0f, 0.0f, 0.0f)|]
+    "vec4(roundEven(input.XYZ), 0)"
+    |> run [|Vector4(Vector3(0.1f, 0.1f, 0.1f), 0.f)|] [|Vector4(0.0f)|]
 
 [<Fact>]
 let ``roundEven - vec4``() =
@@ -110,8 +110,8 @@ let ``floor - vec2``() =
 
 [<Fact>]
 let ``floor - vec3``() =
-    "floor(input)"
-    |> run [|Vector3(0.1f, 1.1f, 2.1f)|] [|Vector3(0.0f, 1.0f, 2.0f)|]
+    "vec4(floor(input.XYZ), 0)"
+    |> run [|Vector4(0.1f, 1.1f, 2.1f, 0.f)|] [|Vector4(0.0f, 1.0f, 2.0f, 0.f)|]
 
 [<Fact>]
 let ``floor - vec4``() =

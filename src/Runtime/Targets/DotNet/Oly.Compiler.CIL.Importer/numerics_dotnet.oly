@@ -9,6 +9,12 @@ alias vec3 = Vector3
 alias vec4 = Vector4
 alias quat = Quaternion
 
+#[open]
+extension vec4Extensions =
+    inherits Vector4
+
+    XYZ: vec3 get() = vec3(this.X, this.Y, this.Z)
+
 (+)(v1: vec3, v2: vec3): vec3 = Vector3.Add(v1, v2)
 (-)(v1: vec3, v2: vec3): vec3 = Vector3.Subtract(v1, v2)
 (*)(v1: vec3, v2: vec3): vec3 = Vector3.Multiply(v1, v2)
