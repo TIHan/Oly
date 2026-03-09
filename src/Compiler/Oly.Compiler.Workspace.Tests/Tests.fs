@@ -38,7 +38,7 @@ let createDocument src (workspace: OlyWorkspace) =
 #else
     let isDebuggable = false
 #endif
-    let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable)
+    let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable, OlyDefaultAccessor.Public)
     let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", "dotnet", OlyTargetInfo("net10.0", projOptions, OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
     let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)))
     let sol, proj, doc = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)

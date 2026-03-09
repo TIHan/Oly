@@ -124,7 +124,7 @@ let private shaderAux (kind: string) (spv: SpirvModule) : Bitmap =
 
     let shaderPath = spvBytes.Name
 
-    let inputJson = $"""{{ "ShaderKind": "{kind}", "DataKind": "int", "Data": """ + "[123]" + " }"
+    let inputJson = $"""{{ "OutputDataKind": "int", "ShaderKind": "{kind}", "InputDataKind": "int", "InputData": """ + "[123]" + " }"
 
     let p = GPU.GetTestService()
 

@@ -703,7 +703,7 @@ let ``Basic compute shader`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -730,7 +730,7 @@ let ``Basic compute shader 2 - verify use of local creation`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -745,7 +745,7 @@ let ``Basic compute shader 3 - verify use of function GetValue`` () =
     let src =
         """
 buffer: mutable float32[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 GetValue(x: float32): float32 =
@@ -761,7 +761,7 @@ let ``Basic compute shader 4 - verify use of int32`` () =
     let src =
         """
 buffer: mutable int32[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -777,7 +777,7 @@ struct TestData =
     public field mutable Value: float32 = 0
 
 buffer: mutable TestData[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -804,7 +804,7 @@ struct TestData2 =
     public field mutable Value: TestData = TestData()
 
 buffer: mutable TestData2[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -831,7 +831,7 @@ struct TestData3 =
     public field mutable Value: TestData2 = TestData2()
 
 buffer: mutable TestData3[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -849,7 +849,7 @@ let ``Basic compute shader 8 - verify vec2`` () =
     let src =
         """
 buffer: mutable vec2[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -872,7 +872,7 @@ struct new_vec4 =
     public field mutable W: float32 = 0
 
 buffer: mutable new_vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -896,7 +896,7 @@ struct new_vec4 =
     public field mutable XYZ: vec3 = vec3(0)
 
 buffer: mutable new_vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -916,7 +916,7 @@ let ``Basic compute shader 10 - verify vec4`` () =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 main(): () =
@@ -932,7 +932,7 @@ let ``Basic compute shader 11 - verify struct ctor`` () =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct Doot =
@@ -952,7 +952,7 @@ let ``Basic compute shader 12 - verify struct instance method`` () =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct Doot =
@@ -976,7 +976,7 @@ let ``Basic compute shader 12 - verify struct instance method - 2``() =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct Doot =
@@ -1000,7 +1000,7 @@ let ``Basic compute shader 12 - verify struct instance method - 3``() =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct Doot =
@@ -1028,7 +1028,7 @@ let ``Basic compute shader 12 - verify struct instance method - 4``() =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct NestedDoot =
@@ -1055,7 +1055,7 @@ let ``Basic compute shader 12 - verify struct instance method - 5``() =
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 struct NestedDoot =
@@ -1085,7 +1085,7 @@ let ``Basic compute shader 13 - verify modifying argument does not impact the or
     let src =
         """
 buffer: mutable vec4[]
-    #[storage_buffer, descriptor_set(0), binding(0)]
+    #[storage_buffer, descriptor_set(1), binding(0)]
     get
 
 test(mutable x: float32): () = x <- 555
