@@ -21581,3 +21581,42 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "doot"
     |> ignore
+
+[<Fact>]
+let ``Trait constraint on a type's type parameter``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+#[open]
+extension Int32Extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = print("test")
+
+main(): () =
+    let x = 1: int32
+    let c = C(x)
+    c.Call()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore

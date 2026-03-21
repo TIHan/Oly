@@ -1112,8 +1112,8 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                                                 false
                                         )
                                     check tyArg
-                                    if exists then
-                                        acenv.cenv.diagnostics.Error("Witnesses are escaping the scope. (TODO: better error message)", 10, syntaxInfo.Syntax.BestSyntaxForReporting)
+                                  //  if exists then
+                                    //    acenv.cenv.diagnostics.Error("Witnesses are escaping the scope. (TODO: better error message)", 10, syntaxInfo.Syntax.BestSyntaxForReporting)
                                 )
 
                         parTys
