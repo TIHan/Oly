@@ -3745,6 +3745,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     tyPar.ConstraintTraits <- Lazy<_>.CreateFromValue(constrTraits)
                 )
 
+                ty.CheckConstraints()
+
                 ty
         else
             match asm.entRefCache.TryGetValue(ilEntDefOrRefHandle) with
