@@ -3143,16 +3143,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let witnesses =
                 let fixedGenericContext =
-                    // TODO: This could add support for witness resolving for type parameters on types.
-                    //let funcTyArgs =
-                    //    if func.Flags.IsConstructor then
-                    //        func.EnclosingType.TypeArguments
-                    //    else 
-                    //        funcTyArgs
+                    let fixedGenericContext =
+                        if genericContext.IsErasingType then
+                            GenericContext.CreateErasing(enclosing.TypeArguments)
+                        else
+                            GenericContext.Default
                     if genericContext.IsErasingFunction then
-                        GenericContext.Default.AddErasingFunctionTypeArguments(funcTyArgs)
+                        fixedGenericContext.AddErasingFunctionTypeArguments(funcTyArgs)
                     else                     
-                        GenericContext.Default.AddFunctionTypeArguments(funcTyArgs)
+                        fixedGenericContext.AddFunctionTypeArguments(funcTyArgs)
                 ilWitnesses
                 |> ImArray.map (fun x -> 
                     resolveWitness ilAsm x fixedGenericContext
