@@ -264,16 +264,6 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
     | Error(ShapeMembers_AmbiguousFunctions _) as res -> res
     | _ ->
 
-    // Type parameters from types do not support witnesses.
-    // This isn't so much a limitation, but a design decision; augmenting a type with witnesses have usability issues for the end-user that isn't worth it.
-    // However, the Oly Runtime has limited support for it but is impossible to describe it in OlyIL.
-    //     The limited support is for implementation details when a type parameter is captured.
-    // Current design is a work-in-progress.
-    if tyPar.Kind = TypeParameterKind.Type then
-        // TODO: Instead of returning a 'bool', we should return a structure that represents why a constraint failed.
-        Error(GeneralFailure)
-    else
-
     if solver <> WitnessSolver.Trait then
         Error(GeneralFailure)
     else
