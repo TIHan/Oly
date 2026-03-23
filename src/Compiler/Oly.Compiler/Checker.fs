@@ -269,17 +269,22 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
                     env.diagnostics.Error($"Cannot use '{printType env.benv tyArg}' as a type constructor as it has type parameters with constraints.", 10, syntaxTy)
     )
 
-    let skipAmount = tyPars.Length - syntaxTys.Length
+    let witnesses =
+        tyPars
+        |> ImArray.map (fun tyPar ->
+            freshWitnessesWithTypeArguments ent.TypeArguments tyPar
+        )
+        |> ImArray.concat
 
     solveConstraints
         env
         skipUnsolved
         syntaxNode
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
-        (tyPars |> ImArray.skip skipAmount)
-        (tyArgs |> ImArray.skip skipAmount)
+        tyPars
+        tyArgs
         false
-        ImArray.empty (* type constructors do not support witnesses *)
+        witnesses
 
 let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
     match stripTypeEquations ty with
