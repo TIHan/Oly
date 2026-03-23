@@ -291,6 +291,11 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
             tyPars
             |> ImArray.map (fun (tyPar: TypeParameterSymbol) -> tyPar.AsType)
 
+    // TODO: Witnesses
+    let lazyWitnesses =
+        lazy
+            ImArray.empty
+
     let lazyEntities =
         lazy
             ent.Entities
@@ -368,6 +373,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Properties = lazyProps.Value
     override this.TypeArguments = lazyTyArgs.Value
     override this.TypeParameters = tyPars
+    override this.Witnesses = lazyWitnesses.Value
     override this.Documentation = ent.Documentation
 
 
@@ -1997,6 +2003,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     override _.Name: string = name
     override _.TypeArguments: TypeSymbol imarray = evalTyArgs()
     override _.TypeParameters: TypeParameterSymbol imarray = evalTyPars()
+    override _.Witnesses: WitnessSolution imarray = ImArray.empty
     override _.Attributes = evalAttrs()
     override _.Documentation =
         match ilAsm.TryGetEntityDefinitionDocumentation(ilEntDefHandle) with

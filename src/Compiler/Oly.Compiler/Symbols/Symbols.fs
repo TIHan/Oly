@@ -296,6 +296,8 @@ type EntitySymbol() =
 
     abstract TypeArguments : ImmutableArray<TypeSymbol>
 
+    abstract Witnesses : WitnessSolution imarray
+
     abstract Entities : EntitySymbol imarray
 
     abstract Fields : IFieldSymbol imarray
@@ -431,6 +433,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     override _.Implements = implements.contents
     override _.Extends = extends.contents
     override _.TypeParameters = tyPars.contents
+    override _.Witnesses = ImArray.empty
     override _.Kind = kind
     override _.ContainingAssembly = containingAsmOpt
     override this.Formal = this
@@ -664,6 +667,8 @@ let substituteTypes (tyArgs: TypeArgumentSymbol imarray) (tys: TypeSymbol imarra
 type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) =
     inherit EntitySymbol()
 
+    let mutable witnesses = ImArray.empty
+
     do
         OlyAssert.True(ent.IsFormal)
         OlyAssert.True(ent.IsTypeConstructor)
@@ -721,6 +726,12 @@ type AppliedEntitySymbol(tyArgs: TypeArgumentSymbol imarray, ent: EntitySymbol) 
     override _.Enclosing = enclosing
     override _.TypeParameters = ent.TypeParameters
     override _.ContainingAssembly = ent.ContainingAssembly
+
+    override _.Witnesses = witnesses
+
+    /// Mutability
+    member this.SetWitnesses(value) =
+        witnesses <- value
 
     override this.Fields =
         match appliedFields with
@@ -1743,6 +1754,7 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
     override this.Properties = ImArray.empty
     override this.TypeArguments = ImArray.empty
     override this.TypeParameters = ImArray.empty
+    override this.Witnesses = ImArray.empty
     override this.Documentation = String.Empty
 
 [<RequireQualifiedAccess>]
