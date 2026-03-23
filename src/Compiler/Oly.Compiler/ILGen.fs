@@ -287,11 +287,13 @@ and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
     )
 #endif
 
+    let ilWitnesses = ImArray.empty // TODO: implement this
+
     if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
         // Local to the assembly
-        OlyILEntityInstance(GenEntityAsILEntityDefinition cenv env ent.Formal, ilTyInst)
+        OlyILEntityInstance(GenEntityAsILEntityDefinition cenv env ent.Formal, ilTyInst, ilWitnesses)
     else
-        OlyILEntityInstance(GenEntityAsILEntityReference cenv env ent.Formal, ilTyInst)
+        OlyILEntityInstance(GenEntityAsILEntityReference cenv env ent.Formal, ilTyInst, ilWitnesses)
 
 and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: EntitySymbol) =
 #if DEBUG || CHECKED

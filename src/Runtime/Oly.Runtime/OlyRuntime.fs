@@ -712,7 +712,7 @@ let importOperationNewOrDefault
             let isShape = 
                 match ilEnclosingAbstractEntInst with
                 // Shapes can only be entity definitions.
-                | OlyILEntityInstance.OlyILEntityInstance(ilHandle, _) when ilHandle.Kind = OlyILTableKind.EntityDefinition ->
+                | OlyILEntityInstance.OlyILEntityInstance(ilHandle, _, _) when ilHandle.Kind = OlyILTableKind.EntityDefinition ->
                     let ilEntDef = env.ILAssembly.GetEntityDefinition(ilHandle)
                     ilEntDef.Kind = OlyILEntityKind.Shape
                 | _ -> 
@@ -3327,8 +3327,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 false
         | OlyILEnclosing.Entity(ilEntInst1), OlyILEnclosing.Entity(ilEntInst2) ->
             match ilEntInst1, ilEntInst2 with
-            | OlyILEntityInstance(handle1, ilTyArgs1), OlyILEntityInstance(handle2, ilTyArgs2) ->
-                if ilTyArgs1.Length = ilTyArgs2.Length then
+            | OlyILEntityInstance(handle1, ilTyArgs1, ilWitnesses1), OlyILEntityInstance(handle2, ilTyArgs2, ilWitnesses2) ->
+                if ilTyArgs1.Length = ilTyArgs2.Length && ilWitnesses1.Length = ilWitnesses2.Length then
                     let name1 = 
                         let nameHandle =
                             if handle1.Kind = OlyILTableKind.EntityDefinition then
@@ -3352,6 +3352,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 let ty1 = this.ResolveType(ilAsm1, ilTy1, GenericContext.Default)
                                 let ty2 = this.ResolveType(ilAsm2, ilTy2, GenericContext.Default)
                                 ty1 = ty2
+                            ) && (
+                                (ilWitnesses1, ilWitnesses2)
+                                ||> ImArray.forall2 (fun ilWitness1 ilWitness2 ->
+                                    let witness1 = this.ResolveWitness(ilAsm1, ilWitness1, GenericContext.Default)
+                                    let witness2 = this.ResolveWitness(ilAsm2, ilWitness2, GenericContext.Default)
+                                    witness1 = witness2
+                                )
                             )
                         else
                             false
@@ -3745,7 +3752,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     tyPar.ConstraintTraits <- Lazy<_>.CreateFromValue(constrTraits)
                 )
 
-                ty.CheckConstraints()
+                ty.CheckTraitConstraints()
 
                 ty
         else
@@ -3796,17 +3803,24 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match ilTy with
         | OlyILTypeEntity(ilEntInst) ->
             match ilEntInst with
-            | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs) ->
+            | OlyILEntityInstance(ilEntDefOrRefHandle, ilTyArgs, ilWitnesses) ->
                 let ty = this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
 #if DEBUG || CHECKED
                 OlyAssert.Equal(ty.TypeParameters.Length, ilTyArgs.Length)
 #endif
                 if ilTyArgs.IsEmpty then
+                    if not ilWitnesses.IsEmpty then
+                        invalidOp $"Type '{ty.Name}' instance contains witnesses but has no type arguments."
                     ty
                 else
                     let tyArgs = ilTyArgs |> ImArray.map (fun x -> this.ResolveType(ilAsm, x, genericContext))
+                    let witnesses =
+                        ilWitnesses
+                        |> ImArray.map (fun ilWitness -> 
+                            this.ResolveWitness(ilAsm, ilWitness, genericContext)
+                        )
                     let asm = assemblies.[ty.AssemblyIdentity]
-                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(genericContext.PassedWitnesses)
+                    asm.RuntimeTypeInstanceCache.GetOrCreate(ty.ILEntityDefinitionHandle, tyArgs).SetWitnesses(witnesses.AddRange(genericContext.PassedWitnesses))
             | OlyILEntityConstructor(ilEntDefOrRefHandle) ->
                 this.ResolveTypeDefinition(ilAsm, ilEntDefOrRefHandle)
             | _ ->
@@ -3989,6 +4003,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         ilTys
         |> ImArray.map (fun ilTy -> this.ResolveType(ilAsm, ilTy, genericContext))
 
+    member this.ResolveWitness(ilAsm: OlyILReadOnlyAssembly, ilWitness: OlyILWitness, genericContext: GenericContext) : RuntimeWitness =
+        resolveWitness ilAsm ilWitness genericContext
+
     member private this.FindTypes(ilAsmOrig: OlyILReadOnlyAssembly, ilEnclosing: OlyILEnclosing, ilAsmIdentity: OlyILAssemblyIdentity, name: string, arity: int) : RuntimeType imarray =
         let builder = ImArray.builder()
 
@@ -4036,7 +4053,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
         let enclosingTy = 
             let tyArgs = ImArray.init ilEntDef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
-            let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs))
+            let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs, ImArray.empty))
             (this.ResolveEnclosing(asm.ilAsm, ilEnclosing, GenericContext.Default, ImArray.empty)).AsType
 
         ilEntDef.FunctionHandles
@@ -4056,7 +4073,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let ilEntDef = asm.ilAsm.GetEntityDefinition(ty.ILEntityDefinitionHandle)
         let enclosing = 
             let tyArgs = ImArray.init ilEntDef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
-            let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs))
+            let ilEnclosing = OlyILEnclosing.Entity(OlyILEntityInstance(ty.ILEntityDefinitionHandle, tyArgs, ImArray.empty))
             this.ResolveEnclosing(asm.ilAsm, ilEnclosing, genericContext, ImArray.empty)
 
         let enclosingTy2 = enclosing.AsType

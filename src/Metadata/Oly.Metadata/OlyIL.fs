@@ -270,7 +270,7 @@ type OlyILEntityDefinition =
 
 [<NoEquality;NoComparison>]
 type OlyILEntityInstance =
-    | OlyILEntityInstance of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle * tyArgs: OlyILType imarray
+    | OlyILEntityInstance of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray
     | OlyILEntityConstructor of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle
 
     // We define these dummies to trick the F# compiler to use tags for equality.
@@ -361,7 +361,8 @@ type OlyILEnclosing =
 
     member this.TypeArgumentCount =
         match this with
-        | Entity(OlyILEntityInstance(_, tyArgs)) -> tyArgs.Length
+        | Entity(OlyILEntityInstance(tyArgs=tyArgs)) -> tyArgs.Length
+        | Witness(ty, _) -> ty.TypeArguments.Length
         | _ -> 0
 
 [<RequireQualifiedAccess>]
@@ -709,7 +710,7 @@ type OlyILType =
         | OlyILTypeHigherVariable _ -> true
         | _ -> false
 
-    member this.TypeArguments =
+    member this.TypeArguments: OlyILType imarray =
         match this with
         | OlyILTypeInvalid _
         | OlyILTypeModified _
@@ -749,44 +750,7 @@ type OlyILType =
     member this.IsFunction =
         match this with
         | OlyILTypeFunction _ -> true
-        | _ -> false
-
-    member this.IsBuiltIn =
-        match this with
-        | OlyILTypeInvalid _
-        | OlyILTypeModified _
-        | OlyILTypeVoid
-        | OlyILTypeUnit
-        | OlyILTypeInt8
-        | OlyILTypeUInt8
-        | OlyILTypeInt16
-        | OlyILTypeUInt16
-        | OlyILTypeInt32
-        | OlyILTypeUInt32
-        | OlyILTypeInt64
-        | OlyILTypeUInt64
-        | OlyILTypeFloat32
-        | OlyILTypeFloat64
-        | OlyILTypeBool
-        | OlyILTypeChar16
-        | OlyILTypeUtf16
-        | OlyILTypeTuple _
-        | OlyILTypeFunction _
-        | OlyILTypeRefCell _
-        | OlyILTypeVariable _
-        | OlyILTypeHigherVariable _
-        | OlyILTypeConstantInt32 _ 
-        | OlyILTypeBaseObject
-        | OlyILTypeByRef _
-        | OlyILTypeNativeInt
-        | OlyILTypeNativeUInt
-        | OlyILTypeNativePtr _
-        | OlyILTypeNativeFunctionPtr _
-        | OlyILTypeArray _
-        | OlyILTypeFixedArray _
-        | OlyILTypeDependentIndexer _ 
-        | OlyILTypeForAll _ -> true
-        | OlyILTypeEntity _ -> false          
+        | _ -> false       
 
 type OlyILLocalFlags =
     | None           = 0x0000
@@ -1274,7 +1238,7 @@ type OlyILAssembly =
 
     member this.GetAssemblyIdentity(ilEntInst: OlyILEntityInstance) =
         match ilEntInst with
-        | OlyILEntityInstance.OlyILEntityInstance(ilDefOrRefHandle, _)
+        | OlyILEntityInstance.OlyILEntityInstance(ilDefOrRefHandle, _, _)
         | OlyILEntityInstance.OlyILEntityConstructor(ilDefOrRefHandle) ->
             if ilDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
                 this.Identity
@@ -1402,7 +1366,7 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
             )
             builder.Append("::") |> ignore
 
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
+        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _, _)) ->
             this.GetQualifiedName(ilEntDefOrRefHandle, builder)
 
         | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
@@ -1432,7 +1396,7 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
             )
             builder.Append("::") |> ignore
 
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
+        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _, _)) ->
             this.GetQualifiedName(ilEntDefOrRefHandle, builder)
 
         | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->

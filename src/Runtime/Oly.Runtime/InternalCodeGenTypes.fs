@@ -699,7 +699,7 @@ type RuntimeType =
     // TODO: We should generalize constant types.
     | ConstantInt32 of value: int32
 
-    member this.CheckConstraints() =
+    member this.CheckTraitConstraints() =
         match this with
         | Entity(ent) when not ent.TypeParameters.IsEmpty ->
             (ent.TypeParameters, ent.TypeArguments)
@@ -716,7 +716,7 @@ type RuntimeType =
                                 witness.TypeVariableKind = OlyILTypeVariableKind.Type && witness.TypeVariableIndex = tyVarIndex
                             )
                         if not validWitnessExists then
-                            invalidOp $"Type '{ent.Name}' does not satisfy constraints."
+                            invalidOp $"Type '{ent.Name}' does not satisfy trait constraints."
                 )
             )
         | _ ->
@@ -727,7 +727,7 @@ type RuntimeType =
         match this with
         | Entity(ent) ->
             let ty = RuntimeType.Entity(ent.SetWitnesses(witnesses))
-            ty.CheckConstraints()
+            ty.CheckTraitConstraints()
             ty
         | _ ->
             this

@@ -1011,7 +1011,7 @@ let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) 
             | OlyILEnclosing.Entity(ilEntInst) ->
                 let enclosingName =
                     match ilEntInst with
-                    | OlyILEntityInstance(ilDefOrRefHandle, _)
+                    | OlyILEntityInstance(ilDefOrRefHandle, _, _)
                     | OlyILEntityConstructor(ilDefOrRefHandle) ->
                         if ilDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
                             ilAsm.GetEntityDefinition(ilDefOrRefHandle).NameHandle
@@ -1048,7 +1048,7 @@ let private getQualifiedNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (
         | OlyILEnclosing.Entity(ilEntInst) ->
             let enclosingName =
                 match ilEntInst with
-                | OlyILEntityInstance(ilDefOrRefHandle, _)
+                | OlyILEntityInstance(ilDefOrRefHandle, _, _)
                 | OlyILEntityConstructor(ilDefOrRefHandle) ->
                     if ilDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
                         ilAsm.GetEntityDefinition(ilDefOrRefHandle).NameHandle
@@ -1118,7 +1118,10 @@ let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILE
 
 let private importEntitySymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilEntRef: OlyILEntityInstance) =
     match ilEntRef with
-    | OlyILEntityInstance.OlyILEntityInstance(ilEntDefOrSpecHandle, ilTyInst) ->
+    | OlyILEntityInstance.OlyILEntityInstance(ilEntDefOrSpecHandle, ilTyInst, ilWitnesses) ->
+        if not ilWitnesses.IsEmpty then
+            raise(NotImplementedException("IL witnesses"))
+
         let ent =
             if ilEntDefOrSpecHandle.Kind = OlyILTableKind.EntityDefinition then
                 importEntitySymbolFromDefinition cenv ilEntDefOrSpecHandle
@@ -1438,7 +1441,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 let ilPars =
                     if this.IsInstance then
                         let ilTyArgs = ImArray.init enclosingEnt.TypeParameters.Length (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
-                        let ilEnclosingTy = OlyILTypeEntity(OlyILEntityInstance(ilEnclosingEntDefHandle, ilTyArgs))
+                        let ilEnclosingTy = OlyILTypeEntity(OlyILEntityInstance(ilEnclosingEntDefHandle, ilTyArgs, ImArray.empty))
                         let ilEnclosingTy =
                             if enclosingEnt.IsStruct then
                                 if enclosingEnt.IsReadOnly then
