@@ -144,7 +144,7 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (s
     match stripTypeEquations partiallyStrippedTy with
     | TypeSymbol.Entity(ent) ->
         analyzeTypeEntity acenv aenv syntaxNode ent
-        //checkEntityConstructor (SolverEnvironment.Create(acenv.cenv.diagnostics, aenv.benv, Pass4)) syntaxNode false ImArray.empty ent
+        checkEntityConstructor (SolverEnvironment.Create(acenv.cenv.diagnostics, aenv.benv, Pass4)) syntaxNode false ImArray.empty ent
 
     | TypeSymbol.InferenceVariable(Some tyPar, _)
     | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
