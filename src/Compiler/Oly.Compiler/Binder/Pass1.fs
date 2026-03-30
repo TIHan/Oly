@@ -52,6 +52,22 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
     let ent = entBuilder.Entity
 
+    syntaxConstrClauses
+    |> ImArray.iter (fun syntaxConstrClause ->
+        match syntaxConstrClause with
+        | OlySyntaxConstraintClause.ConstraintClause(_, _, _, syntaxConstrs) ->
+            syntaxConstrs.ChildrenOfType
+            |> ImArray.iter (fun syntaxConstr ->
+                match syntaxConstr with
+                | OlySyntaxConstraint.TraitType _ ->
+                    cenv.diagnostics.Error("Trait constraints are not allowed on type declarations.", 10, syntaxConstr)
+                | _ ->
+                    ()
+            )
+        | _ ->
+            ()
+    )
+
     let env = env.SetAccessorContext(ent)
     let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.Entities ent
     let env = addTypeParametersFromEntity cenv env syntaxTyPars ent
