@@ -11782,11 +11782,11 @@ struct Test =
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 #[open]
 extension TestSetItemExtension =
@@ -11833,11 +11833,11 @@ struct Test =
 
     mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
 
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = x.set_Item(key, value)
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = x.set_Item(key, value)
 
 #[open]
 extension TestSetItemExtension =
@@ -13210,7 +13210,7 @@ extension AExtensions =
 
     M2(): () = print("extM2")
 
-printM<T>(x: T): () where T: { M(): (); M2(): () } =
+printM<T>(x: T): () where T: trait { M(): (); M2(): () } =
     x.M()
     x.M2()
 
@@ -13244,7 +13244,7 @@ extension AExtensions =
 
     M2(): () = print("extM2")
 
-printM<T>(x: T): () where T: { M(): () }, { M2(): () } =
+printM<T>(x: T): () where T: trait { M(): () }, trait { M2(): () } =
     x.M()
     x.M2()
 
@@ -13278,7 +13278,7 @@ extension AExtensions<T> =
 
     M2(): () = print("extM2")
 
-printM<T>(x: T): () where T: { M(): (); M2(): () } =
+printM<T>(x: T): () where T: trait { M(): (); M2(): () } =
     x.M()
     x.M2()
 
@@ -13312,7 +13312,7 @@ extension AExtensions<T> =
 
     M2<B>(): B = unchecked default
 
-printM<T>(x: T): () where T: { M<C>(): C; M2<D>(): D } =
+printM<T>(x: T): () where T: trait { M<C>(): C; M2<D>(): D } =
     let a1 = x.M<__oly_int32>()
     let a2 = x.M2<__oly_int32>()
     print(a1)
@@ -13348,7 +13348,7 @@ extension AExtensions<T> =
 
     Test(): A<T> = this
 
-printM<T>(x: T): () where T: { M<C>(): C; M2<D>(): D; Test(): T } =
+printM<T>(x: T): () where T: trait { M<C>(): C; M2<D>(): D; Test(): T } =
     let a1 = x.M<__oly_int32>()
     let a2 = x.M2<__oly_int32>()
     print(a1)
@@ -14140,7 +14140,7 @@ extension ObjectExt =
 
     static Test(): () = print("test")
 
-Test<T>(): () where T: { static Test(): () } =
+Test<T>(): () where T: trait { static Test(): () } =
     T.Test()
 
 main(): () =
@@ -14173,7 +14173,7 @@ extension Ops =
         print("test")
         default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -14206,7 +14206,7 @@ extension Ops =
         print("test")
         default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -14308,7 +14308,7 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 struct Vector3 =
@@ -14328,7 +14328,7 @@ struct Vector3 =
 extension AddExtension =
     inherits Vector3
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -14364,7 +14364,7 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 struct Vector3 =
@@ -14384,7 +14384,7 @@ struct Vector3 =
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -15032,7 +15032,7 @@ extension VkResultExtensions =
         true
 
 #[inline(never)]
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 enum VkResult =
     | VK_SUCCESS

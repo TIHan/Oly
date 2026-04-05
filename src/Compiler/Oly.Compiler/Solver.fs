@@ -85,7 +85,7 @@ let private tryFindMostSpecificTypeForExtension benv (tyExt: EntitySymbol) targe
     )
     |> Seq.tryExactlyOne
 
-let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg (isAttempt: bool) : Result<unit, ConstraintSolverError> =
+let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg (isAttempt: bool) queryFunc : Result<unit, ConstraintSolverError> =
     OlyAssert.True(targetShape.IsShape_ste)
 
     let filteredWitnessArgs =
@@ -93,7 +93,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
         |> ImArray.filter (fun x -> x.TypeParameter.Id = principalTyPar.Id && areTypesEqual x.Type targetShape)
 
     let shapeMembers = 
-        subsumesShapeMembersWith env.benv TypeVariableRigidity.Generalizable QueryFunction.IntrinsicAndExtrinsic targetShape principalTyArg
+        subsumesShapeMembersWith env.benv TypeVariableRigidity.Generalizable queryFunc targetShape principalTyArg
 
     let isValid =
         if shapeMembers.IsEmpty then
@@ -243,7 +243,11 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
 
     let solveSubsumption () =
         if target.IsShape_ste then
-            solveShape env syntaxNode tyArgs witnessArgs target tyPar ty isAttempt
+            let queryFunc =
+                match solver with
+                | WitnessSolver.Trait -> QueryFunction.IntrinsicAndExtrinsic
+                | WitnessSolver.Subtype -> QueryFunction.Intrinsic
+            solveShape env syntaxNode tyArgs witnessArgs target tyPar ty isAttempt queryFunc
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then
                 witnessArgs

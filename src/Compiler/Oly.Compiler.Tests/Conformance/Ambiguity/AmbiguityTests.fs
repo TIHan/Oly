@@ -1095,7 +1095,7 @@ extension Ops =
 
     static op_Multiply(x: Vector3, y: Matrix): Vector3 = default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -1141,7 +1141,7 @@ extension Ops2 =
 
     static op_Multiply(x: Vector3, y: Matrix): Vector3 = default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -1542,7 +1542,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: { Test(): () } = ()
+test<T>(t: T): () where T: trait { Test(): () } = ()
 
 main(): () =
     let a = A()
@@ -1616,7 +1616,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: { Test(): () } = ()
+test<T>(t: T): () where T: trait { Test(): () } = ()
 
 main(): () =
     let a = A()

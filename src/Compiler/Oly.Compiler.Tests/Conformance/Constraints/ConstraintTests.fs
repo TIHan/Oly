@@ -2144,3 +2144,38 @@ main(): () =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Witness for object should fail as it is NOT a trait constraint``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+struct Vector3
+
+#[open]
+extension ObjectExt =
+    inherits object
+
+    static Test(): () = print("test")
+
+Test<T>(): () where T: { static Test(): () } =
+    T.Test()
+
+main(): () =
+    Test<Vector3>()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Shape member 'static Test(): ()' does not exist on 'Vector3'.""",
+                """
+    Test<Vector3>()
+         ^^^^^^^
+"""
+            )
+        ]

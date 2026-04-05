@@ -79,9 +79,9 @@ let createGenericContextFromFunction (func: RuntimeFunction) =
         else
             GenericContext.Create(func.Enclosing.AsType.Formal.TypeArguments)
     if isFuncErased then
-        genericContext.AddErasingFunctionTypeArguments(func.TypeArguments)
+        genericContext.SetErasingFunctionTypeArguments(func.TypeArguments)
     else
-        genericContext.AddFunctionTypeArguments(func.Formal.TypeArguments)
+        genericContext.SetFunctionTypeArguments(func.Formal.TypeArguments)
 
 let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
     match ilEntInst with
@@ -1809,7 +1809,9 @@ let importFunctionBody
             x.Substitute(genericContext)
         )
 
-    let func = func.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(genericContext.PassedWitnesses)
+    let func = func.MakeInstance(enclosingTy, funcTyArgs)
+    let filteredWitnesses = vm.FilterFunctionWitnesses(func, genericContext.PassedWitnesses, genericContext)
+    let func = func.SetWitnesses(filteredWitnesses)
     let enclosingTy = enclosingTy.StripExtension()
 
     let instanceTy =
@@ -1925,20 +1927,20 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             if enclosingTy1.IsBuiltIn then ImArray.empty, funcTyArgs
             else
 
-            let genericContext1 =
-                if genericContext.IsErasing then
-                    GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+            let fixedGenericContext =
+                let fixedGenericContext =
+                    if genericContext.IsErasingType then
+                        GenericContext.CreateErasing(enclosingTy1.TypeArguments)
+                    else
+                        GenericContext.Create(enclosingTy1.TypeArguments)
+                if genericContext.IsErasingFunction then
+                    fixedGenericContext.SetErasingFunctionTypeArguments(funcTyArgs)
                 else
-                    GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
+                    fixedGenericContext.SetFunctionTypeArguments(funcTyArgs)
 
             let asm = assemblies.[enclosingTy1.AssemblyIdentity]
             let ilEntDefHandle = enclosingTy1.ILEntityDefinitionHandle
             let ilEntDef = asm.ilAsm.GetEntityDefinition(ilEntDefHandle)
-            let genericContext2 =
-                if genericContext.IsErasing then
-                    GenericContext.CreateErasing(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
-                else
-                    GenericContext.Create(enclosingTy1.TypeArguments.AddRange(funcTyArgs))
             let enclosingTyParCount2 = ilEntDef.FullTypeParameterCount
 
             let find funcHandles =
@@ -1946,7 +1948,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 |> ImArray.choose (fun ilFuncDefHandle2 ->
                     let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
                     let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
-                    if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, genericContext1, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, genericContext2) then
+                    if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, fixedGenericContext, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, fixedGenericContext) then
                         this.ResolveFunctionDefinition(enclosingTy1.Formal, ilFuncDefHandle2)
                         |> Some
                     else
@@ -2584,7 +2586,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if isGenericsErased then
                             GenericContext.CreateErasing(tyDef.TypeArguments)
                         else
-                            GenericContext.Default
+                            GenericContext.Create(tyDef.TypeArguments)
 
                     emitter.EmitProperty(
                         res,
@@ -3025,6 +3027,85 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             )
         )
 
+    member internal this.IsWitnessNecessary(func: RuntimeFunction, tyPar: RuntimeTypeParameter, witness: RuntimeWitness, genericContext: GenericContext) =
+        let fixedGenericContext = 
+            if genericContext.IsErasingType then
+                GenericContext.CreateErasing(func.EnclosingType.TypeArguments)
+            else
+                GenericContext.Create(func.EnclosingType.TypeArguments)
+        let fixedGenericContext =
+            if genericContext.IsErasingFunction then
+                fixedGenericContext.SetErasingFunctionTypeArguments(func.TypeArguments)
+            else
+                fixedGenericContext.SetFunctionTypeArguments(func.TypeArguments)
+        tyPar.ConstraintTraits.Value
+        |> ImArray.exists (fun constrTraitTy ->
+            let constrTraitTy = constrTraitTy.Substitute(fixedGenericContext)
+            if constrTraitTy.IsShape then
+                match witness.AbstractFunction with
+                | None -> false
+                | Some(abstractFunc) ->
+                    let result: _ option = this.TryFindWitnessFunctionByAbstractFunction(witness.Type, constrTraitTy, abstractFunc, ImArray.createOne witness)
+                    result.IsSome
+            else
+                witness.TypeExtension.Implements
+                |> ImArray.exists (fun implementsTy ->
+                    if subsumesType constrTraitTy implementsTy then
+                        true
+                    else
+                        false
+                )
+        )
+
+    member internal this.FilterFunctionWitnesses(func: RuntimeFunction, witnesses: RuntimeWitness imarray, genericContext: GenericContext): RuntimeWitness imarray =
+        if witnesses.IsEmpty || (func.EnclosingType.TypeParameters.IsEmpty && func.TypeArguments.IsEmpty) then
+            // If the function is not generic, then we do not need to set its witnesses
+            //    since witnesses require that a function has at least one type parameter.
+            ImArray.empty
+        else
+            if func.IsFormal then
+                failwith "Unexpected formal function."
+
+            let filteredTypeWitnesses =
+                (func.Enclosing.TypeParameters, func.Enclosing.TypeArguments)
+                ||> ImArray.mapi2 (fun i tyPar tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            let hasConstr = this.IsWitnessNecessary(func, tyPar, witness, genericContext)
+                            if hasConstr then
+                                RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                                |> Some
+                            else
+                                None
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+                |> ImArray.distinct
+
+            let filteredWitnesses =
+                (func.TypeParameters, func.TypeArguments)
+                ||> ImArray.mapi2 (fun i tyPar tyArg ->
+                    witnesses
+                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
+                        if witness.Type.StripAlias() = tyArg.StripAlias() then
+                            let hasConstr = this.IsWitnessNecessary(func, tyPar, witness, genericContext)
+                            if hasConstr then
+                                RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
+                                |> Some
+                            else
+                                None
+                        else
+                            None
+                    )
+                )
+                |> ImArray.concat
+                |> ImArray.distinct
+
+            filteredTypeWitnesses.AddRange(filteredWitnesses)
+
     member internal this.ResolveField(enclosingTy: RuntimeType, ilAsm: OlyILReadOnlyAssembly, index: int, ilFieldDefHandle: OlyILFieldDefinitionHandle) : RuntimeField =
         let asm = assemblies.[ilAsm.Identity]
 
@@ -3119,11 +3200,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         if genericContext.IsErasingType then
                             GenericContext.CreateErasing(enclosing.TypeArguments)
                         else
-                            GenericContext.Default
+                            GenericContext.Create(enclosing.TypeArguments)
                     if genericContext.IsErasingFunction then
-                        fixedGenericContext.AddErasingFunctionTypeArguments(funcTyArgs)
+                        fixedGenericContext.SetErasingFunctionTypeArguments(funcTyArgs)
                     else                     
-                        fixedGenericContext.AddFunctionTypeArguments(funcTyArgs)
+                        fixedGenericContext.SetFunctionTypeArguments(funcTyArgs)
                         
                 ilWitnesses
                 |> ImArray.map (fun x -> 
@@ -3226,7 +3307,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     | _ ->
                         funcInst
 
-            func.SetWitnesses(passedAndFilteredWitnesses)
+            let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
+            func.SetWitnesses(filteredWitnesses)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext
@@ -4032,10 +4114,15 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let enclosingTy2 = enclosing.AsType
 
         let genericContext2 =
-            if genericContext.IsErasing then
-                GenericContext.CreateErasing(enclosingTy.TypeArguments.AddRange(funcTyArgs))
+            let genericContext2 =
+                if genericContext.IsErasingType then
+                    GenericContext.CreateErasing(enclosingTy.TypeArguments)
+                else
+                    GenericContext.Create(enclosingTy.TypeArguments)
+            if genericContext.IsErasingFunction then
+                genericContext2.SetErasingFunctionTypeArguments(funcTyArgs)
             else
-                GenericContext.Create(enclosingTy.TypeArguments.AddRange(funcTyArgs))
+                genericContext2.SetFunctionTypeArguments(funcTyArgs)
 
         ilEntDef.FunctionHandles
         |> ImArray.choose (fun ilFuncDefHandle2 ->
@@ -4211,7 +4298,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         if func.IsExported && isErasingFunc then
             failwith "Cannot erase type arguments of an exported function."
 
-        if isErasingFunc && (enclosingTy.TypeArguments.Length + func.TypeParameters.Length <> genericContext.Length) then
+        if isErasingFunc && (enclosingTy.TypeArguments.Length + func.TypeParameters.Length <> genericContext.AllTypeArgumentLength) then
             failwith "Invalid number of type arguments for function."
 
         if not isErasingFunc && not witnesses.IsEmpty then
@@ -4254,6 +4341,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             if func.EnclosingType.IsEnum && func.Flags.IsInstance then
                 failwith "Instance member functions on an 'enum' are not allowed."
 
+            if func.Flags.IsVirtual then
+                witnesses
+                |> ImArray.iter (fun witness ->
+                    if witness.TypeVariableKind = OlyILTypeVariableKind.Type then
+                        failwith "Witnesses for a type's type variables cannot be passed to virtual functions."
+                )
+
             let enclosingTyParCount = enclosingTy.TypeArguments.Length
 
             let ilAsm = asm.ilAsm
@@ -4292,7 +4386,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             |> ImArray.map (fun x -> 
                                 x.Substitute(genericContext)
                             )
-                        this.EmitFunction(x.Formal.MakeInstance(enclosingTy, funcTyArgs).SetWitnesses(witnesses))
+                        let func = x.Formal.MakeInstance(enclosingTy, funcTyArgs)
+                        let filteredWitnesses = vm.FilterFunctionWitnesses(func, witnesses, genericContext)
+                        this.EmitFunction(func.SetWitnesses(filteredWitnesses))
                     else
                         // We should not have witnesses to pass here.
                         if not witnesses.IsEmpty then
@@ -4391,7 +4487,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let funcTyArgs = 
                 if genericContext.IsErasing then
-                    genericContext.TypeArguments
+                    genericContext.AllTypeArguments
                     |> ImArray.skip enclosingTy.TypeArguments.Length
                     |> ImArray.ofSeq
                 else
@@ -4448,7 +4544,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                     overridenFunc.MakeInstance(ty, funcTyArgs)
                                 else
                                     overridenFunc.MakeReference(ty)
-                            let funcInst = funcInst.SetWitnesses(witnesses)
+                            let filteredWitnesses = vm.FilterFunctionWitnesses(funcInst, witnesses, genericContext)
+                            let funcInst = funcInst.SetWitnesses(filteredWitnesses)
                             this.EmitFunction(funcInst) |> ignore
                 )
 
@@ -4685,7 +4782,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 None
 
         if genericContext.IsErasingFunction then
-            genericContext.TypeArguments
+            genericContext.AllTypeArguments
             |> ImArray.iter (function
                 | RuntimeType.Variable(index, ilKind)
                 | RuntimeType.HigherVariable(index, _, ilKind) -> 

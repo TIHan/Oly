@@ -3775,14 +3775,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits Vector3
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -3819,14 +3819,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -3863,14 +3863,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -3908,14 +3908,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
         """
     let src =
@@ -4296,7 +4296,7 @@ alias bool
 #[intrinsic("equal")]
 (==)(value1: Enum, value2: Enum): bool
 
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 #[intrinsic("or")]
 (||)(bool, bool): bool
@@ -5560,7 +5560,7 @@ alias bool
 #[intrinsic("print")]
 print(__oly_object): ()
 
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 #[open]
 extension IEquatableExtensions<T> =

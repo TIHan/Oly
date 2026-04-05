@@ -119,21 +119,15 @@ type GenericContext =
         | _ ->
             OlyAssert.Fail("Invalid type variable kind.")
 
-    member this.AddFunctionTypeArguments(funcTyArgs: _ imarray) =
-        if this.isFuncErasing && not this.funcTyArgs.IsEmpty then
-            failwith "Function is erasing."
-
+    member this.SetFunctionTypeArguments(funcTyArgs: _ imarray) =
         { this with
-            funcTyArgs = this.funcTyArgs.AddRange(funcTyArgs)
+            funcTyArgs = funcTyArgs
             isFuncErasing = false
         }
 
-    member this.AddErasingFunctionTypeArguments(funcTyArgs: _ imarray) =
-        if not this.isFuncErasing && not this.funcTyArgs.IsEmpty then
-            failwith "Function is not erasing."
-
+    member this.SetErasingFunctionTypeArguments(funcTyArgs: _ imarray) =
         { this with
-            funcTyArgs = this.funcTyArgs.AddRange(funcTyArgs)
+            funcTyArgs = funcTyArgs
             isFuncErasing = true
         }
 
@@ -171,11 +165,11 @@ type GenericContext =
 
     member this.IsErasing = this.isTyErasing || this.isFuncErasing
 
-    member this.Length = this.enclosingTyArgs.Length + this.funcTyArgs.Length
+    member this.AllTypeArguments = this.enclosingTyArgs.AddRange(this.funcTyArgs)
+
+    member this.AllTypeArgumentLength = this.enclosingTyArgs.Length + this.funcTyArgs.Length
 
     member this.EnclosingTypeArguments = this.enclosingTyArgs
-
-    member this.TypeArguments = this.enclosingTyArgs.AddRange(this.funcTyArgs)
 
     member this.IsErasingType = this.isTyErasing
 
@@ -1524,54 +1518,13 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         } : OlyIRFunctionSignatureKey
 
     member this.SetWitnesses(witnesses: RuntimeWitness imarray) =
-        if witnesses.IsEmpty || (this.EnclosingType.TypeParameters.IsEmpty && this.TypeArguments.IsEmpty) then
-            // If the function is not generic, then we do not need to set its witnesses
-            //    since witnesses require that a function has at least one type parameter.
+        if witnesses.IsEmpty then
             this
         else
-            if this.IsFormal then
-                failwith "Unexpected formal function."
-
-            let filteredTypeWitnesses =
-                this.Enclosing.TypeArguments
-                |> ImArray.mapi (fun i tyArg ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            RuntimeWitness(i, OlyILTypeVariableKind.Type, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                            |> Some
-                        else
-                            None
-                    )
-                )
-                |> ImArray.concat
-                |> ImArray.distinct
-
-            let filteredWitnesses =
-                this.TypeArguments
-                |> ImArray.mapi (fun i tyArg ->
-                    witnesses
-                    |> ImArray.choose (fun (witness: RuntimeWitness) ->
-                        if witness.Type.StripAlias() = tyArg.StripAlias() then
-                            RuntimeWitness(i, OlyILTypeVariableKind.Function, witness.Type, witness.TypeExtension, witness.AbstractFunction)
-                            |> Some
-                        else
-                            None
-                    )
-                )
-                |> ImArray.concat
-                |> ImArray.distinct
-
-            let filteredWitnesses = filteredTypeWitnesses.AddRange(filteredWitnesses)
-            if filteredWitnesses.IsEmpty then
-                this
-            else
-                let state = this.State
-
-                { state with 
-                    Witnesses = filteredWitnesses
-                }
-                |> RuntimeFunction
+            { this.State with 
+                Witnesses = witnesses
+            }
+            |> RuntimeFunction
 
     override this.GetHashCode() = this.Name.GetHashCode()
 
