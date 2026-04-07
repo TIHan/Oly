@@ -2349,7 +2349,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             match emitted.TryGetValue key with
             | ValueSome res -> res
             | _ ->
-                let mustDelayFuncs = isEmittingTypeDefinition
+                let mustDelayFuncs = isEmittingTypeDefinition // IMPORTANT: GLOBAL-LIKE, NOT THREAD-SAFE
                 isEmittingTypeDefinition <- true
 
                 if isGenericsErased then

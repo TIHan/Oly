@@ -29,10 +29,15 @@ type internal IOlyIRTypeKey =
 
     abstract IsEqualTo: IOlyIRTypeKey -> bool
 
+type internal IOlyIRWitnessKey =
+
+    abstract IsEqualTo: IOlyIRWitnessKey -> bool
+
 [<NoComparison;CustomEquality;RequireQualifiedAccess>]
 type OlyIRFunctionSignatureKey =
     internal {
         Name: string
+        Witnesses: IOlyIRWitnessKey imarray
         TypeArguments: IOlyIRTypeKey imarray
         ParameterTypes: IOlyIRTypeKey imarray
         ReturnType: IOlyIRTypeKey
@@ -55,13 +60,16 @@ type OlyIRFunctionSignatureKey =
             this.Name = o.Name &&
             this.TypeArguments.Length = o.TypeArguments.Length &&
             this.ParameterTypes.Length = o.ParameterTypes.Length &&
+            this.Witnesses.Length = o.Witnesses.Length &&
             this.IsStatic = o.IsStatic &&
             this.IsConstructor = o.IsConstructor &&
             this.ReturnType.IsEqualTo(o.ReturnType) &&
             (this.ParameterTypes, o.ParameterTypes)
             ||> ImArray.forall2 (fun parTy1 parTy2 -> parTy1.IsEqualTo(parTy2)) &&
             (this.TypeArguments, o.TypeArguments)
-            ||> ImArray.forall2 (fun tyArg1 tyArg2 -> tyArg1.IsEqualTo(tyArg2))
+            ||> ImArray.forall2 (fun tyArg1 tyArg2 -> tyArg1.IsEqualTo(tyArg2)) &&
+            (this.Witnesses, o.Witnesses)
+            ||> ImArray.forall2 (fun witness1 witness2 -> witness1.IsEqualTo(witness2))
 
 [<Struct>]
 [<RequireQualifiedAccess>]

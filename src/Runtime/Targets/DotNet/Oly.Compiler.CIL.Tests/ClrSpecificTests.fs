@@ -10111,8 +10111,44 @@ main(): () =
     |> shouldRunWithExpectedOutput "doot"
     |> ignore
 
+
 [<Fact>]
 let ``Should handle nested exported generic types properly?``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+doot<T>(x: T): int32 =
+    let f() = 
+        print(x)
+        print(Beef<float32>.Zoot(x).value)
+    f()
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Should error MOVE TO COMPILER TESTS with nested exported generic types properly?``() =
     let src =
         """
 #[intrinsic("int32")]
@@ -10147,7 +10183,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Should handle nested exported generic types properly? 2``() =
+let ``Should error MOVE TO COMPILER TESTS with nested exported generic types properly? 2``() =
     let src =
         """
 #[intrinsic("int32")]

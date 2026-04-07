@@ -1250,6 +1250,18 @@ type RuntimeWitness(tyVarIndex: int, tyVarKind: OlyILTypeVariableKind, ty: Runti
             witness.Type = this.Type &&
             witness.TypeExtension = this.TypeExtension
 
+    interface IOlyIRWitnessKey with
+
+        member this.IsEqualTo (arg: IOlyIRWitnessKey): bool = 
+            if obj.ReferenceEquals(this, arg) then true
+            else
+
+            match arg with
+            | :? RuntimeWitness as arg ->
+                (this: IEquatable<RuntimeWitness>).Equals(arg)
+            | _ ->
+                false
+
 type RuntimeFunctionKind =
     | Formal
     | Reference
@@ -1510,6 +1522,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         let name = func.Name
         {
             Name = name
+            Witnesses = func.Witnesses |> ImArray.map (fun x -> x :> IOlyIRWitnessKey)
             TypeArguments = func.TypeArguments |> ImArray.map (fun x -> x :> IOlyIRTypeKey)
             ParameterTypes = func.Parameters |> ImArray.map (fun x -> x.Type)
             ReturnType = func.ReturnType
@@ -1543,12 +1556,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             // REVIEW: This is fine since it is correct, though we could only rely on reference equality
             //         if the runtime was maintaining single instances of generic instantiations, which it does not.
             this.EnclosingType = func.EnclosingType &&
-            (this.ComputeSignatureKey() = func.ComputeSignatureKey()) &&
-            this.Witnesses.Length = func.Witnesses.Length &&
-            (
-                (this.Witnesses, func.Witnesses)
-                ||> ImArray.forall2 (=)
-            )
+            (this.ComputeSignatureKey() = func.ComputeSignatureKey())
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess;DebuggerDisplay("{Name}")>]
 type RuntimeAttribute =
