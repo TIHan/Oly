@@ -3104,7 +3104,14 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 |> ImArray.concat
                 |> ImArray.distinct
 
-            filteredTypeWitnesses.AddRange(filteredWitnesses)
+            let witnesses = filteredTypeWitnesses.AddRange(filteredWitnesses)
+            if func.Flags.IsVirtual then
+                witnesses
+                |> ImArray.filter (fun witness ->
+                    witness.TypeVariableKind = OlyILTypeVariableKind.Function
+                )
+            else
+                witnesses
 
     member internal this.ResolveField(enclosingTy: RuntimeType, ilAsm: OlyILReadOnlyAssembly, index: int, ilFieldDefHandle: OlyILFieldDefinitionHandle) : RuntimeField =
         let asm = assemblies.[ilAsm.Identity]
