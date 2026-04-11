@@ -1299,7 +1299,7 @@ CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Inv
     src |> hasSymbolSignatureTextByCursor "x: T"
 
 [<Fact>]
-let ``Witness would escape scope``() =
+let ``Trait constraint type for a type's type variable should compile``() =
     let src =
         """
 #[intrinsic("int32")]
@@ -1331,15 +1331,7 @@ main(): () =
     print("worked")
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Witnesses are escaping the scope. (TODO: better error message)",
-                """
-    let _ = db.CreateQuery<S>()
-            ^^^^^^^^^^^^^^^^^^^
-"""
-            )
-        ]
+    |> shouldCompile
     |> ignore
 
 [<Fact>]
@@ -2176,6 +2168,71 @@ main(): () =
                 """
     Test<Vector3>()
          ^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error``() =
+    """
+namespace Test
+
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = T0.GetValue()
+
+struct S1
+
+struct S2
+
+#[open]
+extension S1Component =
+    inherits S1
+    implements IComponent
+
+    static overrides GetValue(): int32 = 11
+
+#[open]
+extension S2Component =
+    inherits S2
+    implements IComponent
+
+    static overrides GetValue(): int32 = 22
+
+module TestModule =
+    #[intrinsic("print")]
+    print(__oly_object): ()
+
+    GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
+        // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
+        let r = ArchetypeReference<T>()
+        r.ArchetypedIndex
+
+    main(): () =
+        let value1 = GetIndex<S1>()
+        let value2 = GetIndex<S2>()
+        print(value1)
+        print(value2)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Using members from the trait constraint type 'IComponent' are not allowed in a virtual function.""",
+                """
+    ArchetypedIndex: int32 get() = T0.GetValue()
+                                      ^^^^^^^^
 """
             )
         ]
