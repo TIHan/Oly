@@ -861,7 +861,7 @@ and analyzeTraitConstraintTypeInVirtualImplementation acenv (aenv: aenv) syntaxN
                                                             | _ ->
                                                                 false
                                                         ) ->
-                acenv.cenv.diagnostics.Error("boop.", 10, syntaxNode)
+                acenv.cenv.diagnostics.Error($"Using members from the trait constraint type '{printEntity aenv.benv traitEnt}' are not allowed in a virtual function.", 10, syntaxNode)
             | _ ->
                 ()
         | _ ->
