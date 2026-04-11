@@ -840,6 +840,35 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
     | _ ->
         { ScopeValue = scopeValue; ScopeLimits = scopeLimits }
 
+and analyzeTraitConstraintTypeInVirtualImplementation acenv (aenv: aenv) syntaxNode (value: IValueSymbol) =
+    if value.IsFunctionGroup then ()
+    else
+
+    match aenv.currentFunctionOpt with
+    | Some(currentFunction) when currentFunction.IsVirtual ->
+        match value.Enclosing with
+        | EnclosingSymbol.Witness(concreteTy, traitEnt) ->
+            match concreteTy.TryTypeParameter with
+            | ValueSome tyPar when tyPar.Kind.IsType && tyPar.Constraints 
+                                                        |> ImArray.exists (fun constr ->
+                                                            match constr with
+                                                            | ConstraintSymbol.TraitType(constrTraitTy) ->
+                                                                // TODO: This is very conservative and could be loosened; not taking into account the type arguments
+                                                                if areTypesEqual traitEnt.Formal.AsType constrTraitTy.Value.Formal then
+                                                                    true
+                                                                else
+                                                                    false
+                                                            | _ ->
+                                                                false
+                                                        ) ->
+                acenv.cenv.diagnostics.Error($"Using members from the trait constraint type '{printEntity aenv.benv traitEnt}' are not allowed in a virtual function.", 10, syntaxNode)
+            | _ ->
+                ()
+        | _ ->
+            ()
+    | _ ->
+        ()
+
 and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
     analyzeExpressionWithTypeAux acenv aenv expr false expectedTy
     analyzeExpression acenv aenv expr
@@ -1075,6 +1104,8 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                         acenv.cenv.diagnostics.Error("Value cannot be captured.", 10, syntaxInfo.SyntaxNameOrDefault)
                 | _ ->
                     ()
+
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault value
                 
         let argCount =
             match receiverArgExprOpt with
@@ -1157,17 +1188,19 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         checkValue acenv aenv syntaxNode field
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.GetProperty(receiverOpt=receiverOpt;prop=prop) ->
+    | E.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault prop
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
+    | E.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
         analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs prop.Type |> ignore
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault prop
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
     | E.SetValue(value=value;rhs=rhs) ->
