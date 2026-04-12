@@ -5242,6 +5242,8 @@ module SymbolExtensions =
 
             member this.AsProperty = this :?> IPropertySymbol
 
+            member this.AsPattern = this :?> IPatternSymbol
+
             member this.MorphShapeConstructor(concreteTy, shapeTy: TypeSymbol) =
                 OlyAssert.True(shapeTy.IsShape_ste)
                 OlyAssert.True(this.IsInstanceConstructor)

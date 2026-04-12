@@ -23,7 +23,9 @@ val checkSyntaxBindingDeclaration: cenv -> ValueExplicitness -> syntaxBindingDec
 
 val checkSyntaxDeclarationBinding: cenv -> EnclosingSymbol -> MemberFlags -> ValueExplicitness -> syntaxBinding: OlySyntaxBinding -> unit
 
-val checkBindingSignature: cenv -> attrs: AttributeSymbol imarray -> EnclosingSymbol -> BindingInfoSymbol -> MemberFlags -> ValueExplicitness -> mustHaveImpl: bool -> syntaxBindingDecl: OlySyntaxBindingDeclaration -> bool
+val checkBindingSignature: cenv -> EnclosingSymbol -> BindingInfoSymbol -> ValueExplicitness -> syntaxBindingDecl: OlySyntaxBindingDeclaration -> bool
+
+val checkBindingImplementation: cenv -> syntaxBindingDecl: OlySyntaxBindingDeclaration -> hasImpl: bool -> BindingInfoSymbol -> unit
 
 val checkEnumForInvalidFieldOrFunction: cenv -> OlySyntaxNode -> BindingInfoSymbol -> unit
 

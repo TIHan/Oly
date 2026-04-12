@@ -1988,6 +1988,7 @@ test(y)
     Oly src
     |> withErrorDiagnostics [
         "Type 'y' does not exist in the current scope."
+        "The function declaration 'test' must have an explicit return type annotation."
         "The function 'test' must have an implementation."
     ]
     |> ignore
@@ -11585,6 +11586,28 @@ main(): () =
                 """
     let a = if (true) A() else ia
                                ^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Invalid use of abstract identifier because it is used twice in property declaration``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract Value: int32 abstract get
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Invalid use of 'abstract' premodifier.",
+                """
+    static abstract Value: int32 abstract get
+                                 ^^^^^^^^
 """
             )
         ]

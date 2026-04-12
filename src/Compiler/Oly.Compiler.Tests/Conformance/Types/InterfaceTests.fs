@@ -848,3 +848,45 @@ class B =
 """
             )
         ]
+
+[<Fact>]
+let ``Static member must have an implementation on the interface``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static GetValue(): int32
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GetValue' must have an implementation.",
+                """
+    static GetValue(): int32
+           ^^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Static member must have an implementation on the interface - 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static Value: int32 get
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'get_Value' must have an implementation.",
+                """
+    static Value: int32 get
+                        ^^^
+"""
+            )
+        ]

@@ -928,7 +928,7 @@ let private bindTopLevelBindingDeclarationSignature cenv env (syntaxAttrs, attrs
     let binding = bindMemberBindingDeclaration cenv env (syntaxAttrs, attrs) true memberFlags valueExplicitness propInfoOpt syntaxBindingDecl
     checkEnumForInvalidFieldOrFunction cenv syntaxBindingDecl binding
 
-    if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness propInfoOpt.IsNone syntaxBindingDecl then
+    if checkBindingSignature cenv enclosing binding valueExplicitness syntaxBindingDecl then
         checkSyntaxBindingDeclaration cenv valueExplicitness syntaxBindingDecl
 
     binding
@@ -1094,7 +1094,7 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
 
     recordValueDeclaration cenv prop syntaxBindingDecl.Identifier
     let binding = BindingProperty(getterOrSetterBindings, prop)
-    if checkBindingSignature cenv attrs enclosing binding memberFlags valueExplicitness false syntaxBindingDecl then
+    if checkBindingSignature cenv enclosing binding valueExplicitness syntaxBindingDecl then
         checkSyntaxBindingDeclaration cenv valueExplicitness syntaxBindingDecl
     binding
 

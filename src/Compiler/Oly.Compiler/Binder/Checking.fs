@@ -53,34 +53,10 @@ let checkSyntaxDeclarationBinding (cenv: cenv) (enclosing: EnclosingSymbol) memb
     | _ ->
         ()
 
-let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindingInfo: BindingInfoSymbol) memberFlags (valueExplicitness: ValueExplicitness) mustHaveImpl (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
+let checkBindingSignature (cenv: cenv) (enclosing: EnclosingSymbol) (bindingInfo: BindingInfoSymbol) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     let mutable hasErrors = false
 
-    let mustHaveImpl =
-        if mustHaveImpl then
-            let mustHaveImpl = 
-                (not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract)) ||
-                (memberFlags &&& MemberFlags.Sealed = MemberFlags.Sealed)
-
-            if mustHaveImpl && bindingInfo.Value.IsFunction then
-                if enclosing.IsEntity then
-                    // REVIEW: Instead of relying on a list of attributes, we could have an imported/intrinsic flag on MemberFlags.
-                    //         That way we will not have to compute this (potentially) multiple times.
-                    not (attributesContainImport attrs) && 
-                    not (attributesContainIntrinsic attrs)
-                else
-                    true
-            else
-                false
-        else
-            false
-
-    if bindingInfo.Value.IsFunction then
-        if mustHaveImpl then
-            cenv.diagnostics.Error(sprintf "The function '%s' must have an implementation." bindingInfo.Value.Name, 10, syntaxBindingDecl.Identifier)
-            hasErrors <- true
-
-    elif bindingInfo.Value.IsField then
+    if bindingInfo.Value.IsField then
         if valueExplicitness.IsExplicitDefault then
             cenv.diagnostics.Error("Fields cannot be marked with 'default'.", 10, syntaxBindingDecl.Identifier)
             hasErrors <- true
@@ -92,10 +68,6 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
                 hasErrors <- true
             | _ ->
                 ()
-
-    if valueExplicitness.IsExplicitOverrides && mustHaveImpl then
-        cenv.diagnostics.Error("'overrides' cannot be used in a context where there is no implementation. Remove 'overrides'.", 10, syntaxBindingDecl.Identifier)
-        hasErrors <- true
 
     if hasErrors then
         let ty = bindingInfo.Type
@@ -115,6 +87,43 @@ let checkBindingSignature (cenv: cenv) attrs (enclosing: EnclosingSymbol) (bindi
             |> ignore
 
     not hasErrors
+
+let checkBindingImplementation (cenv: cenv) (syntaxBindingDecl: OlySyntaxBindingDeclaration) (hasImpl: bool) (bindingInfo: BindingInfoSymbol) =
+    if not bindingInfo.Value.IsFunction then ()
+    else
+
+    let memberFlags = bindingInfo.Value.MemberFlags
+    let attrs =
+        if bindingInfo.Value.IsFunction then
+            bindingInfo.Value.AsFunction.Attributes
+        elif bindingInfo.Value.IsField then
+            bindingInfo.Value.AsField.Attributes
+        elif bindingInfo.Value.IsProperty then
+            bindingInfo.Value.AsProperty.Attributes
+        elif bindingInfo.Value.IsPattern then
+            bindingInfo.Value.AsPattern.Attributes
+        else
+            ImArray.empty
+    let enclosing = bindingInfo.Value.Enclosing
+
+    let mustHaveImpl =
+        let mustHaveImpl = 
+            (not (memberFlags &&& MemberFlags.Abstract = MemberFlags.Abstract)) ||
+            (memberFlags &&& MemberFlags.Sealed = MemberFlags.Sealed)
+
+        if mustHaveImpl then
+            if enclosing.IsEntity then
+                // REVIEW: Instead of relying on a list of attributes, we could have an imported/intrinsic flag on MemberFlags.
+                //         That way we will not have to compute this (potentially) multiple times.
+                not (attributesContainImport attrs) && 
+                not (attributesContainIntrinsic attrs)
+            else
+                true
+        else
+            false
+
+    if mustHaveImpl && not hasImpl then
+        cenv.diagnostics.Error(sprintf "The function '%s' must have an implementation." bindingInfo.Value.Name, 10, syntaxBindingDecl.Identifier)
 
 let checkEnumForInvalidFieldOrFunction (cenv: cenv) syntaxNode (binding: BindingInfoSymbol) =
     if binding.Value.Enclosing.IsEnum && binding.Value.IsInstance then

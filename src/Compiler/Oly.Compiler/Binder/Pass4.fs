@@ -156,7 +156,7 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entiti
                     |> ImArray.exists (function OlySyntaxValueDeclarationPostmodifier.Mutable _ -> true | _ -> false)
 
             let expr =
-                bindTopLevelBinding cenv (env.SetEnclosingValue(bindingInfo.Value)) syntaxExpr isExplicitMutable bindingInfo syntaxBinding
+                bindTopLevelBinding cenv (env.SetEnclosingValue(bindingInfo.Value)) syntaxExpr isExplicitMutable false bindingInfo syntaxBinding
 
             env, expr
         | _ ->
@@ -179,7 +179,9 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entiti
     | _ ->
         env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
 
-let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNode) syntaxNode bindingInfo (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
+let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNode) syntaxNode (bindingInfo: BindingInfoSymbol) (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
+    let hasImpl = syntaxRhsExprOpt.IsSome || bindingInfo.Value.IsAutoProperty
+
     let exprs =
         match bindingInfo with
         | BindingProperty(getterAndSetterBindings=bindings) ->
@@ -187,7 +189,7 @@ let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNod
             ||> ImArray.map2 (fun syntaxPropBinding bindingInfo ->
                 match syntaxPropBinding with
                 | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
-                    bindTopLevelBinding cenv env (syntaxPropBinding :> OlySyntaxNode) false bindingInfo syntaxBinding
+                    bindTopLevelBinding cenv env (syntaxPropBinding :> OlySyntaxNode) false hasImpl bindingInfo syntaxBinding
                 | _ ->
                     raise(InternalCompilerUnreachedException())
             )
@@ -219,9 +221,9 @@ let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNod
             BoundBinding.Implementation(BoundSyntaxInfo.User(syntaxNode, env.benv), bindingInfo, expr)
         )
 
-let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isExplicitMutable (bindingInfo: BindingInfoSymbol) (syntaxBinding: OlySyntaxBinding) =
+let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isExplicitMutable (hasImpl: bool) (bindingInfo: BindingInfoSymbol) (syntaxBinding: OlySyntaxBinding) =
     match syntaxBinding with
-    | OlySyntaxBinding.Implementation(_, syntaxEqualToken, syntaxRhs) ->
+    | OlySyntaxBinding.Implementation(syntaxBindingDecl, syntaxEqualToken, syntaxRhs) ->
 
         // TODO: This needs cleanup. If we create a 'base' value, that means we absolutely have access to 'this'. It's a bug otherwise.
         //       So, re-write to guarantee that when 'base' is in scope, we have access to 'this'.
@@ -286,10 +288,16 @@ let private bindTopLevelBinding (cenv: cenv) (env: BinderEnvironment) (syntaxNod
                 rhsExpr
             )
         OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)
+
+        checkBindingImplementation cenv syntaxBindingDecl true bindingInfo
+
         BoundExpression.MemberDefinition(BoundSyntaxInfo.User(syntaxNode, env.benv), binding)
 
-    | OlySyntaxBinding.Signature(_) ->
+    | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
         OlyAssert.True(syntaxNode.IsExpression || syntaxNode.IsPropertyBinding)
+
+        checkBindingImplementation cenv syntaxBindingDecl hasImpl bindingInfo
+
         BoundExpression.MemberDefinition(
             BoundSyntaxInfo.User(syntaxNode, env.benv),
             BoundBinding.Signature(BoundSyntaxInfo.User(syntaxBinding, env.benv), bindingInfo))

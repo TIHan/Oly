@@ -2235,6 +2235,8 @@ let bindValueModifiersAndKindAsMemberFlags
             isExplicitStatic <- true
         if parentExplicitness.IsExplicitNew then
             isExplicitNew <- true
+        if parentExplicitness.IsExplicitAbstract then
+            isExplicitAbstract <- true
     | _ ->
         ()
 
