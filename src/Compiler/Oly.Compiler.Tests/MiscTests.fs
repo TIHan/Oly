@@ -300,7 +300,7 @@ main (): () =
     |> ignore
 
 [<Fact>]
-let ``Example 4``() =
+let ``Example 4 - should error``() =
     let src =
         """
 open extension MaybeMonadExtension<_>
@@ -391,7 +391,15 @@ g<T>(x: T, y: T): T where T: trait Add<T> =
    doot.x + y
         """
     Oly src
-    |> withCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Inside a virtual function, 'T' is not allowed to solve the trait constraint type 'Add<T>'.",
+                """
+        let result = v1 + v2
+                        ^
+"""
+            )
+        ]
     |> ignore
 
 [<Fact>]

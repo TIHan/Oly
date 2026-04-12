@@ -2175,8 +2175,6 @@ main(): () =
 [<Fact>]
 let ``Trait Constraint Limitation should error``() =
     """
-namespace Test
-
 #[intrinsic("int32")]
 alias int32
 
@@ -2196,7 +2194,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""Using members from the trait constraint type 'IComponent' are not allowed in a virtual function.""",
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
                 """
     ArchetypedIndex: int32 get() = T0.GetValue()
                                       ^^^^^^^^
@@ -2207,8 +2205,6 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
 [<Fact>]
 let ``Trait Constraint Limitation should error - 2``() =
     """
-namespace Test
-
 #[intrinsic("int32")]
 alias int32
 
@@ -2228,7 +2224,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""Using members from the trait constraint type 'IComponent' are not allowed in a virtual function.""",
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
                 """
     ArchetypedIndex: int32 get() = T0.Value
                                       ^^^^^
@@ -2239,8 +2235,6 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
 [<Fact>]
 let ``Trait Constraint Limitation should error - 3``() =
     """
-namespace Test
-
 #[intrinsic("int32")]
 alias int32
 
@@ -2260,10 +2254,40 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("""Using members from the trait constraint type 'IComponent' are not allowed in a virtual function.""",
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
                 """
     ArchetypedIndex: int32 get() = T0.Value
                                       ^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error - 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+M<T>(): int32 where T: trait IComponent = 123
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = M<T0>()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Inside a virtual function, 'T0' is not allowed to solve the trait constraint type 'IComponent'.""",
+                """
+    ArchetypedIndex: int32 get() = M<T0>()
+                                   ^^^^^
 """
             )
         ]

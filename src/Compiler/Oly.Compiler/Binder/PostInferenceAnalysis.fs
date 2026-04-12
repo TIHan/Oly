@@ -129,6 +129,31 @@ let analyzeTypeParameterUse (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlag
         | _ ->
             ()
 
+let isInVirtualImplementation aenv =
+    match aenv.currentFunctionOpt with
+    | Some(currentFunction) -> currentFunction.IsVirtual
+    | _ -> false
+
+let isTypeParameterIllegalForTrait aenv (tyPar: TypeParameterSymbol) (traitTy: TypeSymbol) =
+    match aenv.currentFunctionOpt with
+    | Some currentFunction when currentFunction.IsVirtual && currentFunction.TypeParameters |> ImArray.exists (fun x -> x.Id = tyPar.Id) |> not ->
+        if  tyPar.Constraints 
+            |> ImArray.exists (fun constr ->
+                match constr with
+                | ConstraintSymbol.TraitType(constrTraitTy) ->
+                    // TODO: This is very conservative and could be loosened; not taking into account the type arguments
+                    if areTypesEqual traitTy.Formal constrTraitTy.Value.Formal then
+                        true
+                    else
+                        false
+                | _ ->
+                    false
+            ) then true
+        else
+            false
+    | _ ->
+        false
+
 let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
@@ -381,6 +406,15 @@ and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: Witnes
     match witness.Solution with
     | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()
+
+    if isInVirtualImplementation aenv then
+        if witness.HasSolution then
+            match witness.Solution with
+            | Some(WitnessSymbol.TypeParameter(tyPar)) ->
+                if isTypeParameterIllegalForTrait aenv tyPar witness.Type then
+                    acenv.cenv.diagnostics.Error($"Inside a virtual function, '{printType aenv.benv tyPar.AsType}' is not allowed to solve the trait constraint type '{printType aenv.benv witness.Type}'.", 10, syntaxNode)
+            | _ ->
+                ()
 
 and checkEnclosing acenv aenv syntaxNode (enclosing: EnclosingSymbol) =
     match enclosing with
@@ -844,30 +878,17 @@ and analyzeTraitConstraintTypeInVirtualImplementation acenv (aenv: aenv) syntaxN
     if value.IsFunctionGroup then ()
     else
 
-    match aenv.currentFunctionOpt with
-    | Some(currentFunction) when currentFunction.IsVirtual ->
+    if isInVirtualImplementation aenv then
         match value.Enclosing with
         | EnclosingSymbol.Witness(concreteTy, traitEnt) ->
             match concreteTy.TryTypeParameter with
-            | ValueSome tyPar when tyPar.Kind.IsType && tyPar.Constraints 
-                                                        |> ImArray.exists (fun constr ->
-                                                            match constr with
-                                                            | ConstraintSymbol.TraitType(constrTraitTy) ->
-                                                                // TODO: This is very conservative and could be loosened; not taking into account the type arguments
-                                                                if areTypesEqual traitEnt.Formal.AsType constrTraitTy.Value.Formal then
-                                                                    true
-                                                                else
-                                                                    false
-                                                            | _ ->
-                                                                false
-                                                        ) ->
-                acenv.cenv.diagnostics.Error($"Using members from the trait constraint type '{printEntity aenv.benv traitEnt}' are not allowed in a virtual function.", 10, syntaxNode)
+            | ValueSome tyPar -> 
+                if isTypeParameterIllegalForTrait aenv tyPar traitEnt.AsType then
+                    acenv.cenv.diagnostics.Error($"Inside a virtual function, using members from '{printType aenv.benv tyPar.AsType}' for the trait constraint type '{printType aenv.benv traitEnt.AsType}' are not allowed.", 10, syntaxNode)
             | _ ->
                 ()
         | _ ->
             ()
-    | _ ->
-        ()
 
 and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
     analyzeExpressionWithTypeAux acenv aenv expr false expectedTy
@@ -1089,7 +1110,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         if not value.IsFunctionGroup then
             witnessArgs
             |> ImArray.iter (fun x ->
-                checkWitnessSolution acenv aenv syntaxNode x
+                checkWitnessSolution acenv aenv syntaxInfo.SyntaxNameOrDefault x
             )
 
             // Context Analysis: UnmanagedAllocationOnly

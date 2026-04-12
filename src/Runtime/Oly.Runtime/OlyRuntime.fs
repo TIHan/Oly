@@ -2368,7 +2368,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     match tyDef.Enclosing with
                     | RuntimeEnclosing.Namespace(path) -> Choice1Of2(path)
                     | _ -> 
-                        Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType)
+                        if isGenericsErased then
+                            Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType)
+                        else
+                            Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType.Formal)
         
                 let ilEntDef = ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
 
