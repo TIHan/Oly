@@ -227,7 +227,7 @@ type RuntimeTypeInstanceCache<'Type, 'Function, 'Field>(runtime: OlyRuntime<'Typ
 
             let rec recursiveGenericCheck depth (ty: RuntimeType) =
                 if depth > 16 then
-                    raise(GenericRecursionLimitReached($"Generic recursion limit reached: {res.DebugText}"))
+                   failwith $"Generic recursion limit reached: {res.DebugText}"
 
                 ty.TypeArguments
                 |> ImArray.iter (fun tyArg ->
@@ -1643,7 +1643,9 @@ let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Fu
             try
                 importExpressionAux cenv env expectedTyOpt ilExpr
             with
-            | :? GenericRecursionLimitReached as ex ->
+            | :? Oly.Runtime.CodeGen.OlyRuntimeException ->
+                reraise()
+            | ex ->
                 let textRange =
                     let getILTextRange ilExpr =
                         match ilExpr with
@@ -1652,7 +1654,7 @@ let importExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 'Fu
                         | OlyILExpression.Operation(ilTextRange, _) -> readTextRange env.ILAssembly ilTextRange
                         | _ -> OlyIRDebugSourceTextRange.Empty
                     getILTextRange ilExpr
-                raise(OlyGenericRecursionLimitReached(ex.message, textRange))
+                raise(OlyRuntimeException(ex.Message, textRange))
         )
 
     match expectedTyOpt with
@@ -4562,6 +4564,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             emittedFunc
 
     member vm.EmitFunction(func: RuntimeFunction) =
+        func.VerifyConstraints()
+
         let genericContext = createGenericContextFromFunction func
 
         // This forces emitting a target function from one of the type arguments that conform with the shape constraint.

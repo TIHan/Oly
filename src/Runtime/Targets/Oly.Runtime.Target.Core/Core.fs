@@ -13,12 +13,12 @@ module OlyTarget =
 
     let private handleException (project: OlyProject) (ex: Exception) ct =
         match ex with
-        | :? Oly.Runtime.CodeGen.OlyGenericRecursionLimitReached as ex ->
+        | :? Oly.Runtime.CodeGen.OlyRuntimeException as ex ->
             let solution = project.Solution
             let docs = solution.GetDocuments(ex.textRange.Path)
             if docs.IsEmpty then
                 System.Diagnostics.Debug.WriteLine(ex)
-                Some(OlyDiagnostic.CreateError($"Internal error: {ex.message}", 9999))
+                Some(OlyDiagnostic.CreateError($"Runtime error: {ex.message}", 9999))
             else
                 let doc = docs[0]
                 let syntaxNode =

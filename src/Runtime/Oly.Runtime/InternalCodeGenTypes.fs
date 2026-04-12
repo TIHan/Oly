@@ -353,6 +353,36 @@ type RuntimeEntity =
                 (this.IsTypeExtension || this.IsAlias) && not this.Extends.IsEmpty && this.Extends.[0].IsAnyStruct
             )
 
+    member this.IsUnmanaged(enclosingTyPars: RuntimeTypeParameter imarray, funcTyPars: RuntimeTypeParameter imarray, depth: int) =
+        if this.IsEnumOrNewtype then
+            this.RuntimeType.Value.IsUnmanaged_sa(enclosingTyPars, funcTyPars, depth)
+        else
+            this.ILEntityKind = OlyILEntityKind.Struct &&
+            (
+                this.Fields
+                |> ImArray.forall (fun field -> 
+                    if not field.IsStatic then
+                        field.Type.IsUnmanaged_sa(enclosingTyPars, funcTyPars, depth + 1)
+                    else
+                        true
+                )
+            )
+
+    member this.IsBlittable(enclosingTyPars: RuntimeTypeParameter imarray, funcTyPars: RuntimeTypeParameter imarray, depth: int) =
+        if this.IsEnumOrNewtype then
+            this.RuntimeType.Value.IsBlittable_sa(enclosingTyPars, funcTyPars, depth)
+        else
+            this.ILEntityKind = OlyILEntityKind.Struct &&
+            (
+                this.Fields
+                |> ImArray.forall (fun field -> 
+                    if not field.IsStatic then
+                        field.Type.IsBlittable_sa(enclosingTyPars, funcTyPars, depth + 1)
+                    else
+                        true
+                )
+            )
+
     member this.IsEnum =
         this.ILEntityKind = OlyILEntityKind.Enum
 
@@ -878,8 +908,119 @@ type RuntimeType =
         | Unit
         | Tuple _ 
         | FixedArray _ -> true
-        | Function(kind=OlyIRFunctionKind.Scoped) -> true
+        | Function(kind=OlyIRFunctionKind.Scoped) -> true // TODO: Is this right?
         | Entity(ent) -> ent.IsAnyStruct
+        | _ -> false
+
+    /// Strips alias
+    member this.IsStructLike_sa(enclosingTyPars: RuntimeTypeParameter imarray, funcTyPars: RuntimeTypeParameter imarray) =
+        if this.StripAlias().IsAnyStruct then true
+        else
+            match this with
+            | Variable(tyVarIndex, tyVarKind)
+            | HigherVariable(tyVarIndex, _, tyVarKind) ->
+                let tyPar =
+                    match tyVarKind with
+                    | OlyILTypeVariableKind.Type ->
+                        enclosingTyPars[tyVarIndex]
+                    | OlyILTypeVariableKind.Function ->
+                        funcTyPars[tyVarIndex]
+                    | _ ->
+                        failwith "Invalid type variable kind."
+                tyPar.ILConstraints
+                |> ImArray.exists (function
+                    | OlyILConstraint.Struct
+                    | OlyILConstraint.Unmanaged
+                    | OlyILConstraint.Blittable -> true
+                    | _ -> false
+                )
+            | _ -> false
+
+    /// Strips alias
+    member this.IsUnmanaged_sa(enclosingTyPars: RuntimeTypeParameter imarray, funcTyPars: RuntimeTypeParameter imarray, depth: int) =
+        if depth > 1024 then
+            failwith $"Hit recursion limit for 'unmanaged' check; current type: {this.Name}."
+        if depth > 768 then
+            OlyTrace.LogWarning $"[Runtime] Reaching recursion limit for 'unmanaged' check; current type: {this.Name}; current depth: {depth}."
+        match this.StripAlias() with
+        | UInt8
+        | Int8
+        | UInt16
+        | Int16
+        | UInt32
+        | Int32
+        | UInt64
+        | Int64
+        | Float32
+        | Float64
+        | Bool
+        | Char16
+        | NativeInt
+        | NativeUInt
+        | NativePtr _ 
+        | NativeFunctionPtr _
+        | Unit -> true
+        | Tuple(tyArgs, _) ->
+            tyArgs
+            |> ImArray.forall (fun x -> x.IsUnmanaged_sa(enclosingTyPars, funcTyPars, depth + 1))
+        | FixedArray(elementTy, _, _) -> elementTy.IsUnmanaged_sa(enclosingTyPars, funcTyPars, depth + 1)
+        | Entity(ent) -> ent.IsUnmanaged(enclosingTyPars, funcTyPars, depth)
+        | Variable(tyVarIndex, tyVarKind)
+        | HigherVariable(tyVarIndex, _, tyVarKind) ->
+            let tyPar =
+                match tyVarKind with
+                | OlyILTypeVariableKind.Type ->
+                    enclosingTyPars[tyVarIndex]
+                | OlyILTypeVariableKind.Function ->
+                    funcTyPars[tyVarIndex]
+                | _ ->
+                    failwith "Invalid type variable kind."
+            tyPar.ILConstraints
+            |> ImArray.exists (function
+                | OlyILConstraint.Unmanaged
+                | OlyILConstraint.Blittable -> true
+                | _ -> false
+            )
+        | _ -> false
+
+    /// Strips alias
+    member this.IsBlittable_sa(enclosingTyPars: RuntimeTypeParameter imarray, funcTyPars: RuntimeTypeParameter imarray, depth: int) =
+        if depth > 1024 then
+            failwith $"Hit recursion limit for 'blittable' check; current type: {this.Name}."
+        if depth > 768 then
+            OlyTrace.LogWarning $"[Runtime] Reaching recursion limit for 'blittable' check; current type: {this.Name}; current depth: {depth}."
+        match this.StripAlias() with
+        | UInt8
+        | Int8
+        | UInt16
+        | Int16
+        | UInt32
+        | Int32
+        | UInt64
+        | Int64
+        | Float32
+        | Float64 
+        | Char16 -> true
+        | Tuple(tyArgs, _) ->
+            tyArgs
+            |> ImArray.forall (fun x -> x.IsBlittable_sa(enclosingTyPars, funcTyPars, depth + 1))
+        | FixedArray(elementTy, _, _) -> elementTy.IsBlittable_sa(enclosingTyPars, funcTyPars, depth + 1)
+        | Entity(ent) -> ent.IsBlittable(enclosingTyPars, funcTyPars, depth)
+        | Variable(tyVarIndex, tyVarKind)
+        | HigherVariable(tyVarIndex, _, tyVarKind) ->
+            let tyPar =
+                match tyVarKind with
+                | OlyILTypeVariableKind.Type ->
+                    enclosingTyPars[tyVarIndex]
+                | OlyILTypeVariableKind.Function ->
+                    funcTyPars[tyVarIndex]
+                | _ ->
+                    failwith "Invalid type variable kind."
+            tyPar.ILConstraints
+            |> ImArray.exists (function
+                | OlyILConstraint.Blittable -> true
+                | _ -> false
+            )
         | _ -> false
 
     member this.IsArrayOfStruct =
@@ -907,7 +1048,12 @@ type RuntimeType =
         | ByRef _ -> true
         | Entity(ent) -> ent.IsScoped
         | Function(kind=OlyIRFunctionKind.Scoped) -> true
+        | ForAll(_, innerTy) -> innerTy.IsScoped
         | _ -> false
+
+    member this.IsNullable =
+        // If it's not a struct-like, then it technically can be nullable.
+        not this.IsAnyStruct
 
     member this.IsInterface =
         match this with
@@ -1539,6 +1685,102 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             }
             |> RuntimeFunction
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member this.VerifyConstraints() =
+        this.VerifyConstraintsCore(this.EnclosingType.TypeParameters, this.EnclosingType.TypeArguments)
+        this.VerifyConstraintsCore(this.TypeParameters, this.TypeArguments)
+
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+    member private this.VerifyConstraintsCore(tyPars: RuntimeTypeParameter imarray, tyArgs: RuntimeType imarray) =
+        OlyAssert.Equal(tyPars.Length, tyArgs.Length)
+
+        let failVerification (constrKind: string) =
+            failwith $"Constraint '{constrKind}' verification failed on function '{this.Name}'."
+
+        let verifyTypeVariable tyVarIndex tyVarKind constrKind onConstr =
+            let tyPar =
+                match tyVarKind with
+                | OlyILTypeVariableKind.Type ->
+                    this.EnclosingType.TypeParameters[tyVarIndex]
+                | OlyILTypeVariableKind.Function ->
+                    this.TypeParameters[tyVarIndex]
+                | _ ->
+                    failwith "Invalid type variable kind."
+            let isValid =
+                tyPar.ILConstraints
+                |> ImArray.exists onConstr
+            if not isValid then
+                failVerification constrKind
+
+        // TODO: verify subtype and trait constraint types
+
+        (tyPars, tyArgs)
+        ||> ImArray.iter2 (fun tyPar tyArg ->
+            tyPar.ILConstraints
+            |> ImArray.iter (fun ilConstr ->
+                match ilConstr with
+                | OlyILConstraint.Struct ->
+                    if not(tyArg.IsStructLike_sa(this.EnclosingType.TypeParameters, this.TypeParameters)) then
+                        failVerification "struct"
+                | OlyILConstraint.Unmanaged ->
+                    if not(tyArg.IsUnmanaged_sa(this.EnclosingType.TypeParameters, this.TypeParameters, 0)) then
+                        failVerification "unmanaged"
+                | OlyILConstraint.Blittable ->
+                    if not(tyArg.IsBlittable_sa(this.EnclosingType.TypeParameters, this.TypeParameters, 0)) then
+                        failVerification "blittable"
+                | OlyILConstraint.Scoped ->
+                    match tyArg with
+                    | RuntimeType.Variable(tyVarIndex, tyVarKind)
+                    | RuntimeType.HigherVariable(tyVarIndex, _, tyVarKind) ->
+                        verifyTypeVariable tyVarIndex tyVarKind $"scoped" (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.Scoped -> true
+                            | _ -> false
+                        )
+                    | _ ->
+                        () // any type works
+                | OlyILConstraint.Null ->
+                    match tyArg with
+                    | RuntimeType.Variable(tyVarIndex, tyVarKind)
+                    | RuntimeType.HigherVariable(tyVarIndex, _, tyVarKind) ->
+                        verifyTypeVariable tyVarIndex tyVarKind "null" (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.Null -> true
+                            | _ -> false
+                        )
+                    | _ ->
+                        if not tyArg.IsNullable then
+                            failVerification "null"
+                | OlyILConstraint.NotStruct ->
+                    match tyArg with
+                    | RuntimeType.Variable(tyVarIndex, tyVarKind)
+                    | RuntimeType.HigherVariable(tyVarIndex, _, tyVarKind) ->
+                        verifyTypeVariable tyVarIndex tyVarKind "not struct" (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.NotStruct -> true
+                            | _ -> false
+                        )
+                    | _ ->
+                        if tyArg.IsAnyStruct then
+                            failVerification "not struct"
+                | OlyILConstraint.ConstantType(ilTy) ->
+                    match tyArg with
+                    | RuntimeType.Variable(tyVarIndex, tyVarKind)
+                    | RuntimeType.HigherVariable(tyVarIndex, _, tyVarKind) ->
+                        verifyTypeVariable tyVarIndex tyVarKind "constant" (fun ilConstr ->
+                            match ilConstr with
+                            | OlyILConstraint.ConstantType(OlyILTypeInt32) -> true
+                            | _ -> false
+                        )
+                    | _ ->
+                        match ilTy with
+                        | OlyILTypeInt32 -> ()
+                        | _ -> failVerification "constant"
+                | _ ->
+                    ()
+            )
+        )
+
     override this.GetHashCode() = this.Name.GetHashCode()
 
     override this.Equals(o) =
@@ -1848,5 +2090,3 @@ type RuntimeFieldReferenceCache<'Type, 'Function, 'Field>() =
         | _ ->
             table[field] <- field
             field
-
-exception GenericRecursionLimitReached of message: string
