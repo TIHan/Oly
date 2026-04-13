@@ -344,6 +344,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
                 Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                 Arity = ilTyPar.Arity
                 IsVariadic = ilTyPar.IsVariadic
+                ILKind = OlyILTypeVariableKind.Function
                 ILConstraints = ilTyPar.Constraints
                 ConstraintSubtypes = Lazy<_>.CreateFromValue(constrSubtypes)
                 ConstraintTraits = Lazy<_>.CreateFromValue(constrTraits)
@@ -3619,6 +3620,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                             Arity = ilTyPar.Arity
                             IsVariadic = ilTyPar.IsVariadic
+                            ILKind = OlyILTypeVariableKind.Type
                             ILConstraints = ilTyPar.Constraints
                             ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty)
                             ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty)
@@ -3938,6 +3940,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         Name = ilAsm.GetStringOrEmpty(ilTyPar.NameHandle)
                         Arity = ilTyPar.Arity
                         IsVariadic = ilTyPar.IsVariadic
+                        ILKind = OlyILTypeVariableKind.Type // TODO: Is this right?
                         ILConstraints = ilTyPar.Constraints
                         ConstraintSubtypes = Lazy<_>.CreateFromValue(constrSubtypes)
                         ConstraintTraits = Lazy<_>.CreateFromValue(constrTraits)

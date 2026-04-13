@@ -245,6 +245,7 @@ type RuntimeTypeParameter =
         Name: string
         Arity: int
         IsVariadic: bool
+        ILKind: OlyILTypeVariableKind
         ILConstraints: OlyILConstraint imarray
         mutable ConstraintSubtypes: RuntimeType imarray Lazy
         mutable ConstraintTraits: RuntimeType imarray Lazy
@@ -884,6 +885,11 @@ type RuntimeType =
         | Function(argTys, returnTy, _) 
         | NativeFunctionPtr(_, argTys, returnTy) ->
             argTys.Add(returnTy)
+        | ForAll(tyPars, _) ->
+            tyPars
+            |> ImArray.mapi (fun i tyPar ->
+                RuntimeType.Variable(i, tyPar.ILKind)
+            )
         | _ -> 
             ImArray.empty
 
@@ -1098,18 +1104,22 @@ type RuntimeType =
         | ReferenceCell _
         | Array _
         | ByRef _ 
-        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
-        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | NativePtr _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
+        | Tuple _ -> ImArray.createOne({ Name = ""; Arity = 0; IsVariadic = true; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | Function _ 
         | NativeFunctionPtr _ ->
-            ImArray.init this.TypeArguments.Length (fun i -> { Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
+            ImArray.init this.TypeArguments.Length (fun _ -> { Name = ""; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) })
         | FixedArray _ ->
             (
-                ({ Name = ""; Arity = 0; IsVariadic = false; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
-                ({ Name = "RowRank"; Arity = 0; IsVariadic = false; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
-                ({ Name = "ColumnRank"; Arity = 0; IsVariadic = false; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter)
+                ({ Name = ""; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
+                ({ Name = "RowRank"; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter),
+                ({ Name = "ColumnRank"; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.createOne (OlyILConstraint.ConstantType(OlyILType.OlyILTypeInt32)); ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter)
             )
             |||> ImArray.createThree
+        | HigherVariable(_, tyArgs, _) ->
+            ImArray.init tyArgs.Length (fun _ ->
+                ({ Name = ""; Arity = 0; IsVariadic = false; ILKind = OlyILTypeVariableKind.Type; ILConstraints = ImArray.empty; ConstraintSubtypes = Lazy<_>.CreateFromValue(ImArray.empty); ConstraintTraits = Lazy<_>.CreateFromValue(ImArray.empty) }: RuntimeTypeParameter)
+            )
         | _ -> 
             ImArray.empty
 
