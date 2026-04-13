@@ -1149,7 +1149,7 @@ type RuntimeType =
         | Entity(ent) -> ent.IsImported
         | _ -> false
 
-    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported
+    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported && not this.TypeParameters.IsEmpty
 
     member this.Substitute(genericContext: GenericContext): RuntimeType =
         if genericContext.IsEmpty then

@@ -4391,29 +4391,25 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let overrides =
                 func.Overrides 
                 |> Option.map (fun x -> 
-                    // We must pass witnesses to the overriden function.
-                    if x.EnclosingType.CanGenericsBeErased && isErasingFunc then
-                        let enclosingTy = 
-                            x.EnclosingType.Substitute(genericContext)
-                        let genericContext = GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
-                        let funcTyArgs =
-                            x.TypeArguments
-                            |> ImArray.map (fun x -> 
-                                x.Substitute(genericContext)
-                            )
-                        let func = x.Formal.MakeInstance(enclosingTy, funcTyArgs)
-                        let filteredWitnesses = vm.FilterFunctionWitnesses(func, witnesses, genericContext)
-                        this.EmitFunction(func.SetWitnesses(filteredWitnesses))
-                    else
-                        // We should not have witnesses to pass here.
-                        if not witnesses.IsEmpty then
-                            OlyAssert.Fail("Did not expected witnesses for overrides function.")
-                        if x.EnclosingType.TypeParameters.IsEmpty then
-                            this.EmitFunction(x.Formal)                                
+                    let enclosingTy = 
+                        x.EnclosingType.Substitute(genericContext)
+                    let genericContext = GenericContext.Create(enclosingTy.TypeArguments, funcTyArgs)
+                    let func = 
+                        if isErasingFunc then
+                            let funcTyArgs =
+                                x.TypeArguments
+                                |> ImArray.map (fun x -> 
+                                    x.Substitute(genericContext)
+                                )
+                            x.Formal.MakeInstance(enclosingTy, funcTyArgs)
                         else
-                            let enclosingTy = 
-                                x.EnclosingType.Substitute(genericContext)
-                            this.EmitFunction(x.Formal.MakeReference(enclosingTy))
+                            if not witnesses.IsEmpty then
+                                // In the OlyIR, we do not support witnesses (yet).
+                                // Therefore, we should not expect witnesses here.
+                                failwith "Witnesses not supported (yet) in un-erased generics."
+                            x.Formal.MakeReference(enclosingTy)
+                    let filteredWitnesses = vm.FilterFunctionWitnesses(func, witnesses, genericContext)
+                    this.EmitFunction(func.SetWitnesses(filteredWitnesses))
                 )
 
             let flags = func.Flags
