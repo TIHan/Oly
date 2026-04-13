@@ -119,6 +119,21 @@ type GenericContext =
         | _ ->
             OlyAssert.Fail("Invalid type variable kind.")
 
+    member this.ResolveTypeArgument(index, ilKind) =
+        match ilKind with
+        | OlyILTypeVariableKind.Type ->
+            if this.IsErasingType then
+                this.GetErasedTypeArgument(index, ilKind)
+            else
+                this.GetTypeArgument(index, ilKind)
+        | OlyILTypeVariableKind.Function ->
+            if this.IsErasingFunction then
+                this.GetErasedTypeArgument(index, ilKind)
+            else
+                this.GetTypeArgument(index, ilKind)
+        | _ ->
+            failwith "Invalid type variable kind."
+
     member this.SetFunctionTypeArguments(funcTyArgs: _ imarray) =
         { this with
             funcTyArgs = funcTyArgs
@@ -1670,7 +1685,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             | _ -> false
         )
 
-    member this.CanGenericsBeErased = not this.IsExternal && not this.IsExported
+    member this.CanGenericsBeErased = (not this.IsExternal && not this.IsExported) && (not (this.EnclosingType.TypeParameters.IsEmpty && this.TypeParameters.IsEmpty))
 
     /// REVIEW: Consider caching this?
     member this.ComputeSignatureKey() =

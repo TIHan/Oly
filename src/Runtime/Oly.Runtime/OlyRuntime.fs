@@ -1917,7 +1917,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 OlyAssert.True(ilSpecificAbstractFuncInstOpt.IsNone)
                 RuntimeWitness(index, ilKind, implTy, implTy, None)
             else
-                let ty = genericContext.GetErasedTypeArgument(index, ilKind)
+                let ty = genericContext.ResolveTypeArgument(index, ilKind)
                 let funcOpt =
                     ilSpecificAbstractFuncInstOpt
                     |> Option.map (fun x -> this.ResolveFunction(ilAsm, x, GenericContext.Default))
