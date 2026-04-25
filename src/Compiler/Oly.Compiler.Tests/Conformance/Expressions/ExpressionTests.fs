@@ -11612,3 +11612,79 @@ interface IComponent =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should error as nested exported generic types is not valid``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module Beef<U> =
+    #[export]
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+doot<T>(x: T): int32 =
+    let f() = 
+        print(x)
+        print(Beef<float32>.Zoot(x).value)
+    f()
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'Zoot<T>' is exported and not valid because its enclosing type 'Beef<U>' is not exported and has type parameters.",
+                """
+    class Zoot<T> =
+          ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``hould error as nested exported generic types is not valid 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+module Beef<U> =
+    #[export]
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+main(): () =
+    print(Beef<float32>.Zoot(500).value)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'Zoot<T>' is exported and not valid because its enclosing type 'Beef<U>' is not exported and has type parameters.",
+                """
+    class Zoot<T> =
+          ^^^^
+"""
+            )
+        ]
+    |> ignore

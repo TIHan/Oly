@@ -6,6 +6,7 @@ open Oly.Compiler
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
+open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Binder.EarlyAttributes
 
 let private bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syntaxAccessor: OlySyntaxAccessor) =
@@ -117,7 +118,10 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         | _ ->
             ()
             
-        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)    
+        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)
+
+    if ent.IsExported && (not ent.Enclosing.IsExported && not ent.Enclosing.TypeParameters.IsEmpty) then
+        cenv.diagnostics.Error($"Type '{printEntity env.benv ent}' is exported and not valid because its enclosing type '{printEnclosing env.benv ent.Enclosing}' is not exported and has type parameters.", 10, syntaxIdent)
 
     let _, (nestedEnts: EntitySymbolBuilder imarray) = bindTypeDeclarationBody cenv envWithEnclosing syntaxIdent entBuilder ImArray.empty syntaxTyDefBody
 

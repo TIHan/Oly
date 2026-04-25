@@ -2371,15 +2371,22 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     match tyDef.Enclosing with
                     | RuntimeEnclosing.Namespace(path) -> Choice1Of2(path)
                     | _ -> 
+                        let enclosingTy = tyDef.Enclosing.AsType
+                        if tyDef.IsExported && (not enclosingTy.IsExported && not enclosingTy.TypeParameters.IsEmpty) then
+                            failwith $"Exported type '{tyDef.Name}' cannot be emitted as its enclosing type '{enclosingTy.Name}' is not exported and has type parameters."
+
                         if isGenericsErased then
-                            Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType)
+                            Choice2Of2(emitTypeDefinition enclosingTy)
                         else
-                            Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType.Formal)
-        
+                            if enclosingTy.CanGenericsBeErased then
+                                let genericContext = GenericContext.CreateErasing(enclosingTy.TypeArguments)
+                                Choice2Of2(emitTypeDefinition (tyDef.Enclosing.AsType.Substitute(genericContext)))
+                            else
+                                Choice2Of2(emitTypeDefinition tyDef.Enclosing.AsType.Formal)
                 let ilEntDef = ilAsm.GetEntityDefinition(tyDef.ILEntityDefinitionHandle)
 
                 let tyFlags =
-                    if isGenericsErased && not tyDef.TypeParameters.IsEmpty then
+                    if isGenericsErased then
                         RuntimeTypeFlags.GenericsErased
                     else
                         RuntimeTypeFlags.None
@@ -4630,7 +4637,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                         else
                             let enclosingTy =
                                 let enclosingTy = func.Enclosing.AsType
-                                if genericContext.IsErasingType then enclosingTy
+                                if enclosingTy.CanGenericsBeErased then enclosingTy
                                 else enclosingTy.Formal
                             let formalFunc =
                                 if genericContext.IsErasingType && not enclosingTy.TypeParameters.IsEmpty then
