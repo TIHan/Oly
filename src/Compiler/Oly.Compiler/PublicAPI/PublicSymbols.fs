@@ -1566,11 +1566,10 @@ let private getTypeSymbolByName bm (collector: ISymbolCollector) (syntaxName: Ol
         getTypeArgumentSymbolsWithTypes bm collector syntaxTyArgs boundNode ty.TypeArguments
 
     | OlySyntaxName.Qualified _ ->
-
         match ty.TryEntityNoAlias with
         | ValueSome(ent) ->
-            (ent.AsEnclosing, syntaxName.AllNames |> List.rev)
-            ||> List.fold (fun enclosing syntaxName ->
+            (ent.AsEnclosing, syntaxName.AllNames)
+            ||> ImArray.foldBack (fun enclosing syntaxName ->
                 match enclosing.TryEntity with
                 | Some ent ->
                     if ent.IsNamespace then 
@@ -2025,9 +2024,8 @@ type OlyBoundModel internal (
         | _ ->
             ()
 
-    and getSymbolsByNameAndValue (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
-        // TODO: What is 'value.IsBridge' doing again?
-        if value.IsSingleUse then ()
+    and getEnclosingSymbolsByNameAndValue (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
+        if value.IsInstanceNotConstructor then ()
         else
 
         let syntaxNames = 
@@ -2048,35 +2046,39 @@ type OlyBoundModel internal (
                     value.Enclosing.Enclosing
                 else
                     value.Enclosing
+
         syntaxNames
         |> ImArray.iter (fun syntaxName ->
             getTypeSymbolByNameAndEnclosing collector syntaxName boundNode enclosing
             enclosing <- enclosing.Enclosing
         )
 
-        if syntaxNames.IsEmpty && value.IsInvalid && not value.IsFunctionGroup then
-            getTypeSymbolByNameAndEnclosing collector syntaxName boundNode enclosing
+    and getSymbolsByNameAndValue (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
+        if value.IsSingleUse then ()
         else
-            let syntaxName = syntaxName.LastName
-            match syntaxName with
-            | OlySyntaxName.Identifier(syntaxIdent) ->
-                getValueSymbolByIdentifier this collector syntaxIdent boundNode value.Formal
 
-                let tyArgs = value.AllTypeArguments
-                if not tyArgs.IsEmpty then
-                    match syntaxName.Parent with
-                    | :? OlySyntaxName as syntaxName ->
-                        match syntaxName with
-                        | OlySyntaxName.Generic(_, syntaxTyArgs) ->
-                            let syntaxTyArgs = syntaxTyArgs.Values
-                            let skipAmount = max 0 (tyArgs.Length - syntaxTyArgs.Length)
-                            getTypeArgumentSymbols collector syntaxTyArgs boundNode (tyArgs |> Seq.skip skipAmount |> ImArray.ofSeq)
-                        | _ ->
-                            ()
+        getEnclosingSymbolsByNameAndValue collector syntaxName boundNode value enclosingTyOpt
+
+        let syntaxName = syntaxName.LastName
+        match syntaxName with
+        | OlySyntaxName.Identifier(syntaxIdent) ->
+            getValueSymbolByIdentifier this collector syntaxIdent boundNode value.Formal
+
+            let tyArgs = value.AllTypeArguments
+            if not tyArgs.IsEmpty then
+                match syntaxName.Parent with
+                | :? OlySyntaxName as syntaxName ->
+                    match syntaxName with
+                    | OlySyntaxName.Generic(_, syntaxTyArgs) ->
+                        let syntaxTyArgs = syntaxTyArgs.Values
+                        let skipAmount = max 0 (tyArgs.Length - syntaxTyArgs.Length)
+                        getTypeArgumentSymbols collector syntaxTyArgs boundNode (tyArgs |> Seq.skip skipAmount |> ImArray.ofSeq)
                     | _ ->
                         ()
-            | _ ->
-                ()
+                | _ ->
+                    ()
+        | _ ->
+            ()
 
     and getTypeArgumentSymbols (collector: ISymbolCollector) (syntaxTyArgs: OlySyntaxType imarray) (boundNode: IBoundNode) (tyArgs: ImmutableArray<TypeArgumentSymbol>) =
         let tyArgs =

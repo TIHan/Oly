@@ -1211,26 +1211,56 @@ module OlySyntaxTreeExtensions =
             | OlySyntaxName.Parenthesis(_, token, _) -> token
             | _ -> failwith "should not happen"
 
-        member this.AllNames =
+        member private this.AllNamesCore(builder: OlySyntaxName imarrayb) =
             match this with
             | OlySyntaxName.Qualified(head, _, tail) ->
-                head.AllNames @ tail.AllNames
+                head.AllNamesCore(builder)
+                tail.AllNamesCore(builder)
             | OlySyntaxName.Identifier _ 
             | OlySyntaxName.Generic _
             | OlySyntaxName.Parenthesis _ ->
-                [this]
+                builder.Add(this)
+
+            | _ ->
+                failwith "Invalid syntax name."
+
+        member this.AllNames =
+            match this with
+            | OlySyntaxName.Qualified _ ->
+                let builder = ImArray.builder()
+                this.AllNamesCore(builder)
+                builder.ToImmutable()
+            | OlySyntaxName.Identifier _ 
+            | OlySyntaxName.Generic _
+            | OlySyntaxName.Parenthesis _ ->
+                ImArray.createOne this
+
+            | _ ->
+                failwith "Invalid syntax name."
+
+        member private this.EnclosingNamesCore(builder: OlySyntaxName imarrayb) =
+            match this with
+            | OlySyntaxName.Qualified(head, _, tail) ->
+                head.AllNamesCore(builder)
+                tail.EnclosingNamesCore(builder)
+            | OlySyntaxName.Identifier _ 
+            | OlySyntaxName.Generic _
+            | OlySyntaxName.Parenthesis _ ->
+                ()
 
             | _ ->
                 failwith "Invalid syntax name."
 
         member this.EnclosingNames =
             match this with
-            | OlySyntaxName.Qualified(head, _, tail) ->
-                head.AllNames @ tail.EnclosingNames
+            | OlySyntaxName.Qualified _ ->
+                let builder = ImArray.builder()
+                this.EnclosingNamesCore(builder)
+                builder.ToImmutable()
             | OlySyntaxName.Identifier _ 
             | OlySyntaxName.Generic _
             | OlySyntaxName.Parenthesis _ ->
-                []
+                ImArray.empty
 
             | _ ->
                 failwith "Invalid syntax name."

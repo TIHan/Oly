@@ -5031,6 +5031,7 @@ module SymbolExtensions =
             member this.IsImmutable =
                 not this.IsMutable
     
+            /// Is this value a local and only used a single time?
             member this.IsSingleUse =
                 this.IsLocal && this.Name = LocalBridgeName && not this.IsMutable
 

@@ -1036,12 +1036,13 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
         | OlySyntaxName.Qualified(syntaxHeadName, _, syntaxTailName) ->
             // We want types to take precedent for the 'syntaxHeadName'.
             // If a type is not resolved, then it will try to choose a value - local, field, function, property or pattern.
-            let newContext =
+            let headResInfo =
                 match resInfo.resContext with
-                | ResolutionContext.ValueOnly
-                | ResolutionContext.ValueOnlyAttribute -> ResolutionContext.All
-                | _ -> resInfo.resContext
-            match bindNameAsFormalItem cenv env (Some syntaxExprOpt) receiverInfoOpt { ResolutionInfo.Default with resContext = newContext } syntaxHeadName with
+                | ResolutionContext.TypeOnly -> 
+                    { ResolutionInfo.Default with resContext = ResolutionContext.TypeOnly }
+                | _ -> 
+                    ResolutionInfo.Default
+            match bindNameAsFormalItem cenv env (Some syntaxExprOpt) receiverInfoOpt headResInfo syntaxHeadName with
             | ResolutionFormalItem.None ->
                 ResolutionItem.Invalid(syntaxName)
             | ResolutionFormalItem.Error ->

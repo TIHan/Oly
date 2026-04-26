@@ -328,6 +328,38 @@ test(t: Test): () =
     src |> hasSymbolSignatureTextByCursor "Test"
 
 [<Fact>]
+let ``Enum pattern match should give the correct symbol 4``() =
+    let src =
+        """
+module Test =
+    enum TestEnum =
+        | ABC
+        | DEF
+
+test(t: Test.TestEnum): () =
+    match (t)
+    | ~^~Test.TestEnum.ABC => ()
+    | _ => ()
+        """
+    src |> hasSymbolSignatureTextByCursor "Test"
+
+[<Fact>]
+let ``Enum pattern match should give the correct symbol 5``() =
+    let src =
+        """
+module Test =
+    enum TestEnum =
+        | ABC
+        | DEF
+
+test(t: Test.TestEnum): () =
+    match (t)
+    | Test.~^~TestEnum.ABC => ()
+    | _ => ()
+        """
+    src |> hasSymbolSignatureTextByCursor "TestEnum"
+
+[<Fact>]
 let ``A non-pattern function definition with the use of 'when' should error``() =
     let src =
         """
