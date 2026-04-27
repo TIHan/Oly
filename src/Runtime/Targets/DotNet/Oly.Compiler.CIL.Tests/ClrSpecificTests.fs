@@ -10264,6 +10264,36 @@ alias byte
 alias int32
 
 M(inputMsgData: ReadOnlySpan<byte>): () =
+    let _ = Span<_>.op_Implicit(inputMsgData): ReadOnlySpan<byte>
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'Span<?T>' but is 'ReadOnlySpan<byte>'.",
+                """
+    let _ = Span<_>.op_Implicit(inputMsgData): ReadOnlySpan<byte>
+                                ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as mismatch parameter for ReadOnlySpan/Span 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int8")]
+alias byte
+
+#[intrinsic("int32")]
+alias int32
+
+M(inputMsgData: ReadOnlySpan<byte>): () =
     if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
         ()
 
