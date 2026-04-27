@@ -10250,3 +10250,34 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "Hello World!"
     |> ignore
+
+[<Fact>]
+let ``Should error as mismatch parameter for ReadOnlySpan/Span``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int8")]
+alias byte
+
+#[intrinsic("int32")]
+alias int32
+
+M(inputMsgData: ReadOnlySpan<byte>): () =
+    if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
+        ()
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'Span<byte>' but is 'ReadOnlySpan<byte>'.",
+                """
+    if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
+                                                                                ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
