@@ -10344,6 +10344,46 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Outref should fail because of dereference 7``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+M(value: int32): () = ()
+
+main(): () =
+    let mutable x = 1
+    let x : outref<int32> = &x
+    let y : int32 = x
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot dereference a write-only by-reference expression.",
+                """
+    let y : int32 = x
+                    ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Outref should fail because of invalid subsumption for inref``() =
     """
 #[intrinsic("int32")]

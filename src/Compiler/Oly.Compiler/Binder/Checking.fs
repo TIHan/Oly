@@ -1197,6 +1197,15 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
                 match derefExprOpt with
                 | Some(argExpr) -> argExpr
                 | _ ->
+                    let tyChecking =
+                        // Generated/implicit 'FromAddress' calls are a special case here.
+                        // Potentially showing an error would look weird for the user as
+                        // they would not actually see the call.
+                        // If there really was an error, it would have been raised elsewhere; therefore, we do not have to report errors.
+                        if syntaxInfo.IsGenerated && value.IsFromAddress then
+                            TypeChecking.EnabledNoTypeErrors(false)
+                        else
+                            tyChecking
                     argExpr.RewriteReturningTargetExpression(fun argExpr ->
                         checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                     )
@@ -1241,7 +1250,13 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
         checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
         expr
     | _ ->
-        if env.isPassedAsArgument then
-            checkExpressionAux cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt expr
-        else
-            checkExpressionAux cenv env TypeChecking.Enabled expectedTyOpt expr
+        let tyChecking =
+            if env.isPassedAsArgument then
+                match expr with
+                | E.Call(value=value) when value.IsFunctionGroup ->
+                    TypeChecking.EnabledNoTypeErrors(false)
+                | _ ->
+                    TypeChecking.Enabled
+            else
+                TypeChecking.Enabled
+        checkExpressionAux cenv env tyChecking expectedTyOpt expr

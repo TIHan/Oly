@@ -10231,7 +10231,7 @@ let ``Type inference should work correctly for ReadOnlySpan of a mutable array``
         """
 open System
 
-#[intrinsic("int8")]
+#[intrinsic("uint8")]
 alias byte
 
 #[intrinsic("int32")]
@@ -10257,11 +10257,8 @@ let ``Should error as mismatch parameter for ReadOnlySpan/Span``() =
         """
 open System
 
-#[intrinsic("int8")]
+#[intrinsic("uint8")]
 alias byte
-
-#[intrinsic("int32")]
-alias int32
 
 M(inputMsgData: ReadOnlySpan<byte>): () =
     let _ = Span<_>.op_Implicit(inputMsgData): ReadOnlySpan<byte>
@@ -10287,11 +10284,8 @@ let ``Should error as mismatch parameter for ReadOnlySpan/Span 2``() =
         """
 open System
 
-#[intrinsic("int8")]
+#[intrinsic("uint8")]
 alias byte
-
-#[intrinsic("int32")]
-alias int32
 
 M(inputMsgData: ReadOnlySpan<byte>): () =
     if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
@@ -10307,6 +10301,125 @@ main(): () =
                 """
     if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
                                                                                 ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+M(x: nint): () = ()
+
+main(): () =
+    let x = 1: byte
+    M(&&x)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    M(&&x)
+      ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+M(x: nint): bool = true
+
+main(): () =
+    let x = 1: byte
+    if (M(&&x))
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    if (M(&&x))
+          ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+M(x: nint): bool = true
+
+main(): () =
+    let x = 1: byte
+    if (M(&&x) == true)
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    if (M(&&x) == true)
+          ^^^
 """
             )
         ]
