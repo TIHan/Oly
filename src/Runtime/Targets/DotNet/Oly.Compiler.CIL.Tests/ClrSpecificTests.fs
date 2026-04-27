@@ -10303,7 +10303,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Span<byte>' but is 'ReadOnlySpan<byte>'.",
+            ("Expected type 'Span<?T>' but is 'ReadOnlySpan<byte>'.",
                 """
     if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
                                                                                 ^^^^^^^^^^^^

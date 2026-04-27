@@ -998,8 +998,17 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
             | E.Call(value=value) when value.IsFunctionGroup ->
                 let argExpr = 
-                    checkOverloadCallExpression cenv env false expectedTyOpt argExpr
-                    |> checkArgumentsOfCallLikeExpression cenv env tyChecking 
+                    let argExpr = 
+                        checkOverloadCallExpression cenv env false expectedTyOpt argExpr
+                        |> assertIsCallExpression
+                    let tyChecking =
+                        // Enable type checking if the overloaded function was found.
+                        match argExpr with
+                        | E.Call(value=value) when not value.IsFunctionGroup ->
+                            TypeChecking.Enabled
+                        | _ ->
+                            tyChecking
+                    checkArgumentsOfCallLikeExpression cenv env tyChecking argExpr
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
                 argExpr            
             | _ ->
@@ -1160,7 +1169,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
-        if not value.IsFunctionGroup && not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_ste then
+        if not(callFlags.HasFlag(CallFlags.Partial)) && argTys.Length <> argExprs.Length && not value.LogicalType.IsError_ste then
             cenv.diagnostics.Error(sprintf "Expected %i argument(s) but only given %i." argTys.Length argExprs.Length, 0, syntaxInfo.Syntax)
 
         let newArgExprs =
