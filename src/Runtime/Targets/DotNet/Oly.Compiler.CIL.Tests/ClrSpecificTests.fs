@@ -10113,7 +10113,7 @@ main(): () =
 
 
 [<Fact>]
-let ``Should handle nested exported generic types properly?``() =
+let ``Should handle nested exported generic types properly``() =
     let src =
         """
 #[intrinsic("int32")]
@@ -10137,6 +10137,84 @@ doot<T>(x: T): int32 =
         print(x)
         print(Beef<float32>.Zoot(x).value)
     f()
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Should handle nested exported generic types properly 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+M(f: () -> ()): () =
+    f()
+
+#[export]
+doot<T>(x: T): int32 =
+    M(() ->
+        print(x)
+        print(Beef<float32>.Zoot(x).value)        
+    )
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Should handle nested exported generic types properly 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+M(f: scoped () -> ()): () =
+    f()
+
+#[export]
+doot<T>(x: T): int32 =
+    M(() ->
+        print(x)
+        print(Beef<float32>.Zoot(x).value)        
+    )
     1
 
 main(): () =
