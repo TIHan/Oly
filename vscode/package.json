@@ -21,6 +21,9 @@
 		"@types/node": "^18.11.18",
 		"@types/vscode": "1.64.0"
 	},
+	"extensionDependencies": [
+		"ms-dotnettools.csdevkit"
+	],
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
@@ -37,8 +40,8 @@
 	],
 	"main": "./out/extension",
 	"contributes": {
-		  "viewsContainers": {
-				"activitybar": [
+		"viewsContainers": {
+			"activitybar": [
 				{
 					"id": "oly-view",
 					"title": "Oly",
@@ -191,7 +194,7 @@
 					"scope": "application",
 					"type": "number",
 					"default": 1000,
-					"description": "Controls the delay (ms) to publish document diagnostics after the currently edited documents has its diagnostics published."
+					"description": "Controls the delay (ms) to publish dependent document diagnostics after the currently edited documents has had its diagnostics published."
 				},
 				"oly.languageServer.trace.server": {
 					"scope": "application",
@@ -208,25 +211,29 @@
 					"scope": "application",
 					"type": "boolean",
 					"default": false,
-					"description": "Shows the syntax tree of the active document in the explorer and allows navigation to a syntax node."				
+					"description": "Shows the syntax tree of the active document in the explorer and allows navigation to a syntax node."
 				}
 			}
 		},
 		"semanticTokenTypes": [
-            {
-                "id": "conditionalDirectiveBody",
-                "superType": "conditionalDirectiveBody",
-                "description": "A conditional directive body."
-            }
-        ],
-        "configurationDefaults": {
-            "editor.semanticTokenColorCustomizations": {
-                "rules": {
-                    "conditionalDirectiveBody": "#9B9B9B"
-                }
-            },
+			{
+				"id": "conditionalDirectiveBody",
+				"superType": "conditionalDirectiveBody",
+				"description": "A conditional directive body."
+			}
+		],
+		"breakpoints": [
+			{
+				"language": "oly"
+			}
+		],
+		"configurationDefaults": {
+			"editor.semanticTokenColorCustomizations": {
+				"rules": {
+					"conditionalDirectiveBody": "#9B9B9B"
+				}
+			},
 			"editor.wordBasedSuggestions": "off",
-			"debug.allowBreakpointsEverywhere": true,
 			"files.watcherExclude": {
 				"**/.git/objects/**": true,
 				"**/.git/subtree-cache/**": true,
@@ -234,6 +241,6 @@
 				"**/.oly/cache/**": true,
 				"**/.oly/bin/**": true
 			}
-        }
+		}
 	}
 }

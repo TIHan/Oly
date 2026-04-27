@@ -3,16 +3,23 @@ import * as vscode from 'vscode';
 import { ExtensionContext, workspace } from 'vscode';
 import {
 	LanguageClientOptions,
-	ServerOptions,
-	Trace
+	ServerOptions
 } from 'vscode-languageclient/node';
-import { ProgressToken, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkDoneProgressReport } from 'vscode-languageserver-protocol';
+import { WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkDoneProgressReport } from 'vscode-languageserver-protocol';
 import { OlyTextPosition } from './IOlySyntaxTreeViewModel';
 import { OlyLanguageClient } from './OlyLanguageClient';
 import { OlyClientCommands } from './OlyClientCommands';
 import { OlySyntaxTreeView } from './OlySyntaxTreeView';
-import { autoCreateLaunchJson, getActiveDocument, sleep } from './Helpers';
+import { autoCreateLaunchJson, getActiveDocument } from './Helpers';
 import { OlySolutionExplorerView } from './OlySolutionExplorerView';
+
+interface IOlyWorkspaceSettings {
+	activeProject: string | undefined
+}
+
+interface IOlyWorkspaceState {
+	activeConfiguration: string
+}
 
 export let client: OlyLanguageClient;
 export let isClientReady: boolean = false;
@@ -47,6 +54,18 @@ async function build(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.
 }
 
 export function activate(context: ExtensionContext) {
+	const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+	if (workspaceFolders.length == 0) {
+		vscode.window.showErrorMessage("Oly: Unable to load extension. No workspaces were found.");
+		return;
+	}
+	if (workspaceFolders.length > 1) {
+		vscode.window.showErrorMessage("Oly: Unable to load extension. Multiple workspaces not supported.");
+		return;
+	}
+
+	const workspaceFolder = workspaceFolders[0];
+
 	let serverModule = context.asAbsolutePath(
 		path.join('out', 'net10.0', 'Oly.LanguageServer.dll')
 	);
@@ -81,14 +100,14 @@ export function activate(context: ExtensionContext) {
 	olyFileWatcher.onDidDelete(uri => {
 		let path = uri.path.toLowerCase();
 		if (path.endsWith('.oly') || path.endsWith('.olyx')) {
-			client.diagnostics.delete(uri);
+			client.diagnostics?.delete(uri);
 		}
 	});
 	vscode.workspace.onDidRenameFiles(e => {
 		e.files.forEach(args => {
 			let path = args.oldUri.path.toLowerCase();
 			if (path.endsWith('.oly') || path.endsWith('.olyx')) {
-				client.diagnostics.delete(args.oldUri);
+				client.diagnostics?.delete(args.oldUri);
 			}
 		})
 	});
@@ -187,8 +206,8 @@ export function activate(context: ExtensionContext) {
 
 		// Oly Workspace Settings
 		let olyWorkspaceSettingsPath = '.oly/workspace/settings.json';
-		let olyWorkspaceSettingsUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceSettingsPath));
-		async function readOlyWorkspaceSettings() {
+		let olyWorkspaceSettingsUri = vscode.Uri.file(path.join(workspaceFolder.uri.path, olyWorkspaceSettingsPath));
+		async function readOlyWorkspaceSettings(): Promise<IOlyWorkspaceSettings> {
 			// TODO: How do we handle a blank active project?
 			try {
 				let fileContents: Uint8Array = await vscode.workspace.fs.readFile(olyWorkspaceSettingsUri);
@@ -196,8 +215,7 @@ export function activate(context: ExtensionContext) {
 				return JSON.parse(stringContents);
 			}
 			catch {
-				let olyWorkspaceSettings: any = {};
-				olyWorkspaceSettings.activeProject = "";
+				let olyWorkspaceSettings: IOlyWorkspaceSettings = { activeProject: '' };
 				let projectNames = await client.getProjectList();
 				if (projectNames.length > 0) {
 					olyWorkspaceSettings.activeProject = projectNames[0];
@@ -207,27 +225,27 @@ export function activate(context: ExtensionContext) {
 				return await readOlyWorkspaceSettings();
 			}
 		}
-		async function saveOlyWorkspaceSettings(olyWorkspaceSettings) {
+		async function saveOlyWorkspaceSettings(olyWorkspaceSettings: IOlyWorkspaceSettings) {
 			await vscode.workspace.fs.writeFile(olyWorkspaceSettingsUri, new TextEncoder().encode(JSON.stringify(olyWorkspaceSettings)));
 		}
 
 		// Oly Workspace State
 		let olyWorkspaceStatePath = '.oly/workspace/state.json';
-		let olyWorkspaceStateUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyWorkspaceStatePath));
-		async function readOlyWorkspaceState() {
+		let olyWorkspaceStateUri = vscode.Uri.file(path.join(workspaceFolder.uri.path, olyWorkspaceStatePath));
+		async function readOlyWorkspaceState(): Promise<IOlyWorkspaceState> {
 			try {
 				let fileContents: Uint8Array = await vscode.workspace.fs.readFile(olyWorkspaceStateUri);
 				let stringContents = new TextDecoder().decode(fileContents);
 				return JSON.parse(stringContents);
 			}
 			catch {
-				let olyWorkspaceState: any = {};
-				olyWorkspaceState.activeConfiguration = "Debug"; // default - TODO: Technically a project may not have 'Debug' as default.
+				// default - TODO: Technically a project may not have 'Debug' as default.
+				let olyWorkspaceState: IOlyWorkspaceState = { activeConfiguration: "Debug" };
 				saveOlyWorkspaceState(olyWorkspaceState);
 				return readOlyWorkspaceState();
 			}
 		}
-		async function saveOlyWorkspaceState(olyWorkspaceState) {
+		async function saveOlyWorkspaceState(olyWorkspaceState: IOlyWorkspaceState) {
 			await vscode.workspace.fs.writeFile(olyWorkspaceStateUri, new TextEncoder().encode(JSON.stringify(olyWorkspaceState)));
 		}
 
@@ -292,14 +310,14 @@ export function activate(context: ExtensionContext) {
 				olyProjectStatusBarItem.command = { title: "", command: "vscode.open", arguments: [proj.uri] };
 			}
 			else {
-				olyProjectStatusBarItem.command = null;
+				olyProjectStatusBarItem.command = undefined;
 			}
 			olyProjectStatusBarItem.tooltip.appendMarkdown(`[$(settings-gear) Change Active Project](command:${OlyClientCommands.changeActiveProject} "Change active project")\n\n`);
 			olyProjectStatusBarItem.tooltip.appendMarkdown('[$(clear-all) Clean Workspace](command:oly.cleanWorkspace "Clean workspace")\n\n');
 			olyProjectStatusBarItem.text = `${olyProjectStatusDefaultText}: ${projText}${configText}`;
 		}
 		refreshProjectStatusBarItemTooltip();
-		refreshSolutionExplorer(null);
+		refreshSolutionExplorer(undefined);
 
 		let stateWatcher = workspace.createFileSystemWatcher('**/*.json');
 		stateWatcher.onDidChange(function (event) {
@@ -358,8 +376,12 @@ export function activate(context: ExtensionContext) {
 						let _ = await vscode.workspace.fs.stat(fileUri); // test if the file exists
 						return "File already exists";
 					}
-					catch {
-						return undefined;
+					catch (ex) {
+						if (ex instanceof Error) {
+							return ex.message;
+						} else {
+							return String(ex);
+						}
 					}
 				}
 				let newFileName = await vscode.window.showInputBox({ title: "File Name", validateInput: validateInput, value: ".oly", valueSelection: [0, 0] });
@@ -425,7 +447,7 @@ export function activate(context: ExtensionContext) {
 			}
 		}));
 
-		async function refreshSolutionExplorer(doc: vscode.TextDocument) {
+		async function refreshSolutionExplorer(doc: vscode.TextDocument | undefined) {
 			if (doc?.languageId === 'oly') {
 				await solutionExplorerView.refresh();
 				await solutionExplorerView.goTo(doc.uri);
@@ -434,7 +456,7 @@ export function activate(context: ExtensionContext) {
 			}
 		}
 
-		async function refreshSyntaxTree(doc: vscode.TextDocument) {
+		async function refreshSyntaxTree(doc: vscode.TextDocument | undefined) {
 			syntaxTreeView.clear();
 			if (doc?.languageId === 'oly') {
 				await syntaxTreeView.refresh(doc, null);

@@ -196,10 +196,11 @@ type ILanguageServerFacade with
             )
         this.TextDocument.PublishDiagnostics(diagnosticParams)
 
-    member this.RefreshClientAsync(ct) =
+    member this.RefreshSemanticTokens(ct) =
         backgroundTask {
-            let result = this.Client.SendRequest("workspace/semanticTokens/refresh")
-            do! result.ReturningVoid(ct)
+            if this.ClientSettings.Capabilities.Workspace.SemanticTokens.IsSupported &&
+                this.ClientSettings.Capabilities.Workspace.SemanticTokens.Value.RefreshSupport then
+                    do! this.Client.SendRequest("workspace/semanticTokens/refresh").ReturningVoid(ct)
         }
 
 type OlyCompilation with
@@ -309,19 +310,6 @@ type OlyGetIRRequest() =
     member val Opts: bool = false with get, set
 
     interface IOlyDocumentRequest<string> with
-
-           member this.DocumentPath
-               with get() = this.DocumentPath
-               and set value = this.DocumentPath <- value
-
-[<Method("oly/getSemanticClassification", Direction.ClientToServer)>]
-type OlyGetSemanticClassificationRequest() =
-
-    member val Range: OlyTextRange = OlyTextRange() with get, set
-    member val DocumentPath: string = null with get, set
-    member val Version: Nullable<int> = Nullable() with get, set
-
-    interface IOlyDocumentRequest<ParsedToken[]> with
 
            member this.DocumentPath
                with get() = this.DocumentPath
@@ -1172,6 +1160,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         workspace.FileDeleted(path)
                     | _ ->
                         ()
+                    if path.EndsWith(".oly/workspace/state.json") then
+                        do! server.RefreshSemanticTokens(cancellationToken)
                 else
                     match change.Type with
                     | FileChangeType.Created ->
@@ -2097,9 +2087,11 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                     let semanticTokens = ResizeArray()
 
-                    let range = OlyTextRange(OlyTextPosition(0, 0), OlyTextPosition(System.Int32.MaxValue - 1, 0))
+                    let range = 
+                        let syntaxTree = doc.SyntaxTree
+                        syntaxTree.GetRoot(ct).GetFullTextRange(ct)
 
-                    doc.GetSemanticClassifications(ct)
+                    doc.GetSemanticClassifications(range, ct)
                     |> ImArray.iter (fun item ->
                         let tokenType = item.Kind.ToLspClassificationKind()
                         let tokenModifiers = item.Kind.ToLspClassificationModifiers()
@@ -2310,53 +2302,6 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 // TODO
                 return [||]
             }
-
-    interface IJsonRpcRequestHandler<OlyGetSemanticClassificationRequest, ParsedToken[]> with
-
-        member _.Handle(request, ct) =
-            request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun (doc: OlyDocument) ct -> backgroundTask {
-                let classify line column width tokenType tokenModifiers =
-                    {
-                        line = line
-                        startCharacter = column
-                        length = width
-                        tokenType = tokenType
-                        tokenModifiers = tokenModifiers
-                    }
-                let classifications =
-                    doc.GetSemanticClassifications(request.Range, ct)
-                    |> Seq.map (fun item ->
-                        let tokenType = item.Kind.ToLspClassificationKind()
-                        let tokenModifiers = item.Kind.ToLspClassificationModifiers()
-                        classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers
-                    )
-                    |> Array.ofSeq
-
-                let extraClassifications =
-                    // TODO: We should do this in GetSemanticClassifications
-                    let syntaxTree = doc.SyntaxTree
-                    let sourceText = doc.GetSourceText(ct)
-                    let lines = sourceText.Lines
-                    match syntaxTree.TryFindNode(request.Range, ct) with
-                    | Some node ->
-                        node.GetDescendantTokens(false, (fun x -> x.IsConditionalDirective), ct)
-                        |> Seq.map (fun x ->
-                            let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
-                            let endLine = lines.GetLineFromPosition(x.TextSpan.End)
-                            seq {
-                                for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
-                                    let line = lines[lineIndex]
-                                    let textRange = sourceText.GetTextRange(line.Span)
-                                    classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty
-                            }
-                        )
-                        |> Seq.concat
-                        |> Array.ofSeq
-                    | _ ->
-                        Array.empty
-            
-                return Array.append classifications extraClassifications
-            })
 
 [<EntryPoint>]
 let main argv =
