@@ -763,8 +763,9 @@ let bindMemberExpressionWithTypeAsItem (cenv: cenv) (env: BinderEnvironment) syn
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
         let receiverInfo = { isStatic = true; item = ReceiverItem.Type(ty); expr = None }
         ResolutionItem.MemberCall(syntaxToCapture, Some receiverInfo, syntaxCallBodyExpr, syntaxArgs, None)
-    | OlySyntaxExpression.Name(syntaxName) ->
-        failwith "not implemented"
+    | OlySyntaxExpression.Name(_) ->
+        cenv.diagnostics.Error("Invalid member expression.", 10, syntaxToCapture)
+        ResolutionItem.Error(syntaxToCapture)
     | _ ->
         failwith "not implemented"
 

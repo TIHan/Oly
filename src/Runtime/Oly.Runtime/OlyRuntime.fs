@@ -1255,7 +1255,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
 
             if (resultTy.IsAnyStruct && not irArgExprTy.IsAnyStruct) then
                 if irArgExprTy.IsByRef_t then
-                    if resultTy.IsAnyPtr || resultTy.IsByRef_t then
+                    if resultTy.IsAnyPtr || resultTy.IsAnyNativeInt || resultTy.IsByRef_t then
                         defaultCase()
                     else
                         failwith "Invalid cast"

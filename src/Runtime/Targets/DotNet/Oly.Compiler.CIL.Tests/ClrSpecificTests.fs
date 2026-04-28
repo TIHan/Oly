@@ -10424,3 +10424,60 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should get expected output when casting an inref to an nint``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("unsafe_cast")]
+nint<T>(T*): nint
+
+#[intrinsic("unsafe_cast")]
+to_inref<T>(nint): inref<T>
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: nint): bool = 
+    let y1: byte = to_inref(x)
+    let y2: inref<byte> = &to_inref(x)
+    print(y1)
+    print(y2)
+    true
+
+main(): () =
+    let x = 5: byte
+    let x = &x
+    if (M(nint(&&x)) == true)
+        print("Hello World!")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "55Hello World!"
+    |> ignore

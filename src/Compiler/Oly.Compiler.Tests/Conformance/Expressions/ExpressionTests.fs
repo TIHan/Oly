@@ -11728,3 +11728,150 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Should error as we cannot have an inref<inref<T>>``() =
+    let src =
+        """
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("unsafe_cast")]
+nint<T>(T*): nint
+
+#[intrinsic("unsafe_cast")]
+to_inref<T>(nint): inref<T>
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+#[intrinsic("print")]
+print(__oly_object): ()
+
+M(x: nint): bool = 
+    let y2: inref<byte> = to_inref(x)
+    print(y2)
+    true
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'Zoot<T>' is exported and not valid because its enclosing type 'Beef<U>' is not exported and has type parameters.",
+                """
+    class Zoot<T> =
+          ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error with invalid member expression``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("not")]
+(!)(bool): bool
+
+module Sockets
+
+class C =
+    field socket: bool = true
+
+    M(): () =
+        if (!Sockets.(this.socket))
+            ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Expected 'target expression' after '"if" expression'.""",
+                """
+        if (!Sockets.(this.socket))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("""Unexpected 'this'.""",
+                """
+        if (!Sockets.(this.socket))
+                      ^^^^
+"""
+            )
+            ("""Expected ')'.""",
+                """
+        if (!Sockets.(this.socket))
+                          ^
+"""
+            )
+            ("""Unexpected ')'.""",
+                """
+        if (!Sockets.(this.socket))
+                                  ^
+"""
+            )
+            ("""Invalid member expression.""",
+                """
+        if (!Sockets.(this.socket))
+             ^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should not crash with static cdecl``() =
+    let src =
+        """
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("unsafe_cast")]
+AsFunctionPointer<TArguments...>(nint): static blittable (TArguments...) -> ()
+
+struct S =
+
+    field result: SResult = SResult()
+
+struct SResult
+
+private alias PFN_ptr2 = static blittable (S, S*, S*, S*) -> ()
+private alias PFN_ptr = static blittabl (S, S*, S*, S*) -> ()
+
+main(): () =
+    let doot: PFN_ptr = AsFunctionPointer(unchecked default)
+    let doot: PFN_ptr = AsFunctionPointer(unchecked default)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'Zoot<T>' is exported and not valid because its enclosing type 'Beef<U>' is not exported and has type parameters.",
+                """
+    class Zoot<T> =
+          ^^^^
+"""
+            )
+        ]
+    |> ignore
