@@ -195,6 +195,12 @@ module private DotNet =
         | _ ->
             ()
 
+        match properties.TryGetValue "standalone" with
+        | Some(true) ->
+            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.Standalone }
+        | _ ->
+            ()
+
         msbuildTargetInfo
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
@@ -421,9 +427,20 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
     override this.OnProjectPropertyValidation (targetInfo: OlyTargetInfo, currentProperties, name: string, _value: bool): Result<unit,string> = 
         match name with
+        | "standalone" ->
+            if currentProperties.ContainsKey("aot") then
+                Error($"'{name}' cannot be set as the property 'aot' is already set")
+            elif currentProperties.ContainsKey("r2r") then
+                Error($"'{name}' cannot be set as the property 'r2r' is already set")
+            elif not targetInfo.IsExecutable then
+                Error($"'{name}' cannot set be set in a library")
+            else
+                Ok()
         | "r2r" ->
             if currentProperties.ContainsKey("aot") then
                 Error($"'{name}' cannot be set as the property 'aot' is already set")
+            elif currentProperties.ContainsKey("standalone") then
+                Error($"'{name}' cannot be set as the property 'standalone' is already set")
             elif not targetInfo.IsExecutable then
                 Error($"'{name}' cannot set be set in a library")
             else
@@ -431,6 +448,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         | "aot" ->
             if currentProperties.ContainsKey("r2r") then
                 Error($"'{name}' cannot be set as the property 'r2r' is already set")
+            elif currentProperties.ContainsKey("standalone") then
+                Error($"'{name}' cannot be set as the property 'standalone' is already set")
             elif not targetInfo.IsExecutable then
                 Error($"'{name}' cannot set be set in a library")
             else
@@ -635,12 +654,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 let cacheDir = this.GetProjectCacheDirectory(proj.TargetInfo, proj.Path)
 
                 let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.dll")
-                let pdbPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.pdb")
+                let pdbPath = Path.Combine(outputPath, comp.AssemblyName + "__oly_internal.pdb")
                 let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
                 let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
                 emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
                 dllFile.Close()
-                pdbFile.Close()
                 copyFiles()
 
                 let projectName = proj.Path.GetFileNameWithoutExtension()
@@ -656,10 +674,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         text + "(args);"
 
                 let! _ =
-                    if msbuildTargetInfo.IsNativeAOT then
-                        OlyTrace.Log($"[Compilation] Compiling NativeAOT...")
-                    else
+                    match msbuildTargetInfo.PublishKind with
+                    | MSBuildPublishKind.Standalone ->
+                        OlyTrace.Log($"[Compilation] Compiling Standalone...")
+                    | MSBuildPublishKind.ReadyToRun ->
                         OlyTrace.Log($"[Compilation] Compiling ReadyToRun...")
+                    | MSBuildPublishKind.NativeAOT ->
+                        OlyTrace.Log($"[Compilation] Compiling NativeAOT...")
+                    | _ ->
+                        ()
+
                     DotNet.publish 
                         call
                         projectName

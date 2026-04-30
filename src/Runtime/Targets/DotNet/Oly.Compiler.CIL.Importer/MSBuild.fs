@@ -24,8 +24,9 @@ type ProjectBuildInfo =
 [<RequireQualifiedAccess>]
 type MSBuildPublishKind =
     | JIT = 0
-    | ReadyToRun = 1
-    | NativeAOT = 2
+    | Standalone = 1
+    | ReadyToRun = 2
+    | NativeAOT = 3
 
 [<NoEquality;NoComparison>]
 type MSBuildTargetInfo =
@@ -35,8 +36,6 @@ type MSBuildTargetInfo =
     }
 
     member this.IsPublish = match this.PublishKind with MSBuildPublishKind.JIT -> false | _ -> true
-
-    member this.IsNativeAOT = match this.PublishKind with MSBuildPublishKind.NativeAOT -> true | _ -> false
 
 // TODO: This needs alot more work.
 [<Sealed>]
@@ -50,6 +49,7 @@ type MSBuild() =
                 ""
         let publishKind =
             match publishKind with
+            | MSBuildPublishKind.Standalone -> "<PublishSingleFile>true</PublishSingleFile>\n<SelfContained>true</SelfContained>"
             | MSBuildPublishKind.ReadyToRun -> "<PublishReadyToRun>true</PublishReadyToRun>\n<PublishSingleFile>true</PublishSingleFile>\n<SelfContained>true</SelfContained>"
             | MSBuildPublishKind.NativeAOT -> "<PublishAot>true</PublishAot>"
             | _ -> ""
@@ -87,8 +87,9 @@ type MSBuild() =
     {outputType}
     {publishKind}
     <TargetFramework>{targetName}</TargetFramework>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
 </PropertyGroup>
 <ItemGroup>
     <Compile Include="Program.cs" />
