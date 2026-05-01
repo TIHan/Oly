@@ -51,7 +51,7 @@ type OlyClassificationKind =
     | ConstantNumber
     | ConstantBool
     | ConstantChar
-    | ConstantUtf
+    | ConstantString
     | ConstantNull
     | ConstantDefault
     | Directive
@@ -173,7 +173,7 @@ let private classifyConstantKind (constantSymbol: OlyConstantSymbol) =
     | OlyConstant.Float32 _
     | OlyConstant.Float64 _ -> OlyClassificationKind.ConstantNumber
     | OlyConstant.Char16 _ -> OlyClassificationKind.ConstantChar
-    | OlyConstant.Utf16 _ -> OlyClassificationKind.ConstantUtf
+    | OlyConstant.Utf16 _ -> OlyClassificationKind.ConstantString
     | OlyConstant.True
     | OlyConstant.False -> OlyClassificationKind.ConstantBool
     | OlyConstant.Default -> OlyClassificationKind.ConstantDefault
@@ -277,6 +277,8 @@ type OlyCompletionContext =
     | Patterns of OlyBoundSubModel
     | OpenDeclaration of OlyBoundSubModel
     | Symbol of OlySymbol * OlyBoundSubModel * inStaticContext: bool
+    | PropertyValue of propertyName: string
+    | Property
 
 [<Struct;DebuggerDisplay("{Label}")>]
 type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind, detail: string, insertText: string) =
@@ -621,7 +623,6 @@ type OlyDocument with
 
     member this.GetCompletions(position: int, ct) =
         let syntaxTree = this.SyntaxTree
-        let boundModel = this.BoundModel
 
         let filterLabel (label: string) =
             ct.ThrowIfCancellationRequested()
@@ -730,8 +731,13 @@ type OlyDocument with
 
                 let context =
                     if token.IsTrivia && not token.IsWhitespaceTrivia then
-                        OlyCompletionContext.None
+                        match token.TryPropertyDirectiveText with
+                        | ValueSome(propertyName, _propertyValue) ->
+                            OlyCompletionContext.PropertyValue(propertyName)
+                        | _ ->
+                            OlyCompletionContext.None
                     elif hasDotOnLeft then
+                        let boundModel = this.BoundModel
                         match boundModel.TryFindSymbol(token, ct) with
                         | Some symbolInfo ->
                             match symbolInfo.Symbol with
@@ -746,6 +752,7 @@ type OlyDocument with
                         | _ ->
                             OlyCompletionContext.None
                     else
+                        let boundModel = this.BoundModel
                         match boundModel.TryGetSubModel(token, ct) with
                         | Some subModel ->
                             if token.Node.IsInMatchClause then
@@ -783,6 +790,32 @@ type OlyDocument with
                 match context with
                 | OlyCompletionContext.None ->
                     ()
+
+                | OlyCompletionContext.Property ->
+                    this.Project.SharedBuild.GetProjectPropertyDefinitions(this.Project.TargetInfo).Keys
+                    |> Seq.iter (fun propertyName ->
+                        completions.Add(OlyCompletionItem(propertyName, OlyClassificationKind.ConstantString, ""))
+
+                    )
+
+                | OlyCompletionContext.PropertyValue(propertyName) ->
+                    let propertyDefinitions = this.Project.SharedBuild.GetProjectPropertyDefinitions(this.Project.TargetInfo)
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.String(Some(expectedValues)) ->
+                            expectedValues
+                            |> Seq.sort
+                            |> Seq.iter (fun expectedValue ->
+                                completions.Add(OlyCompletionItem(expectedValue, OlyClassificationKind.ConstantString, ""))
+                            )
+                        | OlyProjectPropertyType.Bool ->
+                            completions.Add(OlyCompletionItem("true", OlyClassificationKind.ConstantBool, ""))
+                            completions.Add(OlyCompletionItem("false", OlyClassificationKind.ConstantBool, ""))
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
 
                 | OlyCompletionContext.Patterns subModel ->
                     let matchTyOpt = subModel.TryGetMatchType(token.Node, ct)
@@ -976,6 +1009,7 @@ type OlyDocument with
                         ()
 
                 context
+
             | _ ->
                 OlyCompletionContext.None
 

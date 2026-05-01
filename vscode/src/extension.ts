@@ -41,14 +41,14 @@ async function build(client: OlyLanguageClient, olyProjectStatusBarItem: vscode.
 		olyProjectStatusBarItem.color = undefined;
 		olyProjectStatusBarItem.backgroundColor = undefined;
 		return result;
-	}
-
-	else {
+	} else if (result.error != null) {
 		let timeEnd = new Date().getTime();
 		let time = timeEnd - timeStart;
 		ch.appendLine("Build failed - " + time + "ms");
 		olyProjectStatusBarItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
 		olyProjectStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+		return result;
+	} else {
 		return result;
 	}
 }
@@ -190,13 +190,16 @@ export function activate(context: ExtensionContext) {
 
 			ch.show(true);
 			let result = await build(client, olyProjectStatusBarItem, ch);
-			if (result == null) {
-				throw new Error("Oly Build Failed\nSee output for details");
-			}
-			else if (result.resultPath == null) {
+
+			if (result.resultPath == null) {
 				ch.appendLine("========================================================\n");
-				ch.append("ERROR:\n" + result.error);
-				throw new Error("Oly Build Failed\nSee output for details");
+				if (result.error == null) {
+					ch.append("Build cancelled.");
+					throw new Error("Oly Build Cancelled");
+				} else {
+					ch.append("ERROR:\n" + result.error);
+					throw new Error("Oly Build Failed\nSee output for details");		
+				}
 			}
 
 			return result.resultPath;

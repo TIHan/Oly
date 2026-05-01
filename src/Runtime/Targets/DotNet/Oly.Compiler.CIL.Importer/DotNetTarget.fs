@@ -183,21 +183,15 @@ module private DotNet =
     let createMSBuildTargetInfo targetName (properties: OlyProjectProperties) =
         let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.JIT }
 
-        match properties.TryGetValue "aot" with
-        | Some(true) ->
-            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.NativeAOT }
-        | _ ->
-            ()
-
-        match properties.TryGetValue "r2r" with
-        | Some(true) ->
-            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.ReadyToRun }
-        | _ ->
-            ()
-
-        match properties.TryGetValue "standalone" with
-        | Some(true) ->
-            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = MSBuildPublishKind.Standalone }
+        match properties.TryGetValue "publish" with
+        | Some(propertyValue: string) ->
+            let publishKind =
+                match propertyValue with
+                | "standalone" -> MSBuildPublishKind.Standalone
+                | "r2r" -> MSBuildPublishKind.ReadyToRun
+                | "aot" -> MSBuildPublishKind.NativeAOT
+                | _ -> MSBuildPublishKind.JIT
+            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = publishKind }
         | _ ->
             ()
 
@@ -205,6 +199,24 @@ module private DotNet =
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
     inherit OlyBuild(platformName)
+
+    static let propertyDefinitions =
+        seq {
+            KeyValuePair("publish",
+                { 
+                    OlyProjectPropertyDescription.IsExecutableOnly = true; 
+                    OlyProjectPropertyDescription.Type = 
+                        OlyProjectPropertyType.String(Some(
+                            seq {
+                                "standalone"
+                                "r2r"
+                                "aot"
+                            }
+                            |> ImmutableHashSet.CreateRange
+                        ))
+                })
+        }
+        |> ImmutableDictionary.CreateRange
 
     let gate = obj ()
 
@@ -425,37 +437,8 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
-    override this.OnProjectPropertyValidation (targetInfo: OlyTargetInfo, currentProperties, name: string, _value: bool): Result<unit,string> = 
-        match name with
-        | "standalone" ->
-            if currentProperties.ContainsKey("aot") then
-                Error($"'{name}' cannot be set as the property 'aot' is already set")
-            elif currentProperties.ContainsKey("r2r") then
-                Error($"'{name}' cannot be set as the property 'r2r' is already set")
-            elif not targetInfo.IsExecutable then
-                Error($"'{name}' cannot set be set in a library")
-            else
-                Ok()
-        | "r2r" ->
-            if currentProperties.ContainsKey("aot") then
-                Error($"'{name}' cannot be set as the property 'aot' is already set")
-            elif currentProperties.ContainsKey("standalone") then
-                Error($"'{name}' cannot be set as the property 'standalone' is already set")
-            elif not targetInfo.IsExecutable then
-                Error($"'{name}' cannot set be set in a library")
-            else
-                Ok()
-        | "aot" ->
-            if currentProperties.ContainsKey("r2r") then
-                Error($"'{name}' cannot be set as the property 'r2r' is already set")
-            elif currentProperties.ContainsKey("standalone") then
-                Error($"'{name}' cannot be set as the property 'standalone' is already set")
-            elif not targetInfo.IsExecutable then
-                Error($"'{name}' cannot set be set in a library")
-            else
-                Ok()
-        | _ -> 
-            Error($"'{name}' is not a valid .NET property")
+    override this.GetProjectPropertyDefinitions (_targetInfo: OlyTargetInfo): ImmutableDictionary<string,OlyProjectPropertyDescription> = 
+        propertyDefinitions
 
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]
     override this.BuildProjectAsync(proj, ct) = backgroundTask {

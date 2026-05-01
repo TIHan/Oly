@@ -86,7 +86,7 @@ class BuildCommand =
         Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         
         let mutable projectPath = OlyPath.Create(settings.ProjectFile)
-        let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result
+        let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result.Value
         if (results.IsOk)
             AnsiConsole.Markup("[green]Build Successful[/]: {0}", mutable [results.ResultValue.Path.ToString()] )
             AnsiConsole.WriteLine()

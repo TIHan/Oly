@@ -59,11 +59,14 @@ module ERROR =
     let reportDuplicateProjectProperty propertyName (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
         diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", 310, location))
 
+    let reportExpectedProjectPropertyValue (propertyName: string) (expectedText: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' expects {expectedText}.", 311, location))
+
     let reportProjectFilesCannotBeLoadedOnlyReferenced (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
-        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", 311, location))
+        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", 312, location))
 
     let reportFileDoesNotExist (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
-        diags.Add(OlyDiagnostic.CreateError($"'{path}' does not exist.", 312, location))
+        diags.Add(OlyDiagnostic.CreateError($"'{path}' does not exist.", 313, location))
 
     let createProjectInternalError (ex: Exception) (location: OlySourceLocation option) =
         System.Diagnostics.Debug.WriteLine(ex.Message)
@@ -189,7 +192,8 @@ type OlyBuild(platformName: string) =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract OnProjectPropertyValidation : targetInfo: OlyTargetInfo * currentProperties: IReadOnlyDictionary<string, obj> * name: string * value: bool -> Result<unit, string>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
+    default _.GetProjectPropertyDefinitions(_) = ImmutableDictionary.Empty
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
@@ -317,6 +321,18 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
 
     member this.WithDefaultAccessor(accessorDefault) =
         OlyProjectConfiguration(name, defines, debuggable, accessorDefault)
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyType =
+    | Bool
+    | String of expectedValues: ImmutableHashSet<string> option
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyDescription =
+    {
+        IsExecutableOnly: bool
+        Type: OlyProjectPropertyType
+    }
 
 [<Sealed>]
 type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
@@ -1237,6 +1253,8 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
         |> OlySolution
         |> ref
 
+    let projectBuildCts = new AsyncCancellationTokenSource()
+
     let mutable cts = new CancellationTokenSource()
 
     let mapCtToCtr (ct: CancellationToken) =
@@ -1756,20 +1774,64 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     not(x.Path.HasExtension(".oly"))
                 )
 
+            let propertyDefinitions = targetBuild.GetProjectPropertyDefinitions(targetInfo)
+
             let properties =
                 let builder = ImmutableDictionary.CreateBuilder()
                 config.Properties
-                |> ImArray.iter (fun (textSpan, propertyName, propertyValue) ->
-                    if builder.TryAdd(propertyName, propertyValue) then
-                        match propertyValue with
-                        | :? bool as propertyValue ->
-                            match targetBuild.OnProjectPropertyValidation(targetInfo, builder, propertyName, propertyValue) with
-                            | Error(msg) -> ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(textSpan, syntaxTree)) diags
-                            | _ -> ()
-                        | _ ->
-                            failwith "Property value type not handled."
-                    else
-                        ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                |> ImArray.iter (fun (propertyNameTextSpan, propertyName, propertyValueTextSpan, propertyValue) ->
+                    let isValid =
+                        if builder.ContainsKey(propertyName) then
+                            ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                            false
+                        else
+                            match propertyDefinitions.TryGetValue(propertyName) with
+                            | true, propertyDesc ->
+                                if propertyDesc.IsExecutableOnly && not targetInfo.IsExecutable then
+                                    let msg = $"'{propertyName}' cannot set be set in a library"
+                                    ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                                    false
+                                else
+                
+                                match propertyDesc.Type with
+                                | OlyProjectPropertyType.Bool ->
+                                    match propertyValue with
+                                    | :? bool ->
+                                        true
+                                    | _ ->
+                                        let expectedText = "'true' or 'false' value"
+                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                        false
+                                | OlyProjectPropertyType.String(expectedValues) ->
+                                    match propertyValue with
+                                    | :? string as propertyValue ->
+                                        match expectedValues with
+                                        | Some(expectedValues) ->
+                                            if expectedValues.Contains(propertyValue) then
+                                                true
+                                            else
+                                                let expectedText = System.Text.StringBuilder()
+                                                expectedText.AppendLine("one of the following values:") |> ignore
+                                                expectedValues
+                                                |> Seq.sort
+                                                |> Seq.iter (fun expectedValue ->
+                                                    expectedText.AppendLine("    " + expectedValue) |> ignore
+                                                )
+                                                let expectedText = expectedText.ToString()
+                                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                                false
+                                        | _ ->
+                                            true
+                                    | _ ->
+                                        let expectedText = "a string value"
+                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                        false
+                            | _ ->
+                                let msg = $"Not a property for target '{targetInfo.Name}'."
+                                ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                                false
+                    if isValid then
+                        builder.Add(propertyName, propertyValue)
                 )
                 OlyProjectProperties(builder.ToImmutable())
 
@@ -1899,7 +1961,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
                     let propertiesAreSame =
                         (properties, currentProperties)
-                        ||> ImArray.forall2 (fun (_, name1, value1) (_, name2, value2) -> name1 = name2 && value1.Equals(value2))
+                        ||> ImArray.forall2 (fun (_, name1, _, value1) (_, name2, _, value2) -> name1 = name2 && value1.Equals(value2))
 
                     if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame && propertiesAreSame then
                         return None
@@ -2039,20 +2101,24 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectConfiguration>)>]
     member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
         backgroundTask {
-            let! docs = this.GetDocumentsAsync(projectPath, ct)
-            if docs.IsEmpty then
-                failwith $"Project '{projectPath.ToString()}' not found"
-            if docs.Length > 1 then
-                failwith $"Ambiguous projects found for '{projectPath.ToString()}'"
-
-            let proj = docs[0].Project
-            let target = proj.SharedBuild
-
             try
-                return! target.BuildProjectAsync(proj, ct)
+                let! docs = this.GetDocumentsAsync(projectPath, ct)
+                if docs.IsEmpty then
+                    failwith $"Project '{projectPath.ToString()}' not found"
+                if docs.Length > 1 then
+                    failwith $"Ambiguous projects found for '{projectPath.ToString()}'"
+
+                let proj = docs[0].Project
+                let target = proj.SharedBuild
+
+                let! projectBuildCt, _ = projectBuildCts.CancelAndGetNewTokenAsync(CancellationToken.None)
+                let! result = target.BuildProjectAsync(proj, projectBuildCt)
+                return Some(result)
             with
+            | :? OperationCanceledException ->
+                return None
             | ex ->
-                return Error(ImArray.createOne (ERROR.createProjectInternalError ex None))
+                return Some(Error(ImArray.createOne (ERROR.createProjectInternalError ex None)))
         }
 
     member this.ClearSolution() =

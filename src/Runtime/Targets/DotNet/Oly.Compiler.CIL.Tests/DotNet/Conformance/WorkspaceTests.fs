@@ -30,7 +30,7 @@ let shouldCompile (proj: OlyProject) =
     Assert.Empty(diags)
 
 let build (workspace: OlyWorkspace, proj: OlyProject) =
-    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result
+    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result.Value
     match result with
     | Ok(program) -> program
     | Error(diags) ->
@@ -40,7 +40,7 @@ let build (workspace: OlyWorkspace, proj: OlyProject) =
         failwith (builder.ToString())
 
 let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj: OlyProject) =
-    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result
+    let result = workspace.BuildProjectAsync(proj.Path, CancellationToken.None).Result.Value
     match result with
     | Ok(_) -> failwith "Expected build error."
     | Error(diags) ->
@@ -73,12 +73,12 @@ main(): () =
     |> run "Hello World!\n"
 
 [<Fact>]
-let ``Simple ReadyToRun hello world project should compile`` () =
+let ``Simple Standalone hello world project should compile`` () =
     let src =
         """
 #target "dotnet: net10.0"
 
-#property "r2r" true
+#property "publish" "standalone"
 
 main(): () =
     print("Hello World!")
@@ -88,6 +88,21 @@ main(): () =
     |> build
     |> run "Hello World!\n"
 
+[<Fact>]
+let ``Simple ReadyToRun hello world project should compile`` () =
+    let src =
+        """
+#target "dotnet: net10.0"
+
+#property "publish" "r2r"
+
+main(): () =
+    print("Hello World!")
+        """
+    createWorkspace()
+    |> createProject src
+    |> build
+    |> run "Hello World!\n"
 
 [<Fact>]
 let ``Simple NativeAOT hello world project should compile`` () =
@@ -95,7 +110,7 @@ let ``Simple NativeAOT hello world project should compile`` () =
         """
 #target "dotnet: net10.0"
 
-#property "r2r" true
+#property "publish" "aot"
 
 main(): () =
     print("Hello World!")
@@ -134,78 +149,29 @@ main(): () =
         ^^^^^^^^^^^^^^^"""
 
 [<Fact>]
-let ``AOT and R2R cannot both be set at the same time``() =
-    let src = """
-#target "dotnet: net10.0"
-
-#property "r2r" false
-#property "aot" false
-
-main(): () =
-    ()
-    """
-    createWorkspace()
-    |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'aot' is not valid. Reason: 'aot' cannot be set as the property 'r2r' is already set.
-#property "aot" false
-^^^^^^^^^^^^^^^^^^^^^"""
-
-
-[<Fact>]
-let ``R2R and AOT cannot both be set at the same time``() =
-    let src = """
-#target "dotnet: net10.0"
-
-#property "aot" false
-#property "r2r" false
-
-main(): () =
-    ()
-    """
-    createWorkspace()
-    |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'r2r' is not valid. Reason: 'r2r' cannot be set as the property 'aot' is already set.
-#property "r2r" false
-^^^^^^^^^^^^^^^^^^^^^"""
-
-[<Fact>]
-let ``AOT cannot be set in a library``() =
+let ``Publish cannot be set in a library``() =
     let src = """
 #target "dotnet: net10.0"
 #library
 
-#property "aot" false
+#property "publish" "standalone"
     """
     createWorkspace()
     |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'aot' is not valid. Reason: 'aot' cannot set be set in a library.
-#property "aot" false
-^^^^^^^^^^^^^^^^^^^^^"""
-
-[<Fact>]
-let ``R2R cannot be set in a library``() =
-    let src = """
-#target "dotnet: net10.0"
-#library
-
-#property "r2r" false
-    """
-    createWorkspace()
-    |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0309: Property 'r2r' is not valid. Reason: 'r2r' cannot set be set in a library.
-#property "r2r" false
-^^^^^^^^^^^^^^^^^^^^^"""
+    |> shouldHaveBuildError """olytest.olyx(5,11): error OLY0309: Property 'publish' is not valid. Reason: 'publish' cannot set be set in a library.
+#property "publish" "standalone"
+          ^^^^^^^^^"""
 
 [<Fact>]
 let ``Duplicate properties not allowed``() =
     let src = """
 #target "dotnet: net10.0"
 
-#property "aot" false
-#property "aot" true
+#property "publish" "aot"
+#property "publish" "r2r"
     """
     createWorkspace()
     |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,1): error OLY0310: Duplicate property 'aot'.
-#property "aot" true
-^^^^^^^^^^^^^^^^^^^^"""
+    |> shouldHaveBuildError """olytest.olyx(5,11): error OLY0310: Duplicate property 'publish'.
+#property "publish" "r2r"
+          ^^^^^^^^^"""

@@ -68,7 +68,7 @@ let cachedBuildWith (target: OlyBuild) (isDebug: bool) src =
 let private buildWithAux target isDebug src =
     let (workspace, documentPath) = createWorkspace target isDebug
     workspace.UpdateDocument(documentPath, OlySourceText.Create(src), Threading.CancellationToken.None)
-    workspace.BuildProjectAsync(documentPath, Threading.CancellationToken.None).Result
+    workspace.BuildProjectAsync(documentPath, Threading.CancellationToken.None).Result.Value
 
 let buildWith target isDebug src =
     match buildWithAux target isDebug src with

@@ -107,3 +107,68 @@ type Async with
             (fun _ -> ts.SetCanceled()),
             cancellationToken)
         task.Result
+
+/// Thread-safe.
+[<Sealed>]
+type AsyncCancellationTokenSource() =
+    let projectBuildSemaphore = new SemaphoreSlim(1, 1)
+    let mutable projectBuildCts = new CancellationTokenSource()
+
+    /// Communicates a request for cancellation.
+    member _.Cancel(): unit =
+        projectBuildSemaphore.Wait()
+        try
+            projectBuildCts.Cancel()
+        finally
+            projectBuildSemaphore.Release()
+            |> ignore
+
+    /// Communicates a request for cancellation asynchronously.
+    member _.CancelAsync(): Task =
+        backgroundTask {
+            do! projectBuildSemaphore.WaitAsync()
+            try
+                do! projectBuildCts.CancelAsync()
+            finally
+                projectBuildSemaphore.Release()
+                |> ignore
+        }
+
+    /// Communicates a request for cancellation asynchronously
+    /// then resets the source and gets a new token.
+    /// Can be passed a token that registers its cancellation
+    /// to cancel the source. If the source gets reset, the
+    /// registrar will not cause a cancellation on the source that was reset.
+    member _.CancelAndGetNewTokenAsync(registrar: CancellationToken): Task<CancellationToken * CancellationTokenRegistration> =
+        backgroundTask {
+            do! projectBuildSemaphore.WaitAsync()
+            try
+                do! projectBuildCts.CancelAsync()
+                projectBuildCts.Dispose()
+                projectBuildCts <- new CancellationTokenSource()
+                let registration = registrar.Register(
+                    fun () ->
+                        projectBuildCts.Cancel()
+                )
+                return projectBuildCts.Token, registration
+            finally
+                projectBuildSemaphore.Release()
+                |> ignore
+        }
+
+    /// Gets the current token.
+    member _.Token: CancellationToken = 
+        projectBuildSemaphore.Wait()
+        try
+            projectBuildCts.Token
+        finally
+            projectBuildSemaphore.Release()
+            |> ignore
+
+    interface IDisposable with
+        member _.Dispose (): unit = 
+            projectBuildSemaphore.Wait()
+            try
+                projectBuildCts.Dispose()
+            finally
+                projectBuildSemaphore.Dispose()

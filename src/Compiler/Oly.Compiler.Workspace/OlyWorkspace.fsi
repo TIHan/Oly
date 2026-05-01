@@ -4,6 +4,7 @@ open System
 open System.Threading
 open System.Threading.Tasks
 open System.Collections.Generic
+open System.Collections.Immutable
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
@@ -128,7 +129,8 @@ type OlyBuild =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract OnProjectPropertyValidation : targetInfo: OlyTargetInfo * currentProperties: IReadOnlyDictionary<string, obj> * name: string * value: bool -> Result<unit, string>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
+    default GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
@@ -173,6 +175,18 @@ type OlyProjectConfiguration =
     member Debuggable : bool
 
     member DefaultAccessor: OlyDefaultAccessor
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyType =
+    | Bool
+    | String of expectedValues: ImmutableHashSet<string> option
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyDescription =
+    {
+        IsExecutableOnly: bool
+        Type: OlyProjectPropertyType
+    }
 
 [<Sealed>]
 type OlyProjectProperties =
@@ -295,8 +309,8 @@ type OlyWorkspace =
     /// Get all the documents in the workspace's solution.
     member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
 
-    /// TODO: We should make this API better.
-    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
+    /// Builds the given project by absolute path.
+    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Option<Result<OlyProgram, OlyDiagnostic imarray>>>
 
     /// Clears the entire solution.
     /// Non-blocking.

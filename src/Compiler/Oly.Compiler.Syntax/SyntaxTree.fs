@@ -438,7 +438,7 @@ type OlyCompilationUnitConfiguration =
         references: (OlyTextSpan * OlyPath) imarray
         packages: (OlyTextSpan * string) imarray
         copyFiles: (OlyTextSpan * OlyPath) imarray
-        properties: (OlyTextSpan * string * obj) imarray
+        properties: (OlyTextSpan * string * OlyTextSpan * obj) imarray
         directiveDiagnostics: OlyDiagnostic imarray
         isLibrary: bool
         defaultAccessor: string option
@@ -606,15 +606,31 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         false
                 )
 
-            let getPropertyDirectives() : (OlyTextSpan * string * obj) imarray = 
+            let getPropertyDirectives() : (OlyTextSpan * string * OlyTextSpan * obj) imarray = 
                 directives
-                |> ImArray.choose (fun (startPos, endPos, rawToken) ->
+                |> ImArray.choose (fun (startPos, _, rawToken) ->
                     match rawToken with
-                    | PropertyDirective(_, _, _, propertyNameToken, _, propertyValueToken) ->
-                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
+                    | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) ->
+                        let propertyNameStartPos = startPos + hashToken.Width + propertyToken.Width + whitespaceToken1.Width
+                        let propertyValueStartPos = propertyNameStartPos + propertyNameToken.Width + whitespaceToken2.Width
+                        let propertyNameTextSpan = OlyTextSpan.Create(propertyNameStartPos, propertyNameToken.Width)
+                        let propertyValueTextSpan = OlyTextSpan.Create(propertyValueStartPos, propertyValueToken.Width)
                         match propertyValueToken with
-                        | Token.True -> Some((textSpan, propertyNameToken.ValueText, (true: obj)))
-                        | Token.False -> Some((textSpan, propertyNameToken.ValueText, (false: obj)))
+                        | Token.True -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, true))
+                        | Token.False -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, false))
+
+                        | Token.IntegerLiteral(text=text) -> 
+                            let (isValid, value) = Int64.TryParse(text)
+                            if isValid then
+                                Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, value))
+                            else
+                                diags.Add(OlyDiagnostic.CreateError($"Not a valid 64-bit integer.", 201, OlySourceLocation.Create(propertyValueTextSpan, this)))
+                                None
+
+                        | Token.StringLiteral(text=text) -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, text))
                         | _ -> None
                     | _ ->
                         None

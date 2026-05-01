@@ -152,7 +152,3 @@ type OlyTargetOutputOnly<'Emitter, 'Type, 'Function, 'Field when 'Emitter :> IOl
             return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.empty)
         }
 
-    override this.OnProjectPropertyValidation (_, _, name: string, _): Result<unit,string> = 
-        match name with
-        | _ -> Error($"'{name}' is not listed as a valid property for target platform")
-

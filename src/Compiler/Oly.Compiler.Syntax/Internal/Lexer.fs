@@ -1122,7 +1122,7 @@ module Lexer =
             let text = lexeme lexer
             Invalid(text)
 
-    let handlePeek (lexer: Lexer) peekedChar =
+    let rec handlePeek (lexer: Lexer) peekedChar =
         match peekedChar with
         | '#' ->
             let startColumn = lexer.currentColumn
@@ -1168,11 +1168,13 @@ module Lexer =
 
                             let propertyNameToken = valueToken
 
-                            let propertyValueToken = handleNonTriviaPeekAux lexer c
+                            let hasFirstNonTrivia = lexer.hasFirstNonTrivia
+                            let propertyValueToken = scanToken lexer CancellationToken.None
+                            lexer.hasFirstNonTrivia <- hasFirstNonTrivia
 
-                            if not (valueToken.IsStringLiteral_t || valueToken.IsIntegerLiteral || valueToken.IsRealLiteral || valueToken.IsTrue || valueToken.IsFalse) then
+                            if not (valueToken.IsStringLiteral_t || valueToken.IsIntegerLiteral || valueToken.IsTrue || valueToken.IsFalse) then
                                 let endPos = lexer.window.LexemeStart
-                                lexer.diagnostics.Add(startPos, endPos, "Expected a string, numeric or boolean literal.", true, 155)
+                                lexer.diagnostics.Add(startPos, endPos, "Expected a string, integer or boolean literal.", true, 155)
 
                             PropertyDirective(Hash, token, whitespaceToken, propertyNameToken, whitespaceToken2, propertyValueToken)
                         | _ ->
@@ -1214,7 +1216,7 @@ module Lexer =
         | c ->
             handleNonTriviaPeek lexer c
             
-    let rec scanToken (lexer: Lexer) (ct: CancellationToken) =
+    and scanToken (lexer: Lexer) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let token = handlePeek lexer (peek lexer)
         resetLexeme lexer

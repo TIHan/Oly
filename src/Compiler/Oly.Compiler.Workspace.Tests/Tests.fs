@@ -988,7 +988,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -998,7 +998,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1007,7 +1007,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1082,7 +1082,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1092,7 +1092,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1101,7 +1101,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1179,7 +1179,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1193,7 +1193,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     // Should fail
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1202,7 +1202,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1280,7 +1280,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1292,7 +1292,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     // Should fail
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1301,7 +1301,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()

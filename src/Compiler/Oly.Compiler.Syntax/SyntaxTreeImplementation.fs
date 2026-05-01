@@ -67,6 +67,13 @@ type OlyToken =
         | _ ->
             ValueNone
 
+    member this.TryPropertyDirectiveText =
+        match this.node.Internal.RawToken with
+        | PropertyDirective(_, _, _, propertyNameToken, _, propertyValueToken) -> 
+            ValueSome(propertyNameToken.ValueText, propertyValueToken.ValueText)
+        | _ ->
+            ValueNone
+
     member this.TryStringLiteralText = this.node.Internal.RawToken.TryStringLiteralText
 
     member this.IsKeyword = this.node.Internal.RawToken.IsKeyword

@@ -407,6 +407,10 @@ type OlyClassificationKind with
         | OlyClassificationKind.Pattern
         | OlyClassificationKind.AbstractPattern ->
             "enumMember"
+        | OlyClassificationKind.ConstantString ->
+            "string"
+        | OlyClassificationKind.ConstantBool ->
+            "keyword"
         | _ ->
             "label"
 
@@ -2026,9 +2030,9 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 | Some proj ->
                     server.ClearDiagnostics(Protocol.DocumentUri.From(proj.Path.ToString()))
                     match! workspace.BuildProjectAsync(proj.Path, ct) with
-                    | Ok prog -> 
+                    | Some(Ok prog) -> 
                         return { resultPath = prog.Path.ToString(); error = null }
-                    | Error error -> 
+                    | Some(Error error) -> 
                         let diags =
                             error
                             |> Seq.groupBy (fun x -> match x.SyntaxTree with Some syntaxTree -> syntaxTree.Path | _ -> proj.Path)
@@ -2045,6 +2049,8 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         )
 
                         return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
+                    | None ->
+                        return { resultPath = null; error = null }
                 | _ ->
                     return { resultPath = null; error = "Active project not set" }
             }
