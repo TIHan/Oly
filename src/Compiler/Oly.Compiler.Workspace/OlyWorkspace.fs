@@ -1542,6 +1542,67 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     static member private GetProjectConfiguration(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath) =
         rs.GetProjectConfiguration(projPath)
 
+    static member CreateProjectProperties(targetBuild: OlyBuild, targetInfo: OlyTargetInfo, syntaxTree: OlySyntaxTree, config: OlyCompilationUnitConfiguration, diags: OlyDiagnostic imarrayb) =
+        let propertyDefinitions = targetBuild.GetProjectPropertyDefinitions(targetInfo)
+
+        let builder = ImmutableDictionary.CreateBuilder()
+        config.Properties
+        |> ImArray.iter (fun (propertyNameTextSpan, propertyName, propertyValueTextSpan, propertyValue) ->
+            let isValid =
+                if builder.ContainsKey(propertyName) then
+                    ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                    false
+                else
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        if propertyDesc.IsExecutableOnly && not targetInfo.IsExecutable then
+                            let msg = $"'{propertyName}' cannot set be set in a library"
+                            ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                            false
+                        else
+                
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.Bool ->
+                            match propertyValue with
+                            | :? bool ->
+                                true
+                            | _ ->
+                                let expectedText = "'true' or 'false' value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
+                        | OlyProjectPropertyType.String(expectedValues) ->
+                            match propertyValue with
+                            | :? string as propertyValue ->
+                                match expectedValues with
+                                | Some(expectedValues) ->
+                                    if expectedValues.Contains(propertyValue) then
+                                        true
+                                    else
+                                        let expectedText = System.Text.StringBuilder()
+                                        expectedText.AppendLine("one of the following string values:") |> ignore
+                                        expectedValues
+                                        |> Seq.sort
+                                        |> Seq.iter (fun expectedValue ->
+                                            expectedText.AppendLine("    " + expectedValue) |> ignore
+                                        )
+                                        let expectedText = expectedText.ToString()
+                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                        false
+                                | _ ->
+                                    true
+                            | _ ->
+                                let expectedText = "a string value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
+                    | _ ->
+                        let msg = $"Not a property for target '{targetInfo.Name}'."
+                        ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                        false
+            if isValid then
+                builder.Add(propertyName, propertyValue)
+        )
+        OlyProjectProperties(builder.ToImmutable())
+
     static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
         backgroundTask {
             if syntaxTree.ParsingOptions.CompilationUnitConfigurationEnabled |> not then
@@ -1774,66 +1835,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     not(x.Path.HasExtension(".oly"))
                 )
 
-            let propertyDefinitions = targetBuild.GetProjectPropertyDefinitions(targetInfo)
-
-            let properties =
-                let builder = ImmutableDictionary.CreateBuilder()
-                config.Properties
-                |> ImArray.iter (fun (propertyNameTextSpan, propertyName, propertyValueTextSpan, propertyValue) ->
-                    let isValid =
-                        if builder.ContainsKey(propertyName) then
-                            ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
-                            false
-                        else
-                            match propertyDefinitions.TryGetValue(propertyName) with
-                            | true, propertyDesc ->
-                                if propertyDesc.IsExecutableOnly && not targetInfo.IsExecutable then
-                                    let msg = $"'{propertyName}' cannot set be set in a library"
-                                    ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
-                                    false
-                                else
-                
-                                match propertyDesc.Type with
-                                | OlyProjectPropertyType.Bool ->
-                                    match propertyValue with
-                                    | :? bool ->
-                                        true
-                                    | _ ->
-                                        let expectedText = "'true' or 'false' value"
-                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
-                                        false
-                                | OlyProjectPropertyType.String(expectedValues) ->
-                                    match propertyValue with
-                                    | :? string as propertyValue ->
-                                        match expectedValues with
-                                        | Some(expectedValues) ->
-                                            if expectedValues.Contains(propertyValue) then
-                                                true
-                                            else
-                                                let expectedText = System.Text.StringBuilder()
-                                                expectedText.AppendLine("one of the following values:") |> ignore
-                                                expectedValues
-                                                |> Seq.sort
-                                                |> Seq.iter (fun expectedValue ->
-                                                    expectedText.AppendLine("    " + expectedValue) |> ignore
-                                                )
-                                                let expectedText = expectedText.ToString()
-                                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
-                                                false
-                                        | _ ->
-                                            true
-                                    | _ ->
-                                        let expectedText = "a string value"
-                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
-                                        false
-                            | _ ->
-                                let msg = $"Not a property for target '{targetInfo.Name}'."
-                                ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
-                                false
-                    if isValid then
-                        builder.Add(propertyName, propertyValue)
-                )
-                OlyProjectProperties(builder.ToImmutable())
+            let properties = OlyWorkspace.CreateProjectProperties(targetBuild, targetInfo, syntaxTree, config, diags)
 
             OlyTrace.Log($"[Project] '{projPath}' - Resolving References")
             
