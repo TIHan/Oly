@@ -277,8 +277,6 @@ type OlyCompletionContext =
     | Patterns of OlyBoundSubModel
     | OpenDeclaration of OlyBoundSubModel
     | Symbol of OlySymbol * OlyBoundSubModel * inStaticContext: bool
-    | PropertyValue of propertyName: string
-    | Property
 
 [<Struct;DebuggerDisplay("{Label}")>]
 type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind, detail: string, insertText: string) =
@@ -731,11 +729,7 @@ type OlyDocument with
 
                 let context =
                     if token.IsTrivia && not token.IsWhitespaceTrivia then
-                        match token.TryPropertyDirectiveText with
-                        | ValueSome(propertyName, _propertyValue) ->
-                            OlyCompletionContext.PropertyValue(propertyName)
-                        | _ ->
-                            OlyCompletionContext.None
+                        OlyCompletionContext.None
                     elif hasDotOnLeft then
                         let boundModel = this.BoundModel
                         match boundModel.TryFindSymbol(token, ct) with
@@ -790,32 +784,6 @@ type OlyDocument with
                 match context with
                 | OlyCompletionContext.None ->
                     ()
-
-                | OlyCompletionContext.Property ->
-                    this.Project.SharedBuild.GetProjectPropertyDefinitions(this.Project.TargetInfo).Keys
-                    |> Seq.iter (fun propertyName ->
-                        completions.Add(OlyCompletionItem(propertyName, OlyClassificationKind.ConstantString, ""))
-
-                    )
-
-                | OlyCompletionContext.PropertyValue(propertyName) ->
-                    let propertyDefinitions = this.Project.SharedBuild.GetProjectPropertyDefinitions(this.Project.TargetInfo)
-                    match propertyDefinitions.TryGetValue(propertyName) with
-                    | true, propertyDesc ->
-                        match propertyDesc.Type with
-                        | OlyProjectPropertyType.String(Some(expectedValues)) ->
-                            expectedValues
-                            |> Seq.sort
-                            |> Seq.iter (fun expectedValue ->
-                                completions.Add(OlyCompletionItem(expectedValue, OlyClassificationKind.ConstantString, ""))
-                            )
-                        | OlyProjectPropertyType.Bool ->
-                            completions.Add(OlyCompletionItem("true", OlyClassificationKind.ConstantBool, ""))
-                            completions.Add(OlyCompletionItem("false", OlyClassificationKind.ConstantBool, ""))
-                        | _ ->
-                            ()
-                    | _ ->
-                        ()
 
                 | OlyCompletionContext.Patterns subModel ->
                     let matchTyOpt = subModel.TryGetMatchType(token.Node, ct)
@@ -1057,6 +1025,51 @@ type OlyDocument with
             ct.ThrowIfCancellationRequested()
             x.Label
         )
+
+    member this.GetDirectiveCompletions(line, column, ct) =
+        let syntaxTree = this.SyntaxTree
+        match syntaxTree.GetSourceText(ct).TryGetPosition(OlyTextPosition(line, column)) with
+        | Some position -> this.GetDirectiveCompletions(position, ct)
+        | _ -> Seq.empty
+
+    member this.GetDirectiveCompletions(position: int, ct: CancellationToken) =
+        let syntaxTree = this.SyntaxTree
+        let build = this.Project.SharedBuild
+
+        let tokenOpt = syntaxTree.GetRoot(ct).TryFindToken(position, ct=ct, skipTrivia = false)
+
+        match tokenOpt with
+        | None -> Seq.empty
+        | Some(token) ->
+
+        if token.IsTrivia && not token.IsWhitespaceTrivia then
+            match token.TryPropertyDirectiveText with
+            | ValueSome(propertyName, _propertyValue) ->
+                let completions = ResizeArray<OlyCompletionItem>()
+
+                let propertyDefinitions = build.GetProjectPropertyDefinitions(this.Project.TargetInfo)
+                match propertyDefinitions.TryGetValue(propertyName) with
+                | true, propertyDesc ->
+                    match propertyDesc.Type with
+                    | OlyProjectPropertyType.String(Some(expectedValues)) ->
+                        expectedValues
+                        |> Seq.sort
+                        |> Seq.iter (fun expectedValue ->
+                            completions.Add(OlyCompletionItem(expectedValue, OlyClassificationKind.ConstantString, ""))
+                        )
+                    | OlyProjectPropertyType.Bool ->
+                        completions.Add(OlyCompletionItem("true", OlyClassificationKind.ConstantBool, ""))
+                        completions.Add(OlyCompletionItem("false", OlyClassificationKind.ConstantBool, ""))
+                    | _ ->
+                        ()
+                | _ ->
+                    ()
+
+                completions
+            | _ ->
+                Seq.empty
+        else
+            Seq.empty
 
     // TODO: Better API name.
     member this.IsTarget(value, ?ct) =

@@ -1945,7 +1945,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let options = CompletionRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options.WorkDoneProgress <- false
-            options.TriggerCharacters <- Container([".";",";":";" "])
+            options.TriggerCharacters <- Container([".";",";":";" ";"\""])
             options.AllCommitCharacters <- null
             options.ResolveProvider <- true
             options
@@ -1955,6 +1955,53 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 try
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
                     let workspace = getWorkspace()
+
+                    let staleCompletions() =
+                        let staleSolution = workspace.StaleSolution
+                        let staleDocs = staleSolution.GetDocuments(documentPath)
+                        if staleDocs.IsEmpty then
+                            ImArray.empty
+                        else
+                            match textManager.TryGet(documentPath) with
+                            | None -> ImArray.empty
+                            | Some(sourceText) ->
+                                let staleDoc = staleDocs[0]
+                                let (_, _, staleDoc) = 
+                                    staleSolution.UpdateDocument(
+                                        staleDoc.Project.Path, 
+                                        staleDoc.Path, 
+                                        OlySyntaxTree.Parse(
+                                            staleDoc.SyntaxTree.Path, 
+                                            sourceText,
+                                            staleDoc.SyntaxTree.ParsingOptions),
+                                        ImArray.empty
+                                    )
+                                staleDoc.GetDirectiveCompletions(request.Position.Line, request.Position.Character, ct)
+                                |> Seq.distinctBy (fun x -> x.Label)
+                                |> Seq.map (fun x ->
+                                    ct.ThrowIfCancellationRequested()
+                                    let kind = x.ClassificationKind.ToLspCompletionItemKind()
+                                    let c = request.Context.TriggerCharacter
+                                    // TODO: We should incorporate text edits.
+                                    let label =
+                                        if c = " " then
+                                            "\"" + x.Label + "\""
+                                        else
+                                            x.Label
+                                    let insertText = x.InsertText
+                                    CompletionItem(Label = label, Detail = x.Detail, InsertText = insertText, Kind = kind)
+                                )
+                                |> ImArray.ofSeq
+
+                    let staleCompletionItems = staleCompletions()
+                    if not staleCompletionItems.IsEmpty then
+                        return CompletionList(staleCompletionItems)
+                    else
+
+                    if request.Context.TriggerCharacter = "\"" then
+                        return null
+                    else
+
                     let! docs = workspace.GetDocumentsAsync(documentPath, ct)
                     if docs.IsEmpty then
                         return null

@@ -68,16 +68,16 @@ module ERROR =
     let reportFileDoesNotExist (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
         diags.Add(OlyDiagnostic.CreateError($"'{path}' does not exist.", 313, location))
 
-    let createProjectInternalError (ex: Exception) (location: OlySourceLocation option) =
+    let createProjectInternalBuildError (ex: Exception) (location: OlySourceLocation option) =
         System.Diagnostics.Debug.WriteLine(ex.Message)
         match location with
         | Some(location) ->
-            OlyDiagnostic.CreateError($"Project internal error: {ex.Message}", 313, location)
+            OlyDiagnostic.CreateError($"Project internal build error: {ex.Message}", 313, location)
         | _ ->
-            OlyDiagnostic.CreateError($"Project internal error: {ex.Message}", 313)
+            OlyDiagnostic.CreateError($"Project internal build error: {ex.Message}", 313)
 
-    let reportProjectInternalError (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
-        diags.Add(createProjectInternalError ex (Some location))
+    let reportProjectInternalBuildError (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(createProjectInternalBuildError ex (Some location))
 
 exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
 
@@ -1901,7 +1901,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         | :? OlyWorkspaceFileDoesNotExist ->
                             ERROR.reportFileDoesNotExist path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                         | ex ->
-                            ERROR.reportProjectInternalError ex (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                            ERROR.reportProjectInternalBuildError ex (OlySourceLocation.Create(textSpan, syntaxTree)) diags
             )
 
             documents.Add(filePath, syntaxTree, diags.ToImmutable())
@@ -2120,7 +2120,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             | :? OperationCanceledException ->
                 return None
             | ex ->
-                return Some(Error(ImArray.createOne (ERROR.createProjectInternalError ex None)))
+                return Some(Error(ImArray.createOne (ERROR.createProjectInternalBuildError ex None)))
         }
 
     member this.ClearSolution() =
