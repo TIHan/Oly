@@ -74,6 +74,52 @@ type OlyToken =
         | _ ->
             ValueNone
 
+
+    /// Get sub-tokens that are effectively immediate descendant tokens
+    /// that make up the given token.
+    member this.GetSubTokens() =
+        // TODO: Handle other tokens that have sub-tokens.
+        match this.node.Internal.RawToken with
+        | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) -> 
+            let textSpan = this.TextSpan
+            let hashTokenSpan = OlyTextSpan.Create(textSpan.Start, hashToken.Width)
+            let propertyTokenSpan = OlyTextSpan.Create(hashTokenSpan.End, propertyToken.Width)
+            let whitespaceToken1Span = OlyTextSpan.Create(propertyTokenSpan.End, whitespaceToken1.Width)
+            let propertyNameTokenSpan = OlyTextSpan.Create(whitespaceToken1Span.End, propertyNameToken.Width)
+            let whitespaceToken2Span = OlyTextSpan.Create(propertyNameTokenSpan.End, whitespaceToken2.Width)
+            let propertyValueTokenSpan = OlyTextSpan.Create(whitespaceToken2Span.End, propertyValueToken.Width)
+
+            let tree = this.Tree
+            let node = this.node
+            let inline convert (token: Token, textSpan: OlyTextSpan) =
+                let token = SyntaxToken.Token(token)
+                OlySyntaxToken(tree, textSpan.Start, node, token)
+
+            let builder = ImArray.builderWithSize 6
+            builder.Add(convert(hashToken, hashTokenSpan))
+            builder.Add(convert(propertyToken, propertyTokenSpan))
+            builder.Add(convert(whitespaceToken1, whitespaceToken1Span))
+            builder.Add(convert(propertyNameToken, propertyNameTokenSpan))
+            builder.Add(convert(whitespaceToken2, whitespaceToken2Span))
+            builder.Add(convert(propertyValueToken, propertyValueTokenSpan))
+            builder.MoveToImmutable()
+        | _ ->
+            ImArray.empty
+
+    member this.TryGetSubToken(position: int, ?skipTrivia: bool): OlyToken option =
+        let skipTrivia = defaultArg skipTrivia true
+
+        let subTokens = this.GetSubTokens()
+        subTokens
+        |> ImArray.tryPick (fun subToken ->
+            if subToken.IsTrivia && skipTrivia then
+                Some(subToken.TryGetToken().Value)
+            elif subToken.TextSpan.Contains(position) then
+                Some(subToken.TryGetToken().Value)
+            else
+                None
+        )
+
     member this.TryStringLiteralText = this.node.Internal.RawToken.TryStringLiteralText
 
     member this.IsKeyword = this.node.Internal.RawToken.IsKeyword
@@ -220,6 +266,64 @@ type OlyToken =
     member this.IsIdentifierOrOperatorOrKeyword =
         this.node.Internal.RawToken.IsIdentifierOrOperatorOrKeyword
 
+    member this.TryPreviousTokenBySubToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
+        let predicate = defaultArg predicate (fun _ -> true)
+        let skipTrivia = defaultArg skipTrivia true
+        let ct = defaultArg ct CancellationToken.None
+        let origNode = this.Node
+
+        let node = origNode
+        match node.Parent with
+        | null -> ValueNone
+        | parentNode ->
+            // Try to get previous token for a sub-token.
+            if parentNode.IsToken then
+                let thisToken = this
+                let parentNode = parentNode :> obj :?> OlySyntaxToken
+                let parentToken = parentNode.TryGetToken().Value
+                match parentNode.Internal with
+                | SyntaxToken.Token(token)
+                | SyntaxToken.TokenWithTrivia(_, token, _) when token.IsPropertyDirective ->
+                    let found =
+                        let subTokens = parentToken.GetSubTokens()
+                        let mutable i = 0
+                        subTokens
+                        |> ImArray.tryPick (fun subToken ->
+                            let result =
+                                match subToken.TryGetToken() with
+                                | Some(subToken) when subToken.TextSpan = thisToken.TextSpan && subToken.Tree = thisToken.Tree ->
+                                    if i = 0 then
+                                        match parentToken.TryPreviousToken(predicate, skipTrivia, ct) with
+                                        | ValueSome(result) -> Some(result)
+                                        | ValueNone -> None
+                                    else
+                                        let mutable result = None
+                                        for j = i - 1 downto 0 do
+                                            if result.IsNone then
+                                                let prevToken = subTokens[j].TryGetToken().Value
+                                                if predicate prevToken then
+                                                    if prevToken.IsTrivia then
+                                                        if not skipTrivia then
+                                                            result <- Some(prevToken)
+                                                    else
+                                                        result <- Some(prevToken)
+                                        result
+                                | _ -> 
+                                    None
+                            i <- i + 1
+                            result
+                        )
+
+                    match found with
+                    | Some(found) ->
+                        ValueSome(found)
+                    | _ ->
+                        ValueNone
+                | _ ->
+                    ValueNone
+            else
+                ValueNone
+
     member this.TryPreviousToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
         let predicate = defaultArg predicate (fun _ -> true)
         let skipTrivia = defaultArg skipTrivia true
@@ -237,7 +341,7 @@ type OlyToken =
                 | Some index ->
                     match index with
                     | 0 ->
-                        loop parentNode
+                        loop(parentNode)
                     | _ ->
                         let tokenOpt = 
                             tokens 
@@ -246,10 +350,10 @@ type OlyToken =
                             |> Seq.tryLast
                         match tokenOpt with
                         | Some token -> ValueSome token
-                        | _ -> loop parentNode
+                        | _ -> loop(parentNode)
                 | _ ->
                     ValueNone
-        loop origNode
+        loop(origNode)
 
 [<Sealed;DebuggerDisplay("{Path}")>]
 type internal OlySyntaxTreeImplementation(path, getSourceText: CancellationToken -> IOlySourceText, version, parsingOptions: OlyParsingOptions) as this =
@@ -922,7 +1026,7 @@ module OlySyntaxTreeExtensions =
             else
                 false
 
-        member this.TryGetToken() =
+        member this.TryGetToken(): OlyToken option =
             match this with
             | :? OlySyntaxToken as node -> Some(OlyToken(node))
             | _ -> None

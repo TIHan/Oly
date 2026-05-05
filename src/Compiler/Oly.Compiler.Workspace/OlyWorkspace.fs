@@ -325,7 +325,7 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyType =
     | Bool
-    | String of expectedValues: ImmutableHashSet<string> option
+    | String of propertyValues: ImmutableHashSet<string> option
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyDescription =
@@ -1570,17 +1570,17 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                                 let expectedText = "'true' or 'false' value"
                                 ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
                                 false
-                        | OlyProjectPropertyType.String(expectedValues) ->
+                        | OlyProjectPropertyType.String(propertyValues) ->
                             match propertyValue with
                             | :? string as propertyValue ->
-                                match expectedValues with
-                                | Some(expectedValues) ->
-                                    if expectedValues.Contains(propertyValue) then
+                                match propertyValues with
+                                | Some(propertyValues) ->
+                                    if propertyValues.Contains(propertyValue) then
                                         true
                                     else
                                         let expectedText = System.Text.StringBuilder()
                                         expectedText.AppendLine("one of the following string values:") |> ignore
-                                        expectedValues
+                                        propertyValues
                                         |> Seq.sort
                                         |> Seq.iter (fun expectedValue ->
                                             expectedText.AppendLine("    " + expectedValue) |> ignore

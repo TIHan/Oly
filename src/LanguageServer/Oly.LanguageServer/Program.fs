@@ -407,9 +407,9 @@ type OlyClassificationKind with
         | OlyClassificationKind.Pattern
         | OlyClassificationKind.AbstractPattern ->
             "enumMember"
-        | OlyClassificationKind.ConstantString ->
+        | OlyClassificationKind.StringLiteral ->
             "string"
-        | OlyClassificationKind.ConstantBool ->
+        | OlyClassificationKind.BoolLiteral ->
             "keyword"
         | _ ->
             "label"
@@ -1981,15 +1981,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                 |> Seq.map (fun x ->
                                     ct.ThrowIfCancellationRequested()
                                     let kind = x.ClassificationKind.ToLspCompletionItemKind()
-                                    let c = request.Context.TriggerCharacter
-                                    // TODO: We should incorporate text edits.
-                                    let label =
-                                        if c = " " then
-                                            "\"" + x.Label + "\""
-                                        else
-                                            x.Label
-                                    let insertText = x.InsertText
-                                    CompletionItem(Label = label, Detail = x.Detail, InsertText = insertText, Kind = kind)
+
+                                    let textEdit =
+                                        TextEdit(
+                                            NewText = x.InsertText,
+                                            Range = x.InsertRange.ToLspRange()
+                                        )
+
+                                    CompletionItem(Label = x.Label, Detail = x.Detail, Kind = kind, TextEdit = textEdit)
                                 )
                                 |> ImArray.ofSeq
 
@@ -2013,7 +2012,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             |> Seq.map (fun x ->
                                 ct.ThrowIfCancellationRequested()
                                 let kind = x.ClassificationKind.ToLspCompletionItemKind()
-                                CompletionItem(Label = x.Label, Detail = x.Detail, InsertText = x.InsertText, Kind = kind)
+
+                                let textEdit =
+                                    TextEdit(
+                                        NewText = x.InsertText,
+                                        Range = x.InsertRange.ToLspRange()
+                                    )
+
+                                CompletionItem(Label = x.Label, Detail = x.Detail, Kind = kind, TextEdit = textEdit)
                             )
                             |> ImArray.ofSeq
                         return CompletionList(items)

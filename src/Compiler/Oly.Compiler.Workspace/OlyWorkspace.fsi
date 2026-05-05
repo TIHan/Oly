@@ -179,7 +179,7 @@ type OlyProjectConfiguration =
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyType =
     | Bool
-    | String of expectedValues: ImmutableHashSet<string> option
+    | String of propertyValues: ImmutableHashSet<string> option
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyDescription =
