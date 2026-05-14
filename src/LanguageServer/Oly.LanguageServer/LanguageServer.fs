@@ -1,4 +1,6 @@
-﻿open System
+﻿module internal LanguageServer
+
+open System
 open System.Text
 open System.Linq
 open System.Diagnostics
@@ -2361,28 +2363,3 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                 // TODO
                 return [||]
             }
-
-[<EntryPoint>]
-let main argv =
-#if DEBUG
-    System.Diagnostics.Debugger.Launch() |> ignore
-#endif
-    let configureServices = 
-        fun (services: IServiceCollection) -> ()
-    let configureServices = Action<IServiceCollection>(configureServices)
-    let optionsf =
-        fun (options: LanguageServerOptions) ->
-            options.Concurrency <- Environment.ProcessorCount |> Nullable
-            options
-             .WithInput(Console.OpenStandardInput())
-             .WithOutput(Console.OpenStandardOutput())
-             .WithLoggerFactory(new LoggerFactory())
-             .AddDefaultLoggingProvider()
-             .WithServices(configureServices)
-             .WithHandler<TextDocumentSyncHandler>()
-             |> ignore
-
-    let server = LanguageServer.From(optionsf).Result
-    server.WaitForExit.Wait()
-
-    0

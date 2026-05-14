@@ -1149,7 +1149,61 @@ type OlyDocument with
 
                     completions
             | _ ->
-                Seq.empty
+                match token.TryDirectiveText with
+                | ValueSome("reference", currentReference) ->
+                    match token.TryGetSubToken(position, skipTrivia = false) with
+                    | Some(subToken) when subToken.IsStringLiteral -> 
+                        let currentReference = OlyPath.Create(currentReference)
+                        let rootDir = this.Path.GetDirectory()
+                        let dir = rootDir.Join(currentReference.GetDirectory())
+
+                        let insertRange = subToken.GetTextRange(ct)
+
+                        let completions = ResizeArray<OlyCompletionItem>()
+
+                        Oly.Core.IO.OlyIO.GetFilesFromDirectory(dir.ToString())
+                        |> ImArray.append (Oly.Core.IO.OlyIO.GetDirectoriesFromDirectory(dir.ToString()))
+                        |> ImArray.iter (fun file ->
+                            let file = OlyPath.Create(file).GetRelative(rootDir)
+                            if file.IsDirectory || (not(file.HasExtension(".oly")) && file.ToString().StartsWith(currentReference.ToString())) then
+                                let label = file.ToString()
+                                let label = "\"" + label + "\""
+                                let detail = if file.IsDirectory then "Directory" else "File"
+                                completions.Add(OlyCompletionItem(label, OlyClassificationKind.StringLiteral, detail, label, insertRange))
+                        )
+
+                        completions
+                    | _ ->
+                        Seq.empty
+
+                | ValueSome("load", currentReference) ->
+                    match token.TryGetSubToken(position, skipTrivia = false) with
+                    | Some(subToken) when subToken.IsStringLiteral -> 
+                        let currentReference = OlyPath.Create(currentReference)
+                        let rootDir = this.Path.GetDirectory()
+                        let dir = rootDir.Join(currentReference.GetDirectory())
+
+                        let insertRange = subToken.GetTextRange(ct)
+
+                        let completions = ResizeArray<OlyCompletionItem>()
+
+                        Oly.Core.IO.OlyIO.GetFilesFromDirectory(dir.ToString())
+                        |> ImArray.append (Oly.Core.IO.OlyIO.GetDirectoriesFromDirectory(dir.ToString()))
+                        |> ImArray.iter (fun file ->
+                            let file = OlyPath.Create(file).GetRelative(rootDir)
+                            if file.IsDirectory || (file.HasExtension(".oly") && file.ToString().StartsWith(currentReference.ToString())) then
+                                let label = file.ToString()
+                                let label = "\"" + label + "\""
+                                let detail = if file.IsDirectory then "Directory" else "File"
+                                completions.Add(OlyCompletionItem(label, OlyClassificationKind.StringLiteral, detail, label, insertRange))
+                        )
+
+                        completions
+                    | _ ->
+                        Seq.empty
+
+                | _ ->
+                    Seq.empty
         else
             Seq.empty
 

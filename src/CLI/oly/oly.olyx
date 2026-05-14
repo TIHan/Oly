@@ -1,13 +1,10 @@
 #target "dotnet: net10.0"
 #load "oly.oly"
-#reference "../olylib/olylib.fsproj"
+
+#reference "../../LanguageServer/Oly.LanguageServer/Oly.LanguageServer.fsproj"
 
 #package "Spectre.Console.Cli,0.50.0"
 #package "Errata,0.14.0"
-
-#if RELEASE
-#property "publish" "r2r"
-#end
 
 namespace olycli
 
@@ -22,5 +19,6 @@ module Program =
                 let _ = c.AddCommand<BuildCommand>("build")
                 let _ = c.AddCommand<CleanCommand>("clean")
                 let _ = c.AddCommand<InstallCommand>("install")
+                let _ = c.AddCommand<LspCommand>("lsp")
         )
         app.Run(Cast(args))

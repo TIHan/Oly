@@ -50,9 +50,21 @@ type OlyIO private () =
         for file in dir.GetFiles() do
             // skip "__oly" prefix
             if not(file.Name.StartsWith("__oly", StringComparison.OrdinalIgnoreCase)) then
-                files.Add(file.FullName)
+                files.Add(OlyPath.Create(file.FullName).ToString())
 
         files.ToImmutable()
+
+    static member GetDirectoriesFromDirectory(dir) =
+        let dirs = ImArray.builder()
+        let dir = DirectoryInfo(dir)
+
+        // Get the files in the source directory and copy to the destination directory
+        for file in dir.GetDirectories() do
+            // skip "__oly" prefix
+            if not(file.Name.StartsWith("__oly", StringComparison.OrdinalIgnoreCase)) then
+                dirs.Add(OlyPath.Create(file.FullName + "/").ToString())
+
+        dirs.ToImmutable()
 
     static member GetLastWriteTimeUtc(filePath: OlyPath) =
         File.GetLastWriteTimeUtc(filePath.ToString())

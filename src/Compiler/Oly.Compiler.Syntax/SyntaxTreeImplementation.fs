@@ -80,6 +80,26 @@ type OlyToken =
     member this.GetSubTokens() =
         // TODO: Handle other tokens that have sub-tokens.
         match this.node.Internal.RawToken with
+        | Directive(hashToken, token, whitespaceToken, valueToken) ->
+            let textSpan = this.TextSpan
+            let hashTokenSpan = OlyTextSpan.Create(textSpan.Start, hashToken.Width)
+            let tokenSpan = OlyTextSpan.Create(hashTokenSpan.End, token.Width)
+            let whitespaceTokenSpan = OlyTextSpan.Create(tokenSpan.End, whitespaceToken.Width)
+            let valueTokenSpan = OlyTextSpan.Create(whitespaceTokenSpan.End, valueToken.Width)
+
+            let tree = this.Tree
+            let node = this.node
+            let inline convert (token: Token, textSpan: OlyTextSpan) =
+                let token = SyntaxToken.Token(token)
+                OlySyntaxToken(tree, textSpan.Start, node, token)
+
+            let builder = ImArray.builderWithSize 4
+            builder.Add(convert(hashToken, hashTokenSpan))
+            builder.Add(convert(token, tokenSpan))
+            builder.Add(convert(whitespaceToken, whitespaceTokenSpan))
+            builder.Add(convert(valueToken, valueTokenSpan))
+            builder.MoveToImmutable()
+
         | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) -> 
             let textSpan = this.TextSpan
             let hashTokenSpan = OlyTextSpan.Create(textSpan.Start, hashToken.Width)

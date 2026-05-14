@@ -12,6 +12,7 @@ import { OlyClientCommands } from './OlyClientCommands';
 import { OlySyntaxTreeView } from './OlySyntaxTreeView';
 import { autoCreateLaunchJson, getActiveDocument } from './Helpers';
 import { OlySolutionExplorerView } from './OlySolutionExplorerView';
+import * as os from 'os';
 
 interface IOlyWorkspaceSettings {
 	activeProject: string | undefined
@@ -66,15 +67,13 @@ export function activate(context: ExtensionContext) {
 
 	const workspaceFolder = workspaceFolders[0];
 
-	let serverModule = context.asAbsolutePath(
-		path.join('out', 'net10.0', 'Oly.LanguageServer.dll')
-	);
+	const olyExe = path.join(os.homedir(), ".oly", "oly");
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
-		run: { command: 'dotnet', args: [serverModule] },
-		debug: { command: 'dotnet', args: [serverModule] }
+		run: { command: olyExe, args: ["lsp"] },
+		debug: { command: olyExe, args: ["lsp"] }
 	};
 
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*');

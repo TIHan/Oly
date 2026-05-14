@@ -1,27 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Configurations>Debug;Release;Checked</Configurations>
-	<!--<ServerGarbageCollection>true</ServerGarbageCollection>-->
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Checked|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="OlySolutionExplorerViewModel.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="LanguageServer.fs" />
+    <Compile Include="OlyLanguageServer.fs" />
   </ItemGroup>
 
   <ItemGroup>

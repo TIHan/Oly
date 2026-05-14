@@ -158,8 +158,6 @@ class InstallCommand =
 
     private module Helpers =
         InstallCore(exePath: string, olyInstallPath: string): () =
-        //    AnsiConsole.Markup("[yellow]Installing Oly...[/]")
-
             try
                 let _ = Directory.CreateDirectory(olyInstallPath)
             catch (ex: Exception) => ()
@@ -226,3 +224,17 @@ class InstallCommand =
             let _ = Oly.Core.Tracing.OlyTrace.LogError.Invoke(ex.Message)
 
         0
+
+#[export]
+class LspCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+    overrides Execute(context: CommandContext, settings: Settings): int32 =
+        try
+            Oly.LanguageServer.OlyLanguageServer.run(mutable [])
+        catch (ex: Exception) =>
+            AnsiConsole.Write(ex.ToString())
+            1
