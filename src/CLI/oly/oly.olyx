@@ -12,7 +12,27 @@ open Spectre.Console.Cli
 
 module Program = 
 
+    CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H 
+        where H: { new(object, nint: nint); Invoke(object, args: TArgs): TReturn } =
+        let handle: System.Func<object, TArgs, TReturn> = Unsafe.As(f)
+        H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
+
+    CreateResolveEventHandler(f: (object, System.ResolveEventArgs) -> System.Reflection.Assembly): System.ResolveEventHandler =
+        let handle: System.Func<object, System.ResolveEventArgs, System.Reflection.Assembly> = Unsafe.As(f)
+        System.ResolveEventHandler(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
+
     main(args: string[]): int32 =
+        let handler: System.ResolveEventHandler =
+            CreateResolveEventHandler(
+                (_sender, args: System.ResolveEventArgs) ->
+                    if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
+                        let dir = System.IO.Path.GetDirectoryName(System.Environment.ProcessPath)
+                        let file = System.IO.Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
+                        System.Reflection.Assembly.LoadFile(file)
+                    else
+                        null
+            )
+        let _ = System.AppDomain.CurrentDomain.add_AssemblyResolve(handler)
         let app = CommandApp(null)
         app.Configure(
             c ->
