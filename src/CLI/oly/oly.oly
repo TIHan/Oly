@@ -151,3 +151,78 @@ class CleanCommand =
         Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         olylib.Oly.Clean(Environment.CurrentDirectory)
         0
+
+#[export]
+class InstallCommand =
+    inherits Command<Settings>
+
+    private module Helpers =
+        InstallCore(exePath: string, olyInstallPath: string): () =
+        //    AnsiConsole.Markup("[yellow]Installing Oly...[/]")
+
+            try
+                let _ = Directory.CreateDirectory(olyInstallPath)
+            catch (ex: Exception) => ()
+
+            let files = Directory.EnumerateFiles(exePath)
+            ForEach(files, 
+                file -> 
+                    let src = file
+                    let dst = Path.Combine(olyInstallPath, Path.GetFileName(file))
+                    File.Copy(src, dst, true)
+            )
+
+            let paths = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)
+            let paths = paths.Split(mutable [';'])
+
+            let mutable exists = false
+            let mutable olyInstallPath = OlyPath.Create(olyInstallPath)
+            ForEach(paths,
+                path ->
+                    let path = OlyPath.Create(path)
+                    if (OlyPath.Equals(olyInstallPath, path))
+                        exists <- true
+            )
+
+            if (!exists)
+                let paths = String.Join(';', paths) + ";" + (olyInstallPath.ToString())
+                Environment.SetEnvironmentVariable("PATH", paths, EnvironmentVariableTarget.User)
+                let _ = Oly.Core.Tracing.OlyTrace.LogWarning.Invoke("PATH modified\n")
+
+        Install(exePath: string, olyInstallPath: string): () =
+            AnsiConsole.Status()
+                .Start("Installing Oly...",
+                    ctx ->
+                        Thread.Sleep(1000)
+                        InstallCore(exePath, olyInstallPath)
+                        AnsiConsole.MarkupLine("[green]Oly Installed[/]")
+                )
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-v|--verbosity")]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
+    overrides Execute(context: CommandContext, settings: Settings): int32 =
+        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        
+        try
+            let exePath = Path.GetDirectoryName(Environment.ProcessPath)
+            let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            let olyInstallPath = Path.Combine(userPath, ".oly/").Replace('\\', '/')
+
+            if (Directory.Exists(olyInstallPath))
+                if (AnsiConsole.Confirm("Oly already installed. Re-install?", false))
+                    Helpers.Install(exePath, olyInstallPath)
+
+            else if (AnsiConsole.Confirm("Install Oly to: " + olyInstallPath, true))
+                Helpers.Install(exePath, olyInstallPath)
+
+        catch (ex: Exception) =>
+            let _ = Oly.Core.Tracing.OlyTrace.LogError.Invoke(ex.Message)
+
+        0

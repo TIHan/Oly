@@ -290,21 +290,6 @@ let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSym
 let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) (ty: TypeSymbol) : bool = 
     OlyAssert.False(solution.HasSolution)
 
-#if DEBUG || CHECKED
-    let rec checkCycle (solution: VariableSolutionSymbol) (ty: TypeSymbol) =
-        let isCycle =
-            ty.TypeArguments
-            |> ImArray.exists (fun x -> 
-                match stripTypeEquations x with
-                | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
-                | _ -> 
-                    checkCycle solution x
-                    false
-            )
-        OlyAssert.False(isCycle)
-    checkCycle solution ty
-#endif
-
     match tyParOpt with
     | Some(tyPar) when tyPar.Arity > 0 ->
         solution.SetSolution(ty.Formal)
@@ -314,7 +299,14 @@ let private unifyInferenceVariableType (tyParOpt: TypeParameterSymbol option) (s
 
 let private isMostFlexible (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
     solution1.IsMostFlexible &&
-    ((solution1.HasSolution && not(areTypesEqual solution1.Solution origTy2)) || not solution1.HasSolution)
+    ((solution1.HasSolution && not(areTypesEqual solution1.Solution origTy2)) || not solution1.HasSolution) &&
+    (
+        // This prevents an inference variable cycle.
+        match stripTypeEquations origTy2 with
+        | TypeSymbol.InferenceVariable(solution=solution2)
+        | TypeSymbol.EagerInferenceVariable(solution=solution2) -> solution1.Id <> solution2.Id 
+        | _ -> true
+    )
 
 let private unifyMostFlexibleAux (origTy1: TypeSymbol) (solution1: VariableSolutionSymbol) (origTy2: TypeSymbol) : bool =
     match stripTypeEquations origTy1 with

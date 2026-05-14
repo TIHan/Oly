@@ -3343,6 +3343,7 @@ type VariableSolutionSymbol (flags: VariableSolutionFlags) =
                         loop solution.Solution
                 | _ ->
                     ()
+            loop value
 #endif
             solutionState <- value
 
