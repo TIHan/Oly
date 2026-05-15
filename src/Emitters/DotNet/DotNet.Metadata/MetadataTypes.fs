@@ -4,6 +4,15 @@ open System
 open System.Reflection.Metadata
 open Oly.Core
 
+[<RequireQualifiedAccess>]
+module DotNetSpecialNames =
+
+    [<Literal>]
+    let Constructor = ".ctor"
+
+    [<Literal>]
+    let StaticConstructor = ".cctor"
+
 [<AutoOpen>]
 module internal Helpers =
 

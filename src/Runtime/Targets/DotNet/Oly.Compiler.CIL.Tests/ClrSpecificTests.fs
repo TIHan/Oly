@@ -8409,7 +8409,7 @@ main(): () =
         [
             // TODO: Honestly, this shouldn't even report ambiguous functions.
             //       It should actually say that there is no valid overload.
-            ("'.ctor' has ambiguous functions.",
+            ("'__oly_ctor' has ambiguous functions.",
                 """
         Span(this.A).Clear()
         ^^^^

@@ -216,7 +216,7 @@ module rec ClrCodeGen =
         tyDef.Attributes <- TypeAttributes.Sealed ||| TypeAttributes.SequentialLayout
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceIntPtr) ("", asmBuilder.TypeReferenceIntPtr)
-        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Managed
 
@@ -247,7 +247,7 @@ module rec ClrCodeGen =
         tyDef.Attributes <- TypeAttributes.Sealed
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
-        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
 
@@ -270,7 +270,7 @@ module rec ClrCodeGen =
             let ctorHandle = 
                 asmBuilder.CreateMethodHandle(
                     attrTy.Handle,
-                    ".ctor",
+                    DotNetSpecialNames.Constructor,
                     true,
                     ImArray.createOne(callConvTy.Handle),
                     asmBuilder.TypeReferenceVoid
@@ -310,9 +310,9 @@ module rec ClrCodeGen =
                     tyDef.AddFieldDefinition(FieldAttributes.Public, "I" + i.ToString(), elementTyHandle, None)
                 )
 
-        // .ctor
+        // constructor
         let ctorParTys = ImArray.init length (fun i -> ("i" + i.ToString(), elementTyHandle))
-        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, ctorParTys, asmBuilder.TypeReferenceVoid, true)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, ctorParTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig
         ctor.ImplementationAttributes <- MethodImplAttributes.IL ||| MethodImplAttributes.Managed
 
@@ -1931,7 +1931,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         let tyDef = asmBuilder.CreateTypeDefinitionBuilder(enclosingTyHandle, "", name, 0, false, asmBuilder.TypeReferenceObject)
 
         let parTys = ImArray.createTwo ("", asmBuilder.TypeReferenceObject) ("", asmBuilder.TypeReferenceIntPtr)
-        let ctor = tyDef.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
+        let ctor = tyDef.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, parTys, asmBuilder.TypeReferenceVoid, true)
         ctor.Attributes <- MethodAttributes.Public ||| MethodAttributes.HideBySig ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
         ctor.ImplementationAttributes <- MethodImplAttributes.Runtime ||| MethodImplAttributes.Managed
 
@@ -2026,13 +2026,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         )
 
             let objectCtor =
-                match vm.TryFindFunction(("System.Object", 0), ".ctor", 0, ImArray.empty, ("System.Void", 0), OlyFunctionKind.Instance) with
+                match vm.TryFindFunction(("System.Object", 0), OlySpecialNames.Constructor, 0, ImArray.empty, ("System.Void", 0), OlyFunctionKind.Instance) with
                 | Some x -> x.AsDefinition.handle
                 | _ -> failwith "Unable to find 'System.Object..ctor'"
 
             let debuggerBrowsableCtor =
                 let pars = ImArray.createOne("System.Diagnostics.DebuggerBrowsableState", 0)
-                match vm.TryFindFunction(("System.Diagnostics.DebuggerBrowsableAttribute", 0), ".ctor", 0, pars, ("System.Void", 0), OlyFunctionKind.Instance) with
+                match vm.TryFindFunction(("System.Diagnostics.DebuggerBrowsableAttribute", 0), OlySpecialNames.Constructor, 0, pars, ("System.Void", 0), OlyFunctionKind.Instance) with
                 | Some x -> x.AsDefinition.handle
                 | _ -> failwith "Unable to find 'System.Diagnostics.DebuggerBrowsableAttribute..ctor'"
 
@@ -2055,10 +2055,10 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 vm.TryFindFunction(("System.Activator", 0), "CreateInstance", 1, 0, OlyFunctionKind.Static).Value.AsDefinition.handle
 
             let ``ArgumentOutOfRangeExceptionCtor`` =
-                vm.TryFindFunction(("System.ArgumentOutOfRangeException", 0), ".ctor", 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
+                vm.TryFindFunction(("System.ArgumentOutOfRangeException", 0), OlySpecialNames.Constructor, 0, 0, OlyFunctionKind.Instance).Value.AsDefinition.handle
 
             let ``InternalsVisibleToAttribute.ctor`` =
-                vm.TryFindFunction(("System.Runtime.CompilerServices.InternalsVisibleToAttribute", 0), ".ctor", 0, 1, OlyFunctionKind.Instance)
+                vm.TryFindFunction(("System.Runtime.CompilerServices.InternalsVisibleToAttribute", 0), OlySpecialNames.Constructor, 0, 1, OlyFunctionKind.Instance)
                     .Value
                     .AsDefinition
                     .handle
@@ -2396,7 +2396,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     match x with
                     | OlyIRAttribute(ctor, irArgs, irNamedArgs) 
                             when irArgs.Length = 1 && 
-                                 ctor.AsDefinition.name = ".ctor" &&
+                                 ctor.AsDefinition.name = DotNetSpecialNames.Constructor &&
                                  ctor.AsDefinition.enclosingTyHandle.IsNamed &&
                                  ctor.AsDefinition.enclosingTyHandle.FullyQualifiedName.StartsWith("System.Runtime.InteropServices.StructLayoutAttribute") ->
                         let irArg = irArgs[0]
@@ -2490,7 +2490,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                         ClrTypeHandle.CreateByRef(extendedTy.Handle)
                     else
                         extendedTy.Handle
-                let methDefBuilder = instanceTyDefBuilder.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, ImArray.createOne("", ctorParTyHandle), asmBuilder.TypeReferenceVoid, true)
+                let methDefBuilder = instanceTyDefBuilder.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, ImArray.createOne("", ctorParTyHandle), asmBuilder.TypeReferenceVoid, true)
                 let methAttrs = MethodAttributes.Public ||| MethodAttributes.HideBySig
 
                 let methAttrs = methAttrs ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
@@ -2518,7 +2518,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                 if extendedTy.IsStruct then
                     // Add second constructor if the extending type is a struct.
                     // The second constructor is the same as the first except it doesn't take a byref.
-                    let methDefBuilder = instanceTyDefBuilder.CreateMethodDefinitionBuilder(".ctor", ImArray.empty, ImArray.createOne("", extendedTy.Handle), asmBuilder.TypeReferenceVoid, true)
+                    let methDefBuilder = instanceTyDefBuilder.CreateMethodDefinitionBuilder(DotNetSpecialNames.Constructor, ImArray.empty, ImArray.createOne("", extendedTy.Handle), asmBuilder.TypeReferenceVoid, true)
                     let methAttrs = MethodAttributes.Public ||| MethodAttributes.HideBySig
 
                     let methAttrs = methAttrs ||| MethodAttributes.SpecialName ||| MethodAttributes.RTSpecialName
@@ -2875,9 +2875,9 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
             let methodName =
                 if isCtor then
                     if flags.IsStatic then
-                        ".cctor"
+                        DotNetSpecialNames.StaticConstructor
                     else
-                        ".ctor"
+                        DotNetSpecialNames.Constructor
                 else
                     name
 

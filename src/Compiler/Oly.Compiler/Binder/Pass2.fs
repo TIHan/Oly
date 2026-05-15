@@ -685,9 +685,9 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
 
             let name =
                 if memberFlags.HasFlag(MemberFlags.Instance) then
-                    "__oly_ctor"
+                    Oly.Metadata.OlySpecialNames.Constructor
                 else
-                    "__oly_static_ctor"                  
+                    Oly.Metadata.OlySpecialNames.StaticConstructor              
 
             let func = 
                 createFunctionValue
@@ -1267,7 +1267,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
                 createFunctionValue 
                     enclosing
                     ImArray.empty 
-                    "__oly_ctor"
+                    Oly.Metadata.OlySpecialNames.Constructor
                     ImArray.empty
                     parsWithInstance
                     (applyType enclosingTy enclosingTy.TypeArguments)
@@ -1295,7 +1295,7 @@ let private addImplicitDefaultConstructor (cenv: cenv) (entBuilder: EntitySymbol
             createFunctionValue 
                 enclosing
                 ImArray.empty 
-                "__oly_static_ctor"
+                Oly.Metadata.OlySpecialNames.StaticConstructor
                 ImArray.empty
                 ImArray.empty
                 (applyType enclosingTy enclosingTy.TypeArguments) // TODO: Can we just make this void?

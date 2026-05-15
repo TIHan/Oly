@@ -677,7 +677,7 @@ let createClosureConstructor cenv (freeLocals: IValueSymbol imarray) (fields: IF
         createFunctionValue 
             closure.AsEnclosing
             attrs
-            "__oly_ctor"
+            Oly.Metadata.OlySpecialNames.Constructor
             ImArray.empty
             ctorPars
             (applyType closure.AsType closure.TypeArguments)

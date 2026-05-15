@@ -731,7 +731,7 @@ module internal rec Helpers =
             | HandleKind.MethodDefinition ->
                 let methDef = reader.GetMethodDefinition(MethodDefinitionHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(methDef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     let tyDef = reader.GetTypeDefinition(methDef.GetDeclaringType())
                     let name = reader.GetString(tyDef.Name)
                     let namesp =
@@ -747,7 +747,7 @@ module internal rec Helpers =
             | HandleKind.MemberReference ->
                 let memRef = reader.GetMemberReference(MemberReferenceHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(memRef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     match memRef.Parent.Kind with
                     | HandleKind.TypeReference ->
                         let tyRef = reader.GetTypeReference(TypeReferenceHandle.op_Explicit memRef.Parent)
@@ -778,7 +778,7 @@ module internal rec Helpers =
             | HandleKind.MethodDefinition ->
                 let methDef = reader.GetMethodDefinition(MethodDefinitionHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(methDef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     let tyDef = reader.GetTypeDefinition(methDef.GetDeclaringType())
                     let name = reader.GetString(tyDef.Name)
                     let namesp =
@@ -794,7 +794,7 @@ module internal rec Helpers =
             | HandleKind.MemberReference ->
                 let memRef = reader.GetMemberReference(MemberReferenceHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(memRef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     match memRef.Parent.Kind with
                     | HandleKind.TypeReference ->
                         let tyRef = reader.GetTypeReference(TypeReferenceHandle.op_Explicit memRef.Parent)
@@ -1008,14 +1008,22 @@ module internal rec Helpers =
 
         let name = if meth.Name.IsNil then "" else reader.GetString(meth.Name)
 
-        if name = ".cctor" then ValueNone
+        if name = DotNet.Metadata.DotNetSpecialNames.StaticConstructor then ValueNone
         else
+
+        let origName = name
+
+        let name =
+            if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
+                OlySpecialNames.Constructor
+            else
+                name
 
         let olyFuncSpecHandle = 
             importMethodDefinitionAsOlyILFunctionSpecification cenv name tyParOffset methDefHandle
 
         let olyFuncFlags = 
-            if name = ".ctor" then
+            if name = OlySpecialNames.Constructor then
                 OlyILFunctionFlags.Constructor
             else
                 OlyILFunctionFlags.None
@@ -1070,7 +1078,7 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
-                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
+                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName)
             }
             |> ImArray.ofSeq
 
@@ -1522,7 +1530,7 @@ type Importer private (name: string, peReader: PEReader) =
                     OlyILFunctionSpecification(
                         true,
                         OlyILCallingConvention.Default,
-                        importRawString cenv "__oly_ctor",
+                        importRawString cenv OlySpecialNames.Constructor,
                         ImArray.empty,
                         ImArray.empty,
                         OlyILTypeVoid

@@ -2377,6 +2377,12 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
     if (funcFlags &&& FunctionFlags.Constructor = FunctionFlags.Constructor) && not tyPars.IsEmpty then
         failwith "Constructors cannot contain type parameters."
 
+    if (funcFlags &&& FunctionFlags.Constructor = FunctionFlags.Constructor) then
+        if (memberFlags &&& MemberFlags.Instance = MemberFlags.Instance) && (name <> Oly.Metadata.OlySpecialNames.Constructor) then 
+            failwith "Instance constructor has an invalid name."
+        if (memberFlags &&& MemberFlags.Instance <> MemberFlags.Instance) && (name <> Oly.Metadata.OlySpecialNames.StaticConstructor) then 
+            failwith "Static constructor has an invalid name."
+
     if isMutable && not enclosing.IsTypeExtensionExtendingStruct && not enclosing.IsStruct && not enclosing.IsShape then
         failwith "Function marked with 'mutable' must have an enclosing struct or shape type."
 

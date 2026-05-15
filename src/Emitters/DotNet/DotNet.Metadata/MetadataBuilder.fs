@@ -672,7 +672,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             (fun encoder -> encoder.AddParameter().Type().Type(addDebuggingModesTyRef(), true))
         )
 
-        let name = metadataBuilder.GetOrAddString(".ctor")
+        let name = metadataBuilder.GetOrAddString(DotNetSpecialNames.Constructor)
         let signature = metadataBuilder.GetOrAddBlob(signature)
 
         let realHandle =
@@ -694,7 +694,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             (fun _ -> ())
         )
 
-        let name = metadataBuilder.GetOrAddString(".ctor")
+        let name = metadataBuilder.GetOrAddString(DotNetSpecialNames.Constructor)
         let signature = metadataBuilder.GetOrAddBlob(signature)
 
         let realHandle =
@@ -937,7 +937,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
             (fun _encoder -> ())
         )
 
-        let name = metadataBuilder.GetOrAddString(".ctor")
+        let name = metadataBuilder.GetOrAddString(DotNetSpecialNames.Constructor)
         let signature = metadataBuilder.GetOrAddBlob(signature)
 
         let realHandle =
@@ -1445,7 +1445,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 MetadataHelpers.encodeType(encoder.AddParameter().Type(), this.TypeReferenceIntPtr, this))
         )
 
-        let name = metadataBuilder.GetOrAddString(".ctor")
+        let name = metadataBuilder.GetOrAddString(DotNetSpecialNames.Constructor)
         let signature = metadataBuilder.GetOrAddBlob(signature)
 
         let realHandle =
@@ -1560,7 +1560,7 @@ type ClrAssemblyBuilder(assemblyName: string, isExe: bool, primaryAssembly: Asse
                 let methTyInst =
                     ImArray.init tyInst.Length (fun i -> ClrTypeHandle.CreateVariable(i, ClrTypeVariableKind.Type))
 
-                let name = metadataBuilder.GetOrAddString(".ctor")
+                let name = metadataBuilder.GetOrAddString(DotNetSpecialNames.Constructor)
                 let signature = this.CreateMethodSignature(SignatureCallingConvention.Default, 0, true, methTyInst, this.TypeReferenceVoid)
 
                 let realHandle =
@@ -3121,14 +3121,14 @@ type ClrTypeDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclosin
     member this.TryGetSingleByRefConstructor() =
         methDefs
         |> Seq.filter (fun x ->
-            x.Name = ".ctor" && x.ParameterTypes.Length = 1 && x.ParameterTypes.[0].IsByRef_t
+            x.Name = DotNetSpecialNames.Constructor && x.ParameterTypes.Length = 1 && x.ParameterTypes.[0].IsByRef_t
         )
         |> Seq.tryExactlyOne
 
     member this.TryGetSingleNonByRefConstructor() =
         methDefs
         |> Seq.filter (fun x ->
-            x.Name = ".ctor" && x.ParameterTypes.Length = 1 && not x.ParameterTypes.[0].IsByRef_t
+            x.Name = DotNetSpecialNames.Constructor && x.ParameterTypes.Length = 1 && not x.ParameterTypes.[0].IsByRef_t
         )
         |> Seq.tryExactlyOne
 

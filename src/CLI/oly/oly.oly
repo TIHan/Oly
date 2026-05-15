@@ -254,10 +254,6 @@ private module LspHelpers =
         let handle: System.Func<object, TArgs, TReturn> = Unsafe.As(f)
         H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
 
-    CreateResolveEventHandler(f: (object, System.ResolveEventArgs) -> System.Reflection.Assembly): System.ResolveEventHandler =
-        let handle: System.Func<object, System.ResolveEventArgs, System.Reflection.Assembly> = Unsafe.As(f)
-        System.ResolveEventHandler(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
-
 #[export]
 class LspCommand =
     inherits Command<Settings>
@@ -268,7 +264,7 @@ class LspCommand =
     overrides Execute(context: CommandContext, settings: Settings): int32 =
         try
             let handler: System.ResolveEventHandler =
-                LspHelpers.CreateResolveEventHandler(
+                LspHelpers.CreateEventHandler(
                     (_sender, args: System.ResolveEventArgs) ->
                         if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
                             let dir = System.IO.Path.GetDirectoryName(System.Environment.ProcessPath)

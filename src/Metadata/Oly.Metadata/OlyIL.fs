@@ -4,6 +4,15 @@ open System
 open System.Collections.Generic
 open Oly.Core
 
+[<RequireQualifiedAccess>]
+module OlySpecialNames =
+
+    [<Literal>]
+    let Constructor = "__oly_ctor"
+
+    [<Literal>]
+    let StaticConstructor = "__oly_static_ctor"
+
 type OlyILTableKind =
     | String
     | EntityReference
