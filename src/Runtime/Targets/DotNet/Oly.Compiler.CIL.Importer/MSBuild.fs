@@ -49,9 +49,9 @@ type MSBuild() =
                 ""
         let publishKind =
             match publishKind with
-            | MSBuildPublishKind.Standalone -> "<SelfContained>true</SelfContained><PublishSingleFile>true</PublishSingleFile>"
-            | MSBuildPublishKind.ReadyToRun -> "<SelfContained>true</SelfContained><PublishSingleFile>true</PublishSingleFile><PublishReadyToRun>true</PublishReadyToRun>"
-            | MSBuildPublishKind.NativeAOT -> "<SelfContained>true</SelfContained><PublishSingleFile>true</PublishSingleFile><PublishAot>true</PublishAot>"
+            | MSBuildPublishKind.Standalone -> "<SelfContained>true</SelfContained>"
+            | MSBuildPublishKind.ReadyToRun -> "<SelfContained>true</SelfContained><PublishReadyToRun>true</PublishReadyToRun>"
+            | MSBuildPublishKind.NativeAOT -> "<SelfContained>true</SelfContained><PublishAot>true</PublishAot>"
             | _ -> ""
 
         let references =

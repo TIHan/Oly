@@ -67,7 +67,7 @@ export function activate(context: ExtensionContext) {
 
 	const workspaceFolder = workspaceFolders[0];
 
-	const olyExe = path.join(os.homedir(), ".oly", "oly");
+	const olyExe = path.join(os.homedir(), ".oly_install/", "bin", "oly");
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used

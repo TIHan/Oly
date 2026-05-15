@@ -160,13 +160,28 @@ class InstallCommand =
         InstallCore(exePath: string, olyInstallPath: string): () =
             try
                 let _ = Directory.CreateDirectory(olyInstallPath)
-            catch (ex: Exception) => ()
+            catch (_ex: Exception) => ()
+
+            ForEach(Directory.EnumerateFiles(olyInstallPath),
+                file -> File.Delete(file)
+            )
+            ForEach(Directory.EnumerateDirectories(olyInstallPath),
+                dir ->
+                    let dirName = Path.GetDirectoryName(dir)
+                    if (dirName == ".oly" || dirName == "bin")
+                        Directory.Delete(dir)
+            )
+
+            let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
+            try
+                let _ = Directory.CreateDirectory(olyInstallBinPath)
+            catch (_ex: Exception) => ()
 
             let files = Directory.EnumerateFiles(exePath)
             ForEach(files, 
                 file -> 
                     let src = file
-                    let dst = Path.Combine(olyInstallPath, Path.GetFileName(file))
+                    let dst = Path.Combine(olyInstallBinPath, Path.GetFileName(file))
                     File.Copy(src, dst, true)
             )
 
@@ -186,6 +201,10 @@ class InstallCommand =
                 let paths = String.Join(';', paths) + ";" + (olyInstallPath.ToString())
                 Environment.SetEnvironmentVariable("PATH", paths, EnvironmentVariableTarget.User)
                 let _ = Oly.Core.Tracing.OlyTrace.LogWarning.Invoke("PATH modified\n")
+
+            if (System.OperatingSystem.IsWindows())
+                let bat = "@\"%~dp0\\bin\\oly.exe\" %*"
+                File.WriteAllText(Path.Combine(olyInstallPath.ToString(), "oly.bat"), bat)
 
         Install(exePath: string, olyInstallPath: string): () =
             AnsiConsole.Status()
@@ -209,9 +228,12 @@ class InstallCommand =
         Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         
         try
+            if (!System.OperatingSystem.IsWindows())
+                throw System.NotSupportedException(Environment.OSVersion.VersionString)
+
             let exePath = Path.GetDirectoryName(Environment.ProcessPath)
             let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-            let olyInstallPath = Path.Combine(userPath, ".oly/").Replace('\\', '/')
+            let olyInstallPath = Path.Combine(userPath, ".oly_install/").Replace('\\', '/')
 
             if (Directory.Exists(olyInstallPath))
                 if (AnsiConsole.Confirm("Oly already installed. Re-install?", false))
@@ -225,6 +247,17 @@ class InstallCommand =
 
         0
 
+private module LspHelpers =
+
+    CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H 
+            where H: { new(object, nint); Invoke(object, TArgs): TReturn } =
+        let handle: System.Func<object, TArgs, TReturn> = Unsafe.As(f)
+        H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
+
+    CreateResolveEventHandler(f: (object, System.ResolveEventArgs) -> System.Reflection.Assembly): System.ResolveEventHandler =
+        let handle: System.Func<object, System.ResolveEventArgs, System.Reflection.Assembly> = Unsafe.As(f)
+        System.ResolveEventHandler(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
+
 #[export]
 class LspCommand =
     inherits Command<Settings>
@@ -234,6 +267,18 @@ class LspCommand =
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
         try
+            let handler: System.ResolveEventHandler =
+                LspHelpers.CreateResolveEventHandler(
+                    (_sender, args: System.ResolveEventArgs) ->
+                        if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
+                            let dir = System.IO.Path.GetDirectoryName(System.Environment.ProcessPath)
+                            let file = System.IO.Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
+                            System.Reflection.Assembly.LoadFile(file)
+                        else
+                            null
+                )
+            let _ = System.AppDomain.CurrentDomain.add_AssemblyResolve(handler)
+
             Oly.LanguageServer.OlyLanguageServer.run(mutable [])
         catch (ex: Exception) =>
             AnsiConsole.Write(ex.ToString())
