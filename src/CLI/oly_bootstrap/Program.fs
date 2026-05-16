@@ -13,7 +13,13 @@ OlyTrace.LogWarning <-
 OlyTrace.LogError <- fun text -> Console.Error.WriteLine(text)
 
 Oly.Clean(Path.GetDirectoryName(Environment.GetCommandLineArgs()[1]))
-let results = Oly.Build("Release", OlyPath.Create(Environment.GetCommandLineArgs()[1]), System.Threading.CancellationToken.None).Result.Value
+let config =
+#if DEBUG
+    "Debug"
+#else
+    "Release"
+#endif
+let results = Oly.Build(config, OlyPath.Create(Environment.GetCommandLineArgs()[1]), System.Threading.CancellationToken.None).Result.Value
 match results with
 | Ok(_) -> printfn "Oly Bootstrap Succeeded"
 | Error(results) ->

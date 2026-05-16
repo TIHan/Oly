@@ -960,11 +960,12 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
         match syntaxInfo.TryEnvironment with
         | Some benv ->
 
-            checkStructTypeCycle 
-                (SolverEnvironment.Create(diagnostics, benv, pass))
-                syntaxInfo.SyntaxNameOrDefault
-                value.Type
-            |> ignore
+            if not isAttempt then
+                checkStructTypeCycle 
+                    (SolverEnvironment.Create(diagnostics, benv, pass))
+                    syntaxInfo.SyntaxNameOrDefault
+                    value.Type
+                |> ignore
 
             let syntaxTyArgsOpt =
                 let syntaxTyArgs =

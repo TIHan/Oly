@@ -454,13 +454,13 @@ let inline assertIsWitnessExpression (expr: E) =
 #endif
     expr
 
-let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expr: E) =
+let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) skipLambdaForFunctionGroup (expr: E) =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
 
         let argExprs =
             if value.IsFunctionGroup then
-                let tyChecking = TypeChecking.EnabledNoTypeErrors(false)
+                let tyChecking = TypeChecking.EnabledNoTypeErrors(skipLambdaForFunctionGroup)
                 checkFunctionGroupCalleeArgumentExpression cenv env tyChecking argExprs
             else
                 checkCalleeArgumentExpressions cenv env tyChecking value argExprs
@@ -847,6 +847,32 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
 
     expr
 
+let checkEarlyReturnTypeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: E) =
+    match expr with
+    | E.Call(value=value) ->
+        match expectedTyOpt with
+        | Some expectedTy when expectedTy.IsSolved_ste && not expectedTy.IsError_ste ->
+            match value.Type.TryAnyFunctionReturnType with
+            | ValueSome returnTy ->
+                // REVIEW: This may be doing more work than we want,
+                //         but we need to check the early arguments without
+                //         running lambda evaluation and so we can infer variables against constraint shape members.
+                let expr =
+                    expr 
+                    |> checkEarlyArgumentsOfCallExpression cenv env true
+
+                UnifyTypes TypeVariableRigidity.Flexible expectedTy returnTy
+                |> ignore
+
+                expr 
+                |> checkEarlyArgumentsOfCallExpression cenv env true
+            | _ ->
+                expr
+        | _ ->
+            expr
+    | _ ->
+        unreached()
+
 let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (skipEager: bool) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
     | E.Literal _ ->
@@ -862,16 +888,18 @@ let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: 
                 lazyBodyExpr.Run()
         expr
 
-    | E.Call _ ->
-        checkEarlyArgumentsOfCallExpression cenv env true expr              |> assertIsCallExpression
+    | E.Call(_) ->
+        expr
+        |> checkEarlyArgumentsOfCallExpression cenv env true                |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env true None                   |> assertIsCallExpression
         |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking                  |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking true             |> assertIsCallExpression
         |> checkAddressOfExpression cenv env tyChecking expectedTyOpt       |> assertIsCallExpression
+        |> checkEarlyReturnTypeOfCallExpression cenv env expectedTyOpt      |> assertIsCallExpression
         |> checkEarlyArgumentsOfCallExpression cenv env false               |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env skipEager expectedTyOpt     |> assertIsCallExpression
         |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
-        |> checkCalleeOfCallExpression cenv env tyChecking                  |> assertIsCallExpression
+        |> checkCalleeOfCallExpression cenv env tyChecking false            |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                    |> assertIsCallExpression
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking           |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env                                           
@@ -1066,7 +1094,7 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
-let inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution imarray) =
+let __deprecated_inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution imarray) =
     witnessArgs
     |> ImArray.iter (fun witnessArg ->
         // Type parameter must have at least one constraint if there is a witness
@@ -1119,7 +1147,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
                     let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
-                    inferConstraintsByShapeMembers env allTyArgs witnessArgs
+                    checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr
                     newArgExpr
                 )
             )

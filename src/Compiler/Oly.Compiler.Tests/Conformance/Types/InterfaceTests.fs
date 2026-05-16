@@ -407,7 +407,7 @@ extension Int32Extension =
     |> ignore
 
 [<Fact>]
-let ``Resolve type inference on the + operator``() =
+let ``Resolve type inference on the + operator NOW PASSES``() =
     let src =
         """
 interface Add<T1, T2, T3> =
@@ -423,11 +423,7 @@ f<T, U>(x: T) : U where T : Add<T, __oly_int16, U> = x + 1
         """
 
     Oly src
-    |> withErrorDiagnostics
-        [
-           "Type instantiation 'T' is missing the constraint 'Add<T, __oly_int32, U>'."
-        ]
-    |> ignore
+    |> shouldCompile
 
 [<Fact>]
 let ``Interface implementation has correct symbols``() =

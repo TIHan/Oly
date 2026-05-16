@@ -109,7 +109,8 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             let func = funcs[0]
 
             if not(areFunctionTypeParameterConstraintsEqualWith Indexable abstractFunc func) then
-                env.diagnostics.Error($"Shape member '{printValue env.benv abstractFunc}' has different constraints compared to '{printValue env.benv func}'.", 10, syntaxNode)
+                if not isAttempt then
+                    env.diagnostics.Error($"Shape member '{printValue env.benv abstractFunc}' has different constraints compared to '{printValue env.benv func}'.", 10, syntaxNode)
             else
 
             // If the static abstract function does not have a most specific implementation,
@@ -181,7 +182,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             | _ ->
                 Ok()
 
-let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) : bool =
+let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) (isAttempt: bool) : bool =
     let possibleConstrs =
         tyPar.Constraints
         |> Seq.choose (fun constr ->
@@ -221,11 +222,12 @@ let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solve
         else
             false
     | _ ->
-        let names =
-            possibleConstrs
-            |> Seq.map (fun (_, constrTy) -> printType env.benv constrTy)
-            |> String.concat "\n"
-        env.diagnostics.Error(sprintf "Unable to solve '%s' due to the possible implementations:\n    %s\nUse explicit type annotations." (printType env.benv (tyPar.AsType)) names, 10, syntaxNode)
+        if not isAttempt then
+            let names =
+                possibleConstrs
+                |> Seq.map (fun (_, constrTy) -> printType env.benv constrTy)
+                |> String.concat "\n"
+            env.diagnostics.Error(sprintf "Unable to solve '%s' due to the possible implementations:\n    %s\nUse explicit type annotations." (printType env.benv (tyPar.AsType)) names, 10, syntaxNode)
         true // Return true for recovery
 
 let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
@@ -255,7 +257,8 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
                     if witness.HasSolution then ()
                     else
                         if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target witness.Type then
-                            witness.Solution <- Some(WitnessSymbol.Type(ty))
+                            if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target ty then
+                                witness.Solution <- Some(WitnessSymbol.Type(ty))
                 )
                 Ok()
             else
@@ -287,7 +290,8 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             )
 
         if tyExts.IsEmpty then
-            env.diagnostics.Error("Unable to solve. TODO better msg.", 10, syntaxNode)
+            if not isAttempt then
+                env.diagnostics.Error("Unable to solve. TODO better msg.", 10, syntaxNode)
             Ok() // Return true for recovery
         elif tyExts.Length = 1 then
             let tyExt = tyExts[0]
@@ -322,11 +326,12 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
 
             Ok()
         else
-            let names =
-                tyExts
-                |> Seq.map (fun x -> printEntity env.benv x)
-                |> String.concat "\n    "
-            env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
+            if not isAttempt then
+                let names =
+                    tyExts
+                    |> Seq.map (fun x -> printEntity env.benv x)
+                    |> String.concat "\n    "
+                env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             Ok() // Return true for recovery
 
 let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (isAttempt: bool): Result<unit, ConstraintSolverError> =
@@ -335,12 +340,12 @@ let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolve
     let ty = stripTypeEquations tyArg
     match ty with
     | TypeSymbol.HigherVariable(tyPar2, tyParTyArgs) ->
-        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 tyParTyArgs witnessArgs then
+        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 tyParTyArgs witnessArgs isAttempt then
             Ok()
         else
             Error(GeneralFailure)
     | TypeSymbol.Variable(tyPar2) ->
-        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 ImArray.empty witnessArgs then
+        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 ImArray.empty witnessArgs isAttempt then
             Ok()
         else
             Error(GeneralFailure)
@@ -532,7 +537,7 @@ let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyAr
     // Error recovery
     witnessArgs
     |> ImArray.iter (fun witnessArg ->
-        if not witnessArg.HasSolution then
+        if not witnessArg.HasSolution && not isAttempt then
             witnessArg.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
     )
 

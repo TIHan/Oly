@@ -7765,6 +7765,178 @@ main(): () =
     |> ignore
 
 [<Fact>]
+let ``Mutable array enumerable extension should work 2``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("or")]
+(||)(bool, bool): bool
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+#end // not SPIRV
+
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: uint32): T
+#end // SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(T[,], index1: int32, index2: int32): T
+#end // not SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+#end // not SPIRV
+
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: uint32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: uint32, T): ()
+#end // SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+#end // not SPIRV
+
+#if not SPIRV
+#[intrinsic("get_element")]
+(`[]`)<T, N>(inref<T[N]>, index: int32): T where N: constant int32
+
+#[intrinsic("get_element")]
+(`[]`)<T, N>(inref<mutable T[N]>, index: int32): T where N: constant int32
+#end // not SPIRV
+
+#[intrinsic("cast")]
+Cast<T>(object): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+#[open]
+extension MutableArrayEnumerableExtension<T> =
+    inherits mutable T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    private GetEnumerator(): System.Collections.IEnumerator =
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            field mutable arr: mutable T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
+
+            new(arr: mutable T[]) =
+                this {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+                this.currentTyped <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl(this)
+
+
+Test<T>(xs: System.Collections.Generic.IEnumerable<T>): () =
+    print(System.Linq.Enumerable.Count(xs))
+
+main(): () =
+    let xs = mutable [0;0]
+    Test<int32>(Cast(xs))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
 let ``Try/catch should work in a lambda``() =
     """
 #[intrinsic("int32")]

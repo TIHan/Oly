@@ -4014,6 +4014,10 @@ type TypeSymbol =
             ImArray.empty
 
     /// Strips type equations except alias.
+    /// TODO: use this instead of constantly using ".TypeParameters.IsEmpty".
+    member this.HasArity_steea = not this.TypeParameters.IsEmpty
+
+    /// Strips type equations except alias.
     member this.FormalId =
         match stripTypeEquationsExceptAlias this with
         | Error _ -> 0L
