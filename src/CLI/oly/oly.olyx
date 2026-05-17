@@ -7,7 +7,7 @@
 #package "Errata,0.14.0"
 
 #if RELEASE
-#property "publish" "r2r"
+#property "publish" "standalone"
 #end
 
 open olycli

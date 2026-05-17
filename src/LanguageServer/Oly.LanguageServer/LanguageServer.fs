@@ -1,4 +1,4 @@
-﻿module internal LanguageServer
+﻿module LanguageServer
 
 open System
 open System.Text
