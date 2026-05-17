@@ -11957,6 +11957,46 @@ M(): () =
     |> shouldCompile
 
 [<Fact>]
+let ``Should infer correctly for the lambda when solving the constraint 4``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+interface IArgs<T>
+
+CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs> =
+    unchecked default
+
+CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs> =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class A =
+    implements IArgs<EventArgs>
+
+M(): () =
+    let _result =
+        CreateEventHandler<A, _>(
+            args -> args.Value
+        )
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
 let ``Should infer correctly for the lambda when solving the constraint shape``() =
     let src =
         """

@@ -1094,31 +1094,6 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
-let __deprecated_inferConstraintsByShapeMembers env allTyArgs (witnessArgs: WitnessSolution imarray) =
-    witnessArgs
-    |> ImArray.iter (fun witnessArg ->
-        // Type parameter must have at least one constraint if there is a witness
-        OlyAssert.False(witnessArg.TypeParameter.Constraints.IsEmpty)
-
-        let tyArg = actualType allTyArgs witnessArg.TypeParameter.AsType
-        let constrs = witnessArg.TypeParameter.Constraints
-        for i = 0 to constrs.Length - 1 do
-            let constr = actualConstraint allTyArgs constrs[i]
-            match constr with
-            | ConstraintSymbol.TraitType(lazyConstrTy)
-            | ConstraintSymbol.SubtypeOf(lazyConstrTy) ->
-                let constrTy = lazyConstrTy.Value
-                if constrTy.IsShape_ste then
-                    let result = 
-                        subsumesShapeMembersWith env.benv Generalizable QueryFunction.IntrinsicAndExtrinsic constrTy tyArg
-                        |> ImArray.forall (fun (_, xs) -> xs.Length = 1)
-                    if result then
-                        subsumesShapeMembersWith env.benv Flexible QueryFunction.IntrinsicAndExtrinsic constrTy tyArg
-                        |> ignore
-            | _ ->
-                ()
-    )
-
 let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
