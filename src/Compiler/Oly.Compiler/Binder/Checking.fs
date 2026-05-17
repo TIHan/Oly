@@ -1101,15 +1101,6 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
 
         let argTys = value.LogicalType.FunctionArgumentTypes
 
-        let allTyArgs = 
-            if value.IsLocal then
-                let tyArgs =
-                    env.benv.EnclosingTypeParameters
-                    |> ImArray.map (fun tyPar -> tyPar.AsType)
-                tyArgs.AddRange(value.TypeArguments)
-            else
-                value.AllTypeArguments
-
         let newArgExprs =
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
