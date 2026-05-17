@@ -7,8 +7,12 @@ open System.ComponentModel
 open Spectre.Console
 open Spectre.Console.Cli
 open Errata
-open Oly.Core
 open Microsoft.FSharp.Core
+open Oly.Core
+open Oly.Core.IO
+open Oly.LanguageServer
+
+open static Oly.Core.Tracing
 
 enum LogVerbosity =
     | Quiet
@@ -81,9 +85,9 @@ class BuildCommand =
         ProjectFile: string get, set = String.Empty
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
-        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         
         let mutable projectPath = OlyPath.Create(settings.ProjectFile)
         let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result.Value
@@ -146,9 +150,9 @@ class CleanCommand =
         Verbosity: LogVerbosity get, set = LogVerbosity.Normal
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
-        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         olylib.Oly.Clean(Environment.CurrentDirectory)
         0
 
@@ -165,25 +169,13 @@ class InstallCommand =
             ForEach(Directory.EnumerateFiles(olyInstallPath),
                 file -> File.Delete(file)
             )
-            ForEach(Directory.EnumerateDirectories(olyInstallPath),
-                dir ->
-                    let dirName = Path.GetDirectoryName(dir)
-                    if (dirName == ".oly" || dirName == "bin")
-                        Directory.Delete(dir)
-            )
 
             let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
-            try
-                let _ = Directory.CreateDirectory(olyInstallBinPath)
-            catch (_ex: Exception) => ()
+            if (Directory.Exists(olyInstallBinPath))
+                Directory.Delete(olyInstallBinPath, true)
+            let _ = Directory.CreateDirectory(olyInstallBinPath)
 
-            let files = Directory.EnumerateFiles(exePath)
-            ForEach(files, 
-                file -> 
-                    let src = file
-                    let dst = Path.Combine(olyInstallBinPath, Path.GetFileName(file))
-                    File.Copy(src, dst, true)
-            )
+            OlyIO.CopyDirectory(exePath, olyInstallBinPath)
 
             let paths = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)
             let paths = paths.Split(mutable [';'])
@@ -200,7 +192,7 @@ class InstallCommand =
             if (!exists)
                 let paths = String.Join(';', paths) + ";" + (olyInstallPath.ToString())
                 Environment.SetEnvironmentVariable("PATH", paths, EnvironmentVariableTarget.User)
-                let _ = Oly.Core.Tracing.OlyTrace.LogWarning.Invoke("PATH modified\n")
+                let _ = OlyTrace.LogWarning.Invoke("PATH modified\n")
 
             if (System.OperatingSystem.IsWindows())
                 let bat = "@\"%~dp0\\bin\\oly.exe\" %*"
@@ -223,9 +215,9 @@ class InstallCommand =
         Verbosity: LogVerbosity get, set = LogVerbosity.Normal
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
-        Oly.Core.Tracing.OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
-        Oly.Core.Tracing.OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         
         try
             if (!System.OperatingSystem.IsWindows())
@@ -243,7 +235,7 @@ class InstallCommand =
                 Helpers.Install(exePath, olyInstallPath)
 
         catch (ex: Exception) =>
-            let _ = Oly.Core.Tracing.OlyTrace.LogError.Invoke(ex.Message)
+            let _ = OlyTrace.LogError.Invoke(ex.Message)
 
         0
 
@@ -267,15 +259,15 @@ class LspCommand =
                 LspHelpers.CreateEventHandler(
                     (_sender, args: System.ResolveEventArgs) ->
                         if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
-                            let dir = System.IO.Path.GetDirectoryName(System.Environment.ProcessPath)
-                            let file = System.IO.Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
+                            let dir = Path.GetDirectoryName(System.Environment.ProcessPath)
+                            let file = Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
                             System.Reflection.Assembly.LoadFile(file)
                         else
                             null
                 )
-            let _ = System.AppDomain.CurrentDomain.add_AssemblyResolve(handler)
+            let _ = AppDomain.CurrentDomain.add_AssemblyResolve(handler)
 
-            Oly.LanguageServer.OlyLanguageServer.run(mutable [])
+            OlyLanguageServer.run(mutable [])
         catch (ex: Exception) =>
             AnsiConsole.Write(ex.ToString())
             1
