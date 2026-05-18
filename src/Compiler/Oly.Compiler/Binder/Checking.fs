@@ -1139,34 +1139,34 @@ let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value
         | _ ->
             ()
 
-let intersectInputTypes ty1 ty2 (argExprTy: TypeSymbol) =
-    if areTypesEqual ty1 ty2 then
-        ty1
+let intersectInputTypes expectedTy ty (argExprTy: TypeSymbol) =
+    if areTypesEqual expectedTy ty then
+        expectedTy
     else
-        match ty1, ty2, stripTypeEquations argExprTy with
-        | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _), TypeSymbol.Tuple(argExprElementTys, _) ->
-            if elementTys1.Length = elementTys2.Length && elementTys1.Length = argExprElementTys.Length then
+        match expectedTy, ty, stripTypeEquations argExprTy with
+        | TypeSymbol.Tuple(expectedElementTys, _), TypeSymbol.Tuple(elementTys, _), TypeSymbol.Tuple(argExprElementTys, _) ->
+            if expectedElementTys.Length = elementTys.Length && expectedElementTys.Length = argExprElementTys.Length then
                 let elementTys =
-                    (elementTys1, elementTys2, argExprElementTys)
+                    (expectedElementTys, elementTys, argExprElementTys)
                     |||> ImArray.map3 intersectTypes
                 TypeSymbol.Tuple(elementTys, ImArray.empty)
             else
                 argExprTy
         | TypeSymbol.Function _, TypeSymbol.Function _, TypeSymbol.Function _ ->
-            intersectTypes ty1 ty2 argExprTy
+            intersectTypes expectedTy ty argExprTy
         | _ ->
             argExprTy
 
-let intersectTypes ty1 ty2 (argExprTy: TypeSymbol) =
-    if areTypesEqual ty1 ty2 then
-        ty1
+let intersectTypes expectedTy ty (argExprTy: TypeSymbol) =
+    if areTypesEqual expectedTy ty then
+        expectedTy
     else
-        match ty1, ty2, stripTypeEquations argExprTy with
-        | TypeSymbol.Function(inputTy1, returnTy1, kind1), TypeSymbol.Function(inputTy2, returnTy2, kind2), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) when kind1 = kind2 && kind1 = argExprKind ->
+        match expectedTy, ty, stripTypeEquations argExprTy with
+        | TypeSymbol.Function(expectedInputTy, expectedReturnTy, expectedKind), TypeSymbol.Function(inputTy, returnTy, kind), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) ->
             TypeSymbol.Function(
-                intersectInputTypes inputTy1 inputTy2 argExprInputTy,
-                intersectTypes returnTy1 returnTy2 argExprReturnTy,
-                kind1
+                intersectInputTypes expectedInputTy inputTy argExprInputTy,
+                intersectTypes expectedReturnTy returnTy argExprReturnTy,
+                expectedKind
             )
         | _ ->
             argExprTy
@@ -1190,7 +1190,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                             if argTys.Count <= i then
                                 argTys.Add(par.Type)
                             else
-                                argTys[i] <- intersectTypes argTys[i] par.Type argExprs[i].Type
+                                argTys[i] <- intersectTypes par.Type argTys[i]  argExprs[i].Type
                         )
                     else
                         for i = 0 to argCount - 1 do
