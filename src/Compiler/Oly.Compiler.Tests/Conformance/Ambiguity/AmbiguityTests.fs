@@ -2607,3 +2607,38 @@ M(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Regression - inference chose incorrect subtraction for overload``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("subtract")]
+(-)(int32, int32): int32
+
+#[intrinsic("multiply")]
+(*)(int32, int32): int32
+
+#[intrinsic("subtract")]
+(-)(uint32, uint32): uint32
+
+#[intrinsic("multiply")]
+(*)(uint32, uint32): uint32
+
+#[open]
+newtype FrameNumber =
+    field Value: int32
+
+    static (-)(n1: FrameNumber, n2: FrameNumber): FrameNumber =
+        FrameNumber(n1.Value - n2.Value)
+
+M(index: int32): () =
+    let _wut = index - 64 * 1
+        """
+    Oly src
+    |> shouldCompile
