@@ -1158,7 +1158,9 @@ let intersectInputTypes expectedTy ty (argExprTy: TypeSymbol) =
             argExprTy
 
 let intersectTypes expectedTy ty (argExprTy: TypeSymbol) =
-    if areTypesEqual expectedTy ty then
+    if expectedTy.IsError_ste || ty.IsError_ste || argExprTy.IsError_ste then
+        TypeSymbolError
+    elif areTypesEqual expectedTy ty then
         expectedTy
     else
         match expectedTy, ty, stripTypeEquations argExprTy with
@@ -1190,7 +1192,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                             if argTys.Count <= i then
                                 argTys.Add(par.Type)
                             else
-                                argTys[i] <- intersectTypes par.Type argTys[i]  argExprs[i].Type
+                                argTys[i] <- intersectTypes par.Type argTys[i] argExprs[i].Type
                         )
                     else
                         for i = 0 to argCount - 1 do

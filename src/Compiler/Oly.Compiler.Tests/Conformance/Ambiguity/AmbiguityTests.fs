@@ -2635,7 +2635,7 @@ newtype FrameNumber =
     field Value: int32
 
     static (-)(n1: FrameNumber, n2: FrameNumber): FrameNumber =
-        FrameNumber(n1.Value - n2.Value)
+        unchecked default
 
 M(index: int32): () =
     let _wut = index - 64 * 1
