@@ -369,17 +369,18 @@ type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, interna
     override _.GetHashCode() =
         internalNode.GetHashCode()
 
-    static member internal TryGetFirstToken(children: OlySyntaxNode imarray) =
+    static member internal TryGetFirstNonTriviaToken(children: OlySyntaxNode imarray) =
         let mutable node: OlySyntaxNode = null
 
         let mutable i = 0
         while isNull(node) && i < children.Length do
             let child = children[i]
 
-            if child.InternalNode.IsToken && not child.InternalNode.IsTerminal then
-                node <- child
-            else
-                node <- OlySyntaxNode.TryGetFirstToken(child.Children)
+            if not child.InternalNode.IsTriviaToken then
+                if child.InternalNode.IsToken && not child.InternalNode.IsTerminal  then
+                    node <- child
+                else
+                    node <- OlySyntaxNode.TryGetFirstNonTriviaToken(child.Children)
 
             i <- i + 1
 

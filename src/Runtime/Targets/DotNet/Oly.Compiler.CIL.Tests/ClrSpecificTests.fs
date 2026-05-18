@@ -2796,7 +2796,20 @@ open System.Threading.Tasks
 
 main(): () =
     let task = Task.Run(() -> ())
-    let w = task.ContinueWith(x -> (), null)
+    let w = 
+        task.ContinueWith(
+            x ->
+               let _w = x.IsCompleted
+               (), 
+            null
+        )
+    let w2 = 
+        task.ContinueWith(
+            x ->
+               let _w = x.IsCompleted
+               5, 
+            null
+        )
         """
     Oly src
     |> shouldCompile

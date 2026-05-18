@@ -29,6 +29,8 @@ type SyntaxAccessor =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -113,6 +115,8 @@ type SyntaxName =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -180,6 +184,8 @@ type SyntaxBlittable =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -222,6 +228,8 @@ type SyntaxBlittableOptional =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -312,6 +320,8 @@ type SyntaxAttribute =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -436,6 +446,8 @@ type SyntaxHashAttribute =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -479,6 +491,8 @@ type SyntaxAttributes =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -558,6 +572,8 @@ type SyntaxConstraint =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -673,6 +689,8 @@ type SyntaxConstraintClause =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = match this with | Error _ -> true | _ -> false
 
         member this.GetSlot(index) =
@@ -735,6 +753,8 @@ type SyntaxTypeParameters =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -803,6 +823,8 @@ type SyntaxTypeConstructor =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -864,6 +886,8 @@ type SyntaxTupleElement =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = match this with | Error _ -> true | _ -> false
 
         member this.GetSlot(index) =
@@ -920,6 +944,8 @@ type SyntaxFixedArrayLength =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1040,6 +1066,8 @@ type SyntaxType =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -1212,6 +1240,8 @@ type SyntaxMutability =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -1270,6 +1300,8 @@ type SyntaxParameter =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -1336,6 +1368,8 @@ type SyntaxTypeArguments =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -1389,6 +1423,8 @@ type SyntaxParameters =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -1439,6 +1475,8 @@ type SyntaxLambdaKind =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -1488,6 +1526,8 @@ type SyntaxReturnTypeAnnotation =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1541,6 +1581,8 @@ type SyntaxFunctionName =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1625,6 +1667,8 @@ type SyntaxBindingDeclaration =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -1730,6 +1774,8 @@ type SyntaxPropertyBinding =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -1787,6 +1833,8 @@ type SyntaxGuardBinding =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1865,6 +1913,8 @@ type SyntaxBinding =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1945,6 +1995,8 @@ type SyntaxLet =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2029,6 +2081,8 @@ type SyntaxTypeDeclarationKind =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2205,6 +2259,8 @@ type SyntaxLiteral =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2372,6 +2428,8 @@ type SyntaxFieldPattern =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = match this with | Error _ -> true | _ -> false
 
         member this.GetSlot(index) =
@@ -2425,6 +2483,8 @@ type SyntaxNamedArgument =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2473,6 +2533,8 @@ type SyntaxArguments =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2537,6 +2599,8 @@ type SyntaxElseIfOrElseExpression =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2615,6 +2679,8 @@ type SyntaxCatchOrFinallyExpression =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2689,6 +2755,8 @@ type SyntaxValueDeclarationPremodifier =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2758,6 +2826,8 @@ type SyntaxValueDeclarationPostmodifier =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2815,6 +2885,8 @@ type SyntaxValueDeclarationKind =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -2904,6 +2976,8 @@ type SyntaxExtends =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -2962,6 +3036,8 @@ type SyntaxImplements =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -3017,6 +3093,8 @@ type SyntaxTypeDeclarationCase =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3074,6 +3152,8 @@ type SyntaxTypeDeclarationBody =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -3123,6 +3203,8 @@ type SyntaxTypeDeclarationName =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3195,6 +3277,8 @@ type SyntaxPattern =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -3283,6 +3367,8 @@ type SyntaxMatchGuard =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -3343,6 +3429,8 @@ type SyntaxMatchPattern =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -3413,6 +3501,8 @@ type SyntaxMatchClause =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
@@ -3460,6 +3550,8 @@ type SyntaxInitializer =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3522,6 +3614,8 @@ type SyntaxCompilationUnit =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3747,6 +3841,8 @@ type SyntaxExpression =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 

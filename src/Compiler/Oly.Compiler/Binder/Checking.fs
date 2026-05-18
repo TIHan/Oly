@@ -278,7 +278,7 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
             | _ ->
                 false
         else
-            false
+            true
     )
 
 [<RequireQualifiedAccess>]
@@ -308,6 +308,18 @@ let tryOverloadResolution
     else
         filteredFuncs |> Some
 
+let bindResolvedOverload cenv env syntaxInfo receiverExprOpt argExprs (func: IFunctionSymbol) (flags: CallFlags) =
+    let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (func, syntaxInfo.TrySyntaxName)
+    // partial call / partial overloaded call
+    if flags.HasFlag(CallFlags.Partial) then
+        match expr with
+        | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) ->
+            E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags ||| CallFlags.Partial)
+        | expr ->
+            expr
+    else
+        expr
+
 let tryOverloadCallExpression 
         (cenv: cenv) 
         (env: BinderEnvironment) 
@@ -327,30 +339,21 @@ let tryOverloadCallExpression
     | None -> None
     | Some funcs ->
         if funcs.Length = 1 then
-            let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (funcs[0], syntaxInfo.TrySyntaxName)       
-            let expr =
-                // partial call / partial overloaded call
-                if flags.HasFlag(CallFlags.Partial) then
-                    match expr with
-                    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) ->
-                        E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags ||| CallFlags.Partial)
-                    | expr ->
-                        expr
-                else
-                    expr
-            Some expr
+            Some(bindResolvedOverload cenv env syntaxInfo receiverExprOpt argExprs funcs[0] flags)
         else
             
             let funcs2 = filterFunctionsForOverloadingPart3 skipEager resArgs expectedTyOpt funcs
-            let funcs = if funcs2.IsEmpty then funcs else funcs2
+            let funcs3 = if funcs2.IsEmpty then funcs else funcs2
 
-            let funcs = filterByRefReturnTypes argExprs funcs
-            if funcs.IsEmpty then
+            let funcs4 = filterByRefReturnTypes argExprs funcs3
+            if funcs4.IsEmpty then
                 None
+            elif funcs4.Length = 1 then
+                Some(bindResolvedOverload cenv env syntaxInfo receiverExprOpt argExprs funcs4[0] flags)
             else       
-                let func = FunctionGroupSymbol.CreateIfPossible(funcs)
-                let expr = bindValueAsCallExpressionWithOptionalSyntaxName cenv env syntaxInfo receiverExprOpt (ValueSome argExprs) (func, syntaxInfo.TrySyntaxName)
-                Some expr
+                let func = FunctionGroupSymbol.CreateIfPossible(funcs4)
+                OlyAssert.True(func.IsFunctionGroup)
+                Some(E.Call(syntaxInfo, receiverExprOpt, ImArray.empty, argExprs, func, flags))
 
 let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
@@ -499,7 +502,7 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
 /// Returns the same kind of expression that was given.
 let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
     match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) when value.IsAddressOf ->
+    | E.Call(syntaxInfo, receiverExprOpt, _, argExprs, value, flags) when value.IsAddressOf ->
 
         match argExprs[0] with
         | AutoDereferenced(argInnerExpr) ->
@@ -521,7 +524,7 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
                         | _ -> false
                     )
 
-                match tryOverloadCallExpression cenv env false None syntaxInfo receiverExprOpt argExprs newFuncs CallFlags.None with
+                match tryOverloadCallExpression cenv env false None syntaxInfo receiverExprOpt argExprs newFuncs flags with
                 | Some newExpr ->
                     checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt newExpr
                     newExpr
@@ -550,7 +553,7 @@ let checkAddressOfExpression cenv env tyChecking expectedTyOpt expr =
                     E.Call(
                         syntaxInfo, 
                         receiverExprOpt, 
-                        witnessArgs,
+                        ImArray.empty,
                         (
                             ImArray.createOne (
                                 E.Call(
@@ -879,7 +882,7 @@ let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: 
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
         expr
 
-    | E.Lambda(body=lazyBodyExpr) ->
+    | E.Lambda(pars=pars;body=lazyBodyExpr) ->
         checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt expr
         match tyChecking with
         | TypeChecking.EnabledNoTypeErrors(true) -> ()
@@ -1094,12 +1097,110 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
     | _ ->
         ()
 
+/// For a function group (possible overloads), this checks when the parameter types of a lambda expression have not fully been solved and therefore
+/// reports an error diagnostic telling the user to use explict type annotations to disambiguate the overloaded functions.
+///
+/// REVIEW: Is it possible to have smarter inference for function overloads where we would not have to report an error?
+let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value: IValueSymbol) (argIndex: int) (argExpr: E) =
+    if skipLambda || not value.IsFunctionGroup then ()
+    else
+        match argExpr with
+        | E.Lambda(pars=pars) ->
+            let requiresExplicitTypeAnnotation =
+                pars
+                |> ImArray.exists (fun par ->
+                    not par.Type.IsAllSolved_ste
+                )
+            if requiresExplicitTypeAnnotation then
+                let rec solveAsTypeError (ty: TypeSymbol) =
+                    if not ty.IsSolved_ste then
+                        UnifyTypes Flexible ty TypeSymbolError |> ignore
+                    else
+                        ty.TypeArguments
+                        |> ImArray.iter solveAsTypeError
+
+                pars
+                |> ImArray.iter (fun par ->
+                    solveAsTypeError par.Type
+                )
+
+                let syntax =
+                    match argExpr.Syntax with
+                    | :? OlySyntaxExpression as syntax ->
+                        match syntax with
+                        | OlySyntaxExpression.Lambda(_, syntaxLambdaPars, _, _) -> syntaxLambdaPars :> OlySyntaxNode
+                        | _ -> syntax
+                    | syntax -> syntax
+
+                let msg =
+                    $"Unable to solve parameter types for the lambda expression. Use explicit type annotations."
+                cenv.diagnostics.Error(msg, 10, syntax)
+        | _ ->
+            ()
+
+let unionInputTypes ty1 ty2 (argExprTy: TypeSymbol) =
+    if areTypesEqual ty1 ty2 then
+        ty1
+    else
+        match ty1, ty2, stripTypeEquations argExprTy with
+        | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _), TypeSymbol.Tuple(argExprElementTys, _) ->
+            if elementTys1.Length = elementTys2.Length then
+                let elementTys =
+                    (elementTys1, elementTys2, argExprElementTys)
+                    |||> ImArray.map3 unionTypes
+                TypeSymbol.Tuple(elementTys, ImArray.empty)
+            else
+                argExprTy
+        | TypeSymbol.Function _, TypeSymbol.Function _, TypeSymbol.Function _ ->
+            unionTypes ty1 ty2 argExprTy
+        | _ ->
+            argExprTy
+
+let unionTypes ty1 ty2 (argExprTy: TypeSymbol) =
+    if areTypesEqual ty1 ty2 then
+        ty1
+    else
+        match ty1, ty2, stripTypeEquations argExprTy with
+        | TypeSymbol.Function(inputTy1, returnTy1, kind1), TypeSymbol.Function(inputTy2, returnTy2, kind2), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) when kind1 = kind2 && kind1 = argExprKind ->
+            TypeSymbol.Function(
+                unionInputTypes inputTy1 inputTy2 argExprInputTy,
+                unionTypes returnTy1 returnTy2 argExprReturnTy,
+                kind1
+            )
+        | _ ->
+            argExprTy
+
 let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda expr =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         let tyChecking = TypeChecking.EnabledNoTypeErrors(skipLambda)
 
-        let argTys = value.LogicalType.FunctionArgumentTypes
+        let argTys =
+            if value.IsFunctionGroup then
+                let funcGroup = value :> obj :?> FunctionGroupSymbol
+                let sameArity =
+                    funcGroup.Functions
+                    |> ImArray.forall (fun x -> x.LogicalParameterCount = argExprs.Length)
+                if sameArity then
+
+                    let argTys = ImArray.builderWithSize argExprs.Length
+
+                    funcGroup.Functions
+                    |> ImArray.iter (fun func ->
+                       func.LogicalParameters
+                        |> ROMem.iteri (fun i par ->
+                            if argTys.Count <= i then
+                                argTys.Add(par.Type)
+                            else
+                                argTys[i] <- unionTypes argTys[i] par.Type argExprs[i].Type
+                        )
+                    )
+
+                    argTys.MoveToImmutable()
+                else
+                    ImArray.empty
+            else
+                value.LogicalType.FunctionArgumentTypes
 
         let newArgExprs =
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
@@ -1112,6 +1213,9 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                         TypeSymbolError
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
+                    // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
+                   // checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value i argExpr
+
                     let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
                     checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr
                     newArgExpr

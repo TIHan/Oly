@@ -33,7 +33,7 @@ type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxA
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -116,7 +116,7 @@ type OlySyntaxName internal (tree, start: int, parent, internalNode: SyntaxName)
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -192,7 +192,7 @@ type OlySyntaxBlittable internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -245,7 +245,7 @@ type OlySyntaxBlittableOptional internal (tree, start: int, parent, internalNode
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -307,7 +307,7 @@ type OlySyntaxAttribute internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -432,7 +432,7 @@ type OlySyntaxHashAttribute internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -485,7 +485,7 @@ type OlySyntaxAttributes internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -547,7 +547,7 @@ type OlySyntaxConstraint internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -665,7 +665,7 @@ type OlySyntaxConstraintClause internal (tree, start: int, parent, internalNode:
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -727,7 +727,7 @@ type OlySyntaxTypeParameters internal (tree, start: int, parent, internalNode: S
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -796,7 +796,7 @@ type OlySyntaxTypeConstructor internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -858,7 +858,7 @@ type OlySyntaxTupleElement internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -927,7 +927,7 @@ type OlySyntaxFixedArrayLength internal (tree, start: int, parent, internalNode:
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -980,7 +980,7 @@ type OlySyntaxType internal (tree, start: int, parent, internalNode: SyntaxType)
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1140,7 +1140,7 @@ type OlySyntaxMutability internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1202,7 +1202,7 @@ type OlySyntaxParameter internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1271,7 +1271,7 @@ type OlySyntaxTypeArguments internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1333,7 +1333,7 @@ type OlySyntaxParameters internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1395,7 +1395,7 @@ type OlySyntaxLambdaKind internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1457,7 +1457,7 @@ type OlySyntaxReturnTypeAnnotation internal (tree, start: int, parent, internalN
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1519,7 +1519,7 @@ type OlySyntaxFunctionName internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1581,7 +1581,7 @@ type OlySyntaxBindingDeclaration internal (tree, start: int, parent, internalNod
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1685,7 +1685,7 @@ type OlySyntaxPropertyBinding internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1738,7 +1738,7 @@ type OlySyntaxGuardBinding internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1800,7 +1800,7 @@ type OlySyntaxBinding internal (tree, start: int, parent, internalNode: SyntaxBi
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1883,7 +1883,7 @@ type OlySyntaxLet internal (tree, start: int, parent, internalNode: SyntaxLet) a
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1936,7 +1936,7 @@ type OlySyntaxTypeDeclarationKind internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2068,7 +2068,7 @@ type OlySyntaxLiteral internal (tree, start: int, parent, internalNode: SyntaxLi
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2242,7 +2242,7 @@ type OlySyntaxFieldPattern internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2304,7 +2304,7 @@ type OlySyntaxNamedArgument internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2357,7 +2357,7 @@ type OlySyntaxArguments internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2419,7 +2419,7 @@ type OlySyntaxElseIfOrElseExpression internal (tree, start: int, parent, interna
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2488,7 +2488,7 @@ type OlySyntaxCatchOrFinallyExpression internal (tree, start: int, parent, inter
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2557,7 +2557,7 @@ type OlySyntaxValueDeclarationPremodifier internal (tree, start: int, parent, in
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2640,7 +2640,7 @@ type OlySyntaxValueDeclarationPostmodifier internal (tree, start: int, parent, i
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2693,7 +2693,7 @@ type OlySyntaxValueDeclarationKind internal (tree, start: int, parent, internalN
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2790,7 +2790,7 @@ type OlySyntaxExtends internal (tree, start: int, parent, internalNode: SyntaxEx
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2859,7 +2859,7 @@ type OlySyntaxImplements internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2921,7 +2921,7 @@ type OlySyntaxTypeDeclarationCase internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2983,7 +2983,7 @@ type OlySyntaxTypeDeclarationBody internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3036,7 +3036,7 @@ type OlySyntaxTypeDeclarationName internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3098,7 +3098,7 @@ type OlySyntaxPattern internal (tree, start: int, parent, internalNode: SyntaxPa
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3188,7 +3188,7 @@ type OlySyntaxMatchGuard internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3250,7 +3250,7 @@ type OlySyntaxMatchPattern internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3326,7 +3326,7 @@ type OlySyntaxMatchClause internal (tree, start: int, parent, internalNode: Synt
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3379,7 +3379,7 @@ type OlySyntaxInitializer internal (tree, start: int, parent, internalNode: Synt
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3432,7 +3432,7 @@ type OlySyntaxCompilationUnit internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3501,7 +3501,7 @@ type OlySyntaxExpression internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 

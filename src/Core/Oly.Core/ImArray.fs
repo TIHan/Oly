@@ -568,6 +568,14 @@ module ROMem =
             for i = 0 to arr.Length - 1 do
                 f arr.[i]
 
+    let inline iteri f (arr: romem<'T>) : unit =
+        match arr.Length with
+        | 0 -> ()
+        | 1 -> f 0 arr.Span[0]
+        | _ ->
+            for i = 0 to arr.Length - 1 do
+                f i arr.[i]
+
     let inline map (mapper: 'T -> 'U) (arr: romem<'T>) : romem<_> =
         match arr.Length with
         | 0 -> ReadOnlyMemory.Empty

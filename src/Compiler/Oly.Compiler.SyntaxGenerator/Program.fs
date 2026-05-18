@@ -87,6 +87,7 @@ let computeInternalNode cenv (node: XmlNode) =
     addInternal cenv "\n"
 
     let textIsToken = if name = "SyntaxToken" then "true" else "false"
+    let textIsTriviaToken = "false"
 
     let mutable hasError = false
 
@@ -234,6 +235,7 @@ let computeInternalNode cenv (node: XmlNode) =
     addInternal cenv $"    interface ISyntaxNode with\n\n"
     addInternal cenv $"        member this.IsTerminal = false\n\n"
     addInternal cenv $"        member this.IsToken = {textIsToken}\n\n"
+    addInternal cenv $"        member this.IsTriviaToken = {textIsTriviaToken}\n\n"
     addInternal cenv $"        member this.IsError = {textIsError}\n\n"
     addInternal cenv $"        member this.GetSlot(index) =\n{textGetSlot}\n"
     addInternal cenv $"        member this.SlotCount =\n{textSlotCount}\n"
@@ -273,7 +275,7 @@ let computePublicNode cenv (node: XmlNode) =
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 

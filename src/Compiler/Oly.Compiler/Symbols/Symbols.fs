@@ -887,6 +887,7 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
 
 #if DEBUG || CHECKED
     do
+        OlyAssert.False(func.IsFunctionGroup)
         if not returnTy.IsError_ste && returnTy.IsTypeConstructor_steea then
             failwith "Unexpected type constructor"
 #endif
@@ -4713,6 +4714,19 @@ type TypeSymbol =
         | HigherInferenceVariable _
         | EagerInferenceVariable _ -> false
         | _ -> true
+
+    /// Is the type symbol solved? Will only return false if any inference variables have not been solved.
+    /// This checks the type arguments too.
+    ///
+    /// Strips type equations.
+    member this.IsAllSolved_ste =
+        match stripTypeEquations this with
+        | InferenceVariable _
+        | HigherInferenceVariable _
+        | EagerInferenceVariable _ -> false
+        | _ ->
+            this.TypeArguments
+            |> ImArray.forall (fun tyArg -> tyArg.IsAllSolved_ste)
 
     member this.IsFormal_steea =
         match stripTypeEquationsExceptAlias this with

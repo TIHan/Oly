@@ -621,7 +621,8 @@ type internal Token =
         | ConditionalDirective _
         | PropertyDirective _
         | HashIf _
-        | HashEnd -> true
+        | HashEnd 
+        | Dummy -> true
         | _ -> false
 
     member this.IsTrivia =

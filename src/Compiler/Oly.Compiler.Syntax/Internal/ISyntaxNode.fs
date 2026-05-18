@@ -11,6 +11,8 @@ type internal ISyntaxNode =
     /// Indicates the syntax node represents a single token.
     abstract IsToken : bool
 
+    abstract IsTriviaToken: bool
+
     /// Indicates the syntax node is an error.
     abstract IsError : bool
 
@@ -33,6 +35,7 @@ type internal SyntaxDummy() =
     interface ISyntaxNode with
         member _.IsTerminal = true
         member _.IsToken = false
+        member _.IsTriviaToken = false
         member _.IsError = false
         member _.GetSlot _ = failwith "Internal error: Syntax node does not exist."
         member _.SlotCount = 0
@@ -136,6 +139,8 @@ type internal SyntaxSeparatorList<'T when 'T :> ISyntaxNode> =
 
         member _.IsToken = false
 
+        member _.IsTriviaToken = false
+
         member this.IsError = 
             match this with
             | Error -> true
@@ -197,6 +202,8 @@ type internal SyntaxList<'T when 'T :> ISyntaxNode> =
 
         member _.IsToken = false
 
+        member _.IsTriviaToken = false
+
         member _.IsError = false
 
         member this.GetSlot index =
@@ -238,6 +245,8 @@ type internal SyntaxBrackets<'T when 'T :> ISyntaxNode> =
         member this.IsTerminal = false
     
         member this.IsToken = false
+
+        member _.IsTriviaToken = false
     
         member this.IsError = false
     
@@ -277,6 +286,8 @@ type internal SyntaxBracketInnerPipes<'T when 'T :> ISyntaxNode> =
         member this.IsTerminal = false
     
         member this.IsToken = false
+
+        member _.IsTriviaToken = false
     
         member this.IsError = false
     
@@ -316,6 +327,8 @@ type internal SyntaxCurlyBrackets<'T when 'T :> ISyntaxNode> =
         member this.IsTerminal = false
     
         member this.IsToken = false
+
+        member _.IsTriviaToken = false
     
         member this.IsError = false
     
@@ -355,6 +368,11 @@ type internal SyntaxToken =
         member this.IsTerminal = false
 
         member this.IsToken = true
+
+        member this.IsTriviaToken =
+            match this with
+            | Token(token)
+            | TokenWithTrivia(token=token) -> token.IsTrivia
 
         member this.IsError = false
 

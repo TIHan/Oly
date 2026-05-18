@@ -2405,3 +2405,205 @@ main(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+interface IArgs<T>
+
+CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs> =
+    unchecked default
+
+CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs> =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class A =
+    implements IArgs<EventArgs>
+
+M(): () =
+    let _result =
+        CreateEventHandler<A, _>(
+            args -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            args -> args.Value
+            ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint 2``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+interface IArgs<T>
+
+CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs> =
+    unchecked default
+
+CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs> =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class A =
+    implements IArgs<EventArgs>
+
+M(): () =
+    let _result: A =
+        CreateEventHandler(
+            args -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            args -> args.Value
+            ^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint shape``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result =
+        CreateEventHandler<EventHandler, _, _>(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            (_sender, args) -> args.Value
+            ^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint shape 2``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result: EventHandler =
+        CreateEventHandler(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            (_sender, args) -> args.Value
+            ^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
