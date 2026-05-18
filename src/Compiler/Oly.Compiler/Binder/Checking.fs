@@ -1101,11 +1101,12 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
 /// reports an error diagnostic telling the user to use explict type annotations to disambiguate the overloaded functions.
 ///
 /// REVIEW: Is it possible to have smarter inference for function overloads where we would not have to report an error?
-let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value: IValueSymbol) (argIndex: int) (argExpr: E) =
+let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value: IValueSymbol) expectedTyOpt (argExpr: E) =
     if skipLambda || not value.IsFunctionGroup then ()
     else
         match argExpr with
         | E.Lambda(pars=pars) ->
+            checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt argExpr
             let requiresExplicitTypeAnnotation =
                 pars
                 |> ImArray.exists (fun par ->
@@ -1138,33 +1139,33 @@ let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value
         | _ ->
             ()
 
-let unionInputTypes ty1 ty2 (argExprTy: TypeSymbol) =
+let intersectInputTypes ty1 ty2 (argExprTy: TypeSymbol) =
     if areTypesEqual ty1 ty2 then
         ty1
     else
         match ty1, ty2, stripTypeEquations argExprTy with
         | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _), TypeSymbol.Tuple(argExprElementTys, _) ->
-            if elementTys1.Length = elementTys2.Length then
+            if elementTys1.Length = elementTys2.Length && elementTys1.Length = argExprElementTys.Length then
                 let elementTys =
                     (elementTys1, elementTys2, argExprElementTys)
-                    |||> ImArray.map3 unionTypes
+                    |||> ImArray.map3 intersectTypes
                 TypeSymbol.Tuple(elementTys, ImArray.empty)
             else
                 argExprTy
         | TypeSymbol.Function _, TypeSymbol.Function _, TypeSymbol.Function _ ->
-            unionTypes ty1 ty2 argExprTy
+            intersectTypes ty1 ty2 argExprTy
         | _ ->
             argExprTy
 
-let unionTypes ty1 ty2 (argExprTy: TypeSymbol) =
+let intersectTypes ty1 ty2 (argExprTy: TypeSymbol) =
     if areTypesEqual ty1 ty2 then
         ty1
     else
         match ty1, ty2, stripTypeEquations argExprTy with
         | TypeSymbol.Function(inputTy1, returnTy1, kind1), TypeSymbol.Function(inputTy2, returnTy2, kind2), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) when kind1 = kind2 && kind1 = argExprKind ->
             TypeSymbol.Function(
-                unionInputTypes inputTy1 inputTy2 argExprInputTy,
-                unionTypes returnTy1 returnTy2 argExprReturnTy,
+                intersectInputTypes inputTy1 inputTy2 argExprInputTy,
+                intersectTypes returnTy1 returnTy2 argExprReturnTy,
                 kind1
             )
         | _ ->
@@ -1177,28 +1178,28 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
 
         let argTys =
             if value.IsFunctionGroup then
+                let argCount = argExprs.Length
                 let funcGroup = value :> obj :?> FunctionGroupSymbol
-                let sameArity =
-                    funcGroup.Functions
-                    |> ImArray.forall (fun x -> x.LogicalParameterCount = argExprs.Length)
-                if sameArity then
+                let argTys = ImArray.builderWithSize argCount
 
-                    let argTys = ImArray.builderWithSize argExprs.Length
-
-                    funcGroup.Functions
-                    |> ImArray.iter (fun func ->
-                       func.LogicalParameters
+                funcGroup.Functions
+                |> ImArray.iter (fun func ->
+                    if func.LogicalParameterCount = argCount then
+                        func.LogicalParameters
                         |> ROMem.iteri (fun i par ->
                             if argTys.Count <= i then
                                 argTys.Add(par.Type)
                             else
-                                argTys[i] <- unionTypes argTys[i] par.Type argExprs[i].Type
+                                argTys[i] <- intersectTypes argTys[i] par.Type argExprs[i].Type
                         )
-                    )
+                    else
+                        for i = 0 to argCount - 1 do
+                            if argTys.Count <= i then
+                                argTys.Add(TypeSymbolError)
 
-                    argTys.MoveToImmutable()
-                else
-                    ImArray.empty
+                )
+
+                argTys.MoveToImmutable()
             else
                 value.LogicalType.FunctionArgumentTypes
 
@@ -1213,10 +1214,12 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                         TypeSymbolError
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
-                   // checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value i argExpr
+                    let expectedArgTyOpt = Some expectedArgTy
 
-                    let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf (Some expectedArgTy) argExpr
+                    // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
+                    checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value expectedArgTyOpt argExpr
+
+                    let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf expectedArgTyOpt argExpr
                     checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr
                     newArgExpr
                 )

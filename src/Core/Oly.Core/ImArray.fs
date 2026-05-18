@@ -15,6 +15,18 @@ module ImArray =
     let inline builderWithSize size : imarrayb<'T> =
         imarray.CreateBuilder(size)
 
+    let inline builderInit n ([<InlineIfLambda>] f: int -> 'T) : imarrayb<_> =
+        match n with
+        | 0 -> builder()
+        | n ->
+            if n < 0 then
+                invalidArg "n" "Below zero."
+
+            let builder = ImmutableArray.CreateBuilder(n)
+            for i = 0 to n - 1 do
+                builder.Add(f i)
+            builder
+
     let inline sumBy ([<InlineIfLambda>] f: ^T -> ^U) (arr: imarray< ^T>) : ^U =
         match arr.Length with
         | 0 -> Unchecked.defaultof<_>
@@ -147,7 +159,7 @@ module ImArray =
         | n ->
             let builder = ImmutableArray.CreateBuilder(n)
             for i = 0 to n - 1 do
-                builder.Add(mapper arr1.[i] arr2.[i] arr3.[0])
+                builder.Add(mapper arr1.[i] arr2.[i] arr3.[i])
             builder.MoveToImmutable()
 
     let inline mapi2 (mapper: int -> 'T1 -> 'T2 -> 'T) (arr1: imarray<'T1>) (arr2: imarray<'T2>) : imarray<_> =
