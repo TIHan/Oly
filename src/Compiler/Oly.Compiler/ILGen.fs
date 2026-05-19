@@ -138,6 +138,12 @@ let emitTextRange cenv (syntaxNode: OlySyntaxNode) =
         let e = textRange.End
         OlyILDebugSourceTextRange.Create(emitPathAsILDebugSourceCached cenv syntaxTree.Path, s.Line, s.Column, e.Line, e.Column)
 
+let emitTextRangeBySyntaxInfo cenv (syntaxInfo: BoundSyntaxInfo) =
+    if syntaxInfo.IsGenerated then
+        OlyILDebugSourceTextRange.Empty
+    else
+        emitTextRange cenv syntaxInfo.Syntax
+
 [<RequireQualifiedAccess>]
 type LocalContext =
     | Namespace of string seq
@@ -1478,7 +1484,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.Unit _ ->
         OlyILExpression.Value(ilTextRange, OlyILValue.Unit)
 
-    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, flags) ->
+    | E.Call(_, receiverOpt, witnessArgs, argExprs, value, flags) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
         OlyAssert.False(flags.HasFlag(CallFlags.Partial))
@@ -1492,7 +1498,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         | _ ->
             ()
             
-        GenCallExpression cenv possiblyReturnableEnv syntaxInfo receiverOpt witnessArgs argExprs value isVirtualCall
+        GenCallExpression cenv possiblyReturnableEnv ilTextRange receiverOpt witnessArgs argExprs value isVirtualCall
 
     | E.EntityDefinition(_, body, ent) ->
         // It may be possible that several local expressions may contain
@@ -1731,10 +1737,7 @@ and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs:
                 ilArgExpr                
     )
 
-and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOpt: E option) (witnessArgs: WitnessSolution imarray) (argExprs: E imarray) (value: IValueSymbol) isVirtualCall =
-    let syntaxNode = syntaxInfo.Syntax
-    let ilTextRange = emitTextRange cenv syntaxNode
-
+and GenCallExpression (cenv: cenv) env (ilTextRange: OlyILDebugSourceTextRange) (receiverOpt: E option) (witnessArgs: WitnessSolution imarray) (argExprs: E imarray) (value: IValueSymbol) isVirtualCall =
     if not value.TypeParameters.IsEmpty && value.Formal = value then
         OlyAssert.Fail "Unexpected formal value."
 
@@ -1879,14 +1882,13 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     | ValueSome(WellKnownFunction.LoadFunctionPtr) when argExprs.Length = 1 ->
         match argExprs[0] with
         | E.Value(syntaxInfo, value) when value.IsFunction ->
-            let ilTextRange = emitTextRange cenv syntaxInfo.Syntax
+            let ilTextRange = emitTextRangeBySyntaxInfo cenv syntaxInfo
             let ilFuncInst = GenFunctionAsILFunctionInstance cenv env witnessArgs (value :?> IFunctionSymbol)
             OlyILExpression.Value(ilTextRange, OlyILValue.FunctionPtr(ilFuncInst))
         | _ ->
             failwith "Invalid 'LoadFunctionPtr'."
 
     | ValueSome(WellKnownFunction.LoadNullPtr) when argExprs.Length = 0 ->
-        let ilTextRange = emitTextRange cenv syntaxInfo.Syntax
         let func = value.AsFunction
         OlyILExpression.Value(ilTextRange, OlyILValue.Default(emitILType cenv env func.ReturnType))
 
@@ -2128,8 +2130,7 @@ and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E)
         | Some(E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;witnessArgs=witnessArgs;args=argExprs;value=callValue)) 
                 when callValue.Id = localId && value.IsSingleUse && (value.IsGenerated || not cenv.assembly.IsDebuggable) ->
 
-            let syntaxNode = syntaxInfo.Syntax
-            let ilTextRange = emitTextRange cenv syntaxNode
+            let ilTextRange = emitTextRangeBySyntaxInfo cenv syntaxInfo
             let ilArgExprs = GenCallArgumentExpressions cenv env value argExprs
             let _ilTyInst, _ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env value witnessArgs // TODO: Do we want indirect calls to pass witnessess and type arguments?
 
