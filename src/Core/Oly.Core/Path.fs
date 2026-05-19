@@ -19,7 +19,7 @@ type OlyPath private (innerPath: string) =
     override _.ToString() = innerPath
 
     [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
-    override _.GetHashCode() = innerPath.GetHashCode()
+    override _.GetHashCode() = innerPath.GetHashCode(StringComparison.OrdinalIgnoreCase)
 
     [<Obsolete("This is slow, do not call this.", true)>]
     override this.Equals(_) = invalidOp $"Cannot call '{nameof(Object.Equals)}' on '{nameof(OlyPath)}' as it is not optimal."

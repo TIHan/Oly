@@ -372,6 +372,12 @@ type OlyProject (
 
     let mutable documentList = ValueNone
 
+    static member internal CreateDocumentLookup(items) =
+        ImmutableDictionary.CreateRange(
+            OlyPathEqualityComparer.Instance,
+            items
+        )
+
     member _.DocumentLookup = documents
     member _.PlatformName = platformName
     member _.TargetInfo = targetInfo
@@ -445,7 +451,7 @@ type OlyProject (
             |> Seq.map (fun newDocument ->
                 KeyValuePair(newDocument.Path, newDocument)
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
@@ -468,7 +474,7 @@ type OlyProject (
             |> Seq.map (fun document ->
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
@@ -491,7 +497,7 @@ type OlyProject (
             |> Seq.map (fun document ->
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
@@ -514,7 +520,7 @@ type OlyProject (
             |> Seq.map (fun document ->
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
@@ -716,7 +722,7 @@ module WorkspaceHelpers =
         let documents =
             documents
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         OlyProject(newSolution, projectId, projectName, options, compilation, documents, projectReferences, packages, copyFiles, properties, platformName, targetInfo)   
 
@@ -729,7 +735,7 @@ module WorkspaceHelpers =
             |> Seq.map (fun document ->
                 KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
         let options = project.CompilationOptions
         let compilationLazy =

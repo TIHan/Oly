@@ -166,15 +166,26 @@ class InstallCommand =
                 let _ = Directory.CreateDirectory(olyInstallPath)
             catch (_ex: Exception) => ()
 
+            let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
+            if (Directory.Exists(olyInstallBinPath))
+                let options = EnumerationOptions()
+                options.RecurseSubdirectories <- true
+                ForEach(Directory.EnumerateFiles(olyInstallBinPath, "*.*", options),
+                    file ->
+                        let mutable file = OlyPath.Create(file)
+                        try
+                            let stream = FileStream(file.ToString(), FileMode.Open, FileAccess.Read, FileShare.None)
+                            stream.Dispose()
+                        catch (ex: Exception) =>
+                            fail("File '" + file.ToString() + "' is in use.")
+                )
+                Directory.Delete(olyInstallBinPath, true)
+
             ForEach(Directory.EnumerateFiles(olyInstallPath),
                 file -> File.Delete(file)
             )
 
-            let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
-            if (Directory.Exists(olyInstallBinPath))
-                Directory.Delete(olyInstallBinPath, true)
             let _ = Directory.CreateDirectory(olyInstallBinPath)
-
             OlyIO.CopyDirectory(exePath, olyInstallBinPath)
 
             let paths = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)
@@ -203,8 +214,11 @@ class InstallCommand =
                 .Start("Installing Oly...",
                     ctx ->
                         Thread.Sleep(1000)
-                        InstallCore(exePath, olyInstallPath)
-                        AnsiConsole.MarkupLine("[green]Oly Installed[/]")
+                        try
+                            InstallCore(exePath, olyInstallPath)
+                            AnsiConsole.MarkupLine("[green]Oly Installed[/]")
+                        catch (ex: Exception) =>
+                            fail("Failed to install Oly. Reason: " + ex.Message)
                 )
 
     class Settings =
