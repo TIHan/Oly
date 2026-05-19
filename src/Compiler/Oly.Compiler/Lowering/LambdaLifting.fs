@@ -803,7 +803,7 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
             LambdaFlags.None,
             ctor.TypeParameters,
             ((ImArray.createOne thisPar).AddRange(ctorLocalPars)),
-            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateSequential(syntaxTree, exprs))
+            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateGeneratedSequential(syntaxTree, exprs))
         )
     
     let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree.DummyNode)
@@ -1154,12 +1154,12 @@ let toClosureExpression cenv (info: ClosureInfo) =
     let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars ctor
 
     let syntaxTree = cenv.tree.SyntaxTree   
-    E.CreateSequential(syntaxTree,
+    E.CreateGeneratedSequential(syntaxTree,
         [
             // Closure definition
             E.CreateEntityDefinition(
                 BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
-                E.CreateSequential(ctorDefExpr, invokeDefExpr),
+                E.CreateGeneratedSequential(ctorDefExpr, invokeDefExpr),
                 closure
             )
 

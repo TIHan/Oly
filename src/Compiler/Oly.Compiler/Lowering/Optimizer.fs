@@ -51,7 +51,7 @@ let optimizeImmediateExpression cenv origExpr =
         | True, _ -> argExpr2
         | _, True -> argExpr1
         | E.Sequential(_, expr1, True, _), _ ->
-            E.CreateSequential(expr1, argExpr2)
+            E.CreateGeneratedSequential(expr1, argExpr2)
         | _ ->
             origExpr
 
@@ -65,13 +65,13 @@ let optimizeImmediateExpression cenv origExpr =
             let lastIndex = flattenedArgExpr1.Length - 1
             match flattenedArgExpr1.[lastIndex] with
             | NoSideEffect ->
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     flattenedArgExpr1.RemoveAt(lastIndex),
                     argExpr2
                 )
             | lastExpr ->
-                E.CreateSequential(
-                    E.CreateSequential(
+                E.CreateGeneratedSequential(
+                    E.CreateGeneratedSequential(
                         flattenedArgExpr1.RemoveAt(lastIndex),
                         Ignore lastExpr
                     ),
@@ -95,7 +95,7 @@ let optimizeImmediateExpression cenv origExpr =
             let flattenedConditionExpr = conditionExpr.FlattenSequentialExpressions()
             match flattenedConditionExpr.[flattenedConditionExpr.Length - 1] with
             | True _ ->
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     flattenedConditionExpr.RemoveAt(flattenedConditionExpr.Length - 1),
                     truePathExpr
                 )
@@ -106,11 +106,11 @@ let optimizeImmediateExpression cenv origExpr =
                     let liftedArgExpr2 = flattenedArgExpr2.RemoveAt(flattenedArgExpr2.Length - 1)
                     E.IfElse(
                         syntaxInfo,
-                        E.CreateSequential(
+                        E.CreateGeneratedSequential(
                             flattenedConditionExpr.RemoveAt(flattenedConditionExpr.Length - 1),
                             argExpr1
                         ),
-                        E.CreateSequential(
+                        E.CreateGeneratedSequential(
                             liftedArgExpr2,
                             truePathExpr
                         ),

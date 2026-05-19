@@ -205,7 +205,7 @@ let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNod
             | _ ->
                 E.None(BoundSyntaxInfo.Generated(syntaxNode))
         else
-            BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
+            BoundExpression.CreateGeneratedSequential(cenv.syntaxTree, exprs)
 
     match expr with
     | E.None _ ->
@@ -620,7 +620,7 @@ let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment
             rhsBodyExpr
 
     let rhsBodyExpr =
-        E.CreateSequential(
+        E.CreateGeneratedSequential(
             // for debugging
             E.None(BoundSyntaxInfo.User(syntaxStartToken, env.benv)),
             rhsBodyExpr
@@ -811,7 +811,7 @@ let private bindLambdaExpression (cenv: cenv) (env: BinderEnvironment) syntaxSta
                 
                 checkLocalLambdaKind solverEnv bodyExpr pars isStatic
 
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     // for debugging
                     E.None(BoundSyntaxInfo.User(syntaxStartToken, env.benv)),
                     bodyExpr
@@ -1124,7 +1124,7 @@ let private bindConstructorInitializer (cenv: cenv) (env: BinderEnvironment) syn
                 cenv.diagnostics.Error("Constructing the type in a constructor is only allowed as the last expression of a branch.", 10, syntaxToCapture)
 
             let initExpr = bindInitializer cenv env syntaxToCapture ty ConstructorInitSequential syntaxFieldPatList
-            E.CreateSequential(
+            E.CreateGeneratedSequential(
                 initExpr,
                 E.None(BoundSyntaxInfo.User(syntaxRightCurlyToken, env.benv)) // for debugging
             )

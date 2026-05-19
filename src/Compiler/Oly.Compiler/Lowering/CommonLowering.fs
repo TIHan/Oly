@@ -19,7 +19,7 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
     | BindingProperty(_, prop) ->
         let backingField = prop.BackingField.Value
         let expr =
-            E.CreateSequential(syntaxInfo.Syntax.Tree,
+            E.CreateGeneratedSequential(syntaxInfo.Syntax.Tree,
                 [
                     yield mainExpr
 
@@ -145,7 +145,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
 
     // Sequential normalization
     | E.Sequential(_, E.Sequential(_, expr1, expr2, semantic1), expr3, semantic2) when semantic1 = semantic2 ->
-        E.CreateSequential(
+        E.CreateGeneratedSequential(
             [
                 expr1
                 expr2
@@ -352,9 +352,9 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
             origExpr
         else
             let newBodyExpr =
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     bodyExpr,
-                    E.CreateSequential(syntaxInfo.Syntax.Tree, valueDeclExprs)
+                    E.CreateGeneratedSequential(syntaxInfo.Syntax.Tree, valueDeclExprs)
                 )
             E.CreateEntityDefinition(syntaxInfo, newBodyExpr, ent)
 
@@ -441,7 +441,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                                 ||> ImArray.foldBack (fun expr fieldBinding ->
                                     match fieldBinding with
                                     | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when field.IsInstance ->
-                                        E.CreateSequential(
+                                        E.CreateGeneratedSequential(
                                             E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisExpr, field, rhsExpr, isCtorInit = true),
                                             expr
                                         )
@@ -452,7 +452,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                         let ctorBodyExpr =
                             match firstExprOpt with
                             | Some(firstExpr) ->
-                                E.CreateSequential(firstExpr, ctorBodyExpr)
+                                E.CreateGeneratedSequential(firstExpr, ctorBodyExpr)
                             | _ ->
                                 ctorBodyExpr
 
@@ -466,8 +466,8 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                                 ctor.Parameters,
                                 lazyCtorBodyExpr
                             )
-                        E.CreateSequential(
-                            E.CreateFunctionDefinition(ctor, ctorRhsExpr),
+                        E.CreateGeneratedSequential(
+                            E.CreateGeneratedFunctionDefinition(ctor, ctorRhsExpr),
                             bodyExpr
                         )
 
@@ -479,7 +479,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                             ||> ImArray.foldBack (fun expr fieldBinding ->
                                 match fieldBinding with
                                 | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when not field.IsInstance ->
-                                    E.CreateSequential(
+                                    E.CreateGeneratedSequential(
                                         E.SetValue(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), field, rhsExpr),
                                         expr
                                     )
@@ -499,8 +499,8 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                                 ImArray.empty,
                                 lazyCtorBodyExpr
                             )
-                        E.CreateSequential(
-                            E.CreateFunctionDefinition(ctor, ctorRhsExpr),
+                        E.CreateGeneratedSequential(
+                            E.CreateGeneratedFunctionDefinition(ctor, ctorRhsExpr),
                             bodyExpr
                         )
                     newBodyExpr

@@ -700,7 +700,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     static member CreateSequential(syntaxNode, benv, exprs: _ seq, semantic) =
         BoundExpression.CreateSequential(BoundSyntaxInfo.User(syntaxNode, benv), exprs, semantic)
 
-    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
+    static member CreateGeneratedSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
         let syntaxTree = expr1.Syntax.Tree
         if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
             failwith "Syntax trees do not match."
@@ -712,26 +712,23 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             semantic
         )
 
-    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
-        BoundExpression.CreateSequential(expr1, expr2, NormalSequential)
+    static member CreateGeneratedSequential(expr1: BoundExpression, expr2: BoundExpression) =
+        BoundExpression.CreateGeneratedSequential(expr1, expr2, NormalSequential)
 
     static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntityDefinitionSymbol) =
         OlyAssert.True(ent.IsFormal)
         BoundExpression.EntityDefinition(syntaxInfo, bodyExpr, ent)
 
-    static member CreateSequential(exprs: BoundExpression seq, expr: BoundExpression) =
+    static member CreateGeneratedSequential(exprs: BoundExpression seq, expr: BoundExpression) =
         let exprs = exprs |> ImArray.ofSeq
         if exprs.IsEmpty then
             expr
         else
             let syntaxTree = expr.Syntax.Tree
-            BoundExpression.CreateSequential(syntaxTree, exprs.Add(expr))
+            BoundExpression.CreateGeneratedSequential(syntaxTree, exprs.Add(expr))
 
-    static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq) =
+    static member CreateGeneratedSequential(syntaxTree: OlySyntaxTree, exprs: _ seq) =
         BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree.DummyNode), exprs)
-
-    static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq, semantic) =
-        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree.DummyNode), exprs, semantic)
 
     static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq) =
         let exprs = exprs |> ImArray.ofSeq
@@ -768,7 +765,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                         )
             loop 0
 
-    static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq, semantic) =
+    static member private CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq, semantic) =
         let expr = BoundExpression.CreateSequential(syntaxInfo, exprs)
         match expr with
         | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic2) ->
@@ -782,7 +779,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     static member CreateGeneratedLiteral(syntaxNode, literal) =
         BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxNode), literal)
 
-    static member CreateFunctionDefinition(func: FunctionSymbol, rhsExpr: BoundExpression) =
+    static member CreateGeneratedFunctionDefinition(func: FunctionSymbol, rhsExpr: BoundExpression) =
         let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
         BoundExpression.MemberDefinition(
             syntaxInfo,
