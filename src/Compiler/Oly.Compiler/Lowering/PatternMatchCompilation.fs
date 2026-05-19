@@ -84,7 +84,7 @@ let substituteLocals
     newExpr
 
 let toTargetJump(expr: E) =
-    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
 
     let local =
         createFunctionValue
@@ -143,7 +143,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     (freeLocals, pars)
     ||> ImArray.iter2 (fun local par -> localLookup[local.Id] <- par :> ILocalSymbol)
 
-    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
 
     let local =
         createFunctionValue
@@ -779,11 +779,11 @@ let tryTransformTargetExpression (cenv: cenv) (valueLookup: MatchPatternLookup) 
         let valueDeclExprs =
             tmpValues
             |> Seq.map (fun tmpValue ->
-                let syntaxInfo = BoundSyntaxInfo.Generated(cenv.Syntax.Tree)
+                let syntaxInfo = BoundSyntaxInfo.Generated(cenv.Syntax)
                 E.Let(
                     syntaxInfo,
                     BindingLocal(tmpValue),
-                    (E.CreateValue(cenv.Syntax.Tree, matchValueInfos.[i].value)),
+                    (E.CreateGeneratedValue(cenv.Syntax, matchValueInfos.[i].value)),
                     cenv.NoneExpression
                 )
             )
@@ -846,7 +846,7 @@ let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
                 expr
             | Ignore _ ->
                 E.Sequential(
-                    BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                    BoundSyntaxInfo.Generated(expr.Syntax),
                     foldingExpr,
                     expr,
                     NormalSequential
@@ -904,7 +904,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                 | innerConditionExpr ->
                     let newTargetExpr =              
                         E.IfElse(
-                            BoundSyntaxInfo.Generated(syntax.Tree),
+                            BoundSyntaxInfo.Generated(syntax),
                             innerConditionExpr,
                             finalTrueTargetExpr,
                             falseTargetExpr,
@@ -927,7 +927,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                             falseTargetExpr
                         | _ ->
                             E.IfElse(
-                                BoundSyntaxInfo.Generated(syntax.Tree),
+                                BoundSyntaxInfo.Generated(syntax),
                                 conditionExpr3,
                                 finalTrueTargetExpr,
                                 falseTargetExpr,
@@ -943,7 +943,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                         falseTargetExpr
                     | _ ->
                         E.IfElse(
-                            BoundSyntaxInfo.Generated(syntax.Tree),
+                            BoundSyntaxInfo.Generated(syntax),
                             conditionExpr2,
                             trueTargetExpr,
                             falseTargetExpr,
@@ -1296,7 +1296,7 @@ let lowerMatchExpression (matchExpr: E) =
                     {| syntaxInfo = syntaxInfo; value = value :?> ILocalSymbol; isTmp = false; index = i |}
                 | _ ->
                     let tmpValue = createLocalGeneratedValue "tmp" expr.Type
-                    let syntaxInfo = BoundSyntaxInfo.Generated(syntax.Tree)
+                    let syntaxInfo = BoundSyntaxInfo.Generated(syntax)
                     {| syntaxInfo = syntaxInfo; value = tmpValue; isTmp = true; index = i |}
             )
 
@@ -1306,10 +1306,10 @@ let lowerMatchExpression (matchExpr: E) =
             {
                 BoundEnvironment = benv
                 Syntax = syntax
-                GeneratedSyntaxInfo = BoundSyntaxInfo.Generated(syntax.Tree)
+                GeneratedSyntaxInfo = BoundSyntaxInfo.Generated(syntax)
                 BeforeMatchExpressions = beforeMatchExprs
-                TrueLiteralExpression = E.Literal(BoundSyntaxInfo.Generated(syntax.Tree), BoundLiteralTrue)
-                NoneExpression = E.None(BoundSyntaxInfo.Generated(syntax.Tree))
+                TrueLiteralExpression = E.Literal(BoundSyntaxInfo.Generated(syntax), BoundLiteralTrue)
+                NoneExpression = E.None(BoundSyntaxInfo.Generated(syntax))
                 CachedExpressionType = cachedExprTy
                 MatchValueInfos = matchValueInfos
             }

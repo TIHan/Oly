@@ -669,7 +669,7 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
                     when value.IsFunction && value.IsInstanceConstructor && areEnclosingsEqual value.Enclosing enclosingTy.AsEntity.AsEnclosing ->
                 BoundExpression.Call(
                     syntaxInfo, 
-                    Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisValue)),
+                    Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisValue)),
                     witnessArgs,
                     argExprs,
                     value,

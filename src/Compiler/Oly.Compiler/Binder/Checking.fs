@@ -364,7 +364,7 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
     
     let argExprs =
         lambdaPars
-        |> ImArray.map (fun x -> E.CreateValue(cenv.syntaxTree, x))
+        |> ImArray.map (fun x -> E.CreateGeneratedValue(syntaxNode, x))
 
     let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, syntaxNameOpt, None)
 
@@ -1164,11 +1164,11 @@ let intersectTypes expectedTy ty (argExprTy: TypeSymbol) =
         expectedTy
     else
         match expectedTy, ty, stripTypeEquations argExprTy with
-        | TypeSymbol.Function(expectedInputTy, expectedReturnTy, expectedKind), TypeSymbol.Function(inputTy, returnTy, kind), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) ->
+        | TypeSymbol.Function(expectedInputTy, expectedReturnTy, _), TypeSymbol.Function(inputTy, returnTy, _), TypeSymbol.Function(argExprInputTy, argExprReturnTy, argExprKind) ->
             TypeSymbol.Function(
                 intersectInputTypes expectedInputTy inputTy argExprInputTy,
                 intersectTypes expectedReturnTy returnTy argExprReturnTy,
-                expectedKind
+                argExprKind
             )
         | _ ->
             argExprTy

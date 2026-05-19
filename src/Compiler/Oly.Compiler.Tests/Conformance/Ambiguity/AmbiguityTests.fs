@@ -2642,3 +2642,53 @@ M(index: int32): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Lambda should be inferred correctly``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+findIndex<T>(xs: T[], f: T -> bool): int32 =
+    0
+
+findIndex<T>(xs: T[], f: (int32, T) -> bool): int32 =
+    0
+
+class C
+
+M(): () =
+    let xs = [C()]
+    let _result = findIndex(xs, (_i, _c) -> false)
+        """
+    Oly src
+    |> withCompile
+
+[<Fact>]
+let ``Scoped lambda should be inferred correctly 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+findIndex<T>(xs: T[], f: scoped T -> bool): int32 =
+    0
+
+findIndex<T>(xs: T[], f: scoped (int32, T) -> bool): int32 =
+    0
+
+class C
+
+M(): () =
+    let xs = [C()]
+    let _result = findIndex(xs, (_i, _c) -> false)
+        """
+    Oly src
+    |> withCompile

@@ -83,7 +83,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
     | E.SetValue(syntaxInfo, value, rhsExpr) ->
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
-            StoreRefCellContents syntaxInfo (E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), newValue)) rhsExpr
+            StoreRefCellContents syntaxInfo (E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), newValue)) rhsExpr
         | _ ->
             origExpr
 
@@ -96,7 +96,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
             let bridgeValue = createLocalBridgeValue value.Type
-            let syntaxInfoBridge = BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)
+            let syntaxInfoBridge = BoundSyntaxInfo.Generated(syntaxInfo.Syntax)
             E.Let(
                 syntaxInfoBridge,
                 BindingLocal(bridgeValue),

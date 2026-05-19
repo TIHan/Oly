@@ -58,7 +58,7 @@ let optimizeImmediateExpression cenv origExpr =
     | LogicalOr(argExpr1, argExpr2) when settings.BranchElimination || origExpr.IsGenerated ->
         match argExpr1, argExpr2 with
         | True, _
-        | False, True -> E.CreateLiteral(cenv.syntaxTree, BoundLiteralTrue)
+        | False, True -> E.CreateGeneratedLiteral(argExpr1.Syntax, BoundLiteralTrue)
         | _, False -> argExpr1
         | _, True ->
             let flattenedArgExpr1 = argExpr1.FlattenSequentialExpressions()

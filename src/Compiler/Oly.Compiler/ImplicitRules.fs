@@ -132,9 +132,9 @@ let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =
     if expectedTy.IsUnit_ste && expr.Type.IsRealUnit_ste then
         Ignore expr
     elif expectedTy.IsRealUnit_ste && expr.Type.IsUnit_ste then
-        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
             expr,
-            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
             NormalSequential
         )
     else
@@ -163,8 +163,9 @@ let private tryMorphPartialCall (expr: E) =
             )
         let argExprs =
             pars
-            |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
-        E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+            |> ImArray.map (fun x -> E.CreateGeneratedValue(expr.Syntax, x))
+        E.CreateGeneratedLambda(
+            expr.Syntax,
             LambdaFlags.None,
             ImArray.empty,
             pars,
@@ -189,9 +190,9 @@ let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
                         LazyExpression.CreateNonLazy(
                             lazyLambdaBodyExpr.TrySyntax,
                             fun _ ->
-                                E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
                                     lazyLambdaBodyExpr.Expression,
-                                    E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                    E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
                                     BoundSequentialSemantic.NormalSequential
                                 )
                         )
@@ -208,16 +209,16 @@ let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
                                 )
                             let argExprs =
                                 pars
-                                |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
-                            E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                |> ImArray.map (fun x -> E.CreateGeneratedValue(expr.Syntax, x))
+                            E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax),
                                 LambdaFlags.None,
                                 ImArray.empty,
                                 pars,
                                 LazyExpression.CreateNonLazy(None, 
                                     fun _ ->
-                                        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
                                             E.Call(syntaxInfo, None, ImArray.empty, argExprs, local, CallFlags.None),
-                                            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
                                             BoundSequentialSemantic.NormalSequential
                                         )
                                 )

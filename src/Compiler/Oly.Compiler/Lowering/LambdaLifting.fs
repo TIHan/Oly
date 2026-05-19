@@ -445,7 +445,7 @@ let substitute
                             | _ ->
                                 BoundExpression.SetContentsOfAddress(
                                     syntaxInfo, 
-                                    BoundExpression.CreateValue(syntaxInfo.Syntax.Tree, appliedNewValue),
+                                    BoundExpression.CreateGeneratedValue(syntaxInfo.Syntax, appliedNewValue),
                                     rhsExpr
                                 )
                         else
@@ -766,16 +766,16 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
         |> ROMem.toImArray
     
     let thisPar = createThisValue "" true true (closure.ToInstantiation())
-    let thisExpr = E.CreateValue(syntaxTree, thisPar)
+    let thisExpr = E.CreateGeneratedValue(syntaxTree.DummyNode, thisPar)
     
     let setFieldExprs =
         (closure.Fields, ctorLocalPars)
         ||> ImArray.map2 (fun field localPar ->
             E.SetField(
-                BoundSyntaxInfo.Generated(syntaxTree),
+                BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
                 thisExpr,
                 field,
-                E.CreateValue(syntaxTree, localPar),
+                E.CreateGeneratedValue(syntaxTree.DummyNode, localPar),
                 isCtorInit = true
             )
         )
@@ -783,7 +783,7 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
     let baseObjectCtorCall =
         match cenv.g.BaseObjectConstructor with
         | Some(baseCtor) when not closure.IsScoped ->
-            E.Call(BoundSyntaxInfo.Generated(syntaxTree),
+            E.Call(BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
                 Some thisExpr,
                 ImArray.empty,
                 ImArray.empty,
@@ -791,22 +791,22 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
                 CallFlags.None
             )
         | _ ->
-            E.None(BoundSyntaxInfo.Generated(syntaxTree))
+            E.None(BoundSyntaxInfo.Generated(syntaxTree.DummyNode))
 
     let exprs =
         setFieldExprs
         |> ImArray.prependOne baseObjectCtorCall
     
     let ctorRhs =
-        E.CreateLambda(
-            syntaxTree,
+        E.CreateGeneratedLambda(
+            syntaxTree.DummyNode,
             LambdaFlags.None,
             ctor.TypeParameters,
             ((ImArray.createOne thisPar).AddRange(ctorLocalPars)),
             LazyExpression.CreateNonLazy(None, fun _ -> E.CreateSequential(syntaxTree, exprs))
         )
     
-    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree.DummyNode)
     E.MemberDefinition(
         syntaxInfo,
         BoundBinding.Implementation(
@@ -837,10 +837,10 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         valueLookup[par.Id] <- invokePar
     )
 
-    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree.DummyNode)
 
     let thisPar = invoke.Parameters[0]
-    let thisExpr = E.CreateValue(syntaxTree, thisPar)
+    let thisExpr = E.CreateGeneratedValue(syntaxTree.DummyNode, thisPar)
 
     let invokeRhs =
         let newBodyExpr =
@@ -884,16 +884,16 @@ let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbo
         ||> ImArray.map2 (fun x argTy -> 
             if not x.Type.IsAnyByRef_ste && argTy.IsAnyByRef_ste then
                 if argTy.IsReadOnlyByRef_ste then
-                   WellKnownExpressions.AddressOf (E.CreateValue(syntaxTree, x))
+                   WellKnownExpressions.AddressOf (E.CreateGeneratedValue(syntaxTree.DummyNode, x))
                 else
-                   WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))   
+                   WellKnownExpressions.AddressOfMutable (E.CreateGeneratedValue(syntaxTree.DummyNode, x))   
             else
-                E.CreateValue(syntaxTree, x)
+                E.CreateGeneratedValue(syntaxTree.DummyNode, x)
         )
 
     let callCtorExpr =
         E.Call(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
             None,
             ImArray.empty,
             ctorArgExprs,
@@ -1158,7 +1158,7 @@ let toClosureExpression cenv (info: ClosureInfo) =
         [
             // Closure definition
             E.CreateEntityDefinition(
-                BoundSyntaxInfo.Generated(syntaxTree),
+                BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
                 E.CreateSequential(ctorDefExpr, invokeDefExpr),
                 closure
             )
@@ -1370,7 +1370,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                     let newBodyExpr = 
                         let newArgExprs =
                             freeLocals
-                            |> ImArray.map (fun x -> E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), x))
+                            |> ImArray.map (fun x -> E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), x))
                         bodyExpr.Rewrite(fun expr ->
                             match expr with
                             | E.Value(syntaxInfo, value) when value.Formal.Id = func.Id ->

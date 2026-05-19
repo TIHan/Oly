@@ -761,8 +761,8 @@ type BoundExpression with
             if argExprTy.IsClosure_ste then
                 let cloInvoke = argExprTy.GetClosureInvoke()
                 let funcExpr =
-                    BoundExpression.CreateValue(
-                        argExpr.Syntax.Tree,
+                    BoundExpression.CreateGeneratedValue(
+                        argExpr.Syntax,
                         cloInvoke
                     )
                 let argExpr = WellKnownExpressions.ReadOnlyAddressOfReceiverIfPossible argExprTy argExpr

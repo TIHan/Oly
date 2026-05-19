@@ -9,18 +9,16 @@ open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.BoundTreePatterns
 
 let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
-    let syntaxTree = expr.Syntax.Tree
     let argExprs = [|expr|] |> ImArray.ofSeq
     let func = (freshenValue benv WellKnownFunctions.UnsafeCast).AsFunction
     UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr.Syntax), None, ImArray.empty, argExprs, func, CallFlags.None)
 
 let Ignore (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
     let ignoreFunc = WellKnownFunctions.IgnoreFunction
     let ignoreFunc = actualValue ignoreFunc.Enclosing (ImArray.createOne expr.Type) ignoreFunc
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, ignoreFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr.Syntax), None, ImArray.empty, argExprs, ignoreFunc, CallFlags.None)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
@@ -29,49 +27,33 @@ let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr
     BoundExpression.Call(syntaxInfo, None, ImArray.empty, argExprs, WellKnownFunctions.equalFunc, CallFlags.None)
 
 let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
-    EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
+    EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax)) expr1 expr2 
 
 let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, CallFlags.None)
 
 let And (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, CallFlags.None)
 
 let Or (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, CallFlags.None)
 
 let LogicalAnd (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-    BoundExpression.IfElse(BoundSyntaxInfo.Generated(syntaxTree), expr1, expr2, BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue), TypeSymbol.Bool)
+    BoundExpression.IfElse(BoundSyntaxInfo.Generated(expr1.Syntax), expr1, expr2, BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue), TypeSymbol.Bool)
 
 let LogicalOr (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-    BoundExpression.IfElse(BoundSyntaxInfo.Generated(syntaxTree), expr1, BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue), expr2, TypeSymbol.Bool)
+    BoundExpression.IfElse(BoundSyntaxInfo.Generated(expr1.Syntax), expr1, BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue), expr2, TypeSymbol.Bool)
 
 let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let tyArgs =
         (TypeSymbol.ConstantInt32(elementIndex), elementTy)
         ||> ImArray.createTwo
     let argExprs = [|expr|] |> ImArray.ofSeq
     BoundExpression.Call(
-        BoundSyntaxInfo.Generated(syntaxTree), 
+        BoundSyntaxInfo.Generated(expr.Syntax), 
         None, 
         ImArray.empty, 
         argExprs,
@@ -80,23 +62,19 @@ let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExp
     )
 
 let InlineAnd (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-
     let trueTargetExpr =
         BoundExpression.IfElse(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(expr1.Syntax),
             expr2,
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue),
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse),
             TypeSymbol.Bool
         )
         
-    let falseTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse)
+    let falseTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse)
 
     BoundExpression.IfElse(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        BoundSyntaxInfo.Generated(expr1.Syntax),
         expr1,
         trueTargetExpr,
         falseTargetExpr,
@@ -104,23 +82,19 @@ let InlineAnd (expr1: BoundExpression) (expr2: BoundExpression) =
     )
 
 let InlineOr (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-
-    let trueTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue)
+    let trueTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue)
 
     let falseTargetExpr =
         BoundExpression.IfElse(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(expr1.Syntax),
             expr2,
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue),
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse),
             TypeSymbol.Bool
         )
 
     BoundExpression.IfElse(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        BoundSyntaxInfo.Generated(expr1.Syntax),
         expr1,
         trueTargetExpr,
         falseTargetExpr,
@@ -152,7 +126,7 @@ let private createCallExpression syntaxInfo (formalValue: IValueSymbol) (tyArgs:
         isVirtualCall
     )
 
-let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+let private createGeneratedCallExpression (syntaxNode: OlySyntaxNode) (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
     OlyAssert.True(formalValue.IsFormal)
     let value =
         let tyArgs =
@@ -169,7 +143,7 @@ let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol)
             )
         formalValue.Apply(tyArgs)
     BoundExpression.Call(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        BoundSyntaxInfo.Generated(syntaxNode),
         None,
         witnessArgs,
         args,
@@ -178,9 +152,8 @@ let private createGeneratedCallExpression syntaxTree (formalValue: IValueSymbol)
     )
 
 let LoadFunction (receiverExpr: BoundExpression) (expr: BoundExpression) funcTy =
-    let syntaxTree = expr.Syntax.Tree
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.LoadFunction
         (ImArray.createOne funcTy)
         ImArray.empty
@@ -188,9 +161,8 @@ let LoadFunction (receiverExpr: BoundExpression) (expr: BoundExpression) funcTy 
         CallFlags.None
 
 let LoadStaticFunction (expr: BoundExpression) funcTy =
-    let syntaxTree = expr.Syntax.Tree
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.LoadStaticFunction
         (ImArray.createOne funcTy)
         ImArray.empty
@@ -198,10 +170,9 @@ let LoadStaticFunction (expr: BoundExpression) funcTy =
         CallFlags.None
 
 let NewRefCell (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.NewRefCell
         (ImArray.createOne exprTy)
         ImArray.empty
@@ -209,12 +180,11 @@ let NewRefCell (expr: BoundExpression) =
         CallFlags.None
 
 let LoadRefCellContents (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     match exprTy.TryGetReferenceCellElement with
     | ValueSome elementTy ->
         createGeneratedCallExpression
-            syntaxTree
+            expr.Syntax
             WellKnownFunctions.LoadRefCellContents
             (ImArray.createOne elementTy)
             ImArray.empty
@@ -239,12 +209,11 @@ let StoreRefCellContents syntaxInfo (receiver: BoundExpression) (rhs: BoundExpre
         failwith "Invalid expression."
 
 let FromAddress (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     match exprTy.TryByReferenceElementType with
     | ValueSome elementTy ->
         createGeneratedCallExpression
-            syntaxTree
+            expr.Syntax
             WellKnownFunctions.FromAddress
             (ImArray.createOne elementTy)
             ImArray.empty
@@ -254,7 +223,6 @@ let FromAddress (expr: BoundExpression) =
         failwith "Invalid expression."
 
 let rec AutoDereferenceIfPossible (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     if exprTy.IsAnyByRef_ste then
         // We want to dereference non-generated expressions.
@@ -265,7 +233,7 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
 
         | BoundExpression.Call(value=value) when not value.IsAddressOf ->
             let value = createLocalBridgeValue exprTy
-            let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+            let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
             BoundExpression.Let(
                 syntaxInfo,
                 BindingLocal(value),
@@ -281,7 +249,7 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
 /// based on the given expression. Expression type is a read/write ByRef type.
 let AddressOf (expr: BoundExpression) =
     createGeneratedCallExpression
-        expr.Syntax.Tree
+        expr.Syntax
         WellKnownFunctions.AddressOf
         (ImArray.createOne expr.Type)
         ImArray.empty
@@ -292,7 +260,7 @@ let AddressOf (expr: BoundExpression) =
 /// based on the given expression. Expression type is a read/write ByRef type.
 let AddressOfMutable (expr: BoundExpression) =
     createGeneratedCallExpression
-        expr.Syntax.Tree
+        expr.Syntax
         WellKnownFunctions.AddressOfMutable
         (ImArray.createOne expr.Type)
         ImArray.empty

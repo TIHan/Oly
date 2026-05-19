@@ -11992,3 +11992,31 @@ M(): () =
         """
     Oly src
     |> shouldCompile
+
+[<Fact>]
+let ``Should error with invalid type for return value for an 'if' expression without 'else' or 'else if'``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("utf16")]
+alias string
+
+fail<TResult>(msg: string): TResult = unchecked default
+
+Create(): int32 =
+    if (true)
+        fail("Invalid scale")
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Expected type '()' but is 'int32'.""",
+                """
+        fail("Invalid scale")
+        ^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

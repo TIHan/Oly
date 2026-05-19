@@ -158,11 +158,11 @@ and [<Sealed>] LazyExpression (syntaxExprOpt: OlySyntaxExpression option, f: Oly
         lazyExpr.Run()
         lazyExpr
     
-and [<Sealed>] LazyExpressionType (syntaxTree) =
+and [<Sealed>] LazyExpressionType (syntaxGeneratedNode: OlySyntaxNode) =
 
     let mutable ty = Unchecked.defaultof<_>
 
-    member val Expression = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxTree)) with get, set
+    member val Expression = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxGeneratedNode)) with get, set
 
     member this.Type =
         match box ty with
@@ -205,7 +205,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         syntaxName: OlySyntaxName *
         tyOpt: TypeSymbol option
 
-    | InternalGenerated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
+    | InternalGenerated of syntaxBestEffort: OlySyntaxNode
 
     // We define these dummies to trick the F# compiler to use tags for equality.
     | DoNotCallDummy1
@@ -223,8 +223,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     member this.Syntax =
         match this with
         | InternalUser(syntax, _) 
-        | InternalUserWithName(syntax, _, _, _) -> syntax
-        | InternalGenerated(syntaxTree) -> syntaxTree.DummyNode
+        | InternalUserWithName(syntax, _, _, _)
+        | InternalGenerated(syntax) -> syntax
         | _ -> unreached()
 
     member this.SyntaxNameOrDefault =
@@ -276,8 +276,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | _ ->
             this          
 
-    static member Generated(syntaxTree: OlySyntaxTree) =
-        InternalGenerated(syntaxTree)
+    static member Generated(syntaxNode: OlySyntaxNode) =
+        InternalGenerated(syntaxNode)
 
     static member User(syntaxNode: OlySyntaxNode, benv) =
         match syntaxNode.TryName with
@@ -311,8 +311,8 @@ and [<RequireQualifiedAccess;Struct;NoComparison;NoEquality;DebuggerDisplay("{To
         | BoundSyntaxInfo.InternalUserWithName(syntax, _, _, _) -> ValueSome(System.Runtime.CompilerServices.Unsafe.As syntax)
         | _ -> unreached()
 
-    static member Generated(syntaxTree: OlySyntaxTree) =
-        { inner = BoundSyntaxInfo.Generated(syntaxTree) }
+    static member Generated(syntaxNode: OlySyntaxNode) =
+        { inner = BoundSyntaxInfo.Generated(syntaxNode) }
 
     static member User(syntaxNode: 'T, benv) =
         { inner = BoundSyntaxInfo.User(syntaxNode, benv) }
@@ -410,8 +410,18 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Sequential(syntaxInfo=syntaxInfo)
         | IfElse(syntaxInfo=syntaxInfo)
         | NewTuple(syntaxInfo=syntaxInfo)
-        | MemberDefinition(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGenerated
-        | _ -> false
+        | MemberDefinition(syntaxInfo=syntaxInfo) 
+        | GetProperty(syntaxInfo=syntaxInfo)
+        | SetProperty(syntaxInfo=syntaxInfo)
+        | Try(syntaxInfo=syntaxInfo)
+        | Typed(syntaxInfo=syntaxInfo)
+        | Unit(syntaxInfo=syntaxInfo)
+        | While(syntaxInfo=syntaxInfo)
+        | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGenerated
+        | NewArray _
+        | Match _
+        | ErrorWithNamespace _ 
+        | ErrorWithType _ -> false
 
     member this.IsLambdaExpression =
         match this with
@@ -696,7 +706,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             failwith "Syntax trees do not match."
 
         BoundExpression.Sequential(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
             expr1,
             expr2,
             semantic
@@ -718,10 +728,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             BoundExpression.CreateSequential(syntaxTree, exprs.Add(expr))
 
     static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq) =
-        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree), exprs)
+        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree.DummyNode), exprs)
 
     static member CreateSequential(syntaxTree: OlySyntaxTree, exprs: _ seq, semantic) =
-        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree), exprs, semantic)
+        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree.DummyNode), exprs, semantic)
 
     static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq) =
         let exprs = exprs |> ImArray.ofSeq
@@ -769,11 +779,11 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | _ ->
             expr
 
-    static member CreateLiteral(syntaxTree, literal) =
-        BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), literal)
+    static member CreateGeneratedLiteral(syntaxNode, literal) =
+        BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxNode), literal)
 
     static member CreateFunctionDefinition(func: FunctionSymbol, rhsExpr: BoundExpression) =
-        let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+        let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
         BoundExpression.MemberDefinition(
             syntaxInfo,
             BoundBinding.Implementation(
@@ -783,16 +793,16 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             )
         )
 
-    static member CreateValue(syntaxTree, value: IValueSymbol) =
-        BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxTree), value)
+    static member CreateGeneratedValue(syntaxNode: OlySyntaxNode, value: IValueSymbol) =
+        BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxNode), value)
 
-    static member CreateValue(syntaxInfo, value: IValueSymbol) =
+    static member CreateValue(syntaxInfo: BoundSyntaxInfo, value: IValueSymbol) =
         BoundExpression.Value(syntaxInfo, value)
 
-    static member CreateSetValue(value: IValueSymbol, rhsExpr: BoundExpression) =
+    static member CreateGeneratedSetValue(value: IValueSymbol, rhsExpr: BoundExpression) =
         if not value.IsMutable then
             failwith "Value must be mutable."
-        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree), value, rhsExpr)
+        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax), value, rhsExpr)
 
     member this.ToDebugString() =
         let text = this.Syntax.GetText(CancellationToken.None).ToString()
@@ -802,19 +812,19 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             text
 
     static member CreateLambda(syntax: OlySyntaxExpression, benv, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntax.Tree)
+        let lazyExprTy = LazyExpressionType(syntax)
         let expr = BoundExpression.Lambda(BoundSyntaxInfo.User(syntax, benv), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
 
-    static member CreateLambda(syntaxTree, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntaxTree)
-        let expr = BoundExpression.Lambda(BoundSyntaxInfo.Generated(syntaxTree), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
+    static member CreateGeneratedLambda(syntaxNode: OlySyntaxNode, lambdaFlags, tyPars, parValues, body) =
+        let lazyExprTy = LazyExpressionType(syntaxNode)
+        let expr = BoundExpression.Lambda(BoundSyntaxInfo.Generated(syntaxNode), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
 
     static member CreateLambda(syntaxInfo: BoundSyntaxInfo, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntaxInfo.Syntax.Tree)
+        let lazyExprTy = LazyExpressionType(syntaxInfo.Syntax)
         let expr = BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
@@ -1106,7 +1116,7 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
 
 let createLocalDeclarationExpression (rhsExpr: BoundExpression) (bodyExprf: BoundSyntaxInfo -> IValueSymbol -> BoundExpression) =
     let local = createLocalGeneratedValue "local" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),
@@ -1116,7 +1126,7 @@ let createLocalDeclarationExpression (rhsExpr: BoundExpression) (bodyExprf: Boun
 
 let createBridgeLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let bridge = createLocalBridgeValue rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(bridge),
@@ -1126,7 +1136,7 @@ let createBridgeLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
 
 let createLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let local = createLocalGeneratedValue "local" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),
@@ -1136,7 +1146,7 @@ let createLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
 
 let createMutableLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let local = createMutableLocalGeneratedValue "mlocal" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),

@@ -1347,7 +1347,10 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         | E.EntityDefinition _ ->
             OlyILDebugSourceTextRange.Empty
         | _ ->
-            emitTextRange cenv expr.Syntax
+            if expr.IsGenerated then
+                OlyILDebugSourceTextRange.Empty
+            else
+                emitTextRange cenv expr.Syntax
     match expr with
     | E.None(syntaxInfo) -> 
         if syntaxInfo.Syntax.IsDummy then
@@ -1383,7 +1386,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
       // TODO: We should throw if we actually encounter this pattern. Should be handled in lowering.
       E.Sequential(syntaxInfo,
         expr1,
-        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3, NormalSequential),
+        E.Sequential(BoundSyntaxInfo.Generated(expr2.Syntax), expr2, expr3, NormalSequential),
         NormalSequential
       )
       |> GenExpression cenv prevEnv

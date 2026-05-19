@@ -435,38 +435,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 varSolution.SetSolution(ty)
                 UnifyTypes rigidity ty1 ty2
             | _ ->
-                if ty.IsStruct_ste then
-                    match ty with
-                    | TypeSymbol.UInt8
-                    | TypeSymbol.Int8
-                    | TypeSymbol.UInt16
-                    | TypeSymbol.Int16
-                    | TypeSymbol.UInt32
-                    | TypeSymbol.Int32
-                    | TypeSymbol.UInt64
-                    | TypeSymbol.Int64 when eagerTy.IsAnyFixedInteger_ste ->
-                        varSolution.SetSolution(ty)
-                        UnifyTypes rigidity ty1 ty2
-                    | TypeSymbol.Float32
-                    | TypeSymbol.Float64 when eagerTy.IsAnyFloat_ste || eagerTy.IsAnyFixedInteger_ste ->
-                        varSolution.SetSolution(ty)
-                        UnifyTypes rigidity ty1 ty2
-                    | _ ->
-                        varSolution.SetSolution(eagerTy)
-                        UnifyTypes rigidity ty1 ty2
-                else
-                    if subsumesTypeWith rigidity eagerTy ty then
-                        varSolution.SetSolution(ty)
-                    else
-                        varSolution.SetSolution(eagerTy)
-                    UnifyTypes rigidity ty1 ty2
-
-        | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
-        | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
-            OlyAssert.True(eagerTy.IsSolved_ste)
-            OlyAssert.False(eagerTy.IsAnyVariable_ste)
-            if targetTy.IsStruct_ste && not targetTy.IsAnyVariable_ste then
-                match targetTy with
+                match ty with
                 | TypeSymbol.UInt8
                 | TypeSymbol.Int8
                 | TypeSymbol.UInt16
@@ -475,22 +444,63 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                 | TypeSymbol.Int32
                 | TypeSymbol.UInt64
                 | TypeSymbol.Int64 when eagerTy.IsAnyFixedInteger_ste ->
-                    if rigidity = Rigid then
-                        UnifyTypes rigidity targetTy eagerTy 
-                    else
-                        rigidity = Generalizable
+                    varSolution.SetSolution(ty)
+                    UnifyTypes rigidity ty1 ty2
                 | TypeSymbol.Float32
                 | TypeSymbol.Float64 when eagerTy.IsAnyFloat_ste || eagerTy.IsAnyFixedInteger_ste ->
-                    if rigidity = Rigid then
-                        UnifyTypes rigidity targetTy eagerTy 
-                    else
-                        rigidity = Generalizable
+                    varSolution.SetSolution(ty)
+                    UnifyTypes rigidity ty1 ty2
                 | _ ->
-                    false
-            elif targetTy.IsAnyVariable_ste then
+                    if ty.IsStruct_ste then
+                        varSolution.SetSolution(eagerTy)
+                        UnifyTypes rigidity ty1 ty2
+                    else
+                        if subsumesTypeWith rigidity eagerTy ty then
+                            varSolution.SetSolution(ty)
+                        else
+                            varSolution.SetSolution(eagerTy)
+                        UnifyTypes rigidity ty1 ty2
+
+        | TypeSymbol.EagerInferenceVariable(_, eagerTy), targetTy
+        | targetTy, TypeSymbol.EagerInferenceVariable(_, eagerTy) ->
+            OlyAssert.True(eagerTy.IsSolved_ste)
+            OlyAssert.False(eagerTy.IsAnyVariable_ste)
+            if targetTy.IsAnyVariable_ste then
                 rigidity = Generalizable
             else
-                subsumesTypeWith rigidity eagerTy targetTy
+                match targetTy with
+                | TypeSymbol.UInt8
+                | TypeSymbol.Int8
+                | TypeSymbol.UInt16
+                | TypeSymbol.Int16
+                | TypeSymbol.UInt32
+                | TypeSymbol.Int32
+                | TypeSymbol.UInt64
+                | TypeSymbol.Int64 ->
+                    if eagerTy.IsAnyFixedInteger_ste then
+                        if rigidity = Rigid then
+                            UnifyTypes rigidity targetTy eagerTy 
+                        else
+                            rigidity = Generalizable
+                    else
+                        false
+                | TypeSymbol.Float32
+                | TypeSymbol.Float64 ->
+                    if eagerTy.IsAnyFloat_ste || eagerTy.IsAnyFixedInteger_ste then
+                        if rigidity = Rigid then
+                            UnifyTypes rigidity targetTy eagerTy 
+                        else
+                            rigidity = Generalizable
+                    else
+                        false
+                | _ ->
+                    if rigidity = Generalizable then
+                        if targetTy.IsStruct_ste then
+                            UnifyTypes rigidity targetTy eagerTy
+                        else
+                            subsumesTypeWith rigidity eagerTy targetTy
+                    else
+                        false
 
         | TypeSymbol.ByRef(ty1, kind1), TypeSymbol.ByRef(ty2, kind2) ->
             UnifyTypes rigidity ty1 ty2 && kind1 = kind2
@@ -554,6 +564,16 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
                         | TypeSymbol.Tuple _, ty
                         | ty, TypeSymbol.Tuple _ when not ty.IsSolved_ste && not ty.IsVariadicInferenceVariable_ste ->
                             false
+
+                        | TypeSymbol.Tuple(_), TypeSymbol.Tuple(_) ->
+                            UnifyTypes rigidity inputTy1 inputTy2
+
+                        | TypeSymbol.Tuple _, ty
+                        | ty, TypeSymbol.Tuple _ ->
+                            if ty.IsVariadicVariable_ste || ty.IsVariadicInferenceVariable_ste then
+                                UnifyTypes rigidity inputTy1 inputTy2
+                            else
+                                false
 
                         | _ ->
                             UnifyTypes rigidity inputTy1 inputTy2

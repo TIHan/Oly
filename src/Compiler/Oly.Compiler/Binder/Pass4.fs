@@ -177,7 +177,7 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entiti
         env2, BoundExpression.Sequential(BoundSyntaxInfo.User(syntaxExpr, env.benv), boundExpr1, boundExpr2, NormalSequential)
 
     | _ ->
-        env, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        env, BoundExpression.None(BoundSyntaxInfo.Generated(syntaxExpr))
 
 let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNode) syntaxNode (bindingInfo: BindingInfoSymbol) (syntaxPropBindings: OlySyntaxPropertyBinding imarray) (syntaxRhsExprOpt: OlySyntaxExpression option) =
     let hasImpl = syntaxRhsExprOpt.IsSome || bindingInfo.Value.IsAutoProperty
@@ -203,7 +203,7 @@ let private bindTopLevelPropertyBinding cenv env (syntaxParentNode: OlySyntaxNod
                 bindLocalExpression cenv env (Some bindingInfo.Type) syntaxRhsExpr syntaxRhsExpr
                 |> snd
             | _ ->
-                E.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                E.None(BoundSyntaxInfo.Generated(syntaxNode))
         else
             BoundExpression.CreateSequential(cenv.syntaxTree, exprs)
 
@@ -591,7 +591,7 @@ let private bindCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxToCap
             BoundExpression.Error(BoundSyntaxInfo.User(syntaxCallBodyExpr2, env.benv))
     | _ ->
         cenv.diagnostics.Error("Invalid expression for function call.", 10, syntaxCallBodyExpr)
-        BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        BoundExpression.Error(BoundSyntaxInfo.Generated(syntaxToCapture))
 
 let private bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) syntaxToCapture syntaxExpr1 syntaxExpr2 =
     let (env1: BinderEnvironment), expr1 = bindLocalExpression cenv (env.SetReturnable(false)) (Some TypeSymbol.Unit) syntaxExpr1 syntaxExpr1
@@ -627,8 +627,8 @@ let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment
         )
 
     let rhsExpr = 
-        BoundExpression.CreateLambda(
-            cenv.syntaxTree,
+        BoundExpression.CreateGeneratedLambda(
+            syntaxStartToken,
             LambdaFlags.None,
             func.TypeParameters, 
             pars, 
@@ -1049,14 +1049,14 @@ let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCaptur
         match seqSemantic with
         | ConstructorInitSequential ->
             match env.implicitThisOpt with
-            | Some(receiver) -> BoundExpression.CreateValue(cenv.syntaxTree, receiver)
+            | Some(receiver) -> BoundExpression.CreateGeneratedValue(syntaxToCapture, receiver)
             | _ ->
                 // TODO: We need a test for this error.
                 cenv.diagnostics.Error("Expected a 'this' value.", 10, syntaxToCapture)
-                E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                E.Error(BoundSyntaxInfo.Generated(syntaxToCapture))
         | _ ->
             cenv.diagnostics.Error("Records not implemented (yet).", 10, syntaxToCapture)
-            E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+            E.Error(BoundSyntaxInfo.Generated(syntaxToCapture))
 
     let currentFieldSet = HashSet()
 
@@ -1106,10 +1106,10 @@ let private bindInitializer (cenv: cenv) (env: BinderEnvironment) syntaxToCaptur
         |> List.ofSeq
 
     if setFieldExprs.IsEmpty then
-        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxToCapture))
         BoundExpression.CreateSequential(syntaxToCapture, env.benv, noneExpr, noneExpr, seqSemantic)
     elif setFieldExprs.Length = 1 then
-        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        let noneExpr = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxToCapture))
         BoundExpression.CreateSequential(syntaxToCapture, env.benv, noneExpr, setFieldExprs[0], seqSemantic)
     else
         BoundExpression.CreateSequential(syntaxToCapture, env.benv, setFieldExprs, seqSemantic)
@@ -1134,7 +1134,7 @@ let private bindConstructorInitializer (cenv: cenv) (env: BinderEnvironment) syn
 
     | _ ->
         cenv.diagnostics.Error("Creating named records not implemented.", 10, syntaxToCapture)
-        BoundExpression.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+        BoundExpression.Error(BoundSyntaxInfo.Generated(syntaxToCapture))
 
 let private bindElseIfOrElseExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (syntaxToCapture: OlySyntaxNode) syntaxTargetExpr conditionExpr syntaxElseIfOrElseExpr =
     match syntaxElseIfOrElseExpr with
@@ -1159,9 +1159,27 @@ let private bindElseIfOrElseExpression (cenv: cenv) (env: BinderEnvironment) (ex
         env, BoundExpression.IfElse(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, trueTargetExpr, falseTargetExpr, expectedTy)
 
     | OlySyntaxElseIfOrElseExpression.None _ ->
-        let targetExpr = bindLocalExpression cenv env (Some TypeSymbol.Unit) syntaxTargetExpr syntaxTargetExpr |> snd
+        let expectedTy = 
+            if env.isReturnable then
+                match expectedTyOpt with
+                | None -> mkInferenceVariableType None
+                | Some expectedTy -> expectedTy
+            else
+                TypeSymbol.Unit
+        let targetExpr = bindLocalExpression cenv env (Some expectedTy) syntaxTargetExpr syntaxTargetExpr |> snd
+        let targetExpr = 
+            if env.isReturnable then
+                match expectedTyOpt with
+                | None ->
+                    checkExpression cenv env (Some TypeSymbol.Unit) targetExpr
+                | Some expectedTy when not expectedTy.IsUnit_ste ->
+                    checkExpression cenv env (Some TypeSymbol.Unit) targetExpr
+                | _ ->
+                    targetExpr
+            else
+                targetExpr
         env, BoundExpression.IfElse(BoundSyntaxInfo.User(syntaxToCapture, env.benv), conditionExpr, targetExpr,
-            BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree)),
+            BoundExpression.None(BoundSyntaxInfo.Generated(syntaxToCapture)),
             TypeSymbol.Unit
         )
 
@@ -1461,13 +1479,13 @@ let private bindLocalValueDeclaration
                         )
                     )
                 | _ ->
-                    BoundExpression.CreateLambda(
-                        BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                    BoundExpression.CreateGeneratedLambda(
+                        syntaxToCapture,
                         LambdaFlags.None,
                         ImArray.empty,
                         ImArray.createOne par1,
                         LazyExpression(None, fun _ -> 
-                            BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                            BoundExpression.None(BoundSyntaxInfo.Generated(syntaxToCapture))
                         )
                     )
 
@@ -1521,7 +1539,7 @@ let private bindLocalValueDeclaration
                 bindLocalExpression cenv (env.AddUnqualifiedValue(bindingInfo.Value)) expectedTyOpt syntaxToCaptureForBodyExpr syntaxBodyExpr
                 |> snd
             | _ ->
-                BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                BoundExpression.None(BoundSyntaxInfo.Generated(syntaxBindingDeclExpr))
 
         env, BoundExpression.Let(BoundSyntaxInfo.User(syntaxToCapture, env.benv), bindingInfo, rhsExpr, bodyExpr)
 
@@ -1541,7 +1559,7 @@ let private bindLet (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxT
             | Some(syntaxBodyExpr) ->
                 bindLocalExpression cenv envOfBinding expectedTyOpt syntaxBodyExpr syntaxBodyExpr
             | _ ->
-                envOfBinding, BoundExpression.None(BoundSyntaxInfo.Generated(cenv.syntaxTree))
+                envOfBinding, BoundExpression.None(BoundSyntaxInfo.Generated(syntaxToCapture))
 
         let matchPat = BoundMatchPattern.Cases(syntaxPat, ImArray.createOne pat)
         let matchClause = BoundMatchClause.MatchClause(syntaxPat, matchPat, None, bodyExpr)
@@ -1583,8 +1601,8 @@ let private tryGetCallParameterlessBaseCtorExpression (cenv: cenv) (env: BinderE
         | Some(baseCtor) ->
             let thisValue = env.implicitThisOpt.Value
             BoundExpression.Call(
-                BoundSyntaxInfo.Generated(cenv.syntaxTree), 
-                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue)),
+                BoundSyntaxInfo.Generated(syntaxToCapture), 
+                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxToCapture), thisValue)),
                 ImArray.empty,
                 ImArray.empty,
                 baseCtor,

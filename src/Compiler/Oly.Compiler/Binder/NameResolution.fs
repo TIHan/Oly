@@ -686,7 +686,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         if value.IsBase && value.IsInstanceConstructor && receiverExprOpt.IsNone then
             match env.benv.senv.unqualifiedSymbols.TryGetValue "this" with
             | true, (UnqualifiedSymbol.Local thisValue) ->
-                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue))
+                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisValue))
             | _ ->
                 receiverExprOpt
         else
@@ -717,7 +717,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 
         let expr =
             E.Let(
-                BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                 BindingLocal(bridge),
                 getPropertyExpr,
                 callExpr
@@ -805,7 +805,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
         | ResolutionFormalItem.Error ->
             ResolutionItem.Error(syntaxMemberExpr)
         | ResolutionFormalItem.Value(_, value) ->
-            bind cenv env (BoundExpression.CreateValue(cenv.syntaxTree, value)) syntaxMemberExpr
+            bind cenv env (BoundExpression.CreateGeneratedValue(syntaxToCapture, value)) syntaxMemberExpr
         | ResolutionFormalItem.Type ty ->
             bindMemberExpressionWithTypeAsItem cenv env syntaxToCapture ty syntaxMemberExpr
 
@@ -861,9 +861,9 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
                     match resInfo.resArgs with
                     | ResolutionArguments.ByType(argTys) ->
                         // REVIEW: What exactly is this doing?
-                        argTys |> ImArray.map (fun x -> E.Typed(syntaxInfo, E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree)), x))
+                        argTys |> ImArray.map (fun x -> E.Typed(syntaxInfo, E.Error(BoundSyntaxInfo.Generated(syntaxNode)), x))
                     | _ ->
-                        func.Parameters |> ImArray.map (fun _ -> BoundExpression.CreateValue(syntaxNode.Tree, invalidValue None))
+                        func.Parameters |> ImArray.map (fun _ -> BoundExpression.CreateGeneratedValue(syntaxNode, invalidValue None))
                 else
                     resInfo.argExprs
 
