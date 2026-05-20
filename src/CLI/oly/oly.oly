@@ -234,8 +234,8 @@ class InstallCommand =
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
         
         try
-            if (!System.OperatingSystem.IsWindows())
-                throw System.NotSupportedException(Environment.OSVersion.VersionString)
+            if (!OperatingSystem.IsWindows())
+                throw NotSupportedException(Environment.OSVersion.VersionString)
 
             let exePath = Path.GetDirectoryName(Environment.ProcessPath)
             let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
@@ -257,7 +257,7 @@ private module LspHelpers =
 
     CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H 
             where H: { new(object, nint); Invoke(object, TArgs): TReturn } =
-        let handle: System.Func<object, TArgs, TReturn> = Unsafe.As(f)
+        let handle: Func<object, TArgs, TReturn> = Unsafe.As(f)
         H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
 
 #[export]
@@ -269,11 +269,11 @@ class LspCommand =
 
     overrides Execute(context: CommandContext, settings: Settings): int32 =
         try
-            let handler: System.ResolveEventHandler =
+            let handler: ResolveEventHandler =
                 LspHelpers.CreateEventHandler(
-                    (_sender, args: System.ResolveEventArgs) ->
+                    (_, args) ->
                         if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
-                            let dir = Path.GetDirectoryName(System.Environment.ProcessPath)
+                            let dir = Path.GetDirectoryName(Environment.ProcessPath)
                             let file = Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
                             System.Reflection.Assembly.LoadFile(file)
                         else
