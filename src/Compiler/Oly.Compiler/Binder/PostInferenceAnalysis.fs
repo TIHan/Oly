@@ -498,11 +498,7 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                     analyzeTypeForParameter acenv aenv syntaxNode par.Type
                 )
                 analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
-                match func with
-                | :? FunctionGroupSymbol as funcGroup ->
-                    acenv.cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
-                | _ ->
-                    ()
+
         else
             value.TypeArguments
             |> ImArray.iter (fun tyArg -> 
@@ -756,7 +752,7 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
         if not ty.IsNullable_ste && ty.IsSolved_ste then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        if not ty.IsStruct_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
+        if not ty.IsError_ste && not ty.IsStruct_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->

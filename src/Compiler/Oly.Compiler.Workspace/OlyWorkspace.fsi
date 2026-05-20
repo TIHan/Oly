@@ -129,8 +129,8 @@ type OlyBuild =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
-    default GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
+    default GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
@@ -182,7 +182,7 @@ type OlyProjectPropertyType =
     | String of propertyValues: ImmutableHashSet<string> option
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
-type OlyProjectPropertyDescription =
+type OlyProjectPropertyDefinition =
     {
         IsExecutableOnly: bool
         Type: OlyProjectPropertyType
@@ -192,6 +192,8 @@ type OlyProjectPropertyDescription =
 type OlyProjectProperties =
 
     member TryGetValue<'T>: propertyName: string -> 'T option
+
+    member Definitions: ImmutableDictionary<string, OlyProjectPropertyDefinition>
 
 [<Sealed>]
 type OlyProject =
@@ -238,8 +240,7 @@ type OlySolution =
 
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
 
-    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
-    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * properties: OlyProjectProperties option * ct: CancellationToken -> OlySolution * OlyProject
 
     member UpdateDocument : projectPath: OlyPath * documentPath: OlyPath * syntaxTree: OlySyntaxTree * extraDiagnostics: OlyDiagnostic imarray -> OlySolution * OlyProject * OlyDocument
 

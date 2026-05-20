@@ -49,7 +49,27 @@ module ERROR =
 
     let createUnableToFindConsoleAssembly () =
         OlyDiagnostic.CreateError("Unable to find console assembly.", DotNetDiagnostic.CodePrefixDOTNET, 502)
-    
+
+[<RequireQualifiedAccess>]
+module private P =
+
+    [<Literal>]
+    let publish = "publish"
+
+    [<RequireQualifiedAccess>]
+    module publishv =
+
+        [<Literal>]
+        let none = "none"
+
+        [<Literal>]
+        let standalone = "standalone"
+
+        [<Literal>]
+        let r2r = "r2r"
+
+        [<Literal>]
+        let aot = "aot"
 
 // this must be public for serialization to work
 [<Sealed;Serializable>]
@@ -187,10 +207,11 @@ module private DotNet =
         | Some(propertyValue: string) ->
             let publishKind =
                 match propertyValue with
-                | "standalone" -> MSBuildPublishKind.Standalone
-                | "r2r" -> MSBuildPublishKind.ReadyToRun
-                | "aot" -> MSBuildPublishKind.NativeAOT
-                | _ -> MSBuildPublishKind.JIT
+                | P.publishv.standalone -> MSBuildPublishKind.Standalone
+                | P.publishv.r2r -> MSBuildPublishKind.ReadyToRun
+                | P.publishv.aot -> MSBuildPublishKind.NativeAOT
+                | P.publishv.none -> MSBuildPublishKind.JIT
+                | _ -> failwith "Invalid 'publish' value."
             msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = publishKind }
         | _ ->
             ()
@@ -202,15 +223,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
 
     static let propertyDefinitions =
         seq {
-            KeyValuePair("publish",
+            KeyValuePair(P.publish,
                 { 
-                    OlyProjectPropertyDescription.IsExecutableOnly = true; 
-                    OlyProjectPropertyDescription.Type = 
+                    OlyProjectPropertyDefinition.IsExecutableOnly = true; 
+                    OlyProjectPropertyDefinition.Type = 
                         OlyProjectPropertyType.String(Some(
                             seq {
-                                "standalone"
-                                "r2r"
-                                "aot"
+                                P.publishv.none
+                                P.publishv.standalone
+                                P.publishv.r2r
+                                P.publishv.aot
                             }
                             |> ImmutableHashSet.CreateRange
                         ))
@@ -437,7 +459,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
-    override this.GetProjectPropertyDefinitions (_targetInfo: OlyTargetInfo): ImmutableDictionary<string,OlyProjectPropertyDescription> = 
+    override this.GetProjectPropertyDefinitions (_targetInfo: OlyTargetInfo): ImmutableDictionary<string,OlyProjectPropertyDefinition> = 
         propertyDefinitions
 
     [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]

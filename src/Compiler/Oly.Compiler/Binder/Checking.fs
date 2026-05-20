@@ -28,6 +28,13 @@ open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 open Oly.Compiler.Internal
 
+let reportAmbiguousFunctions benv (diags: OlyDiagnosticLogger) (funcGroup: FunctionGroupSymbol) syntaxNode =
+    let candidatesText =
+        funcGroup.Functions
+        |> ImArray.map (fun func -> printValue benv func)
+        |> String.concat "\n    "
+    diags.Error(sprintf "'%s' has ambiguous functions. Candidates:\n    %s" funcGroup.Name candidatesText, 10, syntaxNode)
+
 let checkSyntaxBindingDeclaration (cenv: cenv) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     if not valueExplicitness.IsExplicitLet && not syntaxBindingDecl.IsExplicitNew && not syntaxBindingDecl.IsExplicitGet && not syntaxBindingDecl.IsExplicitSet then
         if not syntaxBindingDecl.HasReturnTypeAnnotation && not cenv.syntaxTree.HasErrors then
@@ -638,27 +645,39 @@ let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (ex
             | :? OlySyntaxName as syntaxName -> Some syntaxName
             | _ -> None
 
-        match expectedTyOpt with
-        | Some _ ->
-            match value with
-            | :? FunctionGroupSymbol as funcGroup ->
-                match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt funcGroup.Functions with
-                | Some newExpr -> newExpr
-                | _ -> expr
-            | :? IFunctionSymbol as func ->
-                match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt (ImArray.createOne func) with
-                | Some expr -> expr
-                | _ -> expr
+        let expr =
+            match expectedTyOpt with
+            | Some _ ->
+                match value with
+                | :? FunctionGroupSymbol as funcGroup ->
+                    match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt funcGroup.Functions with
+                    | Some newExpr -> newExpr
+                    | _ -> expr
+                | :? IFunctionSymbol as func ->
+                    match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt (ImArray.createOne func) with
+                    | Some expr -> expr
+                    | _ -> expr
+                | _ ->
+                    expr
             | _ ->
-                expr
+                match value with
+                | :? IFunctionSymbol as func when not func.IsFunctionGroup ->
+                    match tryOverloadPartialCallExpression cenv env None syntaxInfo syntaxNameOpt (ImArray.createOne func) with
+                    | Some newExpr -> newExpr
+                    | _ -> expr
+                | _ ->
+                    expr
+        match expr with
+        | E.Lambda(body=lazyBodyExpr) when lazyBodyExpr.HasExpression ->
+            match lazyBodyExpr.Expression with
+            | E.Call(value=value) when value.IsFunctionGroup ->
+                let funcGroup = value :> obj :?> FunctionGroupSymbol
+                reportAmbiguousFunctions env.benv cenv.diagnostics funcGroup syntaxInfo.SyntaxNameOrDefault
+            | _ ->
+                ()
         | _ ->
-            match value with
-            | :? IFunctionSymbol as func when not func.IsFunctionGroup ->
-                match tryOverloadPartialCallExpression cenv env None syntaxInfo syntaxNameOpt (ImArray.createOne func) with
-                | Some newExpr -> newExpr
-                | _ -> expr
-            | _ ->
-                expr
+            ()
+        expr
     | _ ->
         unreached()
 
@@ -1267,6 +1286,9 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
 
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
         if value.IsFunctionGroup then
+            if tyChecking.IsEnabled then
+                let funcGroup = value :> obj :?> FunctionGroupSymbol
+                reportAmbiguousFunctions env.benv cenv.diagnostics funcGroup syntaxInfo.SyntaxNameOrDefault
             expr
         else
 

@@ -2,8 +2,9 @@
 
 open System
 open System.IO
-open System.Collections.Immutable
 open System.Threading
+open System.Collections.Immutable
+
 open Oly.Core
 open Oly.Core.IO
 

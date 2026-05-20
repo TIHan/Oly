@@ -192,7 +192,7 @@ type OlyBuild(platformName: string) =
 
     abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDescription>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
     default _.GetProjectPropertyDefinitions(_) = ImmutableDictionary.Empty
 
     abstract GetImplicitExtendsForStruct: unit -> string option
@@ -328,16 +328,16 @@ type OlyProjectPropertyType =
     | String of propertyValues: ImmutableHashSet<string> option
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
-type OlyProjectPropertyDescription =
+type OlyProjectPropertyDefinition =
     {
         IsExecutableOnly: bool
         Type: OlyProjectPropertyType
     }
 
 [<Sealed>]
-type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
+type OlyProjectProperties(propertyDefinitions: ImmutableDictionary<string, OlyProjectPropertyDefinition>, properties: ImmutableDictionary<string, obj>) =
 
-    static let empty = OlyProjectProperties(ImmutableDictionary.Empty)
+    static let empty = OlyProjectProperties(ImmutableDictionary.Empty, ImmutableDictionary.Empty)
     static member Empty = empty
 
     member _.TryGetValue<'T>(propertyName: string): 'T option =
@@ -352,7 +352,9 @@ type OlyProjectProperties(properties: ImmutableDictionary<string, obj>) =
                 | _ ->
                     None
         | _ ->
-            None   
+            None
+
+    member _.Definitions = propertyDefinitions
 
 [<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
@@ -366,7 +368,7 @@ type OlyProject (
     references: OlyProjectReference imarray,
     packages: OlyPackageInfo imarray,
     copyFileInfos: OlyCopyFileInfo imarray,
-    properties: OlyProjectProperties,
+    properties: OlyProjectProperties option,
     platformName: string, 
     targetInfo: OlyTargetInfo) =
 
@@ -396,7 +398,10 @@ type OlyProject (
     member _.Name = projName
     member _.Path = projPath
     member _.Configuration = targetInfo.ProjectConfiguration
-    member _.Properties = properties
+    member _.Properties =
+        match properties with
+        | Some properties -> properties
+        | _ -> OlyProjectProperties.Empty
     member _.Packages = packages
     member _.CopyFileInfos = copyFileInfos
 
@@ -696,7 +701,7 @@ module WorkspaceHelpers =
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
             (copyFiles: OlyCopyFileInfo imarray)
-            (properties: OlyProjectProperties)
+            (properties: OlyProjectProperties option)
             platformName 
             (targetInfo: OlyTargetInfo) =
 
@@ -752,7 +757,7 @@ module WorkspaceHelpers =
                     OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
                 )
 
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.Properties, project.PlatformName, project.TargetInfo)
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, Some project.Properties, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
@@ -846,7 +851,7 @@ type OlySolution (state: SolutionState) =
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, properties: OlyProjectProperties, ct: CancellationToken) =
+    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, properties: OlyProjectProperties option, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         let projectName = projectPath.GetFileNameWithoutExtension()
         let mutable newSolution = this
@@ -857,9 +862,6 @@ type OlySolution (state: SolutionState) =
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
-
-    member this.CreateProject(projectPath, platformName, targetInfo, ct: CancellationToken) =
-        this.CreateProject(projectPath, platformName, targetInfo, ImArray.empty, ImArray.empty, OlyProjectProperties.Empty, ct)
 
     member this.SetProject(projectPath: OlyPath, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
         let project = this.GetProject(projectPath)
@@ -1607,7 +1609,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             if isValid then
                 builder.Add(propertyName, propertyValue)
         )
-        OlyProjectProperties(builder.ToImmutable())
+        OlyProjectProperties(propertyDefinitions, builder.ToImmutable())
 
     static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
         backgroundTask {
@@ -1882,7 +1884,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 
-            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, properties, ct)
+            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, Some properties, ct)
 
             let loads = getSortedLoadsFromConfig rs absoluteDir config
 

@@ -2452,6 +2452,14 @@ M(): () =
             ^^^^
 """
             )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler<EventHandler, _, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
         ]
     |> ignore
 
@@ -2499,6 +2507,14 @@ M(): () =
                 """
             args -> args.Value
             ^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler<EventHandler, _, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -2553,6 +2569,14 @@ M(): () =
             ^^^^^^^^^^^^^^^
 """
             )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler<EventHandler, _, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
         ]
     |> ignore
 
@@ -2603,6 +2627,14 @@ M(): () =
                 """
             (_sender, args) -> args.Value
             ^^^^^^^^^^^^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler(
+        ^^^^^^^^^^^^^^^^^^
 """
             )
         ]

@@ -1066,7 +1066,6 @@ type OlyDocument with
 
     member this.GetDirectiveCompletions(position: int, ct: CancellationToken) =
         let syntaxTree = this.SyntaxTree
-        let build = this.Project.SharedBuild
 
         let tokenOpt = syntaxTree.GetRoot(ct).TryFindToken(position, ct=ct, skipTrivia = false)
 
@@ -1116,7 +1115,7 @@ type OlyDocument with
                 | DirectiveCompletionContext.PropertyName(insertRange) ->
                     let completions = ResizeArray<OlyCompletionItem>()
 
-                    let propertyDefinitions = build.GetProjectPropertyDefinitions(this.Project.TargetInfo)
+                    let propertyDefinitions = this.Project.Properties.Definitions
                     propertyDefinitions.Keys
                     |> Seq.iter (fun propertyName ->
                         let propertyName = "\"" + propertyName + "\""
@@ -1128,7 +1127,7 @@ type OlyDocument with
                 | DirectiveCompletionContext.PropertyValue(propertyName, insertRange) ->
                     let completions = ResizeArray<OlyCompletionItem>()
 
-                    let propertyDefinitions = build.GetProjectPropertyDefinitions(this.Project.TargetInfo)
+                    let propertyDefinitions = this.Project.Properties.Definitions
                     match propertyDefinitions.TryGetValue(propertyName) with
                     | true, propertyDesc ->
                         match propertyDesc.Type with

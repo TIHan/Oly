@@ -2,19 +2,14 @@
 
 open System
 open System.IO
-open System.Diagnostics
 open System.Reflection
 open System.Reflection.PortableExecutable
 open System.Reflection.Metadata
 open System.Collections.Generic
-open System.Collections.Concurrent
 open System.Collections.Immutable
 
 open Oly.Core
 open Oly.Metadata
-open Oly.Compiler
-open Oly.Compiler.Text
-open Oly.Compiler.Workspace
 
 [<AutoOpen>]
 module internal rec Helpers =

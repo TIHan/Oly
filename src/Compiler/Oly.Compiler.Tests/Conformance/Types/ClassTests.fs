@@ -294,7 +294,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64): ()"
     ]
     |> ignore
 
@@ -310,7 +312,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64): ()"
     ]
     |> ignore
 
@@ -326,7 +330,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64, y: __oly_float64): ()"
     ]
     |> ignore
 
@@ -342,7 +348,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(): ()
+    static test(x: __oly_float64, y: __oly_float64): ()"
     ]
     |> ignore
 

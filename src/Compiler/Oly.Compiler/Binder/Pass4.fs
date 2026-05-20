@@ -614,12 +614,6 @@ let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment
     let _, rhsBodyExpr = bindLocalExpression cenv envBody expectedRhsTyOpt syntaxRhs syntaxRhs
 
     let rhsBodyExpr =
-        if func.IsLocal then
-            checkExpression cenv env expectedRhsTyOpt rhsBodyExpr
-        else
-            rhsBodyExpr
-
-    let rhsBodyExpr =
         E.CreateGeneratedSequential(
             // for debugging
             E.None(BoundSyntaxInfo.User(syntaxStartToken, env.benv)),

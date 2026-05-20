@@ -1958,58 +1958,28 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     let documentPath = request.TextDocument.Uri.Path |> normalizeFilePath
                     let workspace = getWorkspace()
 
-                    let staleCompletions() =
+                    match textManager.TryGet(documentPath) with
+                    | None -> return CompletionList()
+                    | Some(sourceText) ->
+
+                    let staleCompletions (sourceText: IOlySourceText) =
                         let staleSolution = workspace.StaleSolution
                         let staleDocs = staleSolution.GetDocuments(documentPath)
                         if staleDocs.IsEmpty then
                             ImArray.empty
                         else
-                            match textManager.TryGet(documentPath) with
-                            | None -> ImArray.empty
-                            | Some(sourceText) ->
-                                let staleDoc = staleDocs[0]
-                                let (_, _, staleDoc) = 
-                                    staleSolution.UpdateDocument(
-                                        staleDoc.Project.Path, 
-                                        staleDoc.Path, 
-                                        OlySyntaxTree.Parse(
-                                            staleDoc.SyntaxTree.Path, 
-                                            sourceText,
-                                            staleDoc.SyntaxTree.ParsingOptions),
-                                        ImArray.empty
-                                    )
-                                staleDoc.GetDirectiveCompletions(request.Position.Line, request.Position.Character, ct)
-                                |> Seq.distinctBy (fun x -> x.Label)
-                                |> Seq.map (fun x ->
-                                    ct.ThrowIfCancellationRequested()
-                                    let kind = x.ClassificationKind.ToLspCompletionItemKind()
-
-                                    let textEdit =
-                                        TextEdit(
-                                            NewText = x.InsertText,
-                                            Range = x.InsertRange.ToLspRange()
-                                        )
-
-                                    CompletionItem(Label = x.Label, Detail = x.Detail, Kind = kind, TextEdit = textEdit)
+                            let staleDoc = staleDocs[0]
+                            let (_, _, staleDoc) = 
+                                staleSolution.UpdateDocument(
+                                    staleDoc.Project.Path, 
+                                    staleDoc.Path, 
+                                    OlySyntaxTree.Parse(
+                                        staleDoc.SyntaxTree.Path, 
+                                        sourceText,
+                                        staleDoc.SyntaxTree.ParsingOptions),
+                                    ImArray.empty
                                 )
-                                |> ImArray.ofSeq
-
-                    let staleCompletionItems = staleCompletions()
-                    if not staleCompletionItems.IsEmpty then
-                        return CompletionList(staleCompletionItems)
-                    else
-
-                    if request.Context.TriggerCharacter = "\"" then
-                        return null
-                    else
-
-                    let! docs = workspace.GetDocumentsAsync(documentPath, ct)
-                    if docs.IsEmpty then
-                        return null
-                    else
-                        let doc = docs[0]
-                        let items =
-                            doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
+                            staleDoc.GetDirectiveCompletions(request.Position.Line, request.Position.Character, ct)
                             |> Seq.distinctBy (fun x -> x.Label)
                             |> Seq.map (fun x ->
                                 ct.ThrowIfCancellationRequested()
@@ -2024,7 +1994,51 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                 CompletionItem(Label = x.Label, Detail = x.Detail, Kind = kind, TextEdit = textEdit)
                             )
                             |> ImArray.ofSeq
-                        return CompletionList(items)
+
+                    let staleCompletionItems = backgroundTask { return staleCompletions sourceText }
+                    if request.Context.TriggerCharacter = "\"" then
+                        let! staleCompletionItems = staleCompletionItems
+                        return CompletionList(staleCompletionItems)
+                    else
+
+                        let completions () = backgroundTask {
+                            let! docs = workspace.GetDocumentsAsync(documentPath, ct)
+                            if docs.IsEmpty then
+                                return ImArray.empty
+                            else
+                                let doc = docs[0]
+                                return
+                                    doc.GetCompletions(request.Position.Line, request.Position.Character, ct)
+                                    |> Seq.distinctBy (fun x -> x.Label)
+                                    |> Seq.map (fun x ->
+                                        ct.ThrowIfCancellationRequested()
+                                        let kind = x.ClassificationKind.ToLspCompletionItemKind()
+
+                                        let textEdit =
+                                            TextEdit(
+                                                NewText = x.InsertText,
+                                                Range = x.InsertRange.ToLspRange()
+                                            )
+
+                                        CompletionItem(Label = x.Label, Detail = x.Detail, Kind = kind, TextEdit = textEdit)
+                                    )
+                                    |> ImArray.ofSeq
+                        }
+
+                        let typedTasks = [|staleCompletionItems;(completions())|]
+                        let tasks = typedTasks |> Array.map (fun x -> x: Task)
+                        let index = Task.WaitAny(tasks, ct)
+
+                        if index = 0 then
+                            let staleItems = typedTasks[0].Result
+                            if staleItems.IsEmpty then
+                                let! items = typedTasks[1]
+                                return CompletionList(items)
+                            else
+                                return CompletionList(staleItems)
+                        else
+                            let! items = typedTasks[1]
+                            return CompletionList(items)
                 with
                 | _ ->
                     return null
@@ -2086,6 +2100,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     server.ClearDiagnostics(Protocol.DocumentUri.From(proj.Path.ToString()))
                     match! workspace.BuildProjectAsync(proj.Path, ct) with
                     | Some(Ok prog) -> 
+                        async {
+                            // Wait 500ms before performing a full-gc
+                            do! Async.Sleep 500
+                            System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+                            System.GC.Collect(2, System.GCCollectionMode.Forced, true, true)
+                            System.GC.WaitForPendingFinalizers()
+                        } |> Async.Start
+
                         return { resultPath = prog.Path.ToString(); error = null }
                     | Some(Error error) -> 
                         let diags =
@@ -2103,6 +2125,14 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                             server.PublishDiagnostics(Protocol.DocumentUri.From(docPath.ToString()), Nullable(), diags)
                         )
 
+                        async {
+                            // Wait 500ms before performing a full-gc
+                            do! Async.Sleep 500
+                            System.Runtime.GCSettings.LargeObjectHeapCompactionMode <- System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+                            System.GC.Collect(2, System.GCCollectionMode.Forced, true, true)
+                            System.GC.WaitForPendingFinalizers()
+                        } |> Async.Start
+
                         return { resultPath = null; error = OlyDiagnostic.PrepareForOutput(error, ct) }
                     | None ->
                         return { resultPath = null; error = null }
@@ -2110,10 +2140,79 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     return { resultPath = null; error = "Active project not set" }
             }
 
-    interface ISemanticTokensFullHandler with
+    static member private GetSemanticTokens(range: Range option, doc: OlyDocument, ct: CancellationToken) = backgroundTask {
+        let classify line column width tokenType _tokenModifiers (semanticTokens: ResizeArray<LspSemanticToken>) : unit =
+            semanticTokens.Add(
+                { 
+                    DeltaLine = line
+                    DeltaStartChar = column
+                    Length = width
+                    TokenType = encodeTokenType tokenType
+                    TokenModifiers = 0
+                }
+            )
+
+        let semanticTokens = ResizeArray()
+
+        let range =
+            match range with
+            | Some range -> range.ToOlyTextRange()
+            | _ ->
+                let syntaxTree = doc.SyntaxTree
+                syntaxTree.GetRoot(ct).GetFullTextRange(ct)
+
+        doc.GetSemanticClassifications(range, ct)
+        |> ImArray.iter (fun item ->
+            let tokenType = item.Kind.ToLspClassificationKind()
+            let tokenModifiers = item.Kind.ToLspClassificationModifiers()
+            classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers semanticTokens
+        )
+
+        // TODO: We should do this in GetSemanticClassifications
+        let syntaxTree = doc.SyntaxTree
+        let sourceText = doc.GetSourceText(ct)
+        let lines = sourceText.Lines
+        match syntaxTree.TryFindNode(range, ct) with
+        | Some node ->
+            node.GetDescendantTokens(false, (fun x -> x.IsConditionalDirective), ct)
+            |> ImArray.iter (fun x ->
+                let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
+                let endLine = lines.GetLineFromPosition(x.TextSpan.End)
+                for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
+                    let line = lines[lineIndex]
+                    let textRange = sourceText.GetTextRange(line.Span)
+                    classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty semanticTokens
+            )
+        | _ ->
+            ()
+
+        // Fixup semantic tokens for encoding
+        let mutable prevLine = 0
+        let mutable prevStartChar = 0
+        let semanticTokenData = ImArray.builder()
+        semanticTokens
+        |> Seq.sortBy (fun x -> x.DeltaStartChar)
+        |> Seq.sortBy (fun x -> x.DeltaLine)
+        |> Seq.iter (fun semanticToken ->
+            if prevLine <> semanticToken.DeltaLine then
+                prevStartChar <- 0
+
+            semanticTokenData.Add(semanticToken.DeltaLine - prevLine)
+            semanticTokenData.Add(semanticToken.DeltaStartChar - prevStartChar)
+            semanticTokenData.Add(semanticToken.Length)
+            semanticTokenData.Add(semanticToken.TokenType)
+            semanticTokenData.Add(semanticToken.TokenModifiers)
+
+            prevLine <- semanticToken.DeltaLine
+            prevStartChar <- semanticToken.DeltaStartChar
+        )
+
+        return SemanticTokens(ResultId = null, Data = semanticTokenData.ToImmutable())
+    }
+
+    interface Protocol.IRegistration<SemanticTokensRegistrationOptions, SemanticTokensCapability> with
 
         member this.GetRegistrationOptions(capability: SemanticTokensCapability, clientCapabilities: ClientCapabilities): SemanticTokensRegistrationOptions =
-
                 let tokenTypes =
                     tokenTypes
                     |> Seq.map SemanticTokenType
@@ -2124,7 +2223,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
 
                 let options = SemanticTokensRegistrationOptions()
                 options.Full <- true
-                options.Range <- false
+                options.Range <- true
                 options.Id <- null
                 options.DocumentSelector <- documentSelector
                 options.WorkDoneProgress <- false
@@ -2132,78 +2231,21 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                     SemanticTokensLegend(TokenTypes = Container(tokenTypes), TokenModifiers = Container(tokenModifiers))
                 options
 
-        member _.Handle(request: SemanticTokensParams, ct): Task<SemanticTokens> =
+    interface ISemanticTokensRangeHandler with
+        member _.Handle(request: SemanticTokensRangeParams, ct): Task<SemanticTokens> =
             request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun doc ct ->
                 backgroundTask {
-                    let classify line column width tokenType _tokenModifiers (semanticTokens: ResizeArray<LspSemanticToken>) : unit =
-                        semanticTokens.Add(
-                            { 
-                                DeltaLine = line
-                                DeltaStartChar = column
-                                Length = width
-                                TokenType = encodeTokenType tokenType
-                                TokenModifiers = 0
-                            }
-                        )
-
-                    let semanticTokens = ResizeArray()
-
-                    let range = 
-                        let syntaxTree = doc.SyntaxTree
-                        syntaxTree.GetRoot(ct).GetFullTextRange(ct)
-
-                    doc.GetSemanticClassifications(range, ct)
-                    |> ImArray.iter (fun item ->
-                        let tokenType = item.Kind.ToLspClassificationKind()
-                        let tokenModifiers = item.Kind.ToLspClassificationModifiers()
-                        classify item.Start.Line item.Start.Column item.Width tokenType tokenModifiers semanticTokens
-                    )
-
-                    // TODO: We should do this in GetSemanticClassifications
-                    let syntaxTree = doc.SyntaxTree
-                    let sourceText = doc.GetSourceText(ct)
-                    let lines = sourceText.Lines
-                    match syntaxTree.TryFindNode(range, ct) with
-                    | Some node ->
-                        node.GetDescendantTokens(false, (fun x -> x.IsConditionalDirective), ct)
-                        |> ImArray.iter (fun x ->
-                            let startLine = lines.GetLineFromPosition(x.TextSpan.Start)
-                            let endLine = lines.GetLineFromPosition(x.TextSpan.End)
-                            for lineIndex = startLine.Index + 1 to endLine.Index - 1 do
-                                let line = lines[lineIndex]
-                                let textRange = sourceText.GetTextRange(line.Span)
-                                classify textRange.Start.Line textRange.Start.Column line.Span.Width "conditionalDirectiveBody" Array.empty semanticTokens
-                        )
-                    | _ ->
-                        ()
-
-                    // Fixup semantic tokens for encoding
-                    let mutable prevLine = 0
-                    let mutable prevStartChar = 0
-                    let semanticTokenData = ImArray.builder()
-                    semanticTokens
-                    |> Seq.sortBy (fun x -> x.DeltaStartChar)
-                    |> Seq.sortBy (fun x -> x.DeltaLine)
-                    |> Seq.iter (fun semanticToken ->
-                        if prevLine <> semanticToken.DeltaLine then
-                            prevStartChar <- 0
-
-                        semanticTokenData.Add(semanticToken.DeltaLine - prevLine)
-                        semanticTokenData.Add(semanticToken.DeltaStartChar - prevStartChar)
-                        semanticTokenData.Add(semanticToken.Length)
-                        semanticTokenData.Add(semanticToken.TokenType)
-                        semanticTokenData.Add(semanticToken.TokenModifiers)
-
-                        prevLine <- semanticToken.DeltaLine
-                        prevStartChar <- semanticToken.DeltaStartChar
-                    )
-
-                    return SemanticTokens(ResultId = null, Data = semanticTokenData.ToImmutable())
+                    return! TextDocumentSyncHandler.GetSemanticTokens(Some request.Range, doc, ct)
                 }
             )
 
-
-        
+    interface ISemanticTokensFullHandler with
+        member _.Handle(request: SemanticTokensParams, ct): Task<SemanticTokens> =
+            request.HandleOlyDocument(progress, textManager, ct, getCts, getWorkspace(), fun doc ct ->
+                backgroundTask {
+                    return! TextDocumentSyncHandler.GetSemanticTokens(None, doc, ct)
+                }
+            )        
 
     interface IJsonRpcRequestHandler<OlyGetIRRequest, string> with
 
