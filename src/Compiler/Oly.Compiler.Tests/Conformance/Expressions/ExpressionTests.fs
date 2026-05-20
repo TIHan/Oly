@@ -1621,7 +1621,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(y: __oly_float32): ()"
     ]
     |> ignore
 
@@ -8992,7 +8994,9 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("'GetSomething' has ambiguous functions.",
+            ("'GetSomething' has ambiguous functions. Candidates:
+    GetSomething(x: int32): ()
+    GetSomething(x: int32, y: int32): ()",
                 """
     c.GetSomething()
       ^^^^^^^^^^^^

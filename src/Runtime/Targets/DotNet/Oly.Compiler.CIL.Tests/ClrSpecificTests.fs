@@ -8594,7 +8594,9 @@ main(): () =
         [
             // TODO: Honestly, this shouldn't even report ambiguous functions.
             //       It should actually say that there is no valid overload.
-            ("'__oly_ctor' has ambiguous functions.",
+            ("'Span' has ambiguous functions. Candidates:
+    new(array: mutable T[]): Span<T>
+    new(reference: __oly_by_ref<T>): Span<T>",
                 """
         Span(this.A).Clear()
         ^^^^

@@ -295,10 +295,11 @@ and private printEntityConstructorAux (benv: BoundEnvironment) (ent: EntitySymbo
     ent.Name
 
 and printValueName (value: IValueSymbol) =
-    if value.IsConstructor then
+    let name = value.Name
+    if name = Oly.Metadata.OlySpecialNames.Constructor || name = Oly.Metadata.OlySpecialNames.StaticConstructor then
         value.Enclosing.AsEntity.Name
     else
-        value.Name
+        name
 
 and printEntityConstructor benv ent =
     printEntityConstructorAux benv ent

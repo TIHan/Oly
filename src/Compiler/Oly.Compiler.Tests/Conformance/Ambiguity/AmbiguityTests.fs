@@ -574,13 +574,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("Type parameter '?T' was unable to be inferred.",
-            """
-    test(None())
-         ^^^^
-"""
-        )
-        ("'test' has ambiguous functions.",
+        ("'test' has ambiguous functions. Candidates:
+    static test(option: Option<int32>): ()
+    static test(option: Option<Option<int32>>): ()",
             """
     test(None())
     ^^^^
@@ -700,10 +696,12 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Some' has ambiguous functions.",
+        ("'Some' has ambiguous functions. Candidates:
+    pattern Some<T>(value: Option<T>): __oly_bool
+    pattern Some<T>(value: Option<T>): T",
             """
     | Some(x) => ()
-      ^^^^^^^
+      ^^^^
 """
         )
     ]
@@ -1067,7 +1065,9 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
+        ("'op_Multiply' has ambiguous functions. Candidates:
+    static op_Multiply(x: Matrix, y: Vector3): Matrix
+    static op_Multiply(x: Vector3, y: Matrix): Vector3",
             """
     let f(x, y) = op_Multiply(x, y)
                   ^^^^^^^^^^^
@@ -1103,13 +1103,10 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
-            """
-    let f(x, y) = multiply<_, _, _, object>(x, y)
-                                    ^^^^^^
-"""
-        )
-        ("'op_Multiply' has ambiguous functions.",
+        ("Solving shape function 'static op_Multiply(T1, T2): T3' has ambiguity from witnesses:
+    extension Ops = 
+        static op_Multiply(x: Matrix, y: Vector3): Matrix
+        static op_Multiply(x: Vector3, y: Matrix): Vector3",
             """
     let f(x, y) = multiply<_, _, _, object>(x, y)
                                     ^^^^^^
@@ -1149,13 +1146,9 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
-            """
-    let f(x, y) = multiply<_, _, _, object>(x, y)
-                                    ^^^^^^
-"""
-        )
-        ("'op_Multiply' has ambiguous functions.",
+        ("Solving shape function 'static op_Multiply(T1, T2): T3' has ambiguity from witnesses:
+    extension Ops
+    extension Ops2",
             """
     let f(x, y) = multiply<_, _, _, object>(x, y)
                                     ^^^^^^
@@ -1422,7 +1415,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(x: T): ()
+    Test(x: U): ()",
             """
     t.Test(123)
       ^^^^
@@ -1515,7 +1510,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(): ()
+    Test(): ()",
             """
     a.Test()
       ^^^^
@@ -1550,7 +1547,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1586,7 +1585,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(): ()
+    Test(): ()",
             """
     a.Test()
       ^^^^
@@ -1624,7 +1625,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1662,7 +1665,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1700,7 +1705,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -2200,7 +2207,9 @@ main(): () =
 
     OlyThree src1 src2 src3
     |> withErrorHelperTextDiagnostics [
-        ("'TestM' has ambiguous functions.",
+        ("'TestM' has ambiguous functions. Candidates:
+    static TestM(): ()
+    static TestM(): ()",
             """
     TestM()
     ^^^^^
@@ -2453,11 +2462,11 @@ M(): () =
 """
             )
             ("'CreateEventHandler' has ambiguous functions. Candidates:
-    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
-    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+    static CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs>
+    static CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs>",
                 """
-        CreateEventHandler<EventHandler, _, _>(
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        CreateEventHandler<A, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -2510,11 +2519,11 @@ M(): () =
 """
             )
             ("'CreateEventHandler' has ambiguous functions. Candidates:
-    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
-    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+    static CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs>
+    static CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs>",
                 """
-        CreateEventHandler<EventHandler, _, _>(
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        CreateEventHandler(
+        ^^^^^^^^^^^^^^^^^^
 """
             )
         ]

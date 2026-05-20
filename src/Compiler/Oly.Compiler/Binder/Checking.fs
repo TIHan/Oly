@@ -28,13 +28,6 @@ open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 open Oly.Compiler.Internal
 
-let reportAmbiguousFunctions benv (diags: OlyDiagnosticLogger) (funcGroup: FunctionGroupSymbol) syntaxNode =
-    let candidatesText =
-        funcGroup.Functions
-        |> ImArray.map (fun func -> printValue benv func)
-        |> String.concat "\n    "
-    diags.Error(sprintf "'%s' has ambiguous functions. Candidates:\n    %s" funcGroup.Name candidatesText, 10, syntaxNode)
-
 let checkSyntaxBindingDeclaration (cenv: cenv) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     if not valueExplicitness.IsExplicitLet && not syntaxBindingDecl.IsExplicitNew && not syntaxBindingDecl.IsExplicitGet && not syntaxBindingDecl.IsExplicitSet then
         if not syntaxBindingDecl.HasReturnTypeAnnotation && not cenv.syntaxTree.HasErrors then
@@ -672,7 +665,7 @@ let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (ex
             match lazyBodyExpr.Expression with
             | E.Call(value=value) when value.IsFunctionGroup ->
                 let funcGroup = value :> obj :?> FunctionGroupSymbol
-                reportAmbiguousFunctions env.benv cenv.diagnostics funcGroup syntaxInfo.SyntaxNameOrDefault
+                cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
             | _ ->
                 ()
         | _ ->
@@ -1288,7 +1281,7 @@ let checkArgumentsOfCallLikeExpression cenv (env: BinderEnvironment) (tyChecking
         if value.IsFunctionGroup then
             if tyChecking.IsEnabled then
                 let funcGroup = value :> obj :?> FunctionGroupSymbol
-                reportAmbiguousFunctions env.benv cenv.diagnostics funcGroup syntaxInfo.SyntaxNameOrDefault
+                cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
             expr
         else
 

@@ -9,7 +9,6 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTreeExtensions
-open Oly.Compiler.Internal.SemanticDiagnostics
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 
@@ -45,7 +44,7 @@ type WitnessSolver =
     
 type ConstraintSolverError =
     | GeneralFailure
-    | ShapeMembers_AmbiguousFunctions of abstractFunc: IFunctionSymbol
+    | ShapeMembers_AmbiguousFunctions of abstractFunc: IFunctionSymbol * candidates: IFunctionSymbol imarray
 
 let private solveTypesNoError expectedTy (ty: TypeSymbol) =
     UnifyTypes Flexible expectedTy ty
@@ -174,7 +173,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                             env.diagnostics.Error($"Shape member '{printValue env.benv formalAbstractFunc}' does not exist on '{printType env.benv principalTyArg}'.", 10, syntaxNode)
                 elif funcs.Length > 1 then
                     if err.IsNone then
-                        err <- Some(ShapeMembers_AmbiguousFunctions(abstractFunc))                
+                        err <- Some(ShapeMembers_AmbiguousFunctions(abstractFunc, funcs))                
             )
             match err with
             | Some(err) ->
@@ -526,10 +525,9 @@ let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyAr
             if not isAttempt then
                 Error_MissingConstraint(env.benv, syntaxNode, tyArg, constr)
                 |> env.diagnostics.Report
-        | Error(ShapeMembers_AmbiguousFunctions(abstractFunc)) ->
+        | Error(ShapeMembers_AmbiguousFunctions(abstractFunc, candidates)) ->
             if not isAttempt then
-                // TODO: Better error
-                env.diagnostics.Error($"'{printValueName abstractFunc}' has ambiguous functions.", 10, syntaxNode)
+                env.diagnostics.Report(Error_ShapeFunctionAmbiguousWitnesses(env.benv, syntaxNode, abstractFunc, candidates))
         | _ ->
             verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode isAttempt (constr, tyArg)
     )

@@ -798,10 +798,26 @@ main(): () =
         ^^^^
 """
             )
+            ("'[]' has ambiguous functions. Candidates:
+    ([])<T>(T[], index: int32): T
+    ([])<T>(mutable T[], index: int32): T",
+                """
+    if (Data[0].Value == Data[0])
+        ^^^^^^^^^^^^^
+"""
+            )
             ("Identifier 'Data' not found in scope.",
                 """
     if (Data[0].Value == Data[0])
                          ^^^^
+"""
+            )
+            ("'[]' has ambiguous functions. Candidates:
+    ([])<T>(T[], index: int32): T
+    ([])<T>(mutable T[], index: int32): T",
+                """
+    if (Data[0].Value == Data[0])
+                         ^^^^^^^
 """
             )
         ]
