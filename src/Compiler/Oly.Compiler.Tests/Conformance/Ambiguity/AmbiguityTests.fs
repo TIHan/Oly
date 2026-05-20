@@ -2650,6 +2650,54 @@ M(): () =
     |> ignore
 
 [<Fact>]
+let ``Should error for the lambda when solving the constraint shape 3``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result =
+        CreateEventHandler(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Member 'Value' does not exist on type '?'.",
+                """
+            (_sender, args) -> args.Value
+                                    ^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
 let ``Regression - inference chose incorrect subtraction for overload``() =
     let src =
         """
