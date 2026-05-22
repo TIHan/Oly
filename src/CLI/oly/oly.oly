@@ -88,7 +88,7 @@ class BuildCommand =
         OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
         OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
-        
+
         let mutable projectPath = OlyPath.Create(settings.ProjectFile)
         let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result.Value
         if (results.IsOk)
@@ -156,39 +156,53 @@ class CleanCommand =
         olylib.Oly.Clean(Environment.CurrentDirectory)
         0
 
-#[export]
-class InstallCommand =
-    inherits Command<Settings>
+private module Helpers =
 
-    private module Helpers =
-        InstallCore(exePath: string, olyInstallPath: string): () =
-            try
-                let _ = Directory.CreateDirectory(olyInstallPath)
-            catch (_ex: Exception) => ()
+    GetScriptPath(olyInstallPath: string): string =
+        if (OperatingSystem.IsWindows())
+            Path.Combine(olyInstallPath.ToString(), "oly.bat")
+        else
+            Path.Combine(olyInstallPath.ToString(), "oly.sh")
 
-            let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
-            if (Directory.Exists(olyInstallBinPath))
-                let options = EnumerationOptions()
-                options.RecurseSubdirectories <- true
-                ForEach(Directory.EnumerateFiles(olyInstallBinPath, "*.*", options),
-                    file ->
-                        let mutable file = OlyPath.Create(file)
-                        try
-                            let stream = FileStream(file.ToString(), FileMode.Open, FileAccess.Read, FileShare.None)
-                            stream.Dispose()
-                        catch (ex: Exception) =>
-                            fail("File '" + file.ToString() + "' is in use.")
-                )
-                Directory.Delete(olyInstallBinPath, true)
+    GetUninstallScriptPath(olyInstallPath: string): string =
+        if (OperatingSystem.IsWindows())
+            Path.Combine(olyInstallPath.ToString(), "oly-uninstall.bat")
+        else
+            Path.Combine(olyInstallPath.ToString(), "oly-uninstall.sh")
 
-            ForEach(Directory.EnumerateFiles(olyInstallPath),
-                file -> File.Delete(file)
+    InstallCore(exePath: string, olyInstallPath: string): () =
+        try
+            let _ = Directory.CreateDirectory(olyInstallPath)
+        catch (_ex: Exception) => ()
+
+        let olyInstallBinPath = Path.Combine(olyInstallPath, "bin")
+        if (Directory.Exists(olyInstallBinPath))
+            let options = EnumerationOptions()
+            options.RecurseSubdirectories <- true
+            ForEach(Directory.EnumerateFiles(olyInstallBinPath, "*.*", options),
+                file ->
+                    let mutable file = OlyPath.Create(file)
+                    try
+                        let stream = FileStream(file.ToString(), FileMode.Open, FileAccess.Read, FileShare.None)
+                        stream.Dispose()
+                    catch (ex: Exception) =>
+                        fail("File '" + file.ToString() + "' is in use.")
             )
+            Directory.Delete(olyInstallBinPath, true)
 
-            let _ = Directory.CreateDirectory(olyInstallBinPath)
-            OlyIO.CopyDirectory(exePath, olyInstallBinPath)
+        ForEach(Directory.EnumerateFiles(olyInstallPath),
+            file -> File.Delete(file)
+        )
 
-            let paths = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)
+        let _ = Directory.CreateDirectory(olyInstallBinPath)
+        OlyIO.CopyDirectory(exePath, olyInstallBinPath)
+
+        if (OperatingSystem.IsWindows())
+            let envVarTarget = EnvironmentVariableTarget.User
+            let paths = Environment.GetEnvironmentVariable("PATH", envVarTarget)
+            if (paths === unchecked default)
+                fail("PATH not found.")
+
             let paths = paths.Split(mutable [';'])
 
             let mutable exists = false
@@ -202,24 +216,64 @@ class InstallCommand =
 
             if (!exists)
                 let paths = String.Join(';', paths) + ";" + (olyInstallPath.ToString())
-                Environment.SetEnvironmentVariable("PATH", paths, EnvironmentVariableTarget.User)
+                Environment.SetEnvironmentVariable("PATH", paths, envVarTarget)
                 let _ = OlyTrace.LogWarning.Invoke("PATH modified\n")
 
-            if (System.OperatingSystem.IsWindows())
-                let bat = "@\"%~dp0\\bin\\oly.exe\" %*"
-                File.WriteAllText(Path.Combine(olyInstallPath.ToString(), "oly.bat"), bat)
+            let bat = "@\"%~dp0\\bin\\oly.exe\" %*"
+            File.WriteAllText(Helpers.GetScriptPath(olyInstallPath.ToString()), bat)
 
-        Install(exePath: string, olyInstallPath: string): () =
-            AnsiConsole.Status()
-                .Start("Installing Oly...",
-                    ctx ->
-                        Thread.Sleep(1000)
-                        try
-                            InstallCore(exePath, olyInstallPath)
-                            AnsiConsole.MarkupLine("[green]Oly Installed[/]")
-                        catch (ex: Exception) =>
-                            fail("Failed to install Oly. Reason: " + ex.Message)
-                )
+        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+            let shellConfigPath =
+                if (OperatingSystem.IsMacOS())
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".zshrc"
+                    )
+                else
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".bashrc"
+                    )
+
+            let exportTxt = "\nexport PATH=\"$PATH:" + olyInstallBinPath.ToString() + "\""
+            let txt = File.ReadAllText(shellConfigPath)
+
+            if (!txt.Contains(exportTxt))
+                File.WriteAllText(shellConfigPath, txt + exportTxt)
+                let _ = OlyTrace.LogWarning.Invoke(shellConfigPath + " modified\n")
+
+            let shell = "SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\n.$SCRIPT_DIR/bin/oly \"$@\" "
+            File.WriteAllText(Helpers.GetScriptPath(olyInstallPath), shell)
+
+            let uninstallShell = "SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)
+read -p \"Uninstall Oly? (y/n): \" yn
+
+case $yn in
+    [Yy]* ) echo \"Uninstalling Oly...\";; rm -rf $SCRIPT_DIR/bin/;; rm $SCRIPT_DIR/oly.sh;; rm $SCRIPT_DIR/oly-uninstall.sh;;
+    [Nn]* ) exit;;
+    * ) echo \"Please answer yes or no.\";;
+esac
+            "
+            File.WriteAllText(Helpers.GetUninstallScriptPath(olyInstallPath), uninstallShell)
+
+        else
+            throw NotSupportedException(Environment.OSVersion.VersionString + " not supported.")
+
+    Install(exePath: string, olyInstallPath: string): () =
+        AnsiConsole.Status()
+            .Start("Installing Oly...",
+                ctx ->
+                    Thread.Sleep(1000)
+                    try
+                        InstallCore(exePath, olyInstallPath)
+                        AnsiConsole.MarkupLine("[bold green]Oly installed[/]: " + olyInstallPath)
+                    catch (ex: Exception) =>
+                        fail("Failed to install Oly. Reason: " + ex.Message)
+            )
+
+#[export]
+class InstallCommand =
+    inherits Command<Settings>
 
     class Settings =
         inherits CommandSettings
@@ -232,16 +286,14 @@ class InstallCommand =
         OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
         OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
-        
-        try
-            if (!OperatingSystem.IsWindows())
-                throw NotSupportedException(Environment.OSVersion.VersionString)
 
+        try
             let exePath = Path.GetDirectoryName(Environment.ProcessPath)
             let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
             let olyInstallPath = Path.Combine(userPath, ".oly_install/").Replace('\\', '/')
+            let olyScriptPath = Helpers.GetScriptPath(olyInstallPath)
 
-            if (Directory.Exists(olyInstallPath))
+            if (File.Exists(olyScriptPath))
                 if (AnsiConsole.Confirm("Oly already installed. Re-install?", false))
                     Helpers.Install(exePath, olyInstallPath)
 
@@ -255,7 +307,7 @@ class InstallCommand =
 
 private module LspHelpers =
 
-    CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H 
+    CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H
             where H: { new(object, nint); Invoke(object, TArgs): TReturn } =
         let handle: Func<object, TArgs, TReturn> = Unsafe.As(f)
         H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
