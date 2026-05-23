@@ -2680,6 +2680,9 @@ let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFl
 
 // Invalid Symbols ----------------------------------------------------
 
+let invalidAssembly =
+    AssemblySymbol.IL(Oly.Metadata.OlyILAssemblyIdentity("__oly_invalid", "__oly_invalid"))
+
 let invalidModule () =
     let id = newId()
     { new IModuleSymbol() with
@@ -2693,7 +2696,7 @@ let invalidModule () =
         member _.Patterns = ImArray.empty
         member _.TypeParameters = ImArray.empty
         member _.TypeArguments = ImArray.empty
-        member _.ContainingAssembly = None
+        member _.ContainingAssembly = invalidAssembly
         member this.Formal = this
         member _.Implements = ImArray.empty
         member _.Extends = ImArray.empty
@@ -2823,7 +2826,7 @@ let invalidEntityWithEnclosing enclosing =
         member _.FormalId = newId()
         member _.Enclosing = enclosing
         member _.Name = ""
-        member _.ContainingAssembly = None
+        member _.ContainingAssembly = invalidAssembly
         member _.TypeParameters = enclosing.TypeParameters
         member _.Extends = ImArray.empty
         member _.InstanceConstructors = ImArray.empty
@@ -2847,7 +2850,7 @@ let invalidNamespaceWithEnclosing (enclosing: EnclosingSymbol) =
         member _.FormalId = newId()
         member _.Enclosing = enclosing
         member _.Name = ""
-        member _.ContainingAssembly = None
+        member _.ContainingAssembly = invalidAssembly
         member _.TypeParameters = ImArray.empty
         member _.Extends = ImArray.empty
         member _.Functions = ImArray.empty

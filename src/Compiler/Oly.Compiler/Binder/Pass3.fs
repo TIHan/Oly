@@ -130,28 +130,22 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
                     cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending.", 10, syntaxNode)
 
                 let check (asm: AssemblySymbol) (extendsEnt: EntitySymbol) =
-                    match extendsEnt.ContainingAssembly with
-                    | Some asm2 ->
-                        if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
-                            report()
-                    | _ ->
+                    let asm2 = extendsEnt.ContainingAssembly
+                    if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
                         report()
 
-                match ent.ContainingAssembly with
-                | Some asm ->
-                    let extendsTy = ent.Extends[0]
-                    match extendsTy.TryEntity with
-                    | ValueSome extendsEnt -> 
-                        if extendsEnt.IsCompilerIntrinsic then
+                let asm = ent.ContainingAssembly
+                let extendsTy = ent.Extends[0]
+                match extendsTy.TryEntity with
+                | ValueSome extendsEnt -> 
+                    if extendsEnt.IsCompilerIntrinsic then
+                        check asm extendsEnt
+                    else
+                        match extendsTy.TryEntityNoAlias with
+                        | ValueSome extendsEnt ->
                             check asm extendsEnt
-                        else
-                            match extendsTy.TryEntityNoAlias with
-                            | ValueSome extendsEnt ->
-                                check asm extendsEnt
-                            | _ ->
-                                report()
-                    | _ ->
-                        report()
+                        | _ ->
+                            report()
                 | _ ->
                     report()
 

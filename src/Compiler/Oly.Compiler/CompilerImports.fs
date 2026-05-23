@@ -483,7 +483,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            if not ent.IsNamespace && (let asmIdent = ent.ContainingAssembly.Value.Identity in asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key) then
+            if not ent.IsNamespace && (let asmIdent = ent.ContainingAssembly.Identity in asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key) then
                 importer.AddEntity(qualName, ent)
                 ent
             else
@@ -582,25 +582,22 @@ type SharedImportCache =
     }
 
     member this.AddEntity(ent: EntitySymbol) =
-        match ent.ContainingAssembly with
-        | Some(asm) ->
-            let identity = asm.Identity
-            let ents =
-                match this.entFromName.TryGetValue identity.Name with
-                | true, ents -> ents
-                | _ ->
-                    lock this.gate (fun () ->
-                        match this.entFromName.TryGetValue identity.Name with
-                        | true, ents -> ents
-                        | _ ->
-                            let ents = ConcurrentDictionary()
-                            this.entFromName.TryAdd(identity.Name, ents) |> ignore
-                            ents
-                    )
+        let asm = ent.ContainingAssembly
+        let identity = asm.Identity
+        let ents =
+            match this.entFromName.TryGetValue identity.Name with
+            | true, ents -> ents
+            | _ ->
+                lock this.gate (fun () ->
+                    match this.entFromName.TryGetValue identity.Name with
+                    | true, ents -> ents
+                    | _ ->
+                        let ents = ConcurrentDictionary()
+                        this.entFromName.TryAdd(identity.Name, ents) |> ignore
+                        ents
+                )
                 
-            ents.TryAdd(ent.QualifiedName, ent) |> ignore
-        | _ ->
-            ()
+        ents.TryAdd(ent.QualifiedName, ent) |> ignore
 
     member this.TryGetEntity(ilAsmIdentity: OlyILAssemblyIdentity, qualName: QualifiedName) =
         match this.entFromName.TryGetValue ilAsmIdentity.Name with
@@ -637,7 +634,7 @@ let private StringImmutableArrayComparer() =
     }
 
 [<Sealed>]
-type NamespaceEnvironment private (state: Dictionary<string imarray, NamespaceBuilder>) =
+type NamespaceEnvironment private (currentAsm: AssemblySymbol, state: Dictionary<string imarray, NamespaceBuilder>) =
 
     member this.ForEach(f) =
         state.Values
@@ -657,7 +654,7 @@ type NamespaceEnvironment private (state: Dictionary<string imarray, NamespaceBu
                 else
                     EnclosingSymbol.RootNamespace, None
             let name = namespacePath.[namespacePath.Length - 1]
-            let builder = NamespaceBuilder.Create(enclosing, name)
+            let builder = NamespaceBuilder.Create(currentAsm, enclosing, name)
 
             match enclosingNamespaceBuilderOpt with
             | Some enclosingNamespaceBuilder -> enclosingNamespaceBuilder.AddEntity(builder.Entity, builder.Entity.LogicalTypeParameterCount)
@@ -666,8 +663,8 @@ type NamespaceEnvironment private (state: Dictionary<string imarray, NamespaceBu
             state.[namespacePath] <- builder
             builder
 
-    static member Create() =
-        NamespaceEnvironment(Dictionary(StringImmutableArrayComparer()))
+    static member Create(currentAsm) =
+        NamespaceEnvironment(currentAsm, Dictionary(StringImmutableArrayComparer()))
 
 /// L1 cache that is local to the current reading assembly the handles are located in.
 [<NoEquality;NoComparison>]
@@ -726,10 +723,7 @@ type Imports =
                 fun ilEntDefHandle ->
                     CacheValue(fun _ ->
                         let ent: EntitySymbol = ImportedEntityDefinitionSymbol.Create(ilAsm, this, ilEntDefHandle)
-                        let asm =
-                            match ent.ContainingAssembly with
-                            | Some asm -> asm
-                            | _ -> failwith "Imported entity must have a containing assembly."
+                        let asm = ent.ContainingAssembly
 
                         let ent =
                             let ilEntDef = ilAsm.GetEntityDefinition(ilEntDefHandle)
@@ -2061,14 +2055,14 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
     let kind = importEntityKind ilEntDef.Kind
 
-    let containingAsmOpt = AssemblySymbol.IL(cenv.ilAsm.Identity) |> Some
+    let containingAsm = AssemblySymbol.IL(cenv.ilAsm.Identity)
 
     let formalId = newId()
 
     member _.DebugName = name
 
     override _.FormalId = formalId
-    override _.ContainingAssembly = containingAsmOpt
+    override _.ContainingAssembly = containingAsm
     override _.Enclosing: EnclosingSymbol = evalEnclosing()
     override _.Entities: EntitySymbol imarray = evalEnts()
     override _.Fields: IFieldSymbol imarray = evalFields()
@@ -2243,6 +2237,6 @@ type CompilerImports private (namespaceEnv, importer) =
     member _.Importer = importer
 
     new(currentAsmIdent: OlyILAssemblyIdentity, sharedCache) =
-        let namespaceEnv = NamespaceEnvironment.Create()
+        let namespaceEnv = NamespaceEnvironment.Create(AssemblySymbol.IL(currentAsmIdent))
         let importer = Importer(currentAsmIdent, namespaceEnv, sharedCache)
         CompilerImports(namespaceEnv, importer)

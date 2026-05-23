@@ -288,7 +288,7 @@ type EntitySymbol() =
 
     abstract Enclosing : EnclosingSymbol
 
-    abstract ContainingAssembly : AssemblySymbol option
+    abstract ContainingAssembly : AssemblySymbol
     
     abstract Name : string
 
@@ -1671,7 +1671,7 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
 type INamespaceSymbol = EntitySymbol
 
 [<Sealed>]
-type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespaceSymbol imarray) as this =
+type AggregatedNamespaceSymbol(containingAsm: AssemblySymbol, name, enclosing: EnclosingSymbol, ents: INamespaceSymbol imarray) as this =
     inherit EntitySymbol()
 
     let nestedEnts =
@@ -1699,7 +1699,7 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
                             match nmspaces.TryGetValue x.Name with
                             | true, aggrNmspace -> aggrNmspace
                             | _ ->
-                                AggregatedNamespaceSymbol(x.Name, EnclosingSymbol.Entity(this), ImArray.empty)
+                                AggregatedNamespaceSymbol(containingAsm, x.Name, EnclosingSymbol.Entity(this), ImArray.empty)
                         nmspaces[x.Name] <- aggrNmspace.AddNamespace(x)
                         false
                     else
@@ -1716,11 +1716,11 @@ type AggregatedNamespaceSymbol(name, enclosing: EnclosingSymbol, ents: INamespac
             failwith "Expected namespace."
 
         OlyAssert.Equal(name, ent.Name)
-        AggregatedNamespaceSymbol(name, enclosing, ents.Add(ent))
+        AggregatedNamespaceSymbol(containingAsm, name, enclosing, ents.Add(ent))
 
     override this.FormalId = formalId
     override this.Attributes = ImArray.empty
-    override this.ContainingAssembly = None
+    override this.ContainingAssembly = containingAsm
     override this.Enclosing = enclosing
     override this.Entities = nestedEnts.Value
     override this.Extends = ImArray.empty
@@ -5710,7 +5710,7 @@ module SymbolExtensions =
 
             member this.IsNonNamespaceRootInScope(scopeAsmIdent: OlyILAssemblyIdentity) =
                 not this.IsNamespace && this.Enclosing.IsRootNamespace && this.IsAutoOpenable &&
-                (match this.ContainingAssembly with None -> false | Some(containingAsm) -> containingAsm.Identity.Name = scopeAsmIdent.Name && containingAsm.Identity.Key = scopeAsmIdent.Key)
+                this.ContainingAssembly.Identity.Name = scopeAsmIdent.Name && this.ContainingAssembly.Identity.Key = scopeAsmIdent.Key
 
             member this.IsNamespaceOrModule =
                 this.IsNamespace || this.IsModule

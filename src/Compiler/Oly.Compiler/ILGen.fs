@@ -278,9 +278,9 @@ and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
 #endif
 
     let asmIdentity =
-        match ent.ContainingAssembly with
-        | Some(asm) -> asm.Identity
-        | _ -> failwith "Expected a containing assembly when emitting a entity instance."
+        let asm = ent.ContainingAssembly
+        OlyAssert.NotEqual("__oly_invalid", asm.Name)
+        asm.Identity
 
     let ilTyInst = emitILTypes cenv env ent.TypeArguments
 
@@ -309,9 +309,9 @@ and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: EntitySymbol) =
         OlyAssert.True(ent.IsFormal)
 
         let asmIdentity =
-            match ent.ContainingAssembly with
-            | Some(asm) -> asm.Identity
-            | _ -> failwith "Expected a containing assembly when emitting a entity instance."
+            let asm = ent.ContainingAssembly
+            OlyAssert.NotEqual("__oly_invalid", asm.Name)
+            asm.Identity
 
         if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
             OlyILEntityConstructor(GenEntityAsILEntityDefinition cenv env ent)
@@ -515,9 +515,9 @@ and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
 
 and getAssemblyIdentity (ent: EntitySymbol) =
     let asmIdentity =
-        match ent.ContainingAssembly with
-        | Some(asm) -> asm.Identity
-        | _ -> failwith "Expected a containing assembly when emitting a entity reference."
+        let asm = ent.ContainingAssembly
+        OlyAssert.NotEqual("__oly_invalid", asm.Name)
+        asm.Identity
     asmIdentity
 
 and emitILEnclosingNamespace cenv env asmIdentity (ent: EntitySymbol) =

@@ -172,7 +172,7 @@ type EntitySymbolBuilder private (
         else
             failwith "Expected namespace."
 
-    static member Create(containingAsmOpt, enclosing, name, flags, kind, docText) =
+    static member Create(containingAsm, enclosing, name, flags, kind, docText) =
         // TODO: Change EntitySymbol to allow setting properties instead of using a bunch of ref cells.
         let attrsHole = ref ImArray.empty
         let funcsHole = ref ImArray.empty
@@ -184,22 +184,22 @@ type EntitySymbolBuilder private (
         let implementsHole = ref ImArray.empty
         let entsHole = ResizeArray()
 
-        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole, docText)
+        let ent = EntityDefinitionSymbol(containingAsm, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole, docText)
         EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, entsHole)
 
-    static member CreateModule(containingAsmOpt, enclosing, flags, name, docSummary) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module, docSummary)
+    static member CreateModule(containingAsm, enclosing, flags, name, docSummary) =
+        EntitySymbolBuilder.Create(containingAsm, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module, docSummary)
 
-    static member CreateNamespace(enclosing: EnclosingSymbol, name) =
+    static member CreateNamespace(containingAsm, enclosing: EnclosingSymbol, name) =
         if not enclosing.IsNamespace then
             failwith "Expected a namespace entity."
-        EntitySymbolBuilder.Create(None, enclosing, name, EntityFlags.None, EntityKind.Namespace, String.Empty)
+        EntitySymbolBuilder.Create(containingAsm, enclosing, name, EntityFlags.None, EntityKind.Namespace, String.Empty)
 
     static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name, flags) =
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure, String.Empty)
 
-    static member CreateAnonymousShape(asm) =
-        EntitySymbolBuilder.Create(Some asm, EnclosingSymbol.RootNamespace, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
+    static member CreateAnonymousShape(containingAsm) =
+        EntitySymbolBuilder.Create(containingAsm, EnclosingSymbol.RootNamespace, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
 
 [<Sealed>]
 type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
@@ -217,6 +217,6 @@ type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
             entBuilder.NamespaceAddEntity(ent)
             set.[(ent.Name, tyParCount)] <- ()
 
-    static member Create(enclosing, name) =
-        let entBuilder = EntitySymbolBuilder.CreateNamespace(enclosing, name)
+    static member Create(containingAsm, enclosing, name) =
+        let entBuilder = EntitySymbolBuilder.CreateNamespace(containingAsm, enclosing, name)
         NamespaceBuilder(entBuilder)

@@ -66,17 +66,12 @@ let private canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
         // TODO: There a way to make this a faster check?
         match ac.Entity, value.Enclosing.TryEntity with
         | Some ent1, Some ent2 when not ent2.IsNamespace ->
-            match ent1.ContainingAssembly, ent2.ContainingAssembly with
-            | Some asm1, Some asm2 ->
-                asm1.Identity.Name = asm2.Identity.Name
-            | _ ->
-                false
+            let asm1 = ent1.ContainingAssembly
+            let asm2 = ent2.ContainingAssembly
+            asm1.Identity.Name = asm2.Identity.Name
         | _, Some ent1 ->
-            match ent1.ContainingAssembly with
-            | Some asm1 ->
-                asm1.Identity.Name = ac.AssemblyIdentity.Name
-            | _ ->
-                false
+            let asm1 = ent1.ContainingAssembly
+            asm1.Identity.Name = ac.AssemblyIdentity.Name
         | _ -> 
             false
     elif value.IsProtected then
@@ -94,11 +89,9 @@ let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
         // TODO: There a way to make this a faster check?
         match ac.Entity with
         | Some ent1 ->
-            match ent1.ContainingAssembly, ent.ContainingAssembly with
-            | Some asm1, Some asm2 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
-            | _ ->
-                false
+            let asm1 = ent1.ContainingAssembly
+            let asm2 = ent.ContainingAssembly
+            (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
         | _ -> 
             true
     else
@@ -106,11 +99,8 @@ let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
         | Some ent1, Some ent2 -> 
             areEntitiesEqual ent1 ent2
         | None, _ ->
-            match ent.ContainingAssembly with
-            | Some asm ->
-                (asm.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
-            | _ ->
-                false
+            let asm = ent.ContainingAssembly
+            (asm.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
             
         | _ -> 
             false
@@ -755,10 +745,7 @@ module Extensions =
         member this.FindField(name: string) =
             match this.TryEntityNoAlias with
             | ValueSome ent ->
-                let asmIdent =
-                    match ent.ContainingAssembly with
-                    | Some asm -> asm.Identity
-                    | _ -> Unchecked.defaultof<_>
+                let asmIdent = ent.ContainingAssembly.Identity
                 let ac = { Entity = Some ent; AssemblyIdentity = asmIdent }
                 queryIntrinsicFieldsOfEntity ac QueryMemberFlags.StaticOrInstance ValueFlags.None (Some name) ent
                 |> Seq.exactlyOne

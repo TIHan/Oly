@@ -83,6 +83,7 @@ type BinderEnvironment =
        implicitThisOpt: ILocalParameterSymbol option
 
        isExecutable: bool
+       currentAsm: AssemblySymbol
     }
 
     member this.SetIsInInstanceConstructorType(ent: EntitySymbol) =
@@ -184,7 +185,7 @@ type BinderEnvironment =
         let group =
             match this.benv.senv.namespaces.TryGetValue(ent.FullNamespacePath) with
             | true, group -> group
-            | _ -> AggregatedNamespaceSymbol(ent.Name, ent.Enclosing, ImArray.empty)
+            | _ -> AggregatedNamespaceSymbol(this.currentAsm, ent.Name, ent.Enclosing, ImArray.empty)
 
 #if DEBUG || CHECKED
         let exists = group.Namespaces |> ImArray.exists (fun x -> obj.ReferenceEquals(x, ent))

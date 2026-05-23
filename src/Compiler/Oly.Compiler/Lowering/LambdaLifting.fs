@@ -977,7 +977,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         
         let closureBuilder = 
             EntitySymbolBuilder.CreateClosure(
-                Some cenv.tree.Assembly, 
+                cenv.tree.Assembly, 
                 EnclosingSymbol.Local, 
                 name,
                 entFlags

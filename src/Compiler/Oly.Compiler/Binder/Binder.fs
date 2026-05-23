@@ -165,7 +165,7 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
         if cenv.syntaxTree.ParsingOptions.AnonymousModuleDefinitionAllowed |> not then
             cenv.diagnostics.Error("Anonymous module definitions are not available in this context.", 10, cenv.syntaxTree.DummyNode)
 
-        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen, AnonymousEntityName, String.Empty)
+        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen, AnonymousEntityName, String.Empty)
         let env1 = { env with benv = { env.benv with senv = { env.benv.senv with enclosing = EnclosingSymbol.Entity anonModuleBuilder.Entity } } }
 
         recordEntityDeclaration cenv anonModuleBuilder.Entity syntaxRoot
@@ -179,10 +179,10 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
 
         let entBuilder =
             match syntaxName.EnclosingPath with
-            | [] -> EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.RootNamespace, flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
+            | [] -> EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.RootNamespace, flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
             | path ->
                 let nmsBuilder = nmsEnv.GetOrCreate(path |> ImArray.ofSeq)
-                let entBuilder = EntitySymbolBuilder.CreateModule(Some cenv.asm, EnclosingSymbol.Entity(nmsBuilder.Entity), flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
+                let entBuilder = EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.Entity(nmsBuilder.Entity), flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
                 nmsBuilder.AddEntity(entBuilder.Entity, entBuilder.Entity.LogicalTypeParameterCount)
                 entBuilder
 
@@ -485,7 +485,7 @@ type BinderPass0(
         config: BinderConfiguration) =
 
     let compute ct =
-        let nmsEnv = NamespaceEnvironment.Create()
+        let nmsEnv = NamespaceEnvironment.Create(asm)
         let diagLogger = OlyDiagnosticLogger.Create()
         let cenv =
             {
@@ -649,6 +649,7 @@ let CreateDefaultBinderEnvironment asmIdent =
         isReturnable = false
         isExecutable = false
         isPassedAsArgument = false
+        currentAsm = AssemblySymbol.IL(asmIdent)
     }
 
 let bindSyntaxTree asm env config (syntaxTree: OlySyntaxTree) =

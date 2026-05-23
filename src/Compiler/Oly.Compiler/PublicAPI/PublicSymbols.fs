@@ -272,11 +272,8 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
             match boundModel.TryFindDefinition(ent, ct) with
             | res when res.IsSome -> res
             | _ ->
-                match ent.ContainingAssembly with
-                | Some asm ->
-                    boundModel.TryFindExternalDefinition(asm.Identity, ent, ct)
-                | _ ->
-                    None
+                let asm = ent.ContainingAssembly
+                boundModel.TryFindExternalDefinition(asm.Identity, ent, ct)
         | TypeSymbol.Variable(tyPar)
         | TypeSymbol.HigherVariable(tyPar, _) ->
             boundModel.TryFindDefinition(tyPar, ct)
@@ -647,7 +644,7 @@ type OlyValueSymbol internal (value: IValueSymbol) =
             match boundModel.TryFindDefinition(value, ct) with
             | res when res.IsSome -> res
             | _ ->
-                match value.Enclosing.TryEntity |> Option.bind (fun x -> x.ContainingAssembly) with
+                match value.Enclosing.TryEntity |> Option.map (fun x -> x.ContainingAssembly) with
                 | Some asm ->
                     boundModel.TryFindExternalDefinition(asm.Identity, value, ct)
                 | _ ->

@@ -114,7 +114,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         else
             enclosing
 
-    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, name, flags, kind, docText)
+    let entBuilder = EntitySymbolBuilder.Create(env.currentAsm, enclosing, name, flags, kind, docText)
     let ent = entBuilder.Entity
 
     OlyAssert.True(ent.TypeParameters.IsEmpty)
