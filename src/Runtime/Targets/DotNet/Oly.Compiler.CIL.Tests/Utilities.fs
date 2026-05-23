@@ -67,7 +67,31 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     
     TestPlatform.emitterWrite(emitter, asm.IsDebuggable)
 
-let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
+let rec private runWithExpectedOutputAndWithRealAssemblies expectedOutput (output: TestCompilationOutput) =
+    let hasCompRef =
+        output.c.Compilation.References
+        |> ImArray.exists (fun ref -> ref.IsCompilation)
+    if hasCompRef then
+        let references =
+            output.c.Compilation.References
+            |> ImArray.map (fun ref ->
+                match ref.TryGetCompilation(CancellationToken.None) with
+                | Some refc -> 
+                    match refc.GetILAssembly(CancellationToken.None) with
+                    | Ok(refasm) ->
+                        OlyCompilationReference.Create(ref.Path, 0UL, refasm)
+                    | _ ->
+                        failwith "Reference compilation had errors"
+                | _ -> 
+                    ref
+            )
+        let newOutput = 
+            let newCompilation = output.c.Compilation.Update(references, output.c.Compilation.Options)
+            TestCompilation.Create newCompilation
+            |> withCompile
+        runWithExpectedOutputAux expectedOutput newOutput
+
+and private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
     let refAsms =
         output.c.Compilation.References
         |> ImArray.map (fun x -> 
@@ -83,6 +107,8 @@ let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutp
     OlyTrace.Log($"[Testing] Optimized Build")
 #endif
     TestPlatform.run(emitAssembly refAsms output.ilAsm, expectedOutput)
+
+    runWithExpectedOutputAndWithRealAssemblies expectedOutput output
 
 let shouldRunWithExpectedOutput expectedOutput result =
     runWithExpectedOutputAux expectedOutput result

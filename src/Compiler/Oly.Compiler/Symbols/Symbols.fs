@@ -842,21 +842,9 @@ let actualEntity (tyArgs: TypeArgumentSymbol imarray) (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
 
     let tyArgs2 = 
-        (ent.TypeParameters, ent.TypeArguments)
-        ||> ImArray.map2 (fun tyPar tyArg -> 
-            if tyPar.HasArity then
-                if tyArg.IsAnyVariable_ste then
-                    tyArg
-                else
-                    let tyArg2 = tyArgs[tyPar.Index]
-                    if tyArg2.IsTypeConstructor_steea then
-                        tyArg2
-                    else
-                        tyArg
+        ent.TypeArguments
+        |> ImArray.map (actualType tyArgs)
 
-            else
-                actualType tyArgs tyArg
-        )
     applyEntity tyArgs2 ent
 
 let actualParameter (tyArgs: TypeArgumentSymbol imarray) (par: ILocalParameterSymbol) =
