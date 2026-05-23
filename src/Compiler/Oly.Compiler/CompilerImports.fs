@@ -483,7 +483,53 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
-            if not ent.IsNamespace && (let asmIdent = ent.ContainingAssembly.Identity in asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key) then
+            let needsNoRetarget =
+                 (let asmIdent = ent.ContainingAssembly.Identity in asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key)
+            let needsNoRetarget =
+                if needsNoRetarget then
+                    if ent.IsNamespace then
+                        OlyAssert.False(ent.IsAggregatedNamespace)
+                        // Finds the first non-namespace entity that determines if it exists in the current assembly
+                        // to determine re-targetting.
+                        // TODO: If the NamespaceSymbol itself had accurately described the assembly that the entities are in,
+                        //       then we would not have to do this.
+                        let rec loop (ents: EntitySymbol imarray) =
+                            let mutable result = ValueNone
+                            let mutable i = 0
+                            let mutable stop = false
+                            while (i < ents.Length && not stop) do
+                                let ent = ents[i]
+                                if ent.IsNamespace then
+                                    OlyAssert.False(ent.IsAggregatedNamespace)
+                                    match loop ent.Entities with
+                                    | ValueNone -> ()
+                                    | ValueSome(res) ->
+                                        result <- ValueSome(res)
+                                        stop <- true
+                                else
+                                    let asmIdent = ent.ContainingAssembly.Identity
+                                    if asmIdent.Name = currentAsmIdent.Name && asmIdent.Key = currentAsmIdent.Key then
+                                        result <- ValueSome(true)
+                                    else
+                                        result <- ValueSome(false)
+                                    stop <- true
+                                i <- i + 1
+                            result
+                        match loop ent.Entities with
+                        | ValueSome(res) -> res
+                        | _ -> true
+                    else
+                        true
+                else
+                    false
+
+#if DEBUG || CHECKED
+            match importer.TryGetEntity(qualName) with
+            | true, _ -> OlyAssert.Fail($"'{qualName}' was already added")
+            | _ -> ()
+#endif
+
+            if needsNoRetarget then
                 importer.AddEntity(qualName, ent)
                 ent
             else
