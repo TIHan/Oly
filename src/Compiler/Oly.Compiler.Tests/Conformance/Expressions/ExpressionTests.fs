@@ -2424,7 +2424,7 @@ let ``Nested types with type arguments should not crash``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object): ()
+    static WriteLine(value: __oly_base_object): ()
 
 class Test1<T> =
 
@@ -2456,7 +2456,7 @@ let ``Nested types with type arguments should not crash 2``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -2491,7 +2491,7 @@ let ``Nested types with type arguments should not crash 3``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -2533,7 +2533,7 @@ let ``Nested types with type arguments should not crash 4``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -2576,7 +2576,7 @@ let ``Nested types with type arguments should not crash 4 with mutable``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -2618,7 +2618,7 @@ let ``Nested types with type arguments should compile``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -2646,7 +2646,7 @@ let ``Nested types with type arguments should compile with right signature``() =
 #[import("CLR", "System", "Console")]
 class Console =
 
-    static WriteLine(value: __oly_object) : ()
+    static WriteLine(value: __oly_base_object) : ()
 
 class Test1<T> =
 
@@ -3044,7 +3044,7 @@ getResult(x: ITest): int32 =
     x.test()
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let result = getResult(cast<ITest>(123))
@@ -3080,7 +3080,7 @@ getResult2(x: byref<int32>): int32 =
     getResult(cast<ITest>(x))
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let result = getResult(cast<ITest>(123))
@@ -3195,7 +3195,7 @@ extension Int32Extension =
     static overrides add(x: int32, y: int32): int32 = __oly_add(x, y)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = Test<int32>()
@@ -3599,8 +3599,8 @@ sealed interface Test1
     Oly src
     |> withErrorDiagnostics
         [
-            "Expected 'type declaration name' after 'type declaration kind'."
             "Expected 'interface' after 'sealed'."
+            "Type declaration must have a name."
         ]
     |> ignore
 
@@ -4012,7 +4012,7 @@ let ``Get symbol of type in cast``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -4041,7 +4041,7 @@ let ``Get symbol of value in cast``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -4070,7 +4070,7 @@ let ``Get symbol of function from cast``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -4184,7 +4184,7 @@ module HelloWorld
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -4514,7 +4514,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -4630,7 +4630,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -6146,7 +6146,7 @@ let ``Local generic type example in a local almbda should fail``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test<A, B>(a: A, b: B): () =
     let test2<Z>() =
@@ -7871,7 +7871,7 @@ let ``Trying to call constructor in a constructor with the explicit type name sh
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -8256,7 +8256,7 @@ let ``Let pattern binding should pass 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let (x, y) = (1, 2)
@@ -8289,7 +8289,7 @@ let ``Let pattern binding should pass 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let (x) = 1
@@ -8307,7 +8307,7 @@ let ``Let pattern binding should fail for lack of exhaustiveness``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let 1 = 1
@@ -8547,7 +8547,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -8605,7 +8605,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(x: T): () where T: { mutable GetSomething(): () } =
     x.GetSomething()
@@ -9519,7 +9519,7 @@ main(): () =
 let ``Partial application unit to unit should fail``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(z: T, f: T -> ()): () =
     f(z)
@@ -9545,7 +9545,7 @@ main(): () =
 let ``Partial application unit to unit should fail 2``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(z: T, f: T -> ()): () =
     f(z)
@@ -9574,7 +9574,7 @@ main(): () =
 let ``Partial application unit to unit should pass``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: () -> T): () =
     let result = f()
@@ -9594,7 +9594,7 @@ let ``Inference solving to tuple for function input should result in a tuple of 
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 ForEach<T>(xs: T[], f: T -> ()): () =
     print("hello")
@@ -9631,7 +9631,7 @@ main(): () =
 let ``Unit inference for return type of a function type should pass 2``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: () -> T): () =
     let result = f()
@@ -9646,7 +9646,7 @@ main(): () =
 let ``Unit inference for return type of a function type should pass 3``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: () -> T): () =
     let result = f()
@@ -9665,7 +9665,7 @@ let ``Unit inference for return type of a function type should pass 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: int32 -> T): () =
     let result = f(1)
@@ -9684,7 +9684,7 @@ let ``Unit inference for return type of a function type should pass 5``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: int32 -> T): () =
     let result = f(1)
@@ -9703,7 +9703,7 @@ let ``Unit inference for return type of a function type should pass 6``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(f: int32 -> T): () =
     let result = f(1)
@@ -9821,7 +9821,7 @@ let ``Declaring intrinsics in a generic context is not allowed 2``() =
 module Modu<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     ()
@@ -9955,7 +9955,7 @@ class A =
     X: __oly_int32 get = 5
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 getTuple(): (IA, __oly_int32) =
     let result = (A(): IA, 9) // notice the upcast ': IA'
@@ -9981,7 +9981,7 @@ class A =
     X: __oly_int32 get = 5
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     static let ~^~getTuple() =
@@ -10864,7 +10864,7 @@ let ``Extension inside a newtype should have the right amount of constructor sym
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 newtype ~^~AVal<T> =
@@ -10892,7 +10892,7 @@ let ``Anonymous shape constraint with members that have generics with constraint
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -10924,7 +10924,7 @@ let ``Anonymous shape constraint with members that have generics with constraint
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -10962,7 +10962,7 @@ let ``Anonymous shape constraint with members that have generics with constraint
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -11239,7 +11239,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -11288,7 +11288,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -11335,7 +11335,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -11358,7 +11358,7 @@ For(count: int32, #[inline] f: scoped int32 -> ()): () =
 #[intrinsic("get_length")]
 private getLength<T>(T[]): int32
 
-ForEach(f: (__oly_object, __oly_object) -> (), xs: __oly_object[]): () =
+ForEach(f: (__oly_base_object, __oly_base_object) -> (), xs: __oly_base_object[]): () =
     For(getLength(xs), i -> f(xs[i], unchecked default))
 
 main(): () =
@@ -11378,14 +11378,14 @@ let ``Should error as G<A> does not match G<object>``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
 class G<T> =
     new(x: T) = this { }
 
-M(xs: G<__oly_object>): () = print("hello")
+M(xs: G<__oly_base_object>): () = print("hello")
 
 main(): () =
     let _ = M(G<A>(A()))
@@ -11393,7 +11393,7 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'G<__oly_object>' but is 'G<A>'.",
+            ("Expected type 'G<__oly_base_object>' but is 'G<A>'.",
                 """
     let _ = M(G<A>(A()))
               ^^^^^^^^^
@@ -11477,7 +11477,7 @@ alias int32
 alias uint32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let graphicsQueueCount = 10: int32
@@ -11507,7 +11507,7 @@ alias int32
 alias uint32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let (graphicsQueueCount, _doot) = (10: int32, 20: int32)
@@ -11590,7 +11590,7 @@ let ``Expect 'a' to be of type 'A' NOT most flexible``() =
     let src = 
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA
 
@@ -11610,7 +11610,7 @@ let ``Expect 'a' to be of type 'IA' NOT most flexible``() =
     let src = 
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA
 
@@ -11667,7 +11667,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Beef<U> =
     #[export]
@@ -11709,7 +11709,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Beef<U> =
     #[export]
@@ -11767,7 +11767,7 @@ to_inref<T>(nint): inref<T>
 (==)(bool, bool): bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(x: nint): bool = 
     let y2: inref<byte> = to_inref(x)

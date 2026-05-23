@@ -31,7 +31,7 @@ type OlyDiagnosticLogger with
                 funcGroup.Functions
                 |> ImArray.map (fun func -> "\n    " + printValue benv func.Formal)
                 |> String.concat ""
-            this.Error($"'{printValueName funcGroup}' has ambiguous functions. Candidates:{candidatesText}", code, syntaxNode)
+            this.Error($"'{printValueName benv funcGroup}' has ambiguous functions. Candidates:{candidatesText}", code, syntaxNode)
 
         | Error_ShapeFunctionAmbiguousWitnesses(benv, syntaxNode, abstractFunc, candidates) ->
             let typesImplementingAbstractFuncText =

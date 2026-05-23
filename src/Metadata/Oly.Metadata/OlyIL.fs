@@ -13,6 +13,15 @@ module OlySpecialNames =
     [<Literal>]
     let StaticConstructor = "__oly_static_ctor"
 
+    [<Literal>]
+    let Getter = "__oly_get"
+
+    [<Literal>]
+    let Setter = "__oly_set"
+
+    [<Literal>]
+    let PatternGuard = "__oly_guard"
+
 type OlyILTableKind =
     | String
     | EntityReference
@@ -223,6 +232,11 @@ type OlyILEntityDefinition =
     member this.PropertyDefinitionHandles =
         match this with
         | OlyILEntityDefinition(propDefs=propDefs) -> propDefs
+
+
+    member this.PatternDefinitionHandles =
+        match this with
+        | OlyILEntityDefinition(patDefs=patDefs) -> patDefs
 
     member this.Extends =
         match this with

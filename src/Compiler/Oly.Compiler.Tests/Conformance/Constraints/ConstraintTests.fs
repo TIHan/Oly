@@ -152,12 +152,12 @@ class B =
 let ``Constraint should fail 9``() =
     let src =
         """
-test<N>(): () where N: constant __oly_object = ()
+test<N>(): () where N: constant __oly_base_object = ()
     """
     Oly src
     |> withErrorDiagnostics
         [
-            "'__oly_object' is not a supported constant type."
+            "'__oly_base_object' is not a supported constant type."
         ]
     |> ignore
 
@@ -1305,7 +1305,7 @@ let ``Trait constraint type for a type's type variable should compile``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -1704,7 +1704,7 @@ class Test =
     static overrides Doot(): () = ()
 
 test<T>(x: T): () where T: ITest = T.Doot()
-test<T>(x: __oly_object): () where T: ITest = T.Doot()
+test<T>(x: __oly_base_object): () where T: ITest = T.Doot()
 
 main(): () =
     let t = Test(): ITest
@@ -1790,7 +1790,7 @@ let ``Call should error as interface has no implementations for its static abstr
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -2092,7 +2092,7 @@ let ``Call should NOT error as we are using the concrete implementation to satis
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 

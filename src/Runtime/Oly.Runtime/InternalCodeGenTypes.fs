@@ -1334,7 +1334,8 @@ type RuntimeType =
             | Int64, Int64
             | Float32, Float32
             | Float64, Float64
-            | Bool, Bool -> true
+            | Bool, Bool
+            | Char16, Char16
             | Utf16, Utf16 -> true
             | BaseObject, BaseObject -> true
             | NativeInt, NativeInt

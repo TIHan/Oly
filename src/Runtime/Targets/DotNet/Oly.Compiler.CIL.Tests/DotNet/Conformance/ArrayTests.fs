@@ -17,7 +17,7 @@ alias int32
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(inref<T[N]>, index: int32): T where N: constant int32

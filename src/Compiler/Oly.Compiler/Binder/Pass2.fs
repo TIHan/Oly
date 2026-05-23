@@ -1081,6 +1081,14 @@ let private bindTopLevelPropertyBinding cenv env (enclosing: EnclosingSymbol) at
         else
             createPropertyValue enclosing attrs propName propTy memberFlags getterOpt setterOpt None
 
+    match getterOpt with
+    | Some getter -> getter.SetAssociatedFormalProperty_Pass2_NonConcurrent(cenv.pass, prop)
+    | _ -> ()
+
+    match setterOpt with
+    | Some setter -> setter.SetAssociatedFormalProperty_Pass2_NonConcurrent(cenv.pass, prop)
+    | _ -> ()
+
     let getterOrSetterBindings =
         seq {
             getOrSet1
@@ -1358,7 +1366,7 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
         entBuilder.SetFields(cenv.pass, fieldConstants)
 
 /// Pass 2 - Type declaration.
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
@@ -1366,7 +1374,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
     //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxIdent attrs
+    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxNode attrs
     // IMPORTANT: These attributes are temporarily set, they get re-set in Pass3.
     entBuilder.SetAttributes(cenv.pass, attrs)
 
@@ -1379,7 +1387,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
     bindTypeDeclarationBody cenv env entBuilder.NestedEntityBuilders entBuilder syntaxTyPars.Values syntaxTyDefBody
 
     // TODO: We need to do this in the very top-level ModuleDefinition.
-    checkEntityExport cenv syntaxIdent entBuilder.Entity
+    checkEntityExport cenv syntaxNode entBuilder.Entity
 
 let private bindBodyExpression cenv env supers entities (entBuilder: EntitySymbolBuilder) syntaxBodyExpr =
     let fieldsAndFuncs, _ = bindTopLevelExpression cenv env supers entities ImmutableArray.Empty syntaxBodyExpr
@@ -1437,9 +1445,13 @@ let bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (supers: Immuta
         let bindings, env1 = bindTopLevelExpression cenv env supers entities bindings syntaxExpr1
         bindTopLevelExpression cenv env1 supers entities bindings syntaxExpr2
 
-    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
+    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, syntaxTyDeclKind, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDeclKind
         let prevEntityDefIndex = cenv.entityDefIndex
-        bindTypeDeclaration cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody
+        bindTypeDeclaration cenv env entities syntaxNode syntaxAttrs syntaxTyPars syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         bindings, env
 

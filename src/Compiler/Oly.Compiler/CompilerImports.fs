@@ -84,6 +84,14 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         else
             Lazy<_>.CreateFromValue(None)
 
+    let lazyAssociatedFormalPropOpt =
+        if func.AssociatedFormalProperty.IsSome then
+            lazy
+                retargetProperty currentAsmIdent importer enclosing func.AssociatedFormalProperty.Value
+                |> Some
+        else
+            Lazy<_>.CreateFromValue(None)
+
     do
         OlyAssert.True(func.IsFormal)
         OlyAssert.False(func.IsBase)
@@ -97,6 +105,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
     
     interface IFunctionSymbol with
         member this.AssociatedFormalPattern = lazyAssociatedFormalPatOpt.Value
+        member this.AssociatedFormalProperty = lazyAssociatedFormalPropOpt.Value
         member this.Attributes = func.Attributes
         member this.Enclosing = enclosing
         member this.Formal = this
@@ -669,7 +678,7 @@ type internal LocalCache =
         tyFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, TypeSymbol>
         entFromEntDef: ConcurrentDictionary<OlyILEntityDefinitionHandle, CacheValue<EntitySymbol>>
         entFromEntRef: ConcurrentDictionary<OlyILEntityReferenceHandle, EntitySymbol>
-        funcFromFuncDef: ConcurrentDictionary<OlyILFunctionDefinitionHandle, IFunctionSymbol>
+        funcFromFuncDef: ConcurrentDictionary<OlyILFunctionDefinitionHandle, ImportedFunctionDefinitionSymbol>
     }
 
     static member Create(identity) =
@@ -1167,7 +1176,7 @@ let private importFunctionFromDefinition (cenv: cenv) (enclosingEnt: EntitySymbo
     match localCache.funcFromFuncDef.TryGetValue ilFuncDefHandle with
     | true, res -> res
     | _ ->
-        let res = ImportedFunctionDefinitionSymbol(cenv.ilAsm, cenv.imports, enclosingEnt, ilEnclosingEntDefHandle, ilFuncDefHandle, semantic) :> IFunctionSymbol
+        let res = ImportedFunctionDefinitionSymbol(cenv.ilAsm, cenv.imports, enclosingEnt, ilEnclosingEntDefHandle, ilFuncDefHandle, semantic)
         localCache.funcFromFuncDef.[ilFuncDefHandle] <- res
         res
 
@@ -1348,6 +1357,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
     let id = newId()
     let mutable patOpt = None
+    let mutable propOpt = None
 
     let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
     let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
@@ -1547,6 +1557,10 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
     member this.SetAssociatedFormalPattern(pat: IPatternSymbol) =
         patOpt <- Some pat
 
+    /// Mutability.
+    member this.SetAssociatedFormalProperty(prop: IPropertySymbol) =
+        propOpt <- Some prop
+
     interface IFunctionSymbol with
 
         member _.Enclosing = enclosing
@@ -1587,6 +1601,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
         member _.WellKnownFunction = evalWellKnownFunc()
         member _.AssociatedFormalPattern = patOpt
+        member _.AssociatedFormalProperty = propOpt
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
@@ -1831,19 +1846,22 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
 
                             let valueFlags = ValueFlags.None
 
-                            let getterOpt =
+                            let getterTypedOpt =
                                 if ilPropDef.Getter.IsNil then
                                     None
                                 else
                                     importFunctionFromDefinition cenv this ilEntDefHandle GetterFunction ilPropDef.Getter
                                     |> Some
 
-                            let setterOpt =
+                            let setterTypedOpt =
                                 if ilPropDef.Setter.IsNil then
                                     None
                                 else
                                     importFunctionFromDefinition cenv this ilEntDefHandle SetterFunction ilPropDef.Setter
                                     |> Some
+
+                            let getterOpt = getterTypedOpt |> Option.map (fun x -> x: IFunctionSymbol)
+                            let setterOpt = setterTypedOpt |> Option.map (fun x -> x: IFunctionSymbol)
 
                             let isValid, memberFlags =
                                 match getterOpt, setterOpt with
@@ -1877,32 +1895,39 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                 // TODO: We should make a ImportedPropertyDefinitionSymbol to do this.
                                 let id = newId()
                                 let enclosing = EnclosingSymbol.Entity(this)
-                                { new IPropertySymbol with
-                                      member this.Attributes = attrs
-                                      member this.BackingField = None
-                                      member this.Enclosing = enclosing
-                                      member this.Formal = this :> IValueSymbol
-                                      member this.FunctionFlags = FunctionFlags.None
-                                      member this.FunctionOverrides = None
-                                      member this.Getter = getterOpt
-                                      member this.Id = id
-                                      member this.IsBase = false
-                                      member this.IsField = false
-                                      member this.IsFunction = false
-                                      member this.IsFunctionGroup = false
-                                      member this.IsPattern = false
-                                      member this.IsProperty = true
-                                      member this.IsThis = false
-                                      member this.MemberFlags = memberFlags
-                                      member this.Name = name
-                                      member this.Setter = setterOpt
-                                      member this.Type = propTy
-                                      member this.TypeArguments = ImArray.empty
-                                      member this.TypeParameters = ImArray.empty
-                                      member this.ValueFlags = valueFlags
+                                let prop =
+                                    { new IPropertySymbol with
+                                          member this.Attributes = attrs
+                                          member this.BackingField = None
+                                          member this.Enclosing = enclosing
+                                          member this.Formal = this :> IValueSymbol
+                                          member this.FunctionFlags = FunctionFlags.None
+                                          member this.FunctionOverrides = None
+                                          member this.Getter = getterOpt
+                                          member this.Id = id
+                                          member this.IsBase = false
+                                          member this.IsField = false
+                                          member this.IsFunction = false
+                                          member this.IsFunctionGroup = false
+                                          member this.IsPattern = false
+                                          member this.IsProperty = true
+                                          member this.IsThis = false
+                                          member this.MemberFlags = memberFlags
+                                          member this.Name = name
+                                          member this.Setter = setterOpt
+                                          member this.Type = propTy
+                                          member this.TypeArguments = ImArray.empty
+                                          member this.TypeParameters = ImArray.empty
+                                          member this.ValueFlags = valueFlags
                         
-                                }
-                                |> Some
+                                    }
+                                match getterTypedOpt with
+                                | Some getter -> getter.SetAssociatedFormalProperty(prop)
+                                | _ -> ()
+                                match setterTypedOpt with
+                                | Some setter -> setter.SetAssociatedFormalProperty(prop)
+                                | _ -> ()
+                                Some prop
                         )
                     lazyProps <- props
             )
@@ -1913,7 +1938,72 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
         if lazyPats.IsDefault then
             lock lockObj (fun () ->
                 if lazyPats.IsDefault then
-                    let pats = ImArray.empty // TODO:
+                    let pats =
+                        ilEntDef.PatternDefinitionHandles
+                        |> ImArray.choose (fun ilPatDefHandle ->
+                            let ilPatDef = ilAsm.GetPatternDefinition(ilPatDefHandle)
+                            let name = ilPatDef.NameHandle |> ilAsm.GetStringOrEmpty
+                            let attrs = ImArray.empty // TODO:
+
+                            let valueFlags = ValueFlags.None
+
+                            let patTypedFunc = importFunctionFromDefinition cenv this ilEntDefHandle PatternFunction ilPatDef.FunctionDefinitionHandle
+                            let patFunc = patTypedFunc: IFunctionSymbol
+
+                            let guardTypedOpt =
+                                if ilPatDef.GuardDefinitionHandleOption.IsNil then
+                                    None
+                                else
+                                    importFunctionFromDefinition cenv this ilEntDefHandle PatternGuardFunction ilPatDef.GuardDefinitionHandleOption
+                                    |> Some
+
+                            let guardOpt = guardTypedOpt |> Option.map (fun x -> x: IFunctionSymbol)
+
+                            let isValid, memberFlags =
+                                let memberFlags = patFunc.MemberFlags
+                                match guardOpt with
+                                | Some guard when guard.MemberFlags <> memberFlags ->
+                                    false, MemberFlags.None
+                                | _ ->
+                                    true, memberFlags                             
+
+                            if not isValid then
+                                None
+                            else
+                                // TODO: We should make a ImportedPatternDefinitionSymbol to do this.
+                                let id = newId()
+                                let enclosing = EnclosingSymbol.Entity(this)
+                                let pat =
+                                    { new IPatternSymbol with
+                                          member this.Attributes = attrs
+                                          member this.Enclosing = enclosing
+                                          member this.Formal = this :> IValueSymbol
+                                          member this.FunctionFlags = FunctionFlags.None
+                                          member this.FunctionOverrides = None
+                                          member this.Id = id
+                                          member this.IsBase = false
+                                          member this.IsField = false
+                                          member this.IsFunction = false
+                                          member this.IsFunctionGroup = false
+                                          member this.IsPattern = true
+                                          member this.IsProperty = false
+                                          member this.IsThis = false
+                                          member this.MemberFlags = memberFlags
+                                          member this.Name = name
+                                          member this.Type = patFunc.Type
+                                          member this.TypeArguments = ImArray.empty // REVIEW: This right?
+                                          member this.TypeParameters = ImArray.empty // REVIEW: This right?
+                                          member this.ValueFlags = valueFlags
+                                          member this.PatternFunction = patFunc
+                                          member this.PatternGuardFunction = guardOpt
+                        
+                                    }
+                                patTypedFunc.SetAssociatedFormalPattern(pat)
+                                match guardTypedOpt with
+                                | Some guard -> guard.SetAssociatedFormalPattern(pat)
+                                | _ -> ()
+                                Some pat
+                        )
                     lazyPats <- pats
             )
         lazyPats
@@ -1931,7 +2021,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                         evalProps() |> ignore
                         evalPats() |> ignore
                         ilEntDef.FunctionHandles
-                        |> ImArray.map (importFunctionFromDefinition cenv this ilEntDefHandle NormalFunction)
+                        |> ImArray.map (fun x -> importFunctionFromDefinition cenv this ilEntDefHandle NormalFunction x : IFunctionSymbol)
                     lazyFuncs <- funcs
             )
         lazyFuncs

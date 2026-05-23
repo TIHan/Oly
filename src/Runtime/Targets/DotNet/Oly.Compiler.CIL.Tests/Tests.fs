@@ -228,7 +228,7 @@ alias bool
 (<)(int32, int32): bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let mutable x = 1
@@ -271,7 +271,7 @@ open extension Int32Extensions
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IAdd<T1, T2, T3> =
 
@@ -306,7 +306,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -341,7 +341,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -579,7 +579,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -618,7 +618,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -760,7 +760,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait =
  
@@ -791,7 +791,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait =
  
@@ -824,7 +824,7 @@ open extension Int32Extension<int32>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait<T> =
  
@@ -855,7 +855,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait =
  
@@ -886,7 +886,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait =
  
@@ -919,7 +919,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface TestTrait =
  
@@ -3263,7 +3263,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T> =
 
@@ -3298,7 +3298,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -3333,7 +3333,7 @@ let ``Custom intrinsic int32``() =
 open extension CustomInt32Extension
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias CustomInt32
@@ -3388,7 +3388,7 @@ let ``Interface with implemented functions``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -3424,7 +3424,7 @@ let ``Interface with implemented functions and struct impl``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -3474,7 +3474,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -3526,7 +3526,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -3578,7 +3578,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -3656,7 +3656,7 @@ alias int32
 alias float64
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -3870,7 +3870,7 @@ open extension Int32Extension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -3905,7 +3905,7 @@ alias int32
 alias utf16
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test1 =
 
@@ -3935,7 +3935,7 @@ alias int32
 alias utf16
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test1 =
 
@@ -4485,7 +4485,7 @@ extension Int32AddExtension =
     static overrides add(x: int32, y: int32): int32 = __oly_add(x, y)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(1 + 1)
@@ -4505,7 +4505,7 @@ open extension Int32AddExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -4543,7 +4543,7 @@ open static TestModule
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module TestModule =
 
@@ -4590,7 +4590,7 @@ alias (&)<T>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct TestStruct =
 
@@ -4622,7 +4622,7 @@ let ``Shape constraint should run and succeed from inherited instance function``
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class Test1 =
 
@@ -4666,7 +4666,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class Test1 =
 
@@ -4706,7 +4706,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class Test1 =
 
@@ -4726,7 +4726,7 @@ test<T>(x: T) : int32 where T: { x: float32 get; y: int32 get; test(): () } =
     x.y
 
 main() : () =
-    let t = Test<int32, __oly_object, float32, __oly_object, __oly_object>(7.0f, 9)
+    let t = Test<int32, __oly_base_object, float32, __oly_base_object, __oly_base_object>(7.0f, 9)
     let result = test<_>(t)
     print(result)
         """
@@ -4747,7 +4747,7 @@ open extension Int32BestTrait
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface BestTrait =
 
@@ -4810,7 +4810,7 @@ open extension Int32TestExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
  
@@ -4824,7 +4824,7 @@ getResult(x: ITest): int32 =
     x.test()
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let result = getResult(cast<ITest>(123))
@@ -4845,7 +4845,7 @@ open extension Int32TestExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
  
@@ -4861,7 +4861,7 @@ getResult(x: ITest): int32 =
     x.test()
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let result = getResult(cast<ITest>(567))
@@ -5349,7 +5349,7 @@ let ``Auto generalized partially applied function should run``() =
     let src = 
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample
 
@@ -5378,7 +5378,7 @@ let ``Simple pattern match should give expected output 1``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5406,7 +5406,7 @@ let ``Simple pattern match should give expected output 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5434,7 +5434,7 @@ let ``Simple pattern match should give expected output 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5462,7 +5462,7 @@ let ``Simple pattern match should give expected output 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5490,7 +5490,7 @@ let ``Simple pattern match should give expected output 5``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5518,7 +5518,7 @@ let ``Simple pattern match should give expected output 6``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): int32 =
     let result =
@@ -5546,7 +5546,7 @@ let ``Simple pattern match should give expected output 7``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32, z: int32): int32 =
     let result =
@@ -5574,7 +5574,7 @@ let ``Simple pattern match should give expected output 8``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32, z: int32): int32 =
     let result =
@@ -5602,7 +5602,7 @@ let ``Simple pattern match should give expected output 9``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32, z: int32): int32 =
     let result =
@@ -5633,7 +5633,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5667,7 +5667,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5701,7 +5701,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5735,7 +5735,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5769,7 +5769,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5803,7 +5803,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5838,7 +5838,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5873,7 +5873,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5908,7 +5908,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5943,7 +5943,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -5978,7 +5978,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6013,7 +6013,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6048,7 +6048,7 @@ alias string
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(str1: string, str2: string): string =
     let result =
@@ -6078,7 +6078,7 @@ alias string
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(str1: string, str2: string): string =
     let result =
@@ -6108,7 +6108,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6140,7 +6140,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6172,7 +6172,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6204,7 +6204,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6236,7 +6236,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6268,7 +6268,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6300,7 +6300,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6332,7 +6332,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6364,7 +6364,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6395,7 +6395,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6426,7 +6426,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6457,7 +6457,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6488,7 +6488,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6521,7 +6521,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6554,7 +6554,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6588,7 +6588,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6623,7 +6623,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6658,7 +6658,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6693,7 +6693,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6723,7 +6723,7 @@ let ``Simple pattern match should give expected output 42``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: int32, y: int32): () =
     match((x, y))
@@ -6750,7 +6750,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6782,7 +6782,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6817,7 +6817,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6850,7 +6850,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6890,7 +6890,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6926,7 +6926,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -6969,7 +6969,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -7012,7 +7012,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern Tuple(x: int32): (int32, int32) =
     (x, x)
@@ -7043,7 +7043,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern Tuple(x: int32): (int32, int32) =
     (x, x)
@@ -7074,7 +7074,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -7110,7 +7110,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -7152,7 +7152,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -7198,7 +7198,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7242,7 +7242,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7286,7 +7286,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7333,7 +7333,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7380,7 +7380,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7428,7 +7428,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7476,7 +7476,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7524,7 +7524,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7571,7 +7571,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7618,7 +7618,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7667,7 +7667,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7717,7 +7717,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7767,7 +7767,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7817,7 +7817,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7865,7 +7865,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -7913,7 +7913,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -7966,7 +7966,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -8034,7 +8034,7 @@ alias float32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -8087,7 +8087,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -8140,7 +8140,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (===)<T>(o1: T, o2: T): bool where T: not struct
@@ -8192,7 +8192,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("not_equal")]
 (!==)<T>(o1: T, o2: T): bool where T: not struct
@@ -8242,7 +8242,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("less_than")]
 (<)(int32, int32): bool
@@ -8298,7 +8298,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("less_than")]
 (<)(int32, int32): bool
@@ -8355,7 +8355,7 @@ let ``Active pattern match should give expected output``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern addOne(x: int32): int32 = __oly_add(x, 1)
 test(x: int32): () =
@@ -8378,7 +8378,7 @@ let ``Active pattern match should give expected output 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern addOne(x: int32): int32 = __oly_add(x, 1)
 test(x1: int32, x2: int32): () =
@@ -8402,7 +8402,7 @@ let ``Active pattern match should give expected output 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern addOne(x: int32): int32 = 
     print("side effect")
@@ -8429,7 +8429,7 @@ let ``Active pattern match should give expected output 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 pattern addOne(x: int32): int32 = 
     print("side effect")
@@ -8456,7 +8456,7 @@ let ``Active pattern match should give expected output 5``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8491,7 +8491,7 @@ let ``Active pattern match should give expected output 6``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8526,7 +8526,7 @@ let ``Active pattern match should give expected output 7``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8562,7 +8562,7 @@ let ``Active pattern match should give expected output 8``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8596,7 +8596,7 @@ let ``Active pattern match should give expected output 9``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8632,7 +8632,7 @@ let ``Active pattern match should give expected output 10``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8668,7 +8668,7 @@ let ``Active pattern match should give expected output 11``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8704,7 +8704,7 @@ let ``Active pattern match should give expected output 12``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8747,7 +8747,7 @@ let ``Active pattern match should give expected output 13``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8788,7 +8788,7 @@ let ``Active pattern match should give expected output 14``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -8836,7 +8836,7 @@ let ``Simple lambda test via let-binding``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(f: int32 -> int32): int32 =
     let g = f
@@ -8859,7 +8859,7 @@ let ``Simple class inheritance``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A =
 
@@ -8895,7 +8895,7 @@ let ``Simple class inheritance 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A =
 
@@ -8929,7 +8929,7 @@ let ``Simple class inheritance 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A =
 
@@ -8972,7 +8972,7 @@ let ``Simple class inheritance 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A =
 
@@ -9014,7 +9014,7 @@ let ``Interface with a property should pass``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -9048,7 +9048,7 @@ open extension TestExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -9067,7 +9067,7 @@ extension TestExtension =
 test(t: ITest): int32 = t.x
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let t = Test()
@@ -9089,7 +9089,7 @@ open extension TestExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -9113,7 +9113,7 @@ extension TestExtension =
 test(t: ITest): int32 = t.x
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let t = Test(): ITest2
@@ -9133,7 +9133,7 @@ let ``Interface with a function should pass``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -9172,7 +9172,7 @@ open extension TestExtension
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -9190,7 +9190,7 @@ extension TestExtension =
 test(t: ITest): int32 = t.x()
 
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
 
 main(): () =
     let t = Test()
@@ -9207,10 +9207,10 @@ let ``Test null``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
-    let x = unchecked default: __oly_object
+    let x = unchecked default: __oly_base_object
     print(x)
         """
     Oly src
@@ -9223,7 +9223,7 @@ let ``Implicit default constructor on class``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test
 
@@ -9241,7 +9241,7 @@ let ``Implicit default constructor on class 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -9261,7 +9261,7 @@ let ``Implicit default constructor on struct``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test
 
@@ -9279,7 +9279,7 @@ let ``Implicit default constructor on struct 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -9299,7 +9299,7 @@ let ``Interface inherits more than one interface``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA
 interface IB
@@ -9327,7 +9327,7 @@ let ``Basic enum``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum Test =
     | A
@@ -9348,7 +9348,7 @@ let ``Basic enum 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum Test =
     | A
@@ -9371,7 +9371,7 @@ let ``let! example``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -9411,7 +9411,7 @@ let ``let! example 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -9449,7 +9449,7 @@ let ``Local generic type example``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test<A, B>(a: A, b: B): B where A: struct; where B: struct =
     struct Test =
@@ -9476,7 +9476,7 @@ let ``Local generic type example 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test =
@@ -9503,7 +9503,7 @@ let ``Local generic type example 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test<A, B>(a: A, b: B): B where A: struct =
     struct Test<T> =
@@ -9530,7 +9530,7 @@ let ``Local generic function has a static local generic function``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test<A, B>(a: A, b: B): A where A: struct =
     static let test2<T>(): A = default
@@ -9555,7 +9555,7 @@ module TestModule
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test<T> where T: struct =
 
@@ -9583,7 +9583,7 @@ module TestModule
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test<T> where T: struct =
 
@@ -9610,7 +9610,7 @@ let ``Struct and interface, mutable behaviour testing``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -9643,7 +9643,7 @@ let ``Struct and interface, mutable behaviour testing 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -9676,7 +9676,7 @@ let ``Struct and interface, mutable behaviour testing 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -9708,7 +9708,7 @@ let ``Basic explicit property with getter``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -9732,7 +9732,7 @@ let ``Property with default value``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -9755,7 +9755,7 @@ let ``Static auto property on class``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -9781,7 +9781,7 @@ let ``Static auto property on class 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -9803,7 +9803,7 @@ let ``Static auto property on Module``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -9825,7 +9825,7 @@ let ``Static field and property calls complex``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test2 =
 
@@ -9860,7 +9860,7 @@ let ``Static field and property calls complex 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test2 =
 
@@ -9898,7 +9898,7 @@ let ``Static field and property calls complex 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test2 =
 
@@ -9935,7 +9935,7 @@ let ``Static field and property calls complex 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test2 =
 
@@ -9976,7 +9976,7 @@ let ``Static field and static constructor initialization behavior``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10000,7 +10000,7 @@ let ``Static field and static constructor initialization behavior 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10026,7 +10026,7 @@ let ``Static field and static constructor initialization behavior 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10054,7 +10054,7 @@ let ``Static field and static constructor initialization behavior 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10082,7 +10082,7 @@ let ``Static field and static constructor initialization behavior 5``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10111,7 +10111,7 @@ let ``Static field and static constructor initialization behavior 6``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10139,7 +10139,7 @@ let ``Static field and static constructor initialization behavior 7``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Test =
 
@@ -10170,7 +10170,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_tuple_element")]
 GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
@@ -10196,7 +10196,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_tuple_element")]
 GetTupleElement<N, T...>(__oly_tuple<T...>): T...[N] where N: constant int32
@@ -10219,7 +10219,7 @@ let ``Get array element``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 // Immutable array
 #[intrinsic("get_element")]
@@ -10251,7 +10251,7 @@ let ``New array``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -10295,7 +10295,7 @@ let ``Complex test``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -10901,7 +10901,7 @@ let ``Complex ByRef``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -10936,7 +10936,7 @@ let ``Complex ByRef 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -10971,7 +10971,7 @@ let ``Call function indirectly from field``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test =
 
@@ -10999,7 +10999,7 @@ let ``Call function indirectly from field 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11027,7 +11027,7 @@ let ``Custom inlined for-loop API``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -11066,7 +11066,7 @@ alias bool
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11215,7 +11215,7 @@ alias bool
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11256,7 +11256,7 @@ let ``Inline lambda 1``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 test(#[inline] f: int32 -> ()): () =
@@ -11278,7 +11278,7 @@ let ``Static field converts to a constant``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 field X: int32 = 123
 
@@ -11298,7 +11298,7 @@ let ``Setting this because it is a byref``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11332,7 +11332,7 @@ let ``Using byref from a function``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11366,7 +11366,7 @@ let ``Using byref from a function 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11406,7 +11406,7 @@ let ``Using byref from a function 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -11730,7 +11730,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11774,7 +11774,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11825,7 +11825,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11876,7 +11876,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11917,7 +11917,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11958,7 +11958,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -11997,7 +11997,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -12039,7 +12039,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -12083,7 +12083,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -12127,7 +12127,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
 
@@ -12152,7 +12152,7 @@ let ``Simple variadic generic type``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Test<T...>
 
@@ -12171,7 +12171,7 @@ let ``Simple variadic generic type 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12193,7 +12193,7 @@ let ``Simple constant constraint should run``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12214,7 +12214,7 @@ let ``Simple constant constraint should run 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12235,7 +12235,7 @@ let ``Can we break SSA?``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12262,7 +12262,7 @@ let ``Can we break SSA? 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12293,7 +12293,7 @@ let ``Can we break SSA? 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12323,7 +12323,7 @@ let ``Can we break SSA? 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12356,7 +12356,7 @@ let ``Can we break SSA? 5``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12390,7 +12390,7 @@ let ``Can we break SSA? 6``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12425,7 +12425,7 @@ let ``Can we break SSA? 7``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12465,7 +12465,7 @@ let ``Can we break SSA? 8``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12495,7 +12495,7 @@ let ``Can we break SSA? 9``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12526,7 +12526,7 @@ let ``Can we break SSA? 10``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12557,7 +12557,7 @@ let ``Can we break SSA? 11``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12592,7 +12592,7 @@ let ``Can we break SSA? 12``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12621,7 +12621,7 @@ let ``Can we break SSA? 13``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -12670,7 +12670,7 @@ let ``Can we break SSA? 14``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12714,7 +12714,7 @@ let ``Can we break SSA? 15``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12757,7 +12757,7 @@ let ``Can we break SSA? 16``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12818,7 +12818,7 @@ let ``Can we break SSA? 17``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12863,7 +12863,7 @@ let ``Can we break SSA? 18``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -12989,7 +12989,7 @@ let ``Can we break SSA? 19``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -13018,7 +13018,7 @@ let ``Extended type should have access to the extension functions of an implemen
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -13049,7 +13049,7 @@ let ``Basic newtype``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -13071,7 +13071,7 @@ let ``Basic newtype 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -13093,7 +13093,7 @@ let ``Basic newtype 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -13117,7 +13117,7 @@ let ``Basic newtype 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -13144,7 +13144,7 @@ let ``Basic newtype 5``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -13171,7 +13171,7 @@ let ``Basic newtype 6``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -13196,7 +13196,7 @@ let ``Extended members should be picked up by witnesses if not part of concrete 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -13230,7 +13230,7 @@ let ``Extended members should be picked up by witnesses if not part of concrete 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -13264,7 +13264,7 @@ let ``Extended members should be picked up by witnesses if not part of concrete 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A<T> =
 
@@ -13283,7 +13283,7 @@ printM<T>(x: T): () where T: trait { M(): (); M2(): () } =
     x.M2()
 
 main(): () =
-    let a = A<__oly_object>()
+    let a = A<__oly_base_object>()
     a.M()
     a.M2()
     printM(a)
@@ -13298,7 +13298,7 @@ let ``Extended members should be picked up by witnesses if not part of concrete 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A<T> =
 
@@ -13319,7 +13319,7 @@ printM<T>(x: T): () where T: trait { M<C>(): C; M2<D>(): D } =
     print(a2)
 
 main(): () =
-    let a = A<__oly_object>()
+    let a = A<__oly_base_object>()
     printM(a)
         """
     Oly src
@@ -13332,7 +13332,7 @@ let ``Extended members should be picked up by witnesses if not part of concrete 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A<T> =
 
@@ -13355,7 +13355,7 @@ printM<T>(x: T): () where T: trait { M<C>(): C; M2<D>(): D; Test(): T } =
     print(a2)
 
 main(): () =
-    let a = A<__oly_object>()
+    let a = A<__oly_base_object>()
     printM(a)
         """
     Oly src
@@ -13368,7 +13368,7 @@ let ``Regression - closure should capture correctly``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(mutable x: __oly_int32): ()  =
     let f() =
@@ -13391,7 +13391,7 @@ let ``Regression - slow option type pattern matching``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Option<T> =
     public field Value: T
@@ -13417,7 +13417,7 @@ let ``Regression - slow option type pattern matching 2``() =
 module TestModule
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Option<T> =
     public field Value: T
@@ -13449,7 +13449,7 @@ let ``Regression - slow option type pattern matching 3``() =
 module TestModule
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Option<T> =
     public field Value: T
@@ -13481,7 +13481,7 @@ let ``Regression - slow option type pattern matching 4``() =
 module TestModule
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Option<T> =
     public field Value: T
@@ -13512,7 +13512,7 @@ let ``Regression - unit as type argument should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 f<T>(): T = unchecked default
@@ -13530,7 +13530,7 @@ let ``Regression - unit as type argument should work 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 f<T>(): T = unchecked default
@@ -13551,7 +13551,7 @@ let ``Regression - unit as type argument should work 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 f<T>(): T = unchecked default
@@ -13572,7 +13572,7 @@ let ``Regression - pattern match for nested tuple should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 5
@@ -13590,7 +13590,7 @@ let ``Regression - pattern match should work with Or cases when binding a value`
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 5
@@ -13622,7 +13622,7 @@ alias int32
 (==)(int32, int32): bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 5
@@ -13647,7 +13647,7 @@ let ``Regression - pattern match (large) should work with Or cases when binding 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 5
@@ -13672,7 +13672,7 @@ let ``Regression - pattern match should work with Or cases when binding a value 
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 5
@@ -13695,7 +13695,7 @@ let ``Enum should work with extensions``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13730,7 +13730,7 @@ let ``Enum should work with extensions 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13766,7 +13766,7 @@ let ``Enum should work with extensions 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13801,7 +13801,7 @@ let ``Enum should work with extensions 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13837,7 +13837,7 @@ let ``Enum should work when using pattern matching``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13870,7 +13870,7 @@ let ``Enum should work when using pattern matching 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 enum X64GeneralPurposeRegister32 =
@@ -13903,7 +13903,7 @@ let ``Weird one``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int
@@ -13921,7 +13921,7 @@ alias byref<T>
 (+)(int, int): int
 
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 interface IMoveable =
     Position: int get, set
@@ -13966,7 +13966,7 @@ let ``Weird one 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int
@@ -13984,7 +13984,7 @@ alias byref<T>
 (+)(int, int): int
 
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 interface IMoveable =
     Position: int get, set
@@ -14033,7 +14033,7 @@ let ``Weird one 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int
@@ -14051,7 +14051,7 @@ alias byref<T>
 (+)(int, int): int
 
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 interface IMoveable =
     Position: int get, set
@@ -14583,7 +14583,7 @@ let ``Overload with newtype similar to actual type``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype NewInt32 =
     field Value: int32
@@ -14624,7 +14624,7 @@ let ``Overload with newtype similar to actual type 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype NewInt32 =
     field Value: int32
@@ -14677,7 +14677,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: byref<int32>): () =
     print(x)
@@ -14718,7 +14718,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(x: byref<int32>): byref<int32> =
     print("byref")
@@ -14764,7 +14764,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
     test(x: byref<int32>): ()
@@ -14803,7 +14803,7 @@ let ``Simple character literal``() =
 alias char
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 'y'
@@ -14822,7 +14822,7 @@ let ``Mutable struct captured in lambda should pass``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct TestStruct =
     public field mutable X: int32 = 0
@@ -14850,7 +14850,7 @@ let ``Mutable value array should work with shadowing``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let mutable values = [1]
@@ -14873,7 +14873,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -14920,7 +14920,7 @@ alias byref<T>
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S1 =
     public field mutable X: int32 = 0
@@ -14953,7 +14953,7 @@ alias byref<T>
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S1 =
     public field mutable X: int32 = 0
@@ -14989,7 +14989,7 @@ alias byref<T>
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S1 =
     public field mutable X: int32 = 0
@@ -15021,7 +15021,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension VkResultExtensions =
@@ -15061,7 +15061,7 @@ namespace Test
 
 module Test1 =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
 module Test2 =
 
@@ -15092,7 +15092,7 @@ newtype Option<T> =
     GetValue(): T = this.value
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = Some("passed")
@@ -15111,9 +15111,9 @@ let ``Newtype option API``() =
 alias bool
 
 #[intrinsic("equal")]
-(===)(o1: __oly_object, o2: __oly_object): bool
+(===)(o1: __oly_base_object, o2: __oly_base_object): bool
 #[intrinsic("not_equal")]
-(!==)(o1: __oly_object, o2: __oly_object): bool
+(!==)(o1: __oly_base_object, o2: __oly_base_object): bool
 
 #[open]
 newtype Option<T> where T: not struct =
@@ -15131,7 +15131,7 @@ newtype Option<T> where T: not struct =
         get() = Option(unchecked default)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = Some("passed")
@@ -15154,9 +15154,9 @@ let ``Newtype option API - different member order``() =
 alias bool
 
 #[intrinsic("equal")]
-(===)(o1: __oly_object, o2: __oly_object): bool
+(===)(o1: __oly_base_object, o2: __oly_base_object): bool
 #[intrinsic("not_equal")]
-(!==)(o1: __oly_object, o2: __oly_object): bool
+(!==)(o1: __oly_base_object, o2: __oly_base_object): bool
 
 #[open]
 newtype Option<T> where T: not struct =
@@ -15174,7 +15174,7 @@ newtype Option<T> where T: not struct =
         ()
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = Some("passed")
@@ -15197,9 +15197,9 @@ let ``Newtype option API 2``() =
 alias bool
 
 #[intrinsic("equal")]
-(===)(o1: __oly_object, o2: __oly_object): bool
+(===)(o1: __oly_base_object, o2: __oly_base_object): bool
 #[intrinsic("not_equal")]
-(!==)(o1: __oly_object, o2: __oly_object): bool
+(!==)(o1: __oly_base_object, o2: __oly_base_object): bool
 
 #[open]
 newtype Option<T> where T: not struct =
@@ -15217,7 +15217,7 @@ newtype Option<T> where T: not struct =
         get() = Option(unchecked default)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x: Option<__oly_utf16> = None
@@ -15308,7 +15308,7 @@ TranslateKey(c: char): Key =
     | _ => Key.Unknown
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = TranslateKey('A')
@@ -15407,7 +15407,7 @@ TranslateKey(c: char): Key =
         | _ => Key.Unknown
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = TranslateKey('A')
@@ -15506,7 +15506,7 @@ TranslateKey(c: char): Key =
         | _ => Key.Unknown
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = TranslateKey('A')
@@ -15533,7 +15533,7 @@ let ``Generic interface that handles functions that have ambiguity``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA<T> =
 
@@ -15563,7 +15563,7 @@ let ``Generic interface that handles functions that have ambiguity 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA<T> =
 
@@ -15600,7 +15600,7 @@ alias int32
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA<T> =
 
@@ -15644,7 +15644,7 @@ let ``Generic class that handles functions that have ambiguity``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A<T> =
 
@@ -15681,7 +15681,7 @@ alias int32
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A<T> =
 
@@ -15720,7 +15720,7 @@ let ``Abstract class should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class C1 =
 
@@ -15750,7 +15750,7 @@ let ``Array extension should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -15783,7 +15783,7 @@ let ``Multiple constructors where one calls the other``() =
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -15817,7 +15817,7 @@ let ``Let pattern binding should pass``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let (x, y) = (1, 2)
@@ -15837,7 +15837,7 @@ let ``Modify Vector X from a class``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Vector2 =
     public field mutable X: int32 = 0
@@ -15864,7 +15864,7 @@ let ``Cannot modify Vector X from a class because of property``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Vector2 =
     public field mutable X: int32 = 0
@@ -15894,7 +15894,7 @@ alias int32
 alias nint
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("unsafe_cast")]
 nint<TResult, TArguments...>(static (TArguments...) -> TResult): nint
@@ -15975,7 +15975,7 @@ extension S2Component =
 
 module TestModule =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
@@ -16057,7 +16057,7 @@ extension S2Component2 =
 
 module TestModule =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     GetIndex<T>(): int32 where T: unmanaged, trait IComponent, trait IComponent2 =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
@@ -16121,7 +16121,7 @@ extension S2Component =
 
 module TestModule =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
@@ -16144,7 +16144,7 @@ let ``Shape constraint can have a constructor``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -16167,7 +16167,7 @@ let ``Static abstract for witness should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     static abstract default M(): () = print("failed")
@@ -16197,7 +16197,7 @@ let ``Static abstract for witness should work 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     static abstract default M(): () = print("failed")
@@ -16232,7 +16232,7 @@ module Prelude
 open extension Prelude.SA2
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     static abstract default M(): () = print("failed")
@@ -16278,7 +16278,7 @@ let ``Abstract for witness should work``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     default M(): () = print("failed")
@@ -16308,7 +16308,7 @@ let ``Abstract for witness should work 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     default M(): () = print("failed")
@@ -16340,7 +16340,7 @@ let ``Abstract for witness should work 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     default M(): () = print("failed")
@@ -16387,7 +16387,7 @@ let ``Abstract for witness should work 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     default M(): () = print("failed")
@@ -16430,7 +16430,7 @@ let ``Abstract for witness should work 5``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
     default M(): () = print("failed")
@@ -16477,7 +16477,7 @@ let ``Witness passing regression``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -16538,7 +16538,7 @@ open extension Prelude.SComponent
 open extension Prelude.SComponent2
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -16634,7 +16634,7 @@ alias inref<T>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Vector2 =
     public field mutable X: int32
@@ -16687,7 +16687,7 @@ alias inref<T>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct MouseInfo =
     field mutable X: () -> () = () -> print("passed")
@@ -16729,7 +16729,7 @@ alias inref<T>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Vector2 =
     public field mutable X: int32
@@ -16780,7 +16780,7 @@ alias inref<T>
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class A =
 
@@ -16820,7 +16820,7 @@ let ``Static ctor evaluation order for fields``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module MD =
 
@@ -16846,7 +16846,7 @@ let ``Static ctor evaluation order for fields 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module MD =
 
@@ -16875,7 +16875,7 @@ main(): () =
     print(x)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     """
     |> Oly
     |> withCompile
@@ -16895,7 +16895,7 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -16944,7 +16944,7 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17002,7 +17002,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17060,7 +17060,7 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17100,7 +17100,7 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17147,7 +17147,7 @@ alias inref<T>
 (&)<T>(T): inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17194,7 +17194,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17243,7 +17243,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17299,7 +17299,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17357,7 +17357,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17403,7 +17403,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17449,7 +17449,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17495,7 +17495,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17560,7 +17560,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17627,7 +17627,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17694,7 +17694,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17773,7 +17773,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("add")]
 (+)(int32, int32): int32
@@ -17846,7 +17846,7 @@ let ``Scoped lambda 1``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(f: scoped int32 -> int32): int32 = f(50)
 
@@ -17866,7 +17866,7 @@ let ``Scoped lambda 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(f: scoped int32 -> int32): int32 = f(50)
 
@@ -17891,7 +17891,7 @@ let ``Scoped lambda 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(f: scoped int32 -> int32): int32 = f(50)
 
@@ -17925,7 +17925,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(f: scoped () -> int32): int32 = f()
 
@@ -17955,7 +17955,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -17992,7 +17992,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18031,7 +18031,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18069,7 +18069,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18117,7 +18117,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18165,7 +18165,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18216,7 +18216,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
 
@@ -18261,7 +18261,7 @@ let ``Complex witness arrangement``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -18300,7 +18300,7 @@ let ``Complex witness arrangement 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent<T> where T: unmanaged
 
@@ -18339,7 +18339,7 @@ let ``Complex witness arrangement 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent<T> where T: unmanaged
 
@@ -18378,7 +18378,7 @@ let ``Complex witness arrangement 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent<T> where T: unmanaged =
 
@@ -18426,7 +18426,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -18470,7 +18470,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -18514,7 +18514,7 @@ let ``Pass function types from closures``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -18561,7 +18561,7 @@ let ``Generic class with a static field``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Option<T> =
     Value: T get = unchecked default
@@ -18585,7 +18585,7 @@ let ``Newtype should work with static auto-property backed by a static field``()
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 newtype Option<T> =
@@ -18612,7 +18612,7 @@ let ``Override static function within an interface``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18644,7 +18644,7 @@ let ``Override static function within an interface 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18680,7 +18680,7 @@ let ``Override static function within an interface 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18712,7 +18712,7 @@ let ``Override static function within an interface 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18748,7 +18748,7 @@ let ``Override function within an interface``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18780,7 +18780,7 @@ let ``Lambda captures type parameter and witness``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -18815,7 +18815,7 @@ let ``Lambda captures type parameter and witness 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -18851,7 +18851,7 @@ let ``Lambda captures type parameter and witness 2-1``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -18885,7 +18885,7 @@ let ``Lambda captures type parameter and witness 2-2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -18919,7 +18919,7 @@ let ``Lambda captures type parameter and witness 2-3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent =
 
@@ -18955,7 +18955,7 @@ let ``Lambda captures type parameter and witness 3``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -19004,7 +19004,7 @@ let ``Lambda captures type parameter and witness 4``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -19057,7 +19057,7 @@ let ``Lambda captures type parameter and witness 5``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -19120,7 +19120,7 @@ let ``Lambda captures type parameter and witness 6``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -19192,7 +19192,7 @@ let ``Lambda captures type parameter and witness 6 - except its without the witn
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("by_ref")]
 alias byref<T>
@@ -19264,7 +19264,7 @@ let ``Scoped closure should work when captured by a normal closure and mutating 
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(f: scoped () -> ()): () = f()
 
@@ -19289,7 +19289,7 @@ let ``Property as a function type alias``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 alias PropFunc = (int32, int32, int32) -> () 
 
@@ -19322,7 +19322,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("equal")]
 (==)(int32, int32): bool
@@ -19360,7 +19360,7 @@ let ``Array of tuples in a ForEach loop funcion should work``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 ForEach<T>(xs: T[], f: T -> ()): () =
     print("hello")
@@ -19383,7 +19383,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -19431,7 +19431,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -19481,7 +19481,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -19524,7 +19524,7 @@ main(): () =
 let ``Partial application unit to unit regression``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -19548,13 +19548,13 @@ main(): () =
 let ``Partial application unit to unit regression 2``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
     Test(): () = print("hello")
 
-    Test(x: __oly_object): () = print("wrong")
+    Test(x: __oly_base_object): () = print("wrong")
 
 class B =
 
@@ -19574,7 +19574,7 @@ main(): () =
 let ``Partial application unit to unit regression 3``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -19600,7 +19600,7 @@ main(): () =
 let ``Partial application unit to unit regression 4``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A =
 
@@ -19626,7 +19626,7 @@ main(): () =
 let ``Partial application unit to unit regression 5``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(z: T, f: T -> ()): () =
     f(z)
@@ -19644,7 +19644,7 @@ main(): () =
 let ``Partial application unit to unit regression 6``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(z: T, f: T -> ()): () =
     f(z)
@@ -19660,7 +19660,7 @@ main(): () =
 let ``Partial application unit to unit regression 7``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(z: T, f: T -> ()): () =
     f(z)
@@ -19682,7 +19682,7 @@ alias int32
 alias uint32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 get_uint32(): uint32 = 25
 
@@ -19705,7 +19705,7 @@ alias int32
 alias uint32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 get_uint32(): uint32 = 25
 
@@ -19734,7 +19734,7 @@ nint(int32): nint
 int32(nint): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(nint(123))
@@ -19760,7 +19760,7 @@ nuint(uint32): nuint
 uint32(nuint): uint32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(nuint(123))
@@ -19783,7 +19783,7 @@ class A =
     X: __oly_int32 get = 5
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 getTuple(): (IA, __oly_int32) =
     (A() : IA, 9) // 'A' is the concrete type
@@ -19802,10 +19802,10 @@ let ``Regression - closure and pattern should succeed``() =
     let src =
         """
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -19873,7 +19873,7 @@ let ``Newtype - take address of principal field should succeed``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -19910,7 +19910,7 @@ let ``Newtype - take address of principal field should succeed 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -19950,7 +19950,7 @@ let ``Newtype - take address of principal field should succeed 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -19992,7 +19992,7 @@ let ``Newtype - take address of principal field should succeed 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20032,7 +20032,7 @@ let ``Struct value will not mutate from interface constraint for inref``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20075,7 +20075,7 @@ let ``Struct value will not mutate from shape constraint for inref``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20116,7 +20116,7 @@ let ``Able to mutate value field of a newtype``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20154,7 +20154,7 @@ let ``Able to mutate value field of a newtype 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20210,7 +20210,7 @@ let ``Able to mutate value field of a newtype 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20239,7 +20239,7 @@ let ``Able to mutate value field of a newtype 4``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20280,7 +20280,7 @@ let ``Newtype should work with a shape trait constraint``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -20317,7 +20317,7 @@ alias inref<T>
 alias outref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -20341,7 +20341,7 @@ let ``Anonymous shape constraint with members that have generics with constraint
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -20366,7 +20366,7 @@ let ``Constraint { new() } and T() should work for struct``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20398,7 +20398,7 @@ let ``Constraint { new() } and T() should work for struct 2 - no parameterless c
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20431,7 +20431,7 @@ let ``Constraint { new() } and T() should work for class``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20463,7 +20463,7 @@ let ``Constraint { new() } and T() should work for class 2 - has a static constr
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20500,7 +20500,7 @@ let ``Constraint { new() } and T() should work for class 3 - has a static constr
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20544,7 +20544,7 @@ alias int32
 (&)<T>(T): __oly_by_ref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
@@ -20578,7 +20578,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T1>(#[inline] f: scoped (int32, Ref1<T1>) -> ()): () where Ref1: scoped =
@@ -20603,7 +20603,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
@@ -20628,7 +20628,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_, _>, T...>(#[inline] f: (Ref1<int32, T...>) -> ()): () =
@@ -20656,7 +20656,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
@@ -20681,7 +20681,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () =
@@ -20706,7 +20706,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 M<Ref1<_>, T...>(#[inline] f: (Ref1<T...>) -> ()): () where Ref1<_>: __oly_tuple =
@@ -20731,7 +20731,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class C<T...>
 
@@ -20758,7 +20758,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class C<T>
 
@@ -20785,7 +20785,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C<T...>
 
@@ -20821,7 +20821,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(x: inref<S>): () =
     print(x.X)
@@ -20873,7 +20873,7 @@ class C<T1> =
 module Helpers =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
         """
 
     let src2 =
@@ -20911,7 +20911,7 @@ let ``'new' should work on the concrete implementation``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IExample =
 
@@ -20940,11 +20940,11 @@ let ``Infer array correctly``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
-M(xs: mutable __oly_object[]): () = print("hello")
+M(xs: mutable __oly_base_object[]): () = print("hello")
 
 main(): () =
     let _ = M(mutable [A()])
@@ -20958,11 +20958,11 @@ let ``Infer tuple correctly``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
-M(xs: (__oly_object, __oly_object)): () = print("hello")
+M(xs: (__oly_base_object, __oly_base_object)): () = print("hello")
 
 main(): () =
     let _ = M((A(), A()))
@@ -20976,14 +20976,14 @@ let ``Infer generic correctly``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
 class G<T> =
     new(x: T) = this { }
 
-M(xs: G<__oly_object>): () = print("hello")
+M(xs: G<__oly_base_object>): () = print("hello")
 
 main(): () =
     let _ = M(G(A()))
@@ -20997,14 +20997,14 @@ let ``Infer generic correctly 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
 class G<T> =
     new(x: T) = this { }
 
-M(xs: G<__oly_object>): () = print("hello")
+M(xs: G<__oly_base_object>): () = print("hello")
 
 main(): () =
     let _ = M(G<_>(A()))
@@ -21047,7 +21047,7 @@ alias bool
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum GpuDescriptorSetLayoutBindingFlags =
     | None
@@ -21096,7 +21096,7 @@ alias inref<T>
 (<)(int32, int32): bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[null]
 class C =
@@ -21126,7 +21126,7 @@ let ``Should be able to get subtype from type variable - checks constraint order
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -21158,7 +21158,7 @@ let ``Should be able to get subtype from type variable 2 - checks constraint ord
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class AC =
 
@@ -21190,7 +21190,7 @@ let ``Should be able to get subtype from type variable 3 - checks constraint ord
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -21222,7 +21222,7 @@ let ``Should be able to get subtype from type variable 4 - checks constraint ord
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class AC =
 
@@ -21254,7 +21254,7 @@ let ``Should be able to get subtype from type variable 5 - checks constraint ord
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class AC =
 
@@ -21289,7 +21289,7 @@ let ``Should still get shape member even though it has a subsumption``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 shape Shape<T> =
 
@@ -21325,7 +21325,7 @@ let ``Trait constraint on a type's type parameter``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface ITest =
 
@@ -21354,4 +21354,139 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = print("test")
+
+main(): () =
+    let x = 1: int32
+    let c = C(x)
+    c.Call()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = print("test_int32")
+
+extension =
+    inherits uint32
+    implements ITest
+
+    Test(): () = print("test_uint32")
+
+main(): () =
+    let x = 1: int32
+    let c = C(x)
+    c.Call()
+
+    let x = 1: uint32
+    let c = C(x)
+    c.Call()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32test_uint32"
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed accross references``() =
+    let refSrc =
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+module Printer =
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = Printer.print("test_int32")
+        """
+    let src = 
+        """
+open CoolNamespace
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+main(): () =
+    let x = 1: int32
+    let c = C(x)
+    c.Call()
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32"
     |> ignore

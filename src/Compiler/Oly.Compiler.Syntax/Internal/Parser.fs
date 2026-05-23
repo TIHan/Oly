@@ -3384,27 +3384,28 @@ let tryParseWhileExpression state =
     else
         None
 
-let tryParseTypeDeclarationName state =
+let parseTypeDeclarationName state =
     match bt IDENTIFIER state with
     | Some(ident) ->
-        SyntaxTypeDeclarationName.Identifier(ident) |> Some
+        SyntaxTypeDeclarationName.Identifier(ident)
     | _ ->
 
     let s = sp state
 
     match bt tryParseParenthesisTypeOperator state with
     | Some(leftParenToken, operatorToken, rightParenToken) ->
-        SyntaxTypeDeclarationName.Parenthesis(leftParenToken, operatorToken, rightParenToken, ep s state) |> Some
+        SyntaxTypeDeclarationName.Parenthesis(leftParenToken, operatorToken, rightParenToken, ep s state)
     | _ ->
 
-    None
+    SyntaxTypeDeclarationName.Anonymous()
 
 let SyntaxTypeDeclarationBodyNone() =
     SyntaxTypeDeclarationBody.Body(SyntaxExtends.Empty(), SyntaxImplements.Empty(), SyntaxList.Empty(), SyntaxExpression.None(), 0)
 
 let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
-    match bt2 tryParseTypeDeclarationKind tryParseTypeDeclarationName state with
-    | Some(kind), Some(tyDefName) ->
+    match bt tryParseTypeDeclarationKind state with
+    | Some(kind) ->
+        let tyDefName = parseTypeDeclarationName state
         let tyPars = parseTypeParameters TypeParameterContext.Default state
         let constrClauseList = parseConstraintClauseList state
         match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
@@ -3415,18 +3416,6 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
         | _ ->
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
-    | Some(kind), _ ->
-        let tyPars = parseTypeParameters TypeParameterContext.Default state
-        let constrClauseList = parseConstraintClauseList state
-        errorDo(ExpectedSyntaxAfterSyntax("type declaration name", "type declaration kind"), kind) state
-        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
-        | Some(equalsToken), Some(body) ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
-        | Some(equalsToken), _ ->
-            errorDo(ExpectedSyntaxAfterToken("declaration body", Equal), equalsToken) state
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
-        | _ ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
     | _ ->
         None
 

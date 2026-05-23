@@ -38,11 +38,11 @@ let bindAccessorAsMemberFlags (defaultAccessorFlags: MemberFlags) (syntaxAccesso
 (********************************************************************************************************************************************************************************************)
 
 /// Pass 1 - Get type definition inherits and implements.
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxNode: OlySyntaxNode) (syntaxTyPars: OlySyntaxTypeParameters) (syntaxConstrClauses: OlySyntaxConstraintClause imarray) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
 
-    bindTypeDeclarationBody cenv env syntaxIdent false entBuilder entBuilder.NestedEntityBuilders syntaxTyPars.Values syntaxConstrClauses syntaxTyDefBody |> ignore
+    bindTypeDeclarationBody cenv env syntaxNode false entBuilder entBuilder.NestedEntityBuilders syntaxTyPars.Values syntaxConstrClauses syntaxTyDefBody |> ignore
 
     scopeInEntityAndOverride env entBuilder.Entity
 
@@ -60,13 +60,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
     (* CHECK FOR DUPLICATE NESTED ENTITIES *)
     let duplicateEnts = HashSet()
-    let syntaxIdents = syntaxEntDefBody.GetNestedTypeDeclarationIdentifiers()
-    (entBuilder.NestedEntityBuilders, syntaxIdents)
-    ||> ImArray.iter2 (fun nestedEntBuilder syntaxIdent ->
+    let syntaxNodes = syntaxEntDefBody.GetNestedTypeDeclarationIdentifiers()
+    (entBuilder.NestedEntityBuilders, syntaxNodes)
+    ||> ImArray.tryIter2 (fun nestedEntBuilder syntaxNode ->
         let nestedEnt = nestedEntBuilder.Entity
         let key = (nestedEnt.Name, nestedEnt.TypeParameters.Length)
         if duplicateEnts.Add(key) |> not then
-            cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxIdent)
+            cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxNode)
     )
     (**)
 
@@ -318,9 +318,13 @@ let bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (canOpen: bool)
         let env1, canOpen = bindTopLevelExpression cenv env canOpen entBuilder entities syntaxExpr1
         bindTopLevelExpression cenv env1 canOpen entBuilder entities syntaxExpr2
 
-    | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+    | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDeclKind
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclaration cenv env entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let env = bindTypeDeclaration cenv env entities syntaxNode syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 

@@ -122,7 +122,7 @@ let ``Simple workspace with hello world project should compile`` () =
 module Test
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print("Hello World!")
@@ -142,7 +142,7 @@ let ``Simple workspace with hello world project should not compile and then add 
 module Test
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print("Hello World!")
@@ -353,7 +353,7 @@ let ``By cursor, get completions from a cast`` () =
 #target "interpreter: default"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -426,7 +426,7 @@ let ``Project should be GC'ed``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -460,7 +460,7 @@ let ``Project should be GC'ed 2``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -487,7 +487,7 @@ let ``Project should be GC'ed 3``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -514,7 +514,7 @@ let ``Project should not be GC'ed as the source text is the same``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -543,7 +543,7 @@ let ``Project should work with multiple dots in the name``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -569,7 +569,7 @@ let ``Project should fail when trying to reference a Oly file``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -594,7 +594,7 @@ let ``Project should fail when trying to reference a Oly file 2``() =
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -815,7 +815,7 @@ class TestClass =
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
@@ -874,7 +874,7 @@ open Evergreen.Client.Graphics
 open Evergreen.Client.Graphics.UI
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let g = Graphics()

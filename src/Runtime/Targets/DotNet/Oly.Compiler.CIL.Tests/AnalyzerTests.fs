@@ -102,7 +102,7 @@ module Test =
 module Main =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     main(): () =
         let result = test(1234)

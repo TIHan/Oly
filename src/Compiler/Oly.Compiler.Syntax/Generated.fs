@@ -3076,6 +3076,13 @@ module OlySyntaxTypeDeclarationName =
         | _ ->
             Option.None
 
+    let (|Anonymous|_|) (node: OlySyntaxTypeDeclarationName) : unit option =
+        match node.Internal with
+        | SyntaxTypeDeclarationName.Anonymous _ ->
+            Option.Some()
+        | _ ->
+            Option.None
+
 [<Sealed;NoComparison>]
 type OlySyntaxPattern internal (tree, start: int, parent, internalNode: SyntaxPattern) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)

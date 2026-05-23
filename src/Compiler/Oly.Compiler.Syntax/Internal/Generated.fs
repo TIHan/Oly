@@ -3197,6 +3197,8 @@ type SyntaxTypeDeclarationName =
         operatorToken: SyntaxToken *
         rightParenToken: SyntaxToken *
         fullWidth: int
+    | Anonymous
+        of unit
 
     interface ISyntaxNode with
 
@@ -3220,11 +3222,14 @@ type SyntaxTypeDeclarationName =
                 | 1 -> operatorToken :> ISyntaxNode
                 | 2 -> rightParenToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Anonymous _ ->
+                failwith "invalid slot"
 
         member this.SlotCount =
             match this with
             | Identifier _ -> 1
             | Parenthesis _ -> 3
+            | Anonymous _ -> 0
 
         member this.FullWidth =
             match this with
@@ -3232,6 +3237,8 @@ type SyntaxTypeDeclarationName =
                 (x :> ISyntaxNode).FullWidth
             | Parenthesis(fullWidth=fullWidth) ->
                 fullWidth
+            | Anonymous _ ->
+                0
 
         member _.Tag = 40
         member _.InnerTag = Tags.Terminal

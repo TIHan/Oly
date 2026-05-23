@@ -2819,6 +2819,13 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
                     (originalOverridesOpt |> Option.map (_.AsDefinition))
                     pars
                     returnTy
+
+            //match originalOverridesOpt with
+            //| Some overrides when overrides.AsDefinition.name <> name ->
+            //    failwith $"bad overrides name: {name} vs. {overrides.AsDefinition.name}"
+            //| _ ->
+            //    ()
+
             let isTypeExtension =
                 match enclosingTy with
                 | ClrTypeInfo.TypeDefinition(info=info) -> info.typeExtensionInfo.IsSome

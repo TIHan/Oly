@@ -119,7 +119,7 @@ let ``Newtype should work with a non-trait shape constraint - NOTE - THIS USED T
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32

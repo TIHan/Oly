@@ -53,9 +53,9 @@ let private bindLetBindingDeclaration (cenv: cenv) env (syntaxAttrs, attrs: Attr
 //       It's ok that we do not have this right now as AFAIK there is no mutability going on.
 
 /// Pass 4 - Bind entity definition implementation.
-let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entities: EntitySymbolBuilder imarray) (syntaxIdent: OlySyntaxToken) syntaxTyPars syntaxConstrClauseList (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
+let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (entities: EntitySymbolBuilder imarray) (syntaxNode: OlySyntaxNode) syntaxTyPars syntaxConstrClauseList (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     if isInLocalLambda env then
-        cenv.diagnostics.Error("Type declarations are not allowed in local lambda expressions due to possible inference variables escaping.", 10, syntaxIdent)
+        cenv.diagnostics.Error("Type declarations are not allowed in local lambda expressions due to possible inference variables escaping.", 10, syntaxNode)
         env, BoundExpression.None(BoundSyntaxInfo.User(syntaxToCapture, env.benv))
     else
 
@@ -84,7 +84,7 @@ let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCa
 
     // Interfaces
     if ent.IsInterface then
-        checkInterfaceDefinition (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxIdent ent
+        checkInterfaceDefinition (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode ent
         // ent.Inherits and ent.Implements need to have a specific order so we can get the correct symbols for the associated syntax.
         // At the moment they do because the builder adds them in order.
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
@@ -95,7 +95,7 @@ let private bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) syntaxToCa
         |> filterTypesAsAbstract
         |> filterMostSpecificTypes
         |> ImArray.iter (fun super ->
-            checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxIdent ent.AsType super
+            checkImplementation (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxNode ent.AsType super
         )
         env, BoundExpression.CreateEntityDefinition(BoundSyntaxInfo.User(syntaxToCapture, env.benv), boundExpr, ent)
 
@@ -165,9 +165,13 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entiti
             // we are *pretty* sure an error has been raised before this point.
             env, BoundExpression.Error(BoundSyntaxInfo.User(syntaxExpr, env.benv))
 
-    | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+    | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDeclKind
         let prevEntityDefIndex = cenv.entityDefIndex
-        let result = bindTypeDeclaration cenv env syntaxExpr entities syntaxTyDefName.Identifier syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let result = bindTypeDeclaration cenv env syntaxExpr entities syntaxNode syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         result
 
@@ -1847,13 +1851,17 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         let innerEnv = setSkipCheckTypeConstructor env
         let innerEnv, entities, entBuilder = Pass0.bindTypeDeclaration { cenv with pass = Pass0; entityDefIndex = 0 } innerEnv syntaxAttrs syntaxAccessor syntaxTyDefKind syntaxIdent syntaxTyPars syntaxTyDefBody ImArray.empty (syntaxExpr.GetLeadingCommentText())
         let innerEnv = scopeInEntity innerEnv entBuilder.Entity
-        let innerEnv = Pass1.bindTypeDeclaration { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxIdent syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
-        Pass2.bindTypeDeclaration { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxTyPars syntaxTyDefBody
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDefKind
+        let innerEnv = Pass1.bindTypeDeclaration { cenv with pass = Pass1; entityDefIndex = 0 } innerEnv entities syntaxNode syntaxTyPars syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        Pass2.bindTypeDeclaration { cenv with pass = Pass2; entityDefIndex = 0 } innerEnv entities syntaxNode syntaxAttrs syntaxTyPars syntaxTyDefBody
 
         // REVIEW: Do we need to scope the instance ctors in case the instance ctors are used as attributes?
         let innerEnv = scopeInInstanceConstructors true false innerEnv entBuilder.Entity |> unsetSkipCheckTypeConstructor
-        let innerEnv = Pass3.bindTypeDeclaration { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxAttrs syntaxIdent syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
-        let innerEnv, expr = bindTypeDeclaration { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxIdent syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
+        let innerEnv = Pass3.bindTypeDeclaration { cenv with pass = Pass3; entityDefIndex = 0 } innerEnv entities syntaxNode syntaxAttrs syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let innerEnv, expr = bindTypeDeclaration { cenv with pass = Pass4; entityDefIndex = 0 } innerEnv syntaxToCapture entities syntaxNode syntaxTyPars syntaxConstrClauseList syntaxTyDefBody
 
         // REVIEW: This *could* be expensive if the locally declared type is complicated enough.
         //         We do this for better error reporting, otherwise, simply clearing all locals before

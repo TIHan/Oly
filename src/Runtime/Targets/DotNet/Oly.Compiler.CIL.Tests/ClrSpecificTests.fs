@@ -169,7 +169,7 @@ let ``CLR import generic type``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
@@ -194,7 +194,7 @@ let ``CLR import generic type 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
@@ -227,7 +227,7 @@ let ``Custom CLR import intrinsic int32``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 #[import("CLR:mscorlib", "System", "Int32")]
@@ -2135,7 +2135,7 @@ class Test
 
 module Helpers =
     #[intrinsic("cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
 interface IDootExample =
     inherits IDoot, IExample
@@ -2165,7 +2165,7 @@ let ``Second order generic on List``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
@@ -2194,7 +2194,7 @@ let ``Second order generic on ICollection``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
@@ -2231,7 +2231,7 @@ let ``Second order generic on ICollection 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
@@ -2420,7 +2420,7 @@ class Test =
 
 main(): () =
     let x = Test()
-    let y: __oly_object = x
+    let y: __oly_base_object = x
     System.Console.Write(y.ToString())
         """
 
@@ -2979,7 +2979,7 @@ struct Test2 =
 
 module Test =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 
@@ -3002,7 +3002,7 @@ namespace A
 module Prelude =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     main() : () =
         Test.test()
@@ -3044,7 +3044,7 @@ let ``Using SystemValueType subsumption``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result = 1234
@@ -3064,7 +3064,7 @@ open System
 struct Test
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result = Test()
@@ -3085,7 +3085,7 @@ class Test =
     overrides ToString(): __oly_utf16 = "overrides"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result: System.Object = Test()
@@ -3104,7 +3104,7 @@ class Test =
     overrides ToString(): __oly_utf16 = "overrides"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result: System.Object = Test()
@@ -3119,7 +3119,7 @@ let ``System Convert ToUInt64``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(System.Convert.ToUInt64(123))
@@ -3138,7 +3138,7 @@ open System.Runtime.InteropServices
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
     public field X: int32 = 123
@@ -3167,7 +3167,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3191,7 +3191,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3221,7 +3221,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3252,7 +3252,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3266,7 +3266,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3283,7 +3283,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3303,7 +3303,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3320,7 +3320,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3340,7 +3340,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3357,7 +3357,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3377,7 +3377,7 @@ class AClass<T> =
 module Main =
     main() : () =
         let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3394,7 +3394,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3414,7 +3414,7 @@ class AClass<T> =
 module Main =
     main() : () =
         let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3431,7 +3431,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -3447,7 +3447,7 @@ class AClass<T> =
 module Main =
     main() : () =
         let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -3463,7 +3463,7 @@ namespace Test
 module Prelude =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
     
     #[intrinsic("int32")]
     alias int
@@ -3481,7 +3481,7 @@ module Prelude =
     (+)(int, int): int
     
     #[intrinsic("unsafe_cast")]
-    unsafeCast<T>(__oly_object): T
+    unsafeCast<T>(__oly_base_object): T
 
 #[export]
 module M =
@@ -3533,7 +3533,7 @@ namespace Test
 module Prelude =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
     
     #[intrinsic("int32")]
     alias int
@@ -3551,7 +3551,7 @@ module Prelude =
     (+)(int, int): int
     
     #[intrinsic("unsafe_cast")]
-    unsafeCast<T>(__oly_object): T
+    unsafeCast<T>(__oly_base_object): T
 
 #[export]
 module M =
@@ -3613,13 +3613,13 @@ alias uint64
 alias (*)<T>
 
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 #[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 alloc(numberOfBytes: int32): void* =
     unsafeCast(System.Runtime.InteropServices.Marshal.AllocHGlobal(numberOfBytes))
@@ -3652,7 +3652,7 @@ alias void
 alias (*)<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("load_null_ptr")]
 nullptr<T>: T*
@@ -3672,7 +3672,7 @@ let ``Simple throw should give the right exception``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
@@ -3997,7 +3997,7 @@ let ``Test various branch sizes``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -4059,7 +4059,7 @@ let ``Use 'Length' property from string``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -4077,7 +4077,7 @@ let ``Use 'Length' property from string 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -4095,7 +4095,7 @@ let ``Use 'Length' property from string 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("utf16")]
 alias string
@@ -4112,7 +4112,7 @@ let ``Use 'MaxValue' from uint16``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint16")]
 alias uint16
@@ -4131,7 +4131,7 @@ let ``Simple Try expression``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -4156,7 +4156,7 @@ let ``Simple Try expression 2``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -4180,7 +4180,7 @@ let ``Simple Try expression 3``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -4208,7 +4208,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct TestData =
     public field X: int32 = 1
@@ -4241,7 +4241,7 @@ open System
 alias uint64
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class TestData =
     public field X: uint64 = 123456789
@@ -4261,7 +4261,7 @@ let ``Cast to SystemEnum``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -4281,7 +4281,7 @@ let ``Cast to SystemValueType``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -4301,7 +4301,7 @@ let ``Enum equality overload check``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -4346,7 +4346,7 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("constant")]
 #[import("intrinsic-CLR", "", "typeof")]
@@ -5204,7 +5204,7 @@ class Test2 =
 
 module Program =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     main(): () =
         let t = Test()
@@ -5230,7 +5230,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, f: T -> ()): () =
     let xse = xs.GetEnumerator()
@@ -5258,7 +5258,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5291,7 +5291,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5328,7 +5328,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5362,7 +5362,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5403,7 +5403,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5449,7 +5449,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -5505,7 +5505,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
@@ -5539,7 +5539,7 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
@@ -5571,7 +5571,7 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
@@ -5607,7 +5607,7 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
@@ -5644,7 +5644,7 @@ let ``Always choose most specific implementation for extension``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
    implements IDisposable
@@ -5676,7 +5676,7 @@ let ``Always choose most specific implementation for extension 2``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract default class C
 
@@ -5715,7 +5715,7 @@ let ``Always choose most specific implementation for extension 3``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract default class C
 
@@ -5747,7 +5747,7 @@ let ``Override finalizer``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -5774,7 +5774,7 @@ let ``Field array of byte pointers should work``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint8")]
 alias byte
@@ -5798,7 +5798,7 @@ let ``Lambda uses a pointer type should work``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint8")]
 alias byte
@@ -5828,7 +5828,7 @@ open System
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 test(f: Span<byte> -> ()): () =
@@ -5853,7 +5853,7 @@ open System
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 test(f: ReadOnlySpan<byte> -> ()): () =
@@ -5879,7 +5879,7 @@ open System.Runtime.InteropServices
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
     field value: byte = 1
@@ -5916,7 +5916,7 @@ open System.Runtime.InteropServices
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension MutableArrayExtensions<T> =
@@ -5990,7 +5990,7 @@ extension S2Component =
 
 module TestModule =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
@@ -6033,7 +6033,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
@@ -6193,7 +6193,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 shape DotNetIndexGetter<TKey, TValue> =
 
@@ -6266,7 +6266,7 @@ let ``Span get_Item simple test``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let mutable span = Span(mutable [567])
@@ -6291,7 +6291,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -6411,7 +6411,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -6528,7 +6528,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -7057,7 +7057,7 @@ module Prelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
 #[export]
 struct S<T> =
@@ -7094,7 +7094,7 @@ module Prelude =
     (&)<T>(T): byref<T>
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("add")]
     (+)(int32, int32): int32
@@ -7185,7 +7185,7 @@ module Prelude =
     (&)<T>(T): byref<T>
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("add")]
     (+)(int32, int32): int32
@@ -7267,7 +7267,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -7308,7 +7308,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -7355,7 +7355,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -7382,7 +7382,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object>(x -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object>(x -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -7402,7 +7402,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -7429,7 +7429,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object, int32, int32>((x, y) -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>((x, y) -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -7449,7 +7449,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -7476,7 +7476,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>(x -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -7487,8 +7487,8 @@ main(): () =
         [
             ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
                 """
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
-                                                         ^^^^^^^^^^^^^^^^^^^^
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>(x -> print(" world"))
+                                                                   ^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -7501,7 +7501,7 @@ let ``Static local function returning a pointer``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
@@ -7541,7 +7541,7 @@ alias int32
 sizeof<require T>: int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum PacketKind =
     | Invalid
@@ -7600,7 +7600,7 @@ let ``Mutable array extension should work``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("get_length")]
@@ -7634,7 +7634,7 @@ module M
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("get_length")]
@@ -8082,7 +8082,7 @@ typeof<require T>: Type
 class A
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 consume(x: __oly_utf16): () = ()
@@ -8113,7 +8113,7 @@ printSpecial<T>(mutable value: T): () where T: { ToString(): string } =
     print(value.ToString())
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 456
@@ -8143,7 +8143,7 @@ alias bool
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -8435,7 +8435,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 M(f: scoped () -> ()): () =
@@ -8475,7 +8475,7 @@ alias inref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 M(f: scoped () -> ()): () =
@@ -8519,7 +8519,7 @@ M(xs: A[], f: A -> ()): () = ()
 M<T>(xs: T[], f: T -> ()): () = ()
 M<T>(xs: IEnumerable<T>, f: T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -8553,7 +8553,7 @@ M<T>(xs: mutable T[], f: scoped T -> ()): () = ()
 M<T>(xs: T[], f: scoped T -> ()): () = ()
 M<T>(xs: IEnumerable<T>, f: scoped T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs4 = Dictionary<__oly_int32, B>()
@@ -8573,7 +8573,7 @@ open System
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
@@ -8594,7 +8594,7 @@ main(): () =
         [
             // TODO: Honestly, this shouldn't even report ambiguous functions.
             //       It should actually say that there is no valid overload.
-            ("'Span' has ambiguous functions. Candidates:
+            ("'Span<T>' has ambiguous functions. Candidates:
     new(array: mutable T[]): Span<T>
     new(reference: __oly_by_ref<T>): Span<T>",
                 """
@@ -8733,7 +8733,7 @@ alias bool
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
@@ -8773,7 +8773,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: INumberBase<T> =
     T.One
@@ -8799,7 +8799,7 @@ module Prelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
 #[export]
 module Exported =
@@ -8824,7 +8824,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: IBinaryInteger<T> =
     T.One
@@ -8846,7 +8846,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(int32.One)
@@ -8865,7 +8865,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: IBinaryInteger<T> =
     T.get_One()
@@ -8887,7 +8887,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(int32.get_One())
@@ -8928,7 +8928,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 do_not_run_this(): () =
     let mutable x: int32 = 5
@@ -8946,10 +8946,10 @@ let ``Enum to object then to enum``() =
     let src =
         """
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -8972,7 +8972,7 @@ let ``Newtype inherits ValueType properly``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype A =
     field Value: __oly_int32
@@ -8994,7 +8994,7 @@ let ``Newtype inherits Enum properly``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -9020,7 +9020,7 @@ let ``Newtype of a newtype inherits ValueType properly``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype B =
     field Value: __oly_int32
@@ -9045,7 +9045,7 @@ let ``Newtype should error when trying to override method ToString``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype A =
     field Value: __oly_int32
@@ -9074,7 +9074,7 @@ let ``Newtype should error when NOT trying to hide method ToString``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype A =
     field Value: __oly_int32
@@ -9103,7 +9103,7 @@ let ``Newtype should pass when trying to hide method ToString``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 newtype A =
     field Value: __oly_int32
@@ -9138,7 +9138,7 @@ open System.Collections.Generic
 open System.Collections.Concurrent
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -9194,7 +9194,7 @@ module OlyPrelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("get_element")]
     (`[]`)<T>(mutable T[], index: int32): T
@@ -9239,7 +9239,7 @@ module OlyPrelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("get_element")]
     (`[]`)<T>(mutable T[], index: int32): T
@@ -9321,7 +9321,7 @@ module OlyPrelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("get_element")]
     (`[]`)<T>(mutable T[], index: int32): T
@@ -9403,7 +9403,7 @@ open System
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class Testing1Attribute
 class Testing2Attribute
@@ -9460,7 +9460,7 @@ module RefModule
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(): () where T: ValueType = ()
 
@@ -9495,7 +9495,7 @@ open System
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -9540,7 +9540,7 @@ alias nint
 nint(int32): nint
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
         """
@@ -9570,7 +9570,7 @@ class A =
     new() = base()
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let a = A()
@@ -9591,7 +9591,7 @@ let ``Regression - defined exports with interfaces should work``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[export]
 interface IExample =
@@ -9645,7 +9645,7 @@ let ``Regression - defined exports with interfaces but reversed should work``() 
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[export]
 test<Z>(x: Z): () where Z: IExample =
@@ -9704,7 +9704,7 @@ open System.Threading.Tasks
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let task = // should not need a type annotation
@@ -9731,7 +9731,7 @@ open System.Threading.Tasks
 alias strbg
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let task = // should not need a type annotation
@@ -9758,7 +9758,7 @@ open System.Threading.Tasks
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M<T>(x: T): T = x
 
@@ -9794,7 +9794,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("address_of")]
@@ -9849,7 +9849,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("address_of")]
@@ -9902,7 +9902,7 @@ alias byref<T>
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("address_of")]
@@ -9986,7 +9986,7 @@ alias nuint
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("unsafe_cast")]
 nuint(int32): nuint
@@ -10045,7 +10045,7 @@ alias nuint
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("unsafe_cast")]
 nuint(int32): nuint
@@ -10113,7 +10113,7 @@ alias nuint
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("unsafe_cast")]
 nuint(int32): nuint
@@ -10241,7 +10241,7 @@ open System.Collections.Concurrent
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 shape DotNetIndexSetter<TKey, TValue> =
 
@@ -10276,7 +10276,7 @@ open System.Collections.Concurrent
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
 (`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
@@ -10310,7 +10310,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[export]
 module Beef<U> =
@@ -10345,7 +10345,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[export]
 module Beef<U> =
@@ -10384,7 +10384,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[export]
 module Beef<U> =
@@ -10425,7 +10425,7 @@ alias byte
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(x: ReadOnlySpan<byte>): () = ()
 
@@ -10649,7 +10649,7 @@ to_inref<T>(nint): inref<T>
 (==)(bool, bool): bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 M(x: nint): bool = 
     let y1: byte = to_inref(x)
@@ -10667,4 +10667,23 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "55Hello World!"
+    |> ignore
+
+[<Fact>]
+let ``char ToString() call should work``() =
+    let src =
+        """
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let mutable x = 'a'
+    print(x.ToString())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "a"
     |> ignore

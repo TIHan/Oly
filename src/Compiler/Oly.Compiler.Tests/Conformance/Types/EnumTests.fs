@@ -32,7 +32,7 @@ let ``Enum declaration should error because is not an integer``() =
     let src =
         """
 enum ABC = 
-    inherits __oly_object
+    inherits __oly_base_object
     | A
     | B
     | C
@@ -42,8 +42,8 @@ enum ABC =
         [
             ("'ABC' can only extend integers.",
                 """
-    inherits __oly_object
-    ^^^^^^^^^^^^^^^^^^^^^
+    inherits __oly_base_object
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]

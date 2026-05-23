@@ -553,7 +553,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -607,7 +607,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -662,7 +662,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]

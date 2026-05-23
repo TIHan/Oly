@@ -131,7 +131,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let mutable x = 1

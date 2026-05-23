@@ -2603,6 +2603,7 @@ let createBaseInstanceConstructors (ent: EntitySymbol) =
             member _.Semantic = x.Semantic
             member _.WellKnownFunction = WellKnownFunction.None
             member _.AssociatedFormalPattern = None
+            member _.AssociatedFormalProperty = None
         }.WithEnclosing(notFormal.Enclosing).AsFunction
     )
 
@@ -2636,6 +2637,7 @@ let createThisInstanceConstructors name (ent: EntitySymbol) =
             member _.Semantic = x.Semantic
             member _.WellKnownFunction = WellKnownFunction.None
             member _.AssociatedFormalPattern = None
+            member _.AssociatedFormalProperty = None
         }
     )
 

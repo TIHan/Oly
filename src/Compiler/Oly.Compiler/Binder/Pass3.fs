@@ -80,7 +80,7 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
 (********************************************************************************************************************************************************************************************)
 
 // Pass 3 check for duplicates
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent syntaxConstrClauses syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs syntaxConstrClauses syntaxTyDefBody =
     let envBody = unsetSkipCheckTypeConstructor env
 
     let entBuilder = entities.[cenv.entityDefIndex]
@@ -94,7 +94,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
     //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxIdent attrs
+    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxNode attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
 
     let envBody =
@@ -108,15 +108,58 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
         match superTy.TryEntityNoAlias, ent.TryFindDefaultInstanceConstructor() with
         | ValueSome(superEnt), Some(ctor) when ctor.FunctionFlags &&& FunctionFlags.ImplicitDefaultConstructor = FunctionFlags.ImplicitDefaultConstructor ->
             if not superEnt.HasDefaultInstanceConstructor then
-                cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxIdent)
+                cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxNode)
         | _ ->
             ()
+
+    if ent.IsAnonymous && ent.IsTypeExtension then 
+        if ent.Extends.IsEmpty then
+            cenv.diagnostics.Error($"Anonymous type extension must extend a type.", 10, syntaxNode)
+
+        if ent.Implements.IsEmpty then
+            cenv.diagnostics.Error($"Anonymous type extension must implement an interface.", 10, syntaxNode)
+
+        if env.HasAmbiguousAnonymousTypeExtension(ent) then
+            cenv.diagnostics.Error($"Anonymous type extension already been declared.", 10, syntaxNode)
+
+        // TODO: The check isn't complete - it is not checking the implemented types. 
+        //           This is supposed to handle orphans, but do we want to do that?
+        if false then
+            if ent.Extends.Length = 1 then
+                let report() =
+                    cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending.", 10, syntaxNode)
+
+                let check (asm: AssemblySymbol) (extendsEnt: EntitySymbol) =
+                    match extendsEnt.ContainingAssembly with
+                    | Some asm2 ->
+                        if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
+                            report()
+                    | _ ->
+                        report()
+
+                match ent.ContainingAssembly with
+                | Some asm ->
+                    let extendsTy = ent.Extends[0]
+                    match extendsTy.TryEntity with
+                    | ValueSome extendsEnt -> 
+                        if extendsEnt.IsCompilerIntrinsic then
+                            check asm extendsEnt
+                        else
+                            match extendsTy.TryEntityNoAlias with
+                            | ValueSome extendsEnt ->
+                                check asm extendsEnt
+                            | _ ->
+                                report()
+                    | _ ->
+                        report()
+                | _ ->
+                    report()
 
     let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
     if ent.IsNewtype then
         if ent.GetInstanceFields().Length <> 1 then
-            cenv.diagnostics.Error($"Newtype '{ent.Name}' must have only a single field.", 10, syntaxIdent)
+            cenv.diagnostics.Error($"Newtype '{ent.Name}' must have only a single field.", 10, syntaxNode)
 
     env
 
@@ -542,9 +585,13 @@ let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (canOpe
         let env1, canOpen = bindTopLevelExpression cenv env canOpen entities syntaxExpr1
         bindTopLevelExpression cenv env1 canOpen entities syntaxExpr2
 
-    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, syntaxTyDeclKind, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDeclKind
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclaration cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let env = bindTypeDeclaration cenv env entities syntaxNode syntaxAttrs syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 

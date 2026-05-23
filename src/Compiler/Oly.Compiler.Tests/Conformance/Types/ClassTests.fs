@@ -877,7 +877,7 @@ let ``Abstract class should error with missing override``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class C1 =
 

@@ -215,6 +215,9 @@ type BinderEnvironment =
             OlyAssert.True(ty.Arity >= arity)
 #endif
 
+        if name = AnonymousEntityName then this
+        else
+
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with
             | true, arityGroup -> arityGroup
@@ -273,6 +276,9 @@ type BinderEnvironment =
         if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
 #endif
+
+        if name = AnonymousEntityName then this
+        else
 
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with
@@ -580,6 +586,52 @@ type BinderEnvironment =
                     }
             }
 
+    member this.HasAmbiguousAnonymousTypeExtension(tyExt: EntitySymbol) =
+        if not tyExt.IsTypeExtension then
+            failwith "Expected a type extension."
+
+        if not tyExt.IsAnonymous || tyExt.Extends.Length <> 1 then
+            false
+        else
+
+        let extendsTy =
+            match tyExt.Extends.Length = 1 with
+            | true -> tyExt.Extends.[0]
+            | _ -> failwith "Expecting a type extension that extends a type."
+
+        if tyExt.Implements.IsEmpty then
+            // TODO:
+            false
+        else
+            match this.benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn extendsTy) with
+            | ValueSome tyExts ->
+                tyExt.AllLogicalImplements
+                |> Seq.collect (fun implementsTy -> 
+                    implementsTy.AllLogicalInheritsAndImplements.Add(implementsTy)
+                )
+                |> TypeSymbol.Distinct
+                |> Seq.exists (fun implTy ->
+                    match implTy.TryEntityNoAlias with
+                    | ValueSome implEnt ->
+                        match tyExts.TryFind implEnt with
+                        | ValueSome set ->
+                            set.Values
+                            |> Seq.filter (fun x -> 
+                                if x.IsAnonymous then
+                                    not(areEntitiesEqual x tyExt)
+                                else
+                                    false
+                            )
+                            |> Seq.isEmpty
+                            |> not
+                        | _ ->
+                            false
+                    | _ ->
+                        false
+                )
+            | _ ->
+                false
+
     member this.AddTypeExtension(tyExt: EntitySymbol) =
         if not tyExt.IsTypeExtension then
             failwith "Expected a type extension."
@@ -591,7 +643,7 @@ type BinderEnvironment =
         let extendsTy =
             match tyExt.Extends.Length = 1 with
             | true -> tyExt.Extends.[0]
-            | _ -> failwith "Expecting a type extension that inherits a type."
+            | _ -> failwith "Expecting a type extension that extends a type."
 
         let implementsTys = 
             tyExt.AllLogicalImplements

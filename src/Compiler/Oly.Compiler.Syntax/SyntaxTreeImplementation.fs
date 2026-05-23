@@ -1263,8 +1263,10 @@ module OlySyntaxTreeExtensions =
                 match syntax with
                 | :? OlySyntaxExpression as syntaxExpr ->
                     match syntaxExpr with
-                    | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDeclName, _, _, _, _) ->
-                        syntaxTyDeclName
+                    | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDeclName, _, _, _, _) ->
+                        match syntaxTyDeclName.Identifier with
+                        | Some _ -> syntaxTyDeclName
+                        | _ -> syntaxTyDeclKind
                     | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
                         match syntaxBinding.TryGetBindingDeclaration() with
                         | ValueSome(syntaxBindingDecl) ->
@@ -1444,7 +1446,11 @@ module OlySyntaxTreeExtensions =
             let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
                 match expr with
                 | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, _, _, _, _) ->
-                    builder.Add(syntaxTyDefName.Identifier)
+                    match syntaxTyDefName.Identifier with
+                    | Some syntaxIdent ->
+                        builder.Add(syntaxIdent: OlySyntaxNode)
+                    | _ ->
+                        ()
                     cont(FakeUnit)
                 | OlySyntaxExpression.Sequential(expr1, expr2) ->
                     f expr1 (fun FakeUnit ->
@@ -1465,11 +1471,12 @@ module OlySyntaxTreeExtensions =
 
     type OlySyntaxTypeDeclarationName with
 
-        member this.Identifier =
+        member this.Identifier: OlySyntaxToken option =
             match this with
-            | OlySyntaxTypeDeclarationName.Identifier(ident) -> ident
-            | OlySyntaxTypeDeclarationName.Parenthesis(_, operator, _) -> operator
-            | _ -> failwith "Invalid identifier."
+            | OlySyntaxTypeDeclarationName.Identifier(ident) -> Some ident
+            | OlySyntaxTypeDeclarationName.Parenthesis(_, operator, _) -> Some operator
+            | OlySyntaxTypeDeclarationName.Anonymous -> None
+            | _ -> unreached()
 
     type OlySyntaxName with
 

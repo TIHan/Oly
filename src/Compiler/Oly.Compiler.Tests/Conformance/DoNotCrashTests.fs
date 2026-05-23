@@ -735,7 +735,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -849,7 +849,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -1266,7 +1266,7 @@ getResult(x: ITest): int32 =
     x.test()
     
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
     
 main(): () =
     let result = getResult(cast<ITest>123))
@@ -1300,7 +1300,7 @@ getResult2(x: byref<int32>): int32 =
     getResult(cast<ITest>x))
     
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
     
 main(): () =
     let result = getResult(cast<ITest>(123))
@@ -1565,7 +1565,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_tuple_element")]
 GetTupleElement<N, T...>__oly_tuple<T...>): T...[N] where N: constant int32
@@ -1683,7 +1683,7 @@ main(): () =
 let ``Test 44``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32

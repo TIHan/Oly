@@ -2405,7 +2405,11 @@ type OlyBoundModel internal (
                     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxBodyExpr) ->
                         let syntaxAttrs = syntaxAttrs.Values
                         getAttributeSymbols collector syntaxAttrs boundNode ent.Attributes
-                        getTypeSymbolByIdentifier this collector syntaxTyDefName.Identifier boundNode (TypeSymbol.Entity(ent))
+                        match syntaxTyDefName.Identifier with
+                        | Some syntaxIdent ->
+                            getTypeSymbolByIdentifier this collector syntaxIdent boundNode (TypeSymbol.Entity(ent))
+                        | _ ->
+                            ()
                         getTypeParameterSymbols collector syntaxTyPars boundNode ent.LogicalTypeParameters
                         getSymbolsByConstraintClauseList collector syntaxConstrClauseList boundNode ent.TypeParameters
 

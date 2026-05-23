@@ -950,6 +950,8 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
         member _.WellKnownFunction = func.WellKnownFunction
 
         member _.AssociatedFormalPattern = func.AssociatedFormalPattern
+
+        member _.AssociatedFormalProperty = func.AssociatedFormalProperty
         
 
 let actualFunction (enclosing: EnclosingSymbol) (tyArgs: TypeArgumentSymbol imarray) (func: IFunctionSymbol) =
@@ -1325,6 +1327,8 @@ let tryActualFunction (enclosing: EnclosingSymbol) tys (func: IFunctionSymbol) =
         member _.WellKnownFunction = func.WellKnownFunction
 
         member _.AssociatedFormalPattern = func.AssociatedFormalPattern
+
+        member _.AssociatedFormalProperty = func.AssociatedFormalProperty
     }
 
 let tryActualField enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (field: IFieldSymbol) =
@@ -2215,6 +2219,8 @@ type IFunctionSymbol =
 
     abstract AssociatedFormalPattern: IPatternSymbol option
 
+    abstract AssociatedFormalProperty: IPropertySymbol option
+
 [<Sealed;DebuggerDisplay("{Name}")>]
 type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalParameterSymbol imarray, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
 
@@ -2256,6 +2262,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
     let mutable overrides = overrides
     let mutable attrs = attrs
     let mutable patOpt = None
+    let mutable propOpt = None
     let mutable funcFlags = funcFlags
     let mutable memberFlags = memberFlags
     let mutable wellKnownFunc = wellKnownFunc
@@ -2328,6 +2335,17 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
             failwith "Expected Pass2."
 
     /// Mutability
+    member this.SetAssociatedFormalProperty_Pass2_NonConcurrent(pass: CompilerPass, prop: IPropertySymbol) =
+        match pass with
+        | Pass2 ->
+            OlyAssert.True(prop.IsFormal)
+            OlyAssert.True(this.Semantic = FunctionSemantic.GetterFunction || this.Semantic = FunctionSemantic.SetterFunction)
+            OlyAssert.False(this.IsLocal)
+            propOpt <- Some prop
+        | _ ->
+            failwith "Expected Pass2."
+
+    /// Mutability
     member this.SetVirtualFinalNewSlot_Pass3() =
 #if DEBUG || CHECKED
         OlyAssert.False(this.IsVirtual)
@@ -2372,6 +2390,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         member _.Semantic = funcSemantic
         member _.WellKnownFunction = wellKnownFunc
         member _.AssociatedFormalPattern = patOpt
+        member _.AssociatedFormalProperty = propOpt
 
 [<Sealed;DebuggerDisplay("{Name}")>]
 type InvalidFunctionSymbol(enclosing, name) =
@@ -2420,6 +2439,7 @@ type InvalidFunctionSymbol(enclosing, name) =
         member _.Semantic = func.Semantic
         member _.WellKnownFunction = func.WellKnownFunction
         member _.AssociatedFormalPattern = None
+        member _.AssociatedFormalProperty = None
 
 /// Technically an invalid value, but is useful for diagnostics/tooling purposes.
 [<Sealed;DebuggerDisplay("{Name}")>]
@@ -2518,6 +2538,8 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
         member this.WellKnownFunction = WellKnownFunction.None
 
         member this.AssociatedFormalPattern = None
+
+        member this.AssociatedFormalProperty = None
 
 type IFieldSymbol =
     inherit IValueSymbol
@@ -2758,8 +2780,8 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
         member this.MemberFlags: MemberFlags = func.MemberFlags
         member this.Name: string = name
         member this.Type: TypeSymbol = func.Type
-        member this.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty
-        member this.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty
+        member this.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty // REVIEW: This right?
+        member this.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty // REVIEW: This right?
         member this.ValueFlags: ValueFlags = func.ValueFlags
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
@@ -3793,7 +3815,7 @@ type TypeSymbol =
                 else
                     "?"
         | ConstantInt32 n -> n.ToString()
-        | BaseObject -> "__oly_object"
+        | BaseObject -> "__oly_base_object"
         | NativeInt -> "__oly_native_int"
         | NativeUInt -> "__oly_native_uint"
         | NativePtr _ -> "__oly_native_ptr"
@@ -4199,6 +4221,15 @@ type TypeSymbol =
                 | ConstraintSymbol.TraitType(ty) -> Some ty.Value
             )
         | _ -> ImArray.empty
+
+    /// Try to extract the entity out of the type symbol.
+    /// The returned entity will never be an alias.
+    ///
+    /// Strips type equations except alias.
+    member this.TryEntity: EntitySymbol voption =
+        match stripTypeEquationsExceptAlias this with
+        | Entity(ent) -> ValueSome(ent)
+        | _ -> ValueNone
 
     /// Try to extract the entity out of the type symbol.
     /// The returned entity will never be an alias.
@@ -5331,6 +5362,8 @@ module SymbolExtensions =
 
                         member _.AssociatedFormalPattern = func.AssociatedFormalPattern
 
+                        member _.AssociatedFormalProperty = func.AssociatedFormalProperty
+
                     } :> IValueSymbol
                 | _ ->
                     OlyAssert.Fail("Invalid constructor.")
@@ -5390,6 +5423,8 @@ module SymbolExtensions =
                         member _.WellKnownFunction = func.WellKnownFunction
 
                         member _.AssociatedFormalPattern = func.AssociatedFormalPattern
+
+                        member _.AssociatedFormalProperty = func.AssociatedFormalProperty
 
                     } :> IValueSymbol
                 | :? IFieldSymbol as field ->

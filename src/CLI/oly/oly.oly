@@ -245,17 +245,6 @@ private module Helpers =
             let shell = "SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\n.$SCRIPT_DIR/bin/oly \"$@\" "
             File.WriteAllText(Helpers.GetScriptPath(olyInstallPath), shell)
 
-            let uninstallShell = "SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)
-read -p \"Uninstall Oly? (y/n): \" yn
-
-case $yn in
-    [Yy]* ) echo \"Uninstalling Oly...\";; rm -rf $SCRIPT_DIR/bin/;; rm $SCRIPT_DIR/oly.sh;; rm $SCRIPT_DIR/oly-uninstall.sh;;
-    [Nn]* ) exit;;
-    * ) echo \"Please answer yes or no.\";;
-esac
-            "
-            File.WriteAllText(Helpers.GetUninstallScriptPath(olyInstallPath), uninstallShell)
-
         else
             throw NotSupportedException(Environment.OSVersion.VersionString + " not supported.")
 

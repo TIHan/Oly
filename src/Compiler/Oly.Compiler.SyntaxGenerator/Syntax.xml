@@ -707,6 +707,7 @@
       <Field name="operatorToken">SyntaxToken</Field>
       <Field name="rightParenToken">SyntaxToken</Field>
     </Case>
+	<Case name="Anonymous"></Case>
   </Node>
 
   <Node name="SyntaxPattern">

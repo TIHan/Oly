@@ -48,7 +48,7 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
 (********************************************************************************************************************************************************************************************)
 
 /// Pass 0 - Type definition with type parameters.
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdentOpt: OlySyntaxToken option) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
 
@@ -84,7 +84,37 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
 
     let enclosing = currentEnclosing env
 
-    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, syntaxIdent.ValueText, flags, kind, docText)
+    let name =
+        match syntaxIdentOpt with
+        | Some syntaxIdent -> syntaxIdent.ValueText
+        | _ -> AnonymousEntityName
+
+    let syntaxNode =
+        match syntaxIdentOpt with
+        | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+        | _ -> syntaxTyKind
+
+    let flags =
+        if name = AnonymousEntityName then
+            if kind = EntityKind.TypeExtension then 
+                if flags &&& EntityFlags.AutoOpen = EntityFlags.AutoOpen then
+                    cenv.diagnostics.Error($"Anonymous type extension is implicitly open. Remove '#[open]'.", 10, syntaxNode)
+                    flags
+                else
+                    flags ||| EntityFlags.AutoOpen
+            else
+                cenv.diagnostics.Error($"Type declaration must have a name.", 10, syntaxNode)
+                flags
+        else
+            flags
+
+    let enclosing =
+        if name = AnonymousEntityName then
+            EnclosingSymbol.RootNamespace
+        else
+            enclosing
+
+    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, name, flags, kind, docText)
     let ent = entBuilder.Entity
 
     OlyAssert.True(ent.TypeParameters.IsEmpty)
@@ -104,8 +134,8 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         else
             tyPars
 
-    if OlySyntaxFacts.IsOperator syntaxIdent.ValueText && tyPars.Length <> 1 then
-        cenv.diagnostics.Error("Postfix type operators must only have a single type parameter.", 10, syntaxIdent)
+    if OlySyntaxFacts.IsOperator name && tyPars.Length <> 1 then
+        cenv.diagnostics.Error("Postfix type operators must only have a single type parameter.", 10, syntaxNode)
 
     // If the entity has free type parameters/variables, then we add them to the definition.
     entBuilder.SetTypeParameters(cenv.pass, tyPars)
@@ -121,13 +151,26 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)
 
     if ent.IsExported && (not ent.Enclosing.IsExported && not ent.Enclosing.TypeParameters.IsEmpty) then
-        cenv.diagnostics.Error($"Type '{printEntity env.benv ent}' is exported and not valid because its enclosing type '{printEnclosing env.benv ent.Enclosing}' is not exported and has type parameters.", 10, syntaxIdent)
+        let syntaxNode =
+            match syntaxIdentOpt with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyKind
+        cenv.diagnostics.Error($"Type '{printEntity env.benv ent}' is exported and not valid because its enclosing type '{printEnclosing env.benv ent.Enclosing}' is not exported and has type parameters.", 10, syntaxNode)
 
-    let _, (nestedEnts: EntitySymbolBuilder imarray) = bindTypeDeclarationBody cenv envWithEnclosing syntaxIdent entBuilder ImArray.empty syntaxTyDefBody
+    let _, (nestedEnts: EntitySymbolBuilder imarray) = 
+        let syntaxNode =
+            match syntaxIdentOpt with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyKind
+        bindTypeDeclarationBody cenv envWithEnclosing syntaxNode entBuilder ImArray.empty syntaxTyDefBody
 
     entBuilder.SetEntities(cenv.pass, nestedEnts)
 
-    recordEntityDeclaration cenv ent syntaxIdent
+    match syntaxIdentOpt with
+    | Some syntaxIdent ->
+        recordEntityDeclaration cenv ent syntaxIdent
+    | _ ->
+        ()
 
     env1, entities.Add(entBuilder), entBuilder
 

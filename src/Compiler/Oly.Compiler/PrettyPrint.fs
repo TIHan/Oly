@@ -294,10 +294,26 @@ and printEntityDefinition benv ent =
 and private printEntityConstructorAux (benv: BoundEnvironment) (ent: EntitySymbol) =
     ent.Name
 
-and printValueName (value: IValueSymbol) =
+and printValueName benv (value: IValueSymbol) =
     let name = value.Name
-    if name = Oly.Metadata.OlySpecialNames.Constructor || name = Oly.Metadata.OlySpecialNames.StaticConstructor then
-        value.Enclosing.AsEntity.Name
+    if value.IsFunction then
+        match name with
+        | Oly.Metadata.OlySpecialNames.Constructor
+        | Oly.Metadata.OlySpecialNames.StaticConstructor ->
+            match value.Enclosing.TryType with
+            | Some ty -> printType benv ty
+            | _ -> name
+        | _ ->
+            if name.EndsWith(Oly.Metadata.OlySpecialNames.Getter) || name.EndsWith(Oly.Metadata.OlySpecialNames.Setter) then
+                match value.AsFunction.AssociatedFormalProperty with
+                | Some prop -> prop.Name
+                | _ -> name
+            elif name.EndsWith(Oly.Metadata.OlySpecialNames.PatternGuard) then
+                match value.AsFunction.AssociatedFormalPattern with
+                | Some pat -> pat.Name
+                | _ -> name
+            else
+                name
     else
         name
 

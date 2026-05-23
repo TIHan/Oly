@@ -15,7 +15,7 @@ alias int32
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(inref<T[N]>, index: int32): T where N: constant int32
@@ -42,7 +42,7 @@ alias int32
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(byref<mutable T[N]>, index: int32): T where N: constant int32
@@ -74,7 +74,7 @@ alias int32
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(byref<mutable T[N]>, index: int32): T where N: constant int32
@@ -108,7 +108,7 @@ alias byref<T>
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_element")]
 (`[]`)<T, N>(byref<mutable T[N]>, index: int32): T where N: constant int32

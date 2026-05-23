@@ -1778,12 +1778,12 @@ module M
 let ``UnsafeCast should be in scope over Cast``() =
     """
 #[intrinsic("cast")]
-Cast<T>(__oly_object): T
+Cast<T>(__oly_base_object): T
 
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
     AsImmutable<T>(arr: mutable T[]): T[] =
         Cast(arr)
@@ -1799,7 +1799,7 @@ module Unsafe =
 let ``UnsafeCast should be in scope over Cast 2``() =
     """
 #[intrinsic("cast")]
-Cast<T>(__oly_object): T
+Cast<T>(__oly_base_object): T
 
 #[intrinsic("cast")]
 Cast<T>(__oly_int32): T
@@ -1807,7 +1807,7 @@ Cast<T>(__oly_int32): T
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
     #[intrinsic("unsafe_cast")]
     Cast<T>(__oly_int32): T
@@ -2235,7 +2235,7 @@ class B =
 M(xs: A[], f: A -> ()): () = ()
 M(xs: B[], f: B -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -2263,7 +2263,7 @@ class B =
 M(xs: A[], f: A -> ()): () = ()
 M<T>(xs: T[], f: T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -2279,8 +2279,8 @@ let ``Should properly infer the array initializer correctly``() =
     let src =
         """
 main(): () =
-    let xs1 = [1;2;3]: __oly_object[]
-    let xs2 = mutable [1;2;3]: mutable __oly_object[]
+    let xs1 = [1;2;3]: __oly_base_object[]
+    let xs2 = mutable [1;2;3]: mutable __oly_base_object[]
         """
     Oly src
     |> shouldCompile
@@ -2296,8 +2296,8 @@ class A =
 main(): () =
     let a = A()
 
-    let xs1 = [a.V;a.V;a.V]: __oly_object[]
-    let xs2 = mutable [a.V;a.V;a.V]: mutable __oly_object[]
+    let xs1 = [a.V;a.V;a.V]: __oly_base_object[]
+    let xs2 = mutable [a.V;a.V;a.V]: mutable __oly_base_object[]
         """
     Oly src
     |> shouldCompile
@@ -2313,7 +2313,7 @@ class A =
 main(): () =
     let a = A()
 
-    let xs1 = (a.V, a.V, a.V): (__oly_object, __oly_object, __oly_object)
+    let xs1 = (a.V, a.V, a.V): (__oly_base_object, __oly_base_object, __oly_base_object)
         """
     Oly src
     |> shouldCompile
@@ -2781,3 +2781,92 @@ M(): () =
         """
     Oly src
     |> withCompile
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 2``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+extension =
+    inherits CoolNamespace.int32
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

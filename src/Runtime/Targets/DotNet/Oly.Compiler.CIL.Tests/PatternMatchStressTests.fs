@@ -15,7 +15,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value: int32): () =
     match (value)
@@ -130,7 +130,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value: int32): () =
     match (value)
@@ -244,7 +244,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value: int32): () =
     match (value)
@@ -359,7 +359,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value: int32): () =
     match (value)
@@ -566,7 +566,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value1: int32, value2: int32): () =
     match (value1, value2)
@@ -681,7 +681,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value1: int32, value2: int32): () =
     match (value1, value2)
@@ -888,7 +888,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value1: int32, value2: int32): () =
     match (value1, value2)
@@ -1095,7 +1095,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 test(value: int32): () =
     match (value)

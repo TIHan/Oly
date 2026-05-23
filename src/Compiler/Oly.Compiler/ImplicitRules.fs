@@ -126,6 +126,8 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
 
                 member _.AssociatedFormalPattern = func.AssociatedFormalPattern
 
+                member _.AssociatedFormalProperty = func.AssociatedFormalProperty
+
             }
 
 let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =

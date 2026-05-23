@@ -24,7 +24,7 @@ let ``Able to use try/catch``() =
 main(): () =
     try
         let _ = 1
-    catch (ex: __oly_object) =>
+    catch (ex: __oly_base_object) =>
         ()
     """
     |> Oly
@@ -48,7 +48,7 @@ let ``Able to use try/catch/finally``() =
 main(): () =
     try
         let _ = 1
-    catch (ex: __oly_object) =>
+    catch (ex: __oly_base_object) =>
         ()
     finally
         ()
@@ -62,7 +62,7 @@ let ``Get symbol for catch type``() =
 main(): () =
     try
         let _ = 1
-    catch (~^~ex: __oly_object) =>
+    catch (~^~ex: __oly_base_object) =>
         ()
     """
-    |> hasSymbolSignatureTextByCursor "ex: __oly_object"
+    |> hasSymbolSignatureTextByCursor "ex: __oly_base_object"
