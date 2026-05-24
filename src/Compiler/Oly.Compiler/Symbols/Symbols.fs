@@ -378,6 +378,7 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
     inherit EntitySymbol()
 
     let mutable enclosing = enclosing
+    let mutable name = name
 
     do
         assert(docText <> null)
@@ -410,6 +411,16 @@ type EntityDefinitionSymbol(containingAsmOpt, enclosing, attrs: _ imarray ref, n
         if pass <> CompilerPass.Pass0 then
             OlyAssert.Fail($"ClearEntities - Invalid Pass {pass}")
         ents <- ImArray.empty
+
+    // Mutability
+    member _.SetNameFromAnonymousName(pass: CompilerPass, newName: string) =
+        if pass <> CompilerPass.Pass3 then
+            failwith $"Setname - Invalid Pass {pass}"
+        if name <> AnonymousEntityName then
+            failwith $"SetName - current name is not anonymous"
+        if flags &&& EntityFlags.Anonymous <> EntityFlags.Anonymous then
+            failwith $"SetName - entity is not anonymous"
+        name <- newName
 
     override _.Entities = 
         if ents.Length <> entsHole.Count then

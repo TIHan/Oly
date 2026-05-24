@@ -2847,9 +2847,11 @@ extension =
         """
 namespace SomeOtherNamespace
 
+open CoolNamespace
+
 extension =
-    inherits CoolNamespace.int32
-    implements CoolNamespace.ITest
+    inherits int32
+    implements ITest
 
     Test(): () = ()
         """

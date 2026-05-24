@@ -1011,7 +1011,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
     if ent.IsShape then
         OlyAssert.False(ent.Enclosing.IsShape && not ent.IsAnonymous)
-    elif ent.IsAnonymous then
+    elif ent.IsAnonymousShape || ent.IsAnonymousModule then
         match ent.Enclosing with
         | EnclosingSymbol.RootNamespace -> ()
         | _ -> OlyAssert.Fail("Expected RootNamespace for anonymous entity.")

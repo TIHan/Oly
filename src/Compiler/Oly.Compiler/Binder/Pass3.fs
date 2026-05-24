@@ -79,6 +79,35 @@ let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, b
 (********************************************************************************************************************************************************************************************)
 (********************************************************************************************************************************************************************************************)
 
+let private fullyQualifiedSignatureTextOfType (ty: TypeSymbol) =
+    let ty = stripTypeEquationsAndBuiltIn ty
+    let baseName =
+        match ty.TryEntityNoAlias with
+        | ValueSome ent -> ent.QualifiedName
+        | _ -> ty.Name
+    if ty.TypeArguments.IsEmpty then
+        baseName
+    else
+        let tyArgSigs =
+            ty.TypeArguments
+            |> ImArray.map (fullyQualifiedSignatureTextOfType)
+            |> String.concat ","
+        baseName + "<" + tyArgSigs + ">"
+
+let private createExtensionName (ent: EntitySymbol) =
+    if ent.Extends.Length = 1 then
+        let extendName =  "`" + fullyQualifiedSignatureTextOfType ent.Extends[0] + "`"
+        if ent.Implements.IsEmpty then
+            extendName + "__oly_extension"
+        else
+            let implementsNames =
+                ent.Implements
+                |> ImArray.map (fun x -> "`" + fullyQualifiedSignatureTextOfType x + "`")
+                |> String.concat "_"
+            extendName + "_" + implementsNames + "__oly_extension"
+    else
+        "__oly_extension"
+
 // Pass 3 check for duplicates
 let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs syntaxConstrClauses syntaxTyDefBody =
     let envBody = unsetSkipCheckTypeConstructor env
@@ -114,7 +143,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     if ent.IsAnonymous && ent.IsTypeExtension then 
 
-        if ent.Extends.IsEmpty then
+        if ent.Extends.Length <> 1 then
             cenv.diagnostics.Error($"Anonymous type extension must extend a type.", 10, syntaxNode)
 
         if ent.Implements.IsEmpty then
@@ -149,6 +178,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
                             report()
                 | _ ->
                     report()
+
+        let extensionName = createExtensionName ent
+        (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
 
     let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
