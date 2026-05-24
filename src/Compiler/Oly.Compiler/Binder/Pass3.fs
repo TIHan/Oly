@@ -113,6 +113,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
             ()
 
     if ent.IsAnonymous && ent.IsTypeExtension then 
+
         if ent.Extends.IsEmpty then
             cenv.diagnostics.Error($"Anonymous type extension must extend a type.", 10, syntaxNode)
 

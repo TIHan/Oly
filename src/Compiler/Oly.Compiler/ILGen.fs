@@ -250,7 +250,7 @@ and GenString cenv (value: string) =
 
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
-    OlyAssert.False(ent.IsAnonymous)
+    OlyAssert.False(ent.Name = AnonymousEntityName)
     match cenv.cachedEntRefs.TryGetValue ent with
     | true, handle -> handle
     | _ ->
@@ -260,9 +260,7 @@ and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
                 if ent.IsAnonymous then
                     cenv.GenerateName()
                 else
-                    cenv.GenerateName() + "_" + ent.Name
-            elif ent.IsAnonymous then
-                failwith "Entity must have a name if it is not local."                       
+                    cenv.GenerateName() + "_" + ent.Name             
             else
                 ent.Name
 
@@ -1076,6 +1074,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEntFlags = if ent.IsSealed then ilEntFlags ||| OlyILEntityFlags.Final else ilEntFlags
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
     let ilEntFlags = if ent.IsAttributeImporter then ilEntFlags ||| OlyILEntityFlags.AttributeImporter else ilEntFlags
+    let ilEntFlags = if ent.IsAnonymous then ilEntFlags ||| OlyILEntityFlags.Anonymous else ilEntFlags
     let ilEntFlags = 
         if ent.IsPrivate then
             if ent.Enclosing.IsNamespace then
@@ -1105,15 +1104,15 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             else
                 cenv.GenerateName() + "_" + ent.Name
         elif ent.IsAnonymous && not ent.IsShape then
-            cenv.GenerateName()                    
+            if ent.Name = AnonymousEntityName then
+                cenv.GenerateName()     
+            else
+                ent.Name
         else
             ent.Name
 
     let ilEnclosing = 
-        if ent.IsAnonymous then
-            OlyILEnclosing.Namespace(ImArray.empty, cenv.assembly.Identity)
-        else
-            emitILEnclosingForEntity cenv env ent
+         emitILEnclosingForEntity cenv env ent
     let ilName = 
         if ent.IsShape && ent.IsAnonymous then
             OlyILTableIndex(OlyILTableKind.String, -1)

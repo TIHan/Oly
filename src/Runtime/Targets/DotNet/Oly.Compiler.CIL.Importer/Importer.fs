@@ -1001,7 +1001,10 @@ module internal rec Helpers =
         if (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Private) && not isVirtual then ValueNone
         else
 
-        let name = if meth.Name.IsNil then "" else reader.GetString(meth.Name)
+        if meth.Name.IsNil then ValueNone
+        else
+
+        let name = reader.GetString(meth.Name)
 
         if name = DotNet.Metadata.DotNetSpecialNames.StaticConstructor then ValueNone
         else
@@ -1546,7 +1549,7 @@ type Importer private (name: string, peReader: PEReader) =
             let olyEntDef =
                 OlyILEntityDefinition(
                     OlyILEntityKind.Shape,
-                    OlyILEntityFlags.Abstract,
+                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous,
                     olyEntAttrs,
                     OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
                     OlyILStringHandle.GetNil(OlyILTableKind.String),

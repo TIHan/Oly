@@ -102,21 +102,22 @@ type OlyILEntityKind =
 
 [<Flags>]
 type OlyILEntityFlags =
-    | None              = 0x00000000
+    | None              = 0x000000000UL
                         
-    | Public            = 0x00000000
-    | Internal          = 0x00000001
-    | Private           = 0x00000002
-    | AccessorMask      = 0x00000007
+    | Public            = 0x000000000UL
+    | Internal          = 0x000000001UL
+    | Private           = 0x000000002UL
+    | AccessorMask      = 0x000000007UL
                         
-    | Abstract          = 0x00000100
-    | Final             = 0x00001000
-    | AutoOpen          = 0x00010000
-    | Nullable          = 0x00100000
+    | Abstract          = 0x000000100UL
+    | Final             = 0x000001000UL
+    | AutoOpen          = 0x000010000UL // frontend hint
+    | Nullable          = 0x000100000UL
                         
-    | Scoped            = 0x01000000
+    | Scoped            = 0x001000000UL
 
-    | AttributeImporter = 0x10000000
+    | AttributeImporter = 0x010000000UL // frontend hint
+    | Anonymous         = 0x100000000UL // frontend hint
 
 [<Flags>]
 type OlyILMemberFlags =
@@ -147,11 +148,11 @@ type OlyILFunctionFlags =
     /// Runtime only cares about this flag if the enclosing type is a struct or shape, and the function is an instance member and not a constructor,
     ///     otherwise, it will ignore it.
     | Mutable                       = 0x000100
-    | Pure                          = 0x000200
-    | RequiresExplicitTypeArguments = 0x001000
-    | ParameterLess                 = 0x010000
+    | Pure                          = 0x000200 // frontend hint? not implemented at all, but should the runtime also have it?
+    | RequiresExplicitTypeArguments = 0x001000 // frontend hint
+    | ParameterLess                 = 0x010000 // frontend hint
 
-    | UnmanagedAllocationOnly       = 0x1000000
+    | UnmanagedAllocationOnly       = 0x1000000 // frontend hint? for now, but could we also have the runtime verify it?
 
 [<Flags>]
 type OlyILFieldFlags =

@@ -216,7 +216,7 @@ type BinderEnvironment =
             OlyAssert.True(ty.Arity >= arity)
 #endif
 
-        if name = AnonymousEntityName then this
+        if ty.IsAnonymous_ste then this
         else
 
         let arityGroup =
@@ -278,7 +278,7 @@ type BinderEnvironment =
             OlyAssert.True(ty.Arity >= arity)
 #endif
 
-        if name = AnonymousEntityName then this
+        if ty.IsAnonymous_ste then this
         else
 
         let arityGroup =

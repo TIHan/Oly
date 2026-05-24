@@ -199,7 +199,7 @@ type EntitySymbolBuilder private (
         EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure, String.Empty)
 
     static member CreateAnonymousShape(containingAsm) =
-        EntitySymbolBuilder.Create(containingAsm, EnclosingSymbol.RootNamespace, "", EntityFlags.Abstract, EntityKind.Shape, String.Empty)
+        EntitySymbolBuilder.Create(containingAsm, EnclosingSymbol.RootNamespace, AnonymousEntityName, EntityFlags.Abstract ||| EntityFlags.Anonymous, EntityKind.Shape, String.Empty)
 
 [<Sealed>]
 type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =

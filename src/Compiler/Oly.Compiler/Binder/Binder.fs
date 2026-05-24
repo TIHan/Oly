@@ -165,7 +165,7 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
         if cenv.syntaxTree.ParsingOptions.AnonymousModuleDefinitionAllowed |> not then
             cenv.diagnostics.Error("Anonymous module definitions are not available in this context.", 10, cenv.syntaxTree.DummyNode)
 
-        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen, AnonymousEntityName, String.Empty)
+        let anonModuleBuilder = EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.RootNamespace, EntityFlags.Private ||| EntityFlags.AutoOpen ||| EntityFlags.Anonymous, AnonymousEntityName, String.Empty)
         let env1 = { env with benv = { env.benv with senv = { env.benv.senv with enclosing = EnclosingSymbol.Entity anonModuleBuilder.Entity } } }
 
         recordEntityDeclaration cenv anonModuleBuilder.Entity syntaxRoot

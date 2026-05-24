@@ -99,12 +99,12 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
             if kind = EntityKind.TypeExtension then 
                 if flags &&& EntityFlags.AutoOpen = EntityFlags.AutoOpen then
                     cenv.diagnostics.Error($"Anonymous type extension is implicitly open. Remove '#[open]'.", 10, syntaxNode)
-                    flags
+                    flags ||| EntityFlags.Anonymous
                 else
-                    flags ||| EntityFlags.AutoOpen
+                    flags ||| EntityFlags.AutoOpen ||| EntityFlags.Anonymous
             else
                 cenv.diagnostics.Error($"Type declaration must have a name.", 10, syntaxNode)
-                flags
+                flags ||| EntityFlags.Anonymous
         else
             flags
 
