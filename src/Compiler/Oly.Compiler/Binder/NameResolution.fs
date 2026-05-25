@@ -1556,7 +1556,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             if env.resolutionMustSolveTypes then
                 // For open-declarations, we do not error because open-declarations requires all type arguments of a type to either be "_"(wild-card) or not.
                 // Therefore, if we see a "_"(wild-card), we do not need to report this error.
-                if not env.skipCheckTypeConstructor && not env.isInOpenDeclaration then
+                if (not env.skipCheckTypeConstructor && ((env.isInTypeArgument && not env.isInOpenDeclaration) || (env.isInTypeArgumentDepth2 && env.isInOpenDeclaration))) then
                     cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
                 TypeSymbolError
             else
@@ -1683,7 +1683,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
         // Wild card open declaration rules
         let hasOpenDeclWildCard =
-            if not env.skipCheckTypeConstructor then
+            if not env.skipCheckTypeConstructor && not env.isInTypeArgumentDepth2 then
                 let hasOpenDeclWildCard =
                     if env.isInOpenDeclaration then
                         syntaxTyArgs
@@ -1715,7 +1715,11 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
             if hasOpenDeclWildCard then
                 ImArray.empty
             else
-                let env = env.UnsetIsInOpenDeclaration()
+                let env = 
+                    if not env.skipCheckTypeConstructor && env.isInOpenDeclaration then
+                        env.SetResolutionMustSolveTypes()
+                    else
+                        env
                 bindTypeArgumentsAsTypes cenv env tyArities (syntaxTyArgsRoot, syntaxTyArgs)
 
         // TODO: This could use some cleanup.
@@ -1757,7 +1761,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                         if tyArg.IsError_ste then
                             tyArg
                         elif not tyPar.HasArity && tyArg.IsTypeConstructor_steea then
-                            cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used a type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
+                            cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used as type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
                             TypeSymbol.Error(Some tyPar, None)
                         elif tyPar.HasArity then
                             if tyArg.IsTypeConstructor_steea then
@@ -1924,6 +1928,11 @@ let bindTypeArgumentAsType (cenv: cenv) (env: BinderEnvironment) resTyArity (syn
     bindType cenv env None resTyArity syntaxTyArg
 
 let bindTypeArgumentsAsTypes (cenv: cenv) (env: BinderEnvironment) (tyArities: ImmutableArray<ResolutionTypeArity>) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
+    let env =
+        if env.isInTypeArgument then
+            env.SetIsInTypeArgumentDepth2()
+        else
+            env.SetIsInTypeArgument()
     if syntaxTyArgs.IsEmpty then
         // TODO/REVIEW: Should we get rid of this?
         ImArray.empty

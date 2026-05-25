@@ -9735,8 +9735,8 @@ let ``Open static on the same module but generic``() =
     """
 module Modu<T>
 
-open static Modu<S2>
-open static Modu<S>
+open static Modu<Modu<T>.S2>
+open static Modu<Modu<T>.S>
 
 struct S
 
@@ -9767,9 +9767,9 @@ let ``Open static on the same module but generic should fail to ambiguity on S2`
     """
 module Modu<T>
 
-open static Modu<S2>
-open static Modu<S>
-open static Modu<S2> // this line
+open static Modu<Modu<T>.S2>
+open static Modu<Modu<T>.S>
+open static Modu<Modu<T>.S2> // this line
 
 struct S
 
@@ -9790,12 +9790,12 @@ open static Modu<S2> // this line
         ]
     |> ignore
 
+
+
 [<Fact>]
 let ``Declaring intrinsics in a generic context is not allowed``() =
     """
 module Modu<T>
-
-open static Modu<int32>
 
 #[intrinsic("int32")]
 alias int32
@@ -9833,6 +9833,54 @@ main(): () =
                 """
 #[intrinsic("print")]
   ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open declaration must solve have a direct solution for the type``() =
+    """
+module Modu<T>
+
+open static Modu<Modu<_>.C>
+
+class C
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Inferring types are not allowed in this context, be explicit.",
+                """
+open static Modu<Modu<_>.C>
+                      ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open declaration must have fully qualified type arguments``() =
+    """
+module Modu<T>
+
+open static Modu<C>
+
+class C
+
+main(): () =
+    ()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type identifier 'C' not found in scope.",
+                """
+open static Modu<C>
+                 ^
 """
             )
         ]

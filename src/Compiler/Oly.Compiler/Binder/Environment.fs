@@ -73,6 +73,8 @@ type BinderEnvironment =
        isInFunctionDefinitionTypeParameters: bool
        isInConstraint: bool
        isInOpenDeclaration: bool
+       isInTypeArgument: bool
+       isInTypeArgumentDepth2: bool
        isInLocalLambda: bool
        isInExport: bool
        resolutionMustSolveTypes: bool
@@ -703,9 +705,13 @@ type BinderEnvironment =
         if this.isInOpenDeclaration then this
         else { this with isInOpenDeclaration = true }
 
-    member this.UnsetIsInOpenDeclaration() =
-        if this.isInOpenDeclaration then { this with isInOpenDeclaration = false }
-        else this
+    member this.SetIsInTypeArgument() =
+        if this.isInTypeArgument then this
+        else { this with isInTypeArgument = true }
+
+    member this.SetIsInTypeArgumentDepth2() =
+        if this.isInTypeArgumentDepth2 then this
+        else { this with isInTypeArgumentDepth2 = true }
 
     member this.SetResolutionMustSolveTypes() =
         if this.resolutionMustSolveTypes then this
