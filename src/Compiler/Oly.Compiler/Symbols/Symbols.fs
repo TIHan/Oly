@@ -4767,6 +4767,20 @@ type TypeSymbol =
             this.TypeArguments
             |> ImArray.forall (fun tyArg -> tyArg.IsAllInnerSolved_ste)
 
+    /// Does the type symbol have any error types? Will only return false if any inference variables have not been solved.
+    /// This checks the type arguments too.
+    ///
+    /// Strips type equations.
+    member this.HasAnyInnerError_ste =
+        match stripTypeEquations this with
+        | InferenceVariable _
+        | HigherInferenceVariable _
+        | EagerInferenceVariable _ -> false
+        | Error _ -> true
+        | _ ->
+            this.TypeArguments
+            |> ImArray.exists (fun tyArg -> tyArg.HasAnyInnerError_ste)
+
     member this.IsFormal_steea =
         match stripTypeEquationsExceptAlias this with
         | Entity(ent) -> obj.ReferenceEquals(ent, ent.Formal)

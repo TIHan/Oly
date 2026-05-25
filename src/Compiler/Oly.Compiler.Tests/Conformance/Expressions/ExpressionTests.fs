@@ -12124,7 +12124,7 @@ main(): () =
             ("Type parameter '?T' was unable to be inferred.",
                 """
     let _c: NestedC = unchecked default
-            ^^^^^^^
+                      ^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -12140,6 +12140,22 @@ class C<T> =
 
 main(): () =
     let _c: C<()>.NestedC = NestedC()
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Nested type should not infer its enclosing type parameter``() =
+    """
+#[unmanaged(allocation_only)]
+As<TTo, TFrom>(value: TFrom): __oly_bool where TFrom: not struct where TTo: not struct =
+    true
+
+class C<T> =
+    class Impl
+
+    pattern Pattern(c: C<T>): () when (As<Impl, _>(c)) =>
+        ()
     """
     |> Oly
     |> shouldCompile

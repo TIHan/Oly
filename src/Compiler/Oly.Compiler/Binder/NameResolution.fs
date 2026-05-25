@@ -1740,12 +1740,22 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                             ty.TypeArguments
                             |> Seq.take (ty.TypeParameters.Length - partialTyInst.Length)
                             |> Seq.map (fun x ->
-                                match x with
-                                // Handles generic local type definitions.
-                                | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
-                                    tyPar.HiddenLink.Value.AsType
-                                | _ ->
-                                    x
+                                let ty =
+                                    match x with
+                                    // Handles generic local type definitions.
+                                    | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
+                                        tyPar.HiddenLink.Value.AsType
+                                    | _ ->
+                                        x
+                                if env.IsInOpenDeclaration() || env.resolutionMustSolveTypes then
+                                    ty
+                                else
+                                    // Only create an inference variable if the type variable is not inside the scope of where it was declared.
+                                    match stripTypeEquations ty with
+                                    | TypeSymbol.Variable(tyPar) when not(env.benv.TypeParameterExists(ty)) ->
+                                        mkInferenceVariableType (Some tyPar)
+                                    | _ ->
+                                        ty
                             )
                             |> ImArray.ofSeq
                         enclosingTyInst.AddRange(partialTyInst)
@@ -1791,7 +1801,16 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
             // TODO: This check is a bit weird. A type parameter who is a generic type constructor, T<_>, will not have any type parameters, but it will have arity. Fix this.
             elif ty.Arity = tyArgs.Length then
-                applyType ty.Formal tyArgs 
+                if env.IsInOpenDeclaration() && not env.isInTypeArgument then
+                    let hasErrorTy =
+                        tyArgs
+                        |> ImArray.exists (fun tyArg -> tyArg.HasAnyInnerError_ste)
+                    if hasErrorTy then
+                        ty.Formal
+                    else
+                        applyType ty.Formal tyArgs 
+                else
+                    applyType ty.Formal tyArgs 
             else
                 ty
 
