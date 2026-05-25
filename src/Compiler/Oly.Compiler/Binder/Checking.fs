@@ -1122,7 +1122,7 @@ let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value
             let requiresExplicitTypeAnnotation =
                 pars
                 |> ImArray.exists (fun par ->
-                    not par.Type.IsAllSolved_ste
+                    not par.Type.IsAllInnerSolved_ste
                 )
             if requiresExplicitTypeAnnotation then
                 let rec solveAsTypeError (ty: TypeSymbol) =

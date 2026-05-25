@@ -3345,7 +3345,30 @@ module Test
     |> hasSymbolSignatureTextByCursor "Test"
 
 [<Fact>]
-let ``Open static declaration should error when not using wild cards for all type arguments``() =
+let ``Open extension declaration should error when not using wild cards for all type arguments``() =
+    let src =
+        """
+open extension A<_, __oly_int32, _>
+
+extension A<T1, T2, T3> =
+    inherits __oly_int32
+
+    static M(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Open declarations using one or more wild cards, '_', requires using wild cards for all type arguments.",
+                """
+open extension A<_, __oly_int32, _>
+                ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open declaration should error when not using wild cards for all type arguments``() =
     let src =
         """
 open static A<_, __oly_int32, _>
@@ -9735,8 +9758,8 @@ let ``Open static on the same module but generic``() =
     """
 module Modu<T>
 
-open static Modu<Modu<T>.S2>
-open static Modu<Modu<T>.S>
+open static Modu<Modu<()>.S2>
+open static Modu<Modu<()>.S>
 
 struct S
 
@@ -9762,35 +9785,23 @@ main(): () =
     |> shouldCompile
 
 [<Fact>]
-let ``Open static on the same module but generic should fail to ambiguity on S2``() =
-    // REVIEW: Should this actually fail on ambiguity? Probably not, but we have this to test the current behavior (it could change).
+let ``Open static on the same module but generic should pass even if there is some ambiguity to S2``() =
     """
 module Modu<T>
 
-open static Modu<Modu<T>.S2>
-open static Modu<Modu<T>.S>
-open static Modu<Modu<T>.S2> // this line
+open static Modu<Modu<()>.S2>
+open static Modu<Modu<()>.S>
+open static Modu<Modu<__oly_int32>.S2> // this line
 
 struct S
 
 alias S2 = S
 
 main(): () =
-    ()
+    let _s = S2()
     """
     |> Oly
-    |> withErrorHelperTextDiagnostics
-        [
-            ("'S2' is ambiguous due to references: 'Modu<T>', 'Modu<S>'.",
-                """
-open static Modu<S2> // this line
-                 ^^
-"""
-            )
-        ]
-    |> ignore
-
-
+    |> shouldCompile
 
 [<Fact>]
 let ``Declaring intrinsics in a generic context is not allowed``() =
@@ -12072,3 +12083,63 @@ Create(): int32 =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Open static on a generic type and then used should fail as the type argument is not resolved``() =
+    """
+open static C<_>
+
+class C<T> =
+    class NestedC
+
+main(): () =
+    let _c = NestedC()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type parameter '?T' was unable to be inferred.",
+                """
+    let _c = NestedC()
+             ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static on a generic type and then used should fail as the type argument is not resolved 2``() =
+    """
+open static C<_>
+
+class C<T> =
+    class NestedC
+
+main(): () =
+    let _c: NestedC = unchecked default
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type parameter '?T' was unable to be inferred.",
+                """
+    let _c: NestedC = unchecked default
+            ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static on a generic type and then used should pass as the type is explicit``() =
+    """
+open static C<_>
+
+class C<T> =
+    class NestedC
+
+main(): () =
+    let _c: C<()>.NestedC = NestedC()
+    """
+    |> Oly
+    |> shouldCompile

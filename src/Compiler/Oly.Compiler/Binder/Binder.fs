@@ -633,7 +633,6 @@ let createInitialBoundEnvironment asmIdent =
 let CreateDefaultBinderEnvironment asmIdent =
     {
         benv = createInitialBoundEnvironment asmIdent
-        isIntrinsic = false
         isInInstanceConstructorType = None
         isInEntityDefinitionTypeParameters = false
         isInFunctionDefinitionTypeParameters = false

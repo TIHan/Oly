@@ -60,6 +60,38 @@ let rec private getTopLevelEnclosingType (enclosing: EnclosingSymbol) =
     | _ ->
         enclosing
 
+/// TODO: Use this.
+type BinderContextFlags =
+    | None                                      = 0x0000000000000000UL
+    | InInstanceConstructorType                 = 0x0000000000000001UL
+    | InEntityDefinitionTypeParameters          = 0x0000000000000010UL
+    | InFunctionDefinitionTypeParameters        = 0x0000000000000100UL
+    | InConstraint                              = 0x0000000000001000UL
+    | InOpenDeclaration                         = 0x0000000000010000UL
+    | InTypeArgument                            = 0x0000000000100000UL
+    | InTypeArgumentDepth2                      = 0x0000000001100000UL
+    | InLocalLambda                             = 0x0000000010000000UL
+    | InExport                                  = 0x0000000100000000UL
+
+    /// When set, indicates the currently bound expression is
+    /// returnable.
+    | Returnable                                = 0x0000001000000000UL
+
+    /// When set, indicates the currently bound expression is
+    /// passed as an argument to a function.
+    | PassedAsArgument                          = 0x0000010000000000UL
+
+/// TODO: Use this.
+type BinderEnvironmentFlags =
+    | None                     = 0x0000000000UL
+    | Executable               = 0x0000000001UL
+    | SkipCheckTypeConstructor = 0x0000000010UL
+    | SkipTypeExtensionBinding = 0x0000000100UL
+
+    /// When set, binding open declarations will not report
+    /// diagnostics.
+    | AttemptOpenDeclaration   = 0x0000000100UL
+
 /// This is the context environment of the current expression.
 type BinderEnvironment =
     {
@@ -67,7 +99,6 @@ type BinderEnvironment =
 
        // Context info
        // TODO: Put context info into a separate data type
-       isIntrinsic: bool
        isInInstanceConstructorType: TypeSymbol option
        isInEntityDefinitionTypeParameters: bool
        isInFunctionDefinitionTypeParameters: bool
@@ -222,6 +253,10 @@ type BinderEnvironment =
 #if DEBUG || CHECKED
         if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
+
+        ty.ForEachAllInnerTypeArguments(fun tyArg ->
+            OlyAssert.False(tyArg.IsError_ste)
+        )
 #endif
 
         if ty.IsAnonymous_ste then this
@@ -701,6 +736,9 @@ type BinderEnvironment =
                         }
                 }
         }
+
+    member this.IsInOpenDeclaration() =
+        this.isInOpenDeclaration
 
     member this.SetIsInOpenDeclaration() =
         if this.isInOpenDeclaration then this

@@ -4041,6 +4041,13 @@ type TypeSymbol =
     /// TODO: use this instead of constantly using ".TypeParameters.IsEmpty".
     member this.HasArity_steea = not this.TypeParameters.IsEmpty
 
+    member this.ForEachAllInnerTypeArguments(f) =
+        this.TypeArguments
+        |> ImArray.iter (fun tyArg ->
+            f(tyArg)
+            tyArg.ForEachAllInnerTypeArguments(f)
+        )
+
     /// Strips type equations except alias.
     member this.FormalId =
         match stripTypeEquationsExceptAlias this with
@@ -4751,14 +4758,14 @@ type TypeSymbol =
     /// This checks the type arguments too.
     ///
     /// Strips type equations.
-    member this.IsAllSolved_ste =
+    member this.IsAllInnerSolved_ste =
         match stripTypeEquations this with
         | InferenceVariable _
         | HigherInferenceVariable _
         | EagerInferenceVariable _ -> false
         | _ ->
             this.TypeArguments
-            |> ImArray.forall (fun tyArg -> tyArg.IsAllSolved_ste)
+            |> ImArray.forall (fun tyArg -> tyArg.IsAllInnerSolved_ste)
 
     member this.IsFormal_steea =
         match stripTypeEquationsExceptAlias this with

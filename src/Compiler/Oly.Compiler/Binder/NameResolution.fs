@@ -1138,7 +1138,7 @@ let tryBindIdentifierAsType (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         let tys = 
             env.benv.GetUnqualifiedType(ident, resTyArity, 
                 fun ty ->
-                    if env.isInOpenDeclaration then
+                    if env.IsInOpenDeclaration() then
                         ty.Enclosing.IsRootNamespaceEnclosing ||
                         ty.Enclosing.IsAnonymousModule
                     else
@@ -1416,7 +1416,7 @@ let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
             //         on top-level constructs.
             TypeSymbolError
 
-let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
+let bindType (cenv: cenv) (env: BinderEnvironment) syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
     let rec bind cenv env resTyArity isFuncInput syntaxTy =
         match syntaxTy with
         | OlySyntaxType.Name(syntaxName) ->
@@ -1562,7 +1562,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             if env.resolutionMustSolveTypes then
                 // For open-declarations, we do not error because open-declarations requires all type arguments of a type to either be "_"(wild-card) or not.
                 // Therefore, if we see a "_"(wild-card), we do not need to report this error.
-                if (not env.skipCheckTypeConstructor && ((env.isInTypeArgument && not env.isInOpenDeclaration) || (env.isInTypeArgumentDepth2 && env.isInOpenDeclaration))) then
+                if (not env.skipCheckTypeConstructor && ((env.isInTypeArgument && not(env.IsInOpenDeclaration())) || (env.isInTypeArgumentDepth2 && env.IsInOpenDeclaration()))) then
                     cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
                 TypeSymbolError
             else
@@ -1691,7 +1691,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
         let hasOpenDeclWildCard =
             if not env.skipCheckTypeConstructor && not env.isInTypeArgument then
                 let hasOpenDeclWildCard =
-                    if env.isInOpenDeclaration then
+                    if env.IsInOpenDeclaration() then
                         syntaxTyArgs
                         |> ImArray.exists (fun x ->
                             match x with
@@ -1722,7 +1722,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 ImArray.empty
             else
                 let env = 
-                    if not env.skipCheckTypeConstructor && env.isInOpenDeclaration then
+                    if not env.skipCheckTypeConstructor && env.IsInOpenDeclaration() then
                         env.SetResolutionMustSolveTypes()
                     else
                         env
@@ -1807,6 +1807,13 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 (* skipUnsolved *) true
                 syntaxTyArgs 
                 ty
+
+            if env.IsInOpenDeclaration() && not ty.IsTypeConstructor_steea then
+                ty.ForEachAllInnerTypeArguments(fun tyArg ->
+                    if tyArg.IsSolved_ste && tyArg.IsAnyVariable_ste then
+                         cenv.diagnostics.Error($"Type variables are not allowed in open declarations.", 10, syntaxNode)
+                )
+
         if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor_steea then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
 
