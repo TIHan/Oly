@@ -111,8 +111,6 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
         env
 
 let tryBindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openContent syntaxExpr =
-  //  let diagLogger = OlyDiagnosticLogger.Create()
- //   let cenv = { cenv with diagnostics = diagLogger }
     let env = { env with isOpenDeclarationAttempt = true }
     let env = bindOpenDeclaration cenv env canOpen openContent syntaxExpr
     { env with isOpenDeclarationAttempt = false }

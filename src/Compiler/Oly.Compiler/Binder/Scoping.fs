@@ -139,6 +139,9 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
     else
 
     let env =
+        // Add as an opened entity only if 'opentContent' is OpenContent.Values or OpenContent.All.
+        // This ensures that all the conents have been opened at this point.
+        // Note: We assume that OpenContent.Entities happened before OpenContent.Values.
         if (openContent = OpenContent.Values || openContent = OpenContent.All) then
             env.AddOpenedEntity(ent)
         elif ent.IsNonNamespaceRootInScope(env.benv.ac.AssemblyIdentity) && 

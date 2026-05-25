@@ -10811,7 +10811,6 @@ main(): () =
 let ``Open static List 2``() =
     let src =
         """
-open static System.Environment
 open static System.Collections.Generic.List<C>
 
 class C
