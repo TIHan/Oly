@@ -1461,7 +1461,7 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
             let ty2 = solution.Solution
             match tyParOpt with
             | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_ste ->
-                TypeSymbolRealUnit
+                TypeSymbol.RealUnit
             | _ ->
                 stripTypeEquationsAux skipAlias skipModifiers ty2
                 // TODO: Uncomment below till we verify the optimization has sound correctness.
@@ -1591,7 +1591,7 @@ let private stripTypeEquations_Tuple skipAlias skipModifiers (ty: TypeSymbol) =
         if argTys.Length = 1 then
             let argTy = argTys[0]
             if argTy.IsUnit_ste then
-                TypeSymbolRealUnit
+                TypeSymbol.RealUnit
             elif (argTy.IsRealUnit_ste || argTy.IsOneItemTuple) then
                stripTypeEquations argTy
             elif argTy.IsSolved_ste then
@@ -3563,9 +3563,6 @@ let private FormalWriteOnlyByRef = TypeSymbol.ForAll(ByRefTypeParameters, TypeSy
 let TypeSymbolError =
     TypeSymbol.Error(None, None)
 
-let TypeSymbolRealUnit =
-    TypeSymbol.Tuple(ImArray.createOne TypeSymbol.Unit, ImArray.empty)
-
 [<RequireQualifiedAccess>]
 type ArrayKind =
     | Immutable
@@ -3598,6 +3595,7 @@ type TypeSymbol =
 
     | Void
     | Unit
+    | RealUnit
     | Int8
     | UInt8
     | Int16
@@ -3704,6 +3702,7 @@ type TypeSymbol =
         | BaseObject
         | Void
         | Unit
+        | RealUnit
         | Int8
         | UInt8
         | Int16
@@ -3744,7 +3743,9 @@ type TypeSymbol =
     /// 
     /// Strips type equations.
     member this.IsRealUnit_ste =
-        stripTypeEquations this = TypeSymbolRealUnit 
+        match stripTypeEquationsAndBuiltIn this with
+        | TypeSymbol.RealUnit -> true
+        | _ -> false
 
     member this.Formal =
         match stripTypeEquationsExceptAlias this with
@@ -3771,6 +3772,7 @@ type TypeSymbol =
     member this.Name =
         match this with
         | Unit -> "__oly_unit"
+        | RealUnit -> "__oly_real_unit"
         | Void -> "__oly_void"
         | Int8 -> "__oly_int8"
         | UInt8 -> "__oly_uint8"
@@ -3897,11 +3899,7 @@ type TypeSymbol =
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.TypeParameters.Length
-        | Tuple(tyArgs, _) as ty ->
-            if ty = TypeSymbolRealUnit then
-                0
-            else
-                tyArgs.Length
+        | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 
 #if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
@@ -3922,11 +3920,7 @@ type TypeSymbol =
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.LogicalTypeParameterCount
-        | Tuple(tyArgs, _) as ty ->
-            if ty = TypeSymbolRealUnit then
-                0
-            else
-                tyArgs.Length
+        | Tuple(tyArgs, _) -> tyArgs.Length
         | ForAll(tyPars, _) -> 
 #if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
@@ -3944,6 +3938,7 @@ type TypeSymbol =
     member this.TypeParameters: TypeParameterSymbol imarray =
         match stripTypeEquationsExceptAlias this with
         | Unit
+        | RealUnit
         | Void
         | Int8
         | UInt8
@@ -3971,11 +3966,7 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeParameters
         | Array _ -> FormalArray.TypeParameters
         | FixedArray _ -> FormalFixedArray.TypeParameters
-        | Tuple _ as ty ->
-            if ty = TypeSymbolRealUnit then
-                ImArray.empty
-            else
-                FormalTupleTypeParameters
+        | Tuple _ -> FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
         | DependentIndexer _ -> FormalDependentIndexerTypeParameters
@@ -3995,6 +3986,7 @@ type TypeSymbol =
     member this.TypeArguments : TypeArgumentSymbol imarray =
         match stripTypeEquationsExceptAlias this with
         | Unit
+        | RealUnit
         | Void
         | Int8
         | UInt8
@@ -4036,11 +4028,7 @@ type TypeSymbol =
             |> ImArray.ofSeq
         | ByRef(ty, _) -> ImArray.createOne ty
         | Entity(ent) -> ent.TypeArguments
-        | Tuple(tyArgs, _) as ty -> 
-            if ty = TypeSymbolRealUnit then
-                ImArray.empty
-            else
-                tyArgs
+        | Tuple(tyArgs, _) -> tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
         | FixedArray(elementTy, lengthTy, _) -> ImArray.createTwo elementTy lengthTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy
@@ -4109,12 +4097,14 @@ type TypeSymbol =
         | EagerInferenceVariable(_, eagerTy) -> eagerTy.FormalId
         | NativeFunctionPtr _ -> 39
         | DependentIndexer _ -> 40
+        | RealUnit -> 41
         | Entity(ent) -> ent.FormalId
 
     /// DOES NOT strip type equations.
     member this.Enclosing =
         match this with
         | Unit
+        | RealUnit
         | Void
         | Int8
         | UInt8

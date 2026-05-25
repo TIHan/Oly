@@ -580,7 +580,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetField _
         | SetProperty _
         | EntityDefinition _ -> TypeSymbol.Unit
-        | Unit _ -> TypeSymbolRealUnit
+        | Unit _ -> TypeSymbol.RealUnit
         | Lambda(cachedLambdaTy=cachedLambdaTy) -> cachedLambdaTy.Type
         | None _ -> TypeSymbol.Unit
         | Error _

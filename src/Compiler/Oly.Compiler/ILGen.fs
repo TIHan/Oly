@@ -372,6 +372,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             OlyILTypeVoid
         else
             OlyILTypeUnit
+    | TypeSymbol.RealUnit ->
+        OlyILTypeUnit
     | TypeSymbol.Void ->
         OlyILTypeVoid
     | TypeSymbol.Int8 ->

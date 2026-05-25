@@ -572,7 +572,7 @@ let substitute
                                 let newTyArg = tyArg.Substitute(tyParLookup)
                                 let newTyArg =
                                     if newTyArg.IsUnit_ste then
-                                        TypeSymbolRealUnit
+                                        TypeSymbol.RealUnit
                                     else
                                         newTyArg
                                 // REVIEW: This is a little curious, but perhaps it is ok.

@@ -988,7 +988,7 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeChar16 -> TypeSymbol.Char16
     | OlyILType.OlyILTypeFloat32 -> TypeSymbol.Float32
     | OlyILType.OlyILTypeFloat64 -> TypeSymbol.Float64
-    | OlyILType.OlyILTypeUnit -> TypeSymbolRealUnit
+    | OlyILType.OlyILTypeUnit -> TypeSymbol.RealUnit
     | OlyILType.OlyILTypeVoid -> TypeSymbol.Unit
     | OlyILType.OlyILTypeBaseObject -> TypeSymbol.BaseObject
     | OlyILType.OlyILTypeByRef(ilElementTy, OlyILByRefKind.ReadWrite) -> TypeSymbol.ByRef(importTypeSymbol cenv enclosingTyPars funcTyPars ilElementTy, ByRefKind.ReadWrite)
