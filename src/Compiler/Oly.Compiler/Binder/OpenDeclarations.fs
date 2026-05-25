@@ -57,7 +57,15 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                                 OlyAssert.True(enclosingEnt.IsFormal)
                                 env
                             | _ ->
-                                openContentsOfEntity cenv.declTable.contents env openContent ent
+                                // Open declaration attempts are for pre-pass.
+                                // Open declaration attempts for generic types
+                                //     are not allowed as type arguments may include types declared within the current
+                                //     assembly, which have not been bound yet (because we are in pre-pass).
+                                // TODO: We can technically allow generics types in attempts IF all the type arguments are wildcards.
+                                if ent.TypeParameters.IsEmpty || (not env.isOpenDeclarationAttempt) then
+                                    openContentsOfEntity cenv.declTable.contents env openContent ent
+                                else
+                                    env
                     | _ ->
                         cenv.diagnostics.Error($"Not a named type.", 10, syntaxName)
                         env
@@ -80,7 +88,15 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
                             else
                                 env
                         if ent.IsTypeExtension then
-                            openContentsOfEntity cenv.declTable.contents env openContent ent
+                            // Open declaration attempts are for pre-pass.
+                            // Open declaration attempts for generic types
+                            //     are not allowed as type arguments may include types declared within the current
+                            //     assembly, which have not been bound yet (because we are in pre-pass).
+                            // TODO: We can technically allow generics types in attempts IF all the type arguments are wildcards.
+                            if ent.TypeParameters.IsEmpty || (not env.isOpenDeclarationAttempt) then
+                                openContentsOfEntity cenv.declTable.contents env openContent ent
+                            else
+                                env
                         else
                             cenv.diagnostics.Error($"'{printType env.benv ty}' is not an extension.", 10, syntaxName)
                             env
@@ -95,6 +111,8 @@ let bindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openConten
         env
 
 let tryBindOpenDeclaration (cenv: cenv) (env: BinderEnvironment) canOpen openContent syntaxExpr =
-    let diagLogger = OlyDiagnosticLogger.Create()
-    let cenv = { cenv with diagnostics = diagLogger }
-    bindOpenDeclaration cenv env canOpen openContent syntaxExpr
+  //  let diagLogger = OlyDiagnosticLogger.Create()
+ //   let cenv = { cenv with diagnostics = diagLogger }
+    let env = { env with isOpenDeclarationAttempt = true }
+    let env = bindOpenDeclaration cenv env canOpen openContent syntaxExpr
+    { env with isOpenDeclarationAttempt = false }

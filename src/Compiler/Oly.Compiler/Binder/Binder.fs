@@ -646,6 +646,7 @@ let CreateDefaultBinderEnvironment asmIdent =
         resolutionMustSolveTypes = false
         skipCheckTypeConstructor = false
         skipTypeExtensionBinding = false
+        isOpenDeclarationAttempt = false
         contextTypeOrTypeConstructor = None
         implicitThisOpt = None
         isReturnable = false

@@ -10786,3 +10786,44 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "a"
     |> ignore
+
+[<Fact>]
+let ``Open static List``() =
+    let src =
+        """
+open static System.Collections.Generic.List<__oly_int32>
+
+class C
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let x: Enumerator = unchecked default
+    print("Hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello"
+    |> ignore
+
+[<Fact>]
+let ``Open static List 2``() =
+    let src =
+        """
+open static System.Environment
+open static System.Collections.Generic.List<C>
+
+class C
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let x: Enumerator = unchecked default
+    print("Hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello"
+    |> ignore

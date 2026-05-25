@@ -299,7 +299,8 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                 match tryBindIdentifierAsType cenv env syntaxNode resInfo.resTyArity ident with
                 | Some ty -> ResolutionFormalItem.Type ty
                 | _ ->
-                    cenv.diagnostics.Error(sprintf "Type identifier '%s' not found in scope." ident, 10, syntaxNode)
+                    if (not env.isOpenDeclarationAttempt) && ((not env.skipCheckTypeConstructor) || (not env.isInTypeArgument)) then
+                        cenv.diagnostics.Error(sprintf "Type identifier '%s' not found in scope." ident, 10, syntaxNode)
                     ResolutionFormalItem.Type(invalidType())
         else
             match env.benv.TryGetNamespace(ident) with
@@ -428,7 +429,8 @@ let private bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv)
             else
                 ResolutionFormalItem.Type(nestedEnt.AsType)
         | _ ->
-            cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printEntity env.benv receiverNamespaceEnt), 10, syntaxNode)
+            if not env.isOpenDeclarationAttempt then
+                cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printEntity env.benv receiverNamespaceEnt), 10, syntaxNode)
             ResolutionFormalItem.Error
 
 let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode isStatic (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
@@ -448,7 +450,8 @@ let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env
         | Some nestedEnt ->
             ResolutionFormalItem.Type(nestedEnt.AsType)
         | _ ->
-            cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printType env.benv receiverTy), 10, syntaxNode)
+            if not env.isOpenDeclarationAttempt then
+                cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printType env.benv receiverTy), 10, syntaxNode)
             ResolutionFormalItem.Error
 
 let private bindIdentifierWithReceiverAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverInfo: ReceiverInfo) (resInfo: ResolutionInfo) (ident: string) =
@@ -1381,7 +1384,8 @@ let bindNameAsNamespace (cenv: cenv) env (syntaxName: OlySyntaxName) =
     | ResolutionItem.Namespace(_syntaxName, namespaceEnt) ->
         namespaceEnt : INamespaceSymbol
     | resItem ->
-        cenv.diagnostics.Error("Not a valid namespace.", 10, resItem.Syntax)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid namespace.", 10, resItem.Syntax)
         invalidNamespace
 
 let bindNameAsType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxName: OlySyntaxName) =
@@ -1390,10 +1394,12 @@ let bindNameAsType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeAri
     | ResolutionItem.Type(_syntaxName, ty) ->
         ty
     | ResolutionItem.Namespace(syntaxName, namespaceEnt) ->
-        cenv.diagnostics.Error("Not a valid type.", 10, syntaxName)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid type.", 10, syntaxName)
         (invalidateEntity namespaceEnt).AsType
     | resItem ->
-        cenv.diagnostics.Error("Not a valid type.", 10, resItem.Syntax)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid type.", 10, resItem.Syntax)
         invalidType()
 
 let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
@@ -1683,7 +1689,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
         // Wild card open declaration rules
         let hasOpenDeclWildCard =
-            if not env.skipCheckTypeConstructor && not env.isInTypeArgumentDepth2 then
+            if not env.skipCheckTypeConstructor && not env.isInTypeArgument then
                 let hasOpenDeclWildCard =
                     if env.isInOpenDeclaration then
                         syntaxTyArgs

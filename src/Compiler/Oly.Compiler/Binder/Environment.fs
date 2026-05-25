@@ -80,6 +80,7 @@ type BinderEnvironment =
        resolutionMustSolveTypes: bool
        skipCheckTypeConstructor: bool
        skipTypeExtensionBinding: bool
+       isOpenDeclarationAttempt: bool
 
        contextTypeOrTypeConstructor: TypeSymbol option
 
