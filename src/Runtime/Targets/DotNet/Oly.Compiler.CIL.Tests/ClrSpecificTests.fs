@@ -2332,7 +2332,7 @@ module CoolModule
 
 open System
 open System.Collections.Generic
-open extension ListMappable<_>
+open extension CoolModule.ListMappable<_>
 
 #[intrinsic("add")]
 (+)(Int32, Int32): Int32
@@ -2380,13 +2380,15 @@ namespace CoolNamespace
 
 open System
 open System.Collections.Generic
-open extension ListMappable<_>
+open extension CoolNamespace.ListMappable<_>
 
-#[intrinsic("add")]
-(+)(Int32, Int32): Int32
+#[open]
+module Helpers =
+    #[intrinsic("add")]
+    (+)(Int32, Int32): Int32
 
-#[intrinsic("less_than")]
-(<)(Int32, Int32): Boolean
+    #[intrinsic("less_than")]
+    (<)(Int32, Int32): Boolean
 
 interface IMappable<T<_>> =
 
