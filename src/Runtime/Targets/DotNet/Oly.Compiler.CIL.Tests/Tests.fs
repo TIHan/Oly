@@ -21490,3 +21490,109 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "test_int32"
     |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed accross references 2``() =
+    let refSrc2 =
+        """
+namespace Ref2.Interface
+
+module Printer =
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+        """
+    let refSrc1 =
+        """
+namespace Ref1.Shared
+
+open Ref2.Interface
+
+newtype Int32 =
+    field value: __oly_int32
+
+extension =
+    inherits Int32
+    implements ITest
+
+    Test(): () = Printer.print("test_int32")
+        """
+    let src = 
+        """
+open Ref2.Interface
+open Ref1.Shared
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+main(): () =
+    let x = Int32(1)
+    let c = C(x)
+    c.Call()
+        """
+    OlyWithRefTwo refSrc2 refSrc1 src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32"
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed accross references 3 - but using modules``() =
+    let refSrc2 =
+        """
+module Ref2.Interface
+
+module Printer =
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+        """
+    let refSrc1 =
+        """
+module Ref1.Shared
+
+open static Ref2.Interface
+
+newtype Int32 =
+    field value: __oly_int32
+
+extension =
+    inherits Int32
+    implements ITest
+
+    Test(): () = Printer.print("test_int32")
+        """
+    let src = 
+        """
+open static Ref2.Interface
+open static Ref1.Shared
+
+class C<T> where T: trait ITest =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+main(): () =
+    let x = Int32(1)
+    let c = C(x)
+    c.Call()
+        """
+    OlyWithRefTwo refSrc2 refSrc1 src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32"
+    |> ignore
