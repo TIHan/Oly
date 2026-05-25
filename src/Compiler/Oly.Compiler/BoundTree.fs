@@ -947,7 +947,7 @@ type BoundDeclarationTable private (
     valueDecls: ImmutableDictionary<IValueSymbol, OlySourceLocation>, 
     entDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>, 
     tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>,
-    anonTyExtDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>) =
+    anonTyExtDecls: ImmutableDictionary<TypeSymbol, (ImmutableHashSet<TypeSymbol> * ImmutableHashSet<EntitySymbol> * OlySourceLocation)>) =
 
     member _.ValueDeclarations = valueDecls
     member _.EntityDeclarations = entDecls
@@ -981,19 +981,52 @@ type BoundDeclarationTable private (
     member this.SetAnonymousTypeExtensionDeclaration(key: EntitySymbol, value) =
         OlyAssert.True(key.IsTypeExtension)
         OlyAssert.True(key.IsAnonymous)
-        BoundDeclarationTable(
-            valueDecls,
-            entDecls,
-            tyParDecls,
-            anonTyExtDecls.SetItem(key, value)
-        )
+        OlyAssert.True(key.Extends.Length = 1)
+        OlyAssert.False(key.Implements.IsEmpty)
+        let extendsTy = key.Extends[0]
+        let implTys = ImmutableHashSet.CreateRange(SymbolComparers.TypeSymbolGeneralizedComparer(), key.AllTypeExtensionLogicalImplements)
+        match anonTyExtDecls.TryGetValue extendsTy with
+        | false, _ ->
+            let tyExts = ImmutableHashSet.Create(SymbolComparers.EntitySymbolGeneralizedComparer(), key)
+            true, BoundDeclarationTable(
+                valueDecls,
+                entDecls,
+                tyParDecls,
+                anonTyExtDecls.SetItem(extendsTy, (implTys, tyExts, value))
+            )
+        | true, (implTys2, tyExts, srcLoc) ->
+            if implTys.Intersect(implTys2).Count > 0 then
+                false, this
+            else
+                true, BoundDeclarationTable(
+                    valueDecls,
+                    entDecls,
+                    tyParDecls,
+                    anonTyExtDecls.SetItem(extendsTy, (implTys2.Union(implTys), tyExts.Add(key), srcLoc))
+                )
+
+    member this.TryGetAnonymousTypeExtensionDeclaration(key: EntitySymbol) =
+        OlyAssert.True(key.IsTypeExtension)
+        OlyAssert.True(key.IsAnonymous)
+        OlyAssert.True(key.Extends.Length = 1)
+        OlyAssert.False(key.Implements.IsEmpty)
+        let extendsTy = key.Extends[0]
+        let implTys = ImmutableHashSet.CreateRange(SymbolComparers.TypeSymbolGeneralizedComparer(), key.AllTypeExtensionLogicalImplements)
+        match anonTyExtDecls.TryGetValue(extendsTy) with
+        | true, (implTys2, _, srcLoc) ->
+            if implTys.Intersect(implTys2).Count > 0 then
+                Some(srcLoc)
+            else
+                None
+        | _ -> 
+            None
 
     new() =
         BoundDeclarationTable(
             ImmutableDictionary.Create(SymbolComparers.SimilarValueSymbolComparer()), 
             ImmutableDictionary.Create(SymbolComparers.SimilarEntitySymbolComparer()),
             ImmutableDictionary.Create(SymbolComparers.TypeParameterSymbolComparer()),
-            ImmutableDictionary.Create(SymbolComparers.SimilarEntitySymbolComparer())
+            ImmutableDictionary.Create(SymbolComparers.TypeSymbolGeneralizedComparer())
         )
 
 [<Sealed>]

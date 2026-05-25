@@ -5764,7 +5764,10 @@ module SymbolExtensions =
                 this.IsShape && this.IsAnonymous
 
             member this.IsAnonymousModule =
-                this.IsPrivate && this.IsModule && this.IsAnonymous
+                this.IsModule && this.IsAnonymous
+
+            member this.IsAnonymousTypeExtension =
+                this.IsTypeExtension && this.IsAnonymous
     
             /// Returns true if the entity is a struct, an alias struct, an enum struct, a newtype struct or a closure struct.
             member this.IsStruct =

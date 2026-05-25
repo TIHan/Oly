@@ -2948,11 +2948,387 @@ extension =
     OlyWithRef refSrc src
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension must be declared in the same assembly as the type it is extending.",
+            ("Anonymous type extension must be declared in the same assembly as the type it is extending or all its interfaces.",
                 """
 extension =
 ^^^^^^^^^
 """
             )
         ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 5``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+interface ITest2 =
+    inherits ITest
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits int32
+    implements ITest2
+
+    Test(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 6``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+interface ITest2 =
+    inherits CoolNamespace.ITest
+
+extension =
+    inherits CoolNamespace.int32
+    implements ITest2
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension has already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 7``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+module M1 =
+    extension =
+        inherits int32
+        implements ITest
+
+        Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+interface ITest2 =
+    inherits CoolNamespace.ITest
+
+module M2 = 
+    extension =
+        inherits CoolNamespace.int32
+        implements ITest2
+
+        Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension has already been declared.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 8 - generic``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+class C<T>
+
+interface ITest =
+
+    Test(): ()
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+extension<T> =
+    inherits CoolNamespace.C<T>
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension has already been declared.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the interface declaration``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C
+
+extension =
+    inherits C
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 2 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 3 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 4 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_uint32>
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 5 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
     |> ignore

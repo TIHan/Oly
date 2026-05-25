@@ -48,7 +48,9 @@ let recordTypeParameterDeclaration cenv tyPar (syntaxNode: OlySyntaxNode) =
     cenv.declTable.contents <- cenv.declTable.contents.SetTypeParameterDeclaration(tyPar, syntaxNode.GetLocation())
 
 let recordAnonymousTypeExtensionDeclaration cenv ent (syntaxNode: OlySyntaxNode) =
-    cenv.declTable.contents <- cenv.declTable.contents.SetAnonymousTypeExtensionDeclaration(ent, syntaxNode.GetLocation())
+    let result, declTable = cenv.declTable.contents.SetAnonymousTypeExtensionDeclaration(ent, syntaxNode.GetLocation())
+    cenv.declTable.contents <- declTable
+    result
 
 let rec private getTopLevelEnclosingType (enclosing: EnclosingSymbol) =
     OlyAssert.True(enclosing.IsType)
@@ -590,52 +592,6 @@ type BinderEnvironment =
                     }
             }
 
-    member this.HasAmbiguousAnonymousTypeExtension(tyExt: EntitySymbol) =
-        if not tyExt.IsTypeExtension then
-            failwith "Expected a type extension."
-
-        if not tyExt.IsAnonymous || tyExt.Extends.Length <> 1 then
-            false
-        else
-
-        let extendsTy =
-            match tyExt.Extends.Length = 1 with
-            | true -> tyExt.Extends.[0]
-            | _ -> failwith "Expecting a type extension that extends a type."
-
-        if tyExt.Implements.IsEmpty then
-            // TODO:
-            false
-        else
-            match this.benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn extendsTy) with
-            | ValueSome tyExts ->
-                tyExt.AllLogicalImplements
-                |> Seq.collect (fun implementsTy -> 
-                    implementsTy.AllLogicalInheritsAndImplements.Add(implementsTy)
-                )
-                |> TypeSymbol.Distinct
-                |> Seq.exists (fun implTy ->
-                    match implTy.TryEntityNoAlias with
-                    | ValueSome implEnt ->
-                        match tyExts.TryFind implEnt with
-                        | ValueSome set ->
-                            set.Values
-                            |> Seq.filter (fun x -> 
-                                if x.IsAnonymous then
-                                    not(areEntitiesEqual x tyExt)
-                                else
-                                    false
-                            )
-                            |> Seq.isEmpty
-                            |> not
-                        | _ ->
-                            false
-                    | _ ->
-                        false
-                )
-            | _ ->
-                false
-
     member this.AddTypeExtension(tyExt: EntitySymbol) =
         if not tyExt.IsTypeExtension then
             failwith "Expected a type extension."
@@ -650,12 +606,7 @@ type BinderEnvironment =
             | _ -> failwith "Expecting a type extension that extends a type."
 
         let implementsTys = 
-            tyExt.AllLogicalImplements
-            |> Seq.collect (fun implementsTy -> 
-                implementsTy.AllLogicalInheritsAndImplements.Add(implementsTy)
-            )
-            |> TypeSymbol.Distinct
-            |> ImArray.ofSeq
+            tyExt.AllTypeExtensionLogicalImplements
 
         if implementsTys.IsEmpty then
             // Normal type extension

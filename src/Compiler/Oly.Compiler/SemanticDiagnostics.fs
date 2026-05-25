@@ -13,12 +13,14 @@ type SemanticDiagnostic =
     | Error_AmbiguousFunctions of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * funcGroup: FunctionGroupSymbol
     | Error_ShapeFunctionAmbiguousWitnesses of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * abstractFunc: IFunctionSymbol * candidates: IFunctionSymbol imarray
     | Error_MissingConstraint of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * tyArg: TypeSymbol * constr: ConstraintSymbol
+    | Error_AnonymousTypeExtensionAlreadyDeclared of srcLoc: OlySourceLocation
 
     // TODO: We should figure out what permanent code numbers to use.
     member this.Code =
         match this with
         | Error_AmbiguousFunctions _ 
-        | Error_ShapeFunctionAmbiguousWitnesses _ -> 10
+        | Error_ShapeFunctionAmbiguousWitnesses _ 
+        | Error_AnonymousTypeExtensionAlreadyDeclared _ -> 10
         | Error_MissingConstraint _ -> 500
 
 type OlyDiagnosticLogger with
@@ -74,3 +76,6 @@ type OlyDiagnosticLogger with
 
         | Error_MissingConstraint(benv, syntaxNode, tyArg, constr) ->
             this.Error($"Type instantiation '{printType benv tyArg}' is missing the constraint '{printConstraint benv constr}'.", code, syntaxNode)
+
+        | Error_AnonymousTypeExtensionAlreadyDeclared(srcLoc) ->
+            this.ErrorWithSourceLocation($"Anonymous type extension has already been declared.", 10, srcLoc)

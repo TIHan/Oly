@@ -318,6 +318,10 @@ type OlyDiagnosticLogger private (prefixOpt: string option) =
         let textSpan = OlyTextSpan.Create(textSpan.Start + startOffset, width)
         queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, OlySourceLocation.Create(textSpan, node.Tree)))
 
+    member _.ErrorWithSourceLocation(text: string, code: int, srcLoc: OlySourceLocation) =
+        hasErrors <- true
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, srcLoc))
+
     member _.HasAnyErrors = hasErrors
 
     member _.AddDiagnostic(diag) =

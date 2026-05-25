@@ -15,6 +15,7 @@ open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal.SemanticDiagnostics
 open Oly.Compiler.Internal.Binder.OpenDeclarations
 open Oly.Compiler.Internal.Binder.Attributes
 
@@ -141,7 +142,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
         | _ ->
             ()
 
-    if ent.IsAnonymous && ent.IsTypeExtension then 
+    if ent.IsAnonymousTypeExtension then 
 
         if ent.Extends.Length <> 1 then
             cenv.diagnostics.Error($"Anonymous type extension must extend a type.", 10, syntaxNode)
@@ -149,36 +150,46 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
         if ent.Implements.IsEmpty then
             cenv.diagnostics.Error($"Anonymous type extension must implement an interface.", 10, syntaxNode)
 
-        // TODO: The check isn't complete - it is not checking the implemented types. 
-        //           This is supposed to handle orphans, but do we want to do that?
-        if true then
-            if ent.Extends.Length = 1 then
-                let report() =
-                    cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending.", 10, syntaxNode)
+        if ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+            let report() =
+                cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending or all its interfaces.", 10, syntaxNode)
 
-                let check (asm: AssemblySymbol) (extendsEnt: EntitySymbol) =
-                    let asm2 = extendsEnt.ContainingAssembly
-                    if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
+            let check (asm: AssemblySymbol) (extendsEnt: EntitySymbol) =
+                let asm2 = extendsEnt.ContainingAssembly
+                if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
+                    let isInvalid =
+                        ent.AllTypeExtensionLogicalImplements
+                        |> ImArray.exists (fun implTy ->
+                            match implTy.TryEntityNoAlias with
+                            | ValueSome implEnt ->
+                                let asm2 = implEnt.ContainingAssembly
+                                asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key
+                            | _ ->
+                                false
+                        )
+                    if isInvalid then
                         report()
 
-                let asm = ent.ContainingAssembly
-                let extendsTy = ent.Extends[0]
-                match extendsTy.TryEntity with
-                | ValueSome extendsEnt -> 
-                    if extendsEnt.IsCompilerIntrinsic then
+            let asm = ent.ContainingAssembly
+            let extendsTy = ent.Extends[0]
+            match extendsTy.TryEntity with
+            | ValueSome extendsEnt -> 
+                if extendsEnt.IsCompilerIntrinsic then
+                    check asm extendsEnt
+                else
+                    match extendsTy.TryEntityNoAlias with
+                    | ValueSome extendsEnt ->
                         check asm extendsEnt
-                    else
-                        match extendsTy.TryEntityNoAlias with
-                        | ValueSome extendsEnt ->
-                            check asm extendsEnt
-                        | _ ->
-                            report()
-                | _ ->
-                    report()
+                    | _ ->
+                        report()
+            | _ ->
+                report()
 
-        let extensionName = createExtensionName ent
-        (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
-        recordAnonymousTypeExtensionDeclaration cenv ent syntaxNode
+        if ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+            let extensionName = createExtensionName ent
+            (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
+            if not(recordAnonymousTypeExtensionDeclaration cenv ent syntaxNode) then
+                cenv.diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(syntaxNode.GetLocation()))
 
     let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
@@ -594,14 +605,11 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
     let duplicateEnts = HashSet()
     let syntaxNodes = syntaxTyDeclBody.GetNestedTypeDeclarationIdentifiers()
     (entBuilder.NestedEntityBuilders, syntaxNodes)
-    ||> ImArray.tryIter2 (fun nestedEntBuilder syntaxNode ->
+    ||> ImArray.iter2 (fun nestedEntBuilder syntaxNode ->
         let nestedEnt = nestedEntBuilder.Entity
         let key = (nestedEnt.Name, nestedEnt.TypeParameters.Length)
         if duplicateEnts.Add(key) |> not then
-            if nestedEnt.IsAnonymous then
-                if nestedEnt.IsTypeExtension then
-                    cenv.diagnostics.Error("Anonymous type extension has already been declared.", 10, syntaxNode)
-            else
+            if not nestedEnt.IsAnonymous then
                 cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxNode)
     )
     (**)

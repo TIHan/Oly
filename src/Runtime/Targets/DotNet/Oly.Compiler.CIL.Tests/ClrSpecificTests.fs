@@ -2325,6 +2325,103 @@ main(): () =
     |> shouldRunWithExpectedOutput "101102"
 
 [<Fact>]
+let ``Mappable example 2 - in a module``() =
+    let src =
+        """
+module CoolModule
+
+open System
+open System.Collections.Generic
+open extension ListMappable<_>
+
+#[intrinsic("add")]
+(+)(Int32, Int32): Int32
+
+#[intrinsic("less_than")]
+(<)(Int32, Int32): Boolean
+
+interface IMappable<T<_>> =
+
+    static abstract Map<A, B>(ta: T<A>, f: A -> B): T<B>
+
+extension ListMappable<T> =
+    inherits List<T>
+    implements IMappable<List>
+
+    static overrides Map<A, B>(list: List<A>, f: A -> B): List<B> =
+        let newList = List<B>(list.Count)
+        let loop(i) =
+            if (i < list.Count)
+                newList.Add(f(list.get_Item(i)))
+                loop(i + 1)
+        loop(0)
+        newList
+
+map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: trait IMappable<T> =
+    T.Map<A, B>(ta, f)
+
+main(): () =
+    let xs = List<Int32>()
+    xs.Add(1)
+    xs.Add(2)
+    let xs2 = map(xs, x -> x + 100)
+    Console.Write(xs2.get_Item(0))
+    Console.Write(xs2.get_Item(1))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "101102"
+
+[<Fact>]
+let ``Mappable example 3 - in a namespace``() =
+    let src =
+        """
+namespace CoolNamespace
+
+open System
+open System.Collections.Generic
+open extension ListMappable<_>
+
+#[intrinsic("add")]
+(+)(Int32, Int32): Int32
+
+#[intrinsic("less_than")]
+(<)(Int32, Int32): Boolean
+
+interface IMappable<T<_>> =
+
+    static abstract Map<A, B>(ta: T<A>, f: A -> B): T<B>
+
+extension ListMappable<T> =
+    inherits List<T>
+    implements IMappable<List>
+
+    static overrides Map<A, B>(list: List<A>, f: A -> B): List<B> =
+        let newList = List<B>(list.Count)
+        let loop(i) =
+            if (i < list.Count)
+                newList.Add(f(list.get_Item(i)))
+                loop(i + 1)
+        loop(0)
+        newList
+
+module Mod =
+    map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: trait IMappable<T> =
+        T.Map<A, B>(ta, f)
+
+    main(): () =
+        let xs = List<Int32>()
+        xs.Add(1)
+        xs.Add(2)
+        let xs2 = map(xs, x -> x + 100)
+        Console.Write(xs2.get_Item(0))
+        Console.Write(xs2.get_Item(1))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "101102"
+
+[<Fact>]
 let ``MemoryStream API that takes an array``() =
     let src =
         """

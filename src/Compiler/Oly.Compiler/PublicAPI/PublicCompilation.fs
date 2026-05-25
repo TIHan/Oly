@@ -21,6 +21,7 @@ open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolEnvironments
 open System.Diagnostics.Tracing
+open Oly.Compiler.Internal.SymbolOperations
 
 [<EventSource(Name = "OlyCompilation")>]
 type private OlyCompilationEventSource() =
@@ -411,9 +412,9 @@ module private CompilationPhases =
                 None
 
         let checkDuplicateAnonymousTypeExtension (b: BinderPass4) (ent: EntitySymbol) =
-            if ent.IsAnonymous && ent.IsTypeExtension then
-                match b.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.TryGetValue ent with
-                | true, srcLoc ->
+            if ent.IsAnonymousTypeExtension && ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+                match b.PartialDeclarationTable.TryGetAnonymousTypeExtensionDeclaration ent with
+                | Some srcLoc ->
                     OlyDiagnostic.CreateError($"Anonymous type extension has already been declared.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
                     |> Some
                 | _ ->
@@ -443,11 +444,14 @@ module private CompilationPhases =
                         match checkDuplicate b2 b1.Entity with
                         | Some(diag) -> newDiags.Add(diag)
                         | _ -> ()
-                    b1.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.Keys
-                    |> Seq.iter (fun ent ->
-                        match checkDuplicateAnonymousTypeExtension b2 ent with
-                        | Some(diag) -> newDiags.Add(diag)
-                        | _ -> ()
+                    b1.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.Values
+                    |> Seq.iter (fun (_, ents, _) ->
+                        ents
+                        |> Seq.iter (fun ent ->
+                            match checkDuplicateAnonymousTypeExtension b2 ent with
+                            | Some(diag) -> newDiags.Add(diag)
+                            | _ -> ()
+                        )
                     )
             )
             (b1, diags.AddRange(newDiags))

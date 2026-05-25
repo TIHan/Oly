@@ -1739,6 +1739,17 @@ type EntitySymbol with
         this.Implements
         |> filterTypesAsInterfaces
 
+    member this.AllTypeExtensionLogicalImplements: TypeSymbol imarray =
+        if this.IsTypeExtension then
+            this.AllLogicalImplements
+            |> Seq.collect (fun implementsTy -> 
+                implementsTy.AllLogicalInheritsAndImplements.Add(implementsTy)
+            )
+            |> TypeSymbol.Distinct
+            |> ImArray.ofSeq
+        else
+            ImArray.empty
+
     member this.AllLogicalImplements: TypeSymbol imarray =
         let results =
             if this.IsTypeExtension then
