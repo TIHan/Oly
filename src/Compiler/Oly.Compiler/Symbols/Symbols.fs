@@ -3897,7 +3897,11 @@ type TypeSymbol =
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.TypeParameters.Length
-        | Tuple(tyArgs, _) -> tyArgs.Length
+        | Tuple(tyArgs, _) as ty ->
+            if ty = TypeSymbolRealUnit then
+                0
+            else
+                tyArgs.Length
         | ForAll(tyPars, _) -> 
 #if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
@@ -3918,7 +3922,11 @@ type TypeSymbol =
         | InferenceVariable(Some tyPar, _)
         | HigherInferenceVariable(Some tyPar, _, _, _) -> tyPar.Arity
         | Entity(ent) -> ent.LogicalTypeParameterCount
-        | Tuple(tyArgs, _) -> tyArgs.Length
+        | Tuple(tyArgs, _) as ty ->
+            if ty = TypeSymbolRealUnit then
+                0
+            else
+                tyArgs.Length
         | ForAll(tyPars, _) -> 
 #if DEBUG || CHECKED
             OlyAssert.False(tyPars.IsEmpty)
@@ -3963,7 +3971,11 @@ type TypeSymbol =
         | Entity(ent) -> ent.TypeParameters
         | Array _ -> FormalArray.TypeParameters
         | FixedArray _ -> FormalFixedArray.TypeParameters
-        | Tuple _ -> FormalTupleTypeParameters
+        | Tuple _ as ty ->
+            if ty = TypeSymbolRealUnit then
+                ImArray.empty
+            else
+                FormalTupleTypeParameters
         | NativePtr _ -> FormalNativePtrTypeParameters
         | NativeFunctionPtr _ -> FormalFunctionTypeParameters
         | DependentIndexer _ -> FormalDependentIndexerTypeParameters
@@ -4024,7 +4036,11 @@ type TypeSymbol =
             |> ImArray.ofSeq
         | ByRef(ty, _) -> ImArray.createOne ty
         | Entity(ent) -> ent.TypeArguments
-        | Tuple(tyArgs, _) -> tyArgs
+        | Tuple(tyArgs, _) as ty -> 
+            if ty = TypeSymbolRealUnit then
+                ImArray.empty
+            else
+                tyArgs
         | Array(elementTy, _, _) -> ImArray.createOne elementTy
         | FixedArray(elementTy, lengthTy, _) -> ImArray.createTwo elementTy lengthTy
         | NativePtr(elementTy) -> ImArray.createOne elementTy

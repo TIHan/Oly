@@ -3,6 +3,7 @@
 open Xunit
 open TestUtilities
 open Oly.Compiler
+open Oly.Core
 
 [<Fact>]
 let ``Should compile 1``() =
@@ -3331,4 +3332,221 @@ extension<T> =
         """
     OlyWithRef refSrc src
     |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<()>.C>
+open static Modu<Modu<T>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 2 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<T>.C>
+open static Modu<Modu<()>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 3``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_int32>.C>
+open static Modu<Modu<T>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 4 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<T>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 5``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_base_object>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 6 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_int32>.C>
+open static Modu<Modu<__oly_base_object>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 7 - with unit``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<()>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
     |> ignore

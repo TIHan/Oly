@@ -3,6 +3,7 @@
 open Xunit
 open TestUtilities
 open Oly.Compiler
+open Oly.Core
 
 [<Fact>]
 let ``Fully blank``() =
@@ -9772,6 +9773,32 @@ main(): () =
     |> shouldCompile
 
 [<Fact>]
+let ``Open static on the same module but generic 2 - unqualified``() =
+    let src1 = """
+module Modu<T>
+
+struct S
+
+alias S2 = S
+    """
+    let src2 = """
+module M
+
+class C
+    """
+    let src3 = """
+module M2
+
+open static Modu<C>
+open static M
+
+main(): () =
+    ()
+    """
+    OlyThree src1 src2 src3
+    |> shouldCompile
+
+[<Fact>]
 let ``Open static on the same module but generic wildcard``() =
     """
 module Modu<T>
@@ -9874,24 +9901,140 @@ open static Modu<Modu<_>.C>
     |> ignore
 
 [<Fact>]
-let ``Open declaration must have fully qualified type arguments``() =
+let ``Open declaration does not need fully qualified type arguments``() =
     """
 module Modu<T>
 
 open static Modu<C>
 
 class C
-
-main(): () =
-    ()
     """
     |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Open declaration needs fully qualified type arguments``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<T>.C>
+
+Test(): () =
+    let ~^~_c = C()
+    """
+    let symbolInfo = getSymbolByCursor2 src1 src2
+    OlyAssert.Equal("_c: C", symbolInfo.SignatureText)
+    let ty = symbolInfo.Symbol.AsValue.Type
+    // C<C<T>>
+    OlyAssert.Equal("C", ty.Name)
+    OlyAssert.Equal("C", ty.TypeArguments[0].Name)
+    OlyAssert.Equal("T", ty.TypeArguments[0].TypeArguments[0].Name)
+    let enclosingTy = ty.Enclosing.TryType.Value
+    OlyAssert.Equal("Modu", enclosingTy.Name)
+
+[<Fact>]
+let ``Open declaration needs fully qualified type arguments 2``() =
+    let src1 = """
+module Modu<T>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let ~^~_c = C()
+    """
+    let symbolInfo = getSymbolByCursor2 src1 src2
+    OlyAssert.Equal("_c: C", symbolInfo.SignatureText)
+    let ty = symbolInfo.Symbol.AsValue.Type
+    // C<C<__oly_int32>>
+    OlyAssert.Equal("C", ty.Name)
+    OlyAssert.Equal("C", ty.TypeArguments[0].Name)
+    OlyAssert.Equal("__oly_int32", ty.TypeArguments[0].TypeArguments[0].Name)
+    let enclosingTy = ty.Enclosing.TryType.Value
+    OlyAssert.Equal("Modu", enclosingTy.Name)
+
+[<Fact>]
+let ``Open declaration needs fully qualified type arguments 3 - should error``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Type identifier 'C' not found in scope.",
+            ("Type variables are not allowed in open declarations.",
                 """
 open static Modu<C>
                  ^
+"""
+            )
+            ("Type variables are not allowed in open declarations.",
+                """
+open static Modu<C>
+            ^^^^
+"""
+            )
+            ("Type parameter '?TDog' was unable to be inferred.",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open declaration needs fully qualified type arguments 4 - should error``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<C>
+
+Test(): () =
+    let _c: C = unchecked default
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type variables are not allowed in open declarations.",
+                """
+open static Modu<C>
+                 ^
+"""
+            )
+            ("Type variables are not allowed in open declarations.",
+                """
+open static Modu<C>
+            ^^^^
+"""
+            )
+            ("Type parameter '?TDog' was unable to be inferred.",
+                """
+    let _c: C = unchecked default
+                ^^^^^^^^^^^^^^^^^
 """
             )
         ]

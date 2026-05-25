@@ -259,7 +259,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
     override _.Name = ty.Name
 
     member _.FullyQualifiedName =
-        match ty with
+        match stripTypeEquationsExceptAlias ty with
         | TypeSymbol.Entity(ent) ->
             // TODO: Fix this. This doesn't give correct syntax.
             ent.QualifiedName
@@ -402,7 +402,7 @@ type OlyTypeSymbol internal (ty: TypeSymbol) =
         ty.Implements
         |> ImArray.map (fun x -> OlyTypeSymbol(x))
 
-    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(ty.Enclosing)
+    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol((stripTypeEquationsExceptAlias ty).Enclosing)
 
     member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
         crossAssemblySubsumesType superTy.Internal this.Internal

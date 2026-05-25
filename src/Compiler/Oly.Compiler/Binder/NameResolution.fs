@@ -1138,7 +1138,7 @@ let tryBindIdentifierAsType (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         let tys = 
             env.benv.GetUnqualifiedType(ident, resTyArity, 
                 fun ty ->
-                    if env.IsInOpenDeclaration() then
+                    if env.IsInOpenDeclaration() && not env.isInTypeArgument then
                         ty.Enclosing.IsRootNamespaceEnclosing ||
                         ty.Enclosing.IsAnonymousModule
                     else
@@ -1829,7 +1829,7 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
             if env.IsInOpenDeclaration() && not ty.IsTypeConstructor_steea then
                 ty.ForEachAllInnerTypeArguments(fun tyArg ->
-                    if tyArg.IsSolved_ste && tyArg.IsAnyVariable_ste then
+                    if tyArg.IsSolved_ste && tyArg.IsAnyVariable_ste && not(env.benv.TypeParameterExists(tyArg)) then
                          cenv.diagnostics.Error($"Type variables are not allowed in open declarations.", 10, syntaxNode)
                 )
 
