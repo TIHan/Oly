@@ -401,13 +401,24 @@ module private CompilationPhases =
         let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
             match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
             | true, srcLoc ->
-                if ent.Name = "" then
-                    OlyDiagnostic.CreateSyntacticError($"Another anonymous module already exists.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
+                if ent.IsAnonymous then
+                    OlyDiagnostic.CreateError($"Another anonymous module already exists.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
                     |> Some
                 else
-                    OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists across compilation units.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
+                    OlyDiagnostic.CreateError($"'{ent.Name}' already exists across compilation units.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
                     |> Some
             | _ ->
+                None
+
+        let checkDuplicateAnonymousTypeExtension (b: BinderPass4) (ent: EntitySymbol) =
+            if ent.IsAnonymous && ent.IsTypeExtension then
+                match b.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.TryGetValue ent with
+                | true, srcLoc ->
+                    OlyDiagnostic.CreateError($"Anonymous type extension has already been declared.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
+                    |> Some
+                | _ ->
+                    None
+            else
                 None
 
         // This checks for ambiguity of types with the same signature declared across multiple compilation units.
@@ -432,6 +443,12 @@ module private CompilationPhases =
                         match checkDuplicate b2 b1.Entity with
                         | Some(diag) -> newDiags.Add(diag)
                         | _ -> ()
+                    b1.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.Keys
+                    |> Seq.iter (fun ent ->
+                        match checkDuplicateAnonymousTypeExtension b2 ent with
+                        | Some(diag) -> newDiags.Add(diag)
+                        | _ -> ()
+                    )
             )
             (b1, diags.AddRange(newDiags))
         )
@@ -497,9 +514,12 @@ module private CompilationPhases =
         OlyCompilationEventSource.Log.EndPass3(state.assembly.Name)
 
         OlyTrace.Log($"[Compilation] Pass3: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
-        s.Stop()
+        s.Restart()
 
-        checkDuplications state binders4
+        let result = checkDuplications state binders4
+        OlyTrace.Log($"[Compilation] Check Duplications: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+        s.Stop()
+        result
 
     let implementation (state: CompilationState) (binders4: (BinderPass4 * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()

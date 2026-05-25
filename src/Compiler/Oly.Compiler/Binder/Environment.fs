@@ -47,6 +47,9 @@ let recordEntityDeclaration cenv ent (syntaxNode: OlySyntaxNode) =
 let recordTypeParameterDeclaration cenv tyPar (syntaxNode: OlySyntaxNode) =
     cenv.declTable.contents <- cenv.declTable.contents.SetTypeParameterDeclaration(tyPar, syntaxNode.GetLocation())
 
+let recordAnonymousTypeExtensionDeclaration cenv ent (syntaxNode: OlySyntaxNode) =
+    cenv.declTable.contents <- cenv.declTable.contents.SetAnonymousTypeExtensionDeclaration(ent, syntaxNode.GetLocation())
+
 let rec private getTopLevelEnclosingType (enclosing: EnclosingSymbol) =
     OlyAssert.True(enclosing.IsType)
     match enclosing with

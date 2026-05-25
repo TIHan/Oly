@@ -2808,13 +2808,7 @@ extension =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension already been declared.",
-                """
-extension =
-^^^^^^^^^
-"""
-            )
-            ("Anonymous type extension already been declared.",
+            ("Anonymous type extension has already been declared.",
                 """
 extension =
 ^^^^^^^^^
@@ -2847,7 +2841,92 @@ extension =
         """
 namespace SomeOtherNamespace
 
-open CoolNamespace
+extension =
+    inherits CoolNamespace.int32
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension has already been declared.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 3``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+module M1 =
+    extension =
+        inherits int32
+        implements ITest
+
+        Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+module M2 = 
+    extension =
+        inherits CoolNamespace.int32
+        implements CoolNamespace.ITest
+
+        Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension has already been declared.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+            ("Anonymous type extension has already been declared.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 4``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
 
 extension =
     inherits int32
@@ -2855,16 +2934,21 @@ extension =
 
     Test(): () = ()
         """
-    OlyTwo src1 src2
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+extension =
+    inherits CoolNamespace.int32
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension already been declared.",
-                """
-extension =
-^^^^^^^^^
-"""
-            )
-            ("Anonymous type extension already been declared.",
+            ("Anonymous type extension must be declared in the same assembly as the type it is extending.",
                 """
 extension =
 ^^^^^^^^^

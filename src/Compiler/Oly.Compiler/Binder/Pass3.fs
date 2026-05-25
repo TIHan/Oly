@@ -109,7 +109,7 @@ let private createExtensionName (ent: EntitySymbol) =
         "__oly_extension"
 
 // Pass 3 check for duplicates
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs syntaxConstrClauses syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs syntaxConstrClauses (syntaxTyDefBody: OlySyntaxTypeDeclarationBody) =
     let envBody = unsetSkipCheckTypeConstructor env
 
     let entBuilder = entities.[cenv.entityDefIndex]
@@ -149,12 +149,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
         if ent.Implements.IsEmpty then
             cenv.diagnostics.Error($"Anonymous type extension must implement an interface.", 10, syntaxNode)
 
-        if env.HasAmbiguousAnonymousTypeExtension(ent) then
-            cenv.diagnostics.Error($"Anonymous type extension already been declared.", 10, syntaxNode)
-
         // TODO: The check isn't complete - it is not checking the implemented types. 
         //           This is supposed to handle orphans, but do we want to do that?
-        if false then
+        if true then
             if ent.Extends.Length = 1 then
                 let report() =
                     cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending.", 10, syntaxNode)
@@ -181,6 +178,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
         let extensionName = createExtensionName ent
         (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
+        recordAnonymousTypeExtensionDeclaration cenv ent syntaxNode
 
     let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
@@ -190,7 +188,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     env
 
-let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -591,6 +589,22 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
     |> ForEachBinding (fun syntaxAttrs syntaxBindingDecl binding ->
         processMember (syntaxAttrs, syntaxBindingDecl) binding
     )
+
+    (* CHECK FOR DUPLICATE NESTED ENTITIES *)
+    let duplicateEnts = HashSet()
+    let syntaxNodes = syntaxTyDeclBody.GetNestedTypeDeclarationIdentifiers()
+    (entBuilder.NestedEntityBuilders, syntaxNodes)
+    ||> ImArray.tryIter2 (fun nestedEntBuilder syntaxNode ->
+        let nestedEnt = nestedEntBuilder.Entity
+        let key = (nestedEnt.Name, nestedEnt.TypeParameters.Length)
+        if duplicateEnts.Add(key) |> not then
+            if nestedEnt.IsAnonymous then
+                if nestedEnt.IsTypeExtension then
+                    cenv.diagnostics.Error("Anonymous type extension has already been declared.", 10, syntaxNode)
+            else
+                cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxNode)
+    )
+    (**)
 
     env
 

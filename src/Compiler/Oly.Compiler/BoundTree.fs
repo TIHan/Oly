@@ -946,38 +946,54 @@ type BoundRoot =
 type BoundDeclarationTable private (
     valueDecls: ImmutableDictionary<IValueSymbol, OlySourceLocation>, 
     entDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>, 
-    tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>) =
+    tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>,
+    anonTyExtDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>) =
 
     member _.ValueDeclarations = valueDecls
     member _.EntityDeclarations = entDecls
     member _.TypeParameterDeclarations = tyParDecls
+    member _.AnonymousTypeExtensionDeclarations = anonTyExtDecls
 
     member this.SetValueDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls.SetItem(key, value),
             entDecls,
-            tyParDecls
+            tyParDecls,
+            anonTyExtDecls
         )
 
     member this.SetEntityDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls,
             entDecls.SetItem(key, value),
-            tyParDecls
+            tyParDecls,
+            anonTyExtDecls
         )
 
     member this.SetTypeParameterDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls,
             entDecls,
-            tyParDecls.SetItem(key, value)
+            tyParDecls.SetItem(key, value),
+            anonTyExtDecls
+        )
+
+    member this.SetAnonymousTypeExtensionDeclaration(key: EntitySymbol, value) =
+        OlyAssert.True(key.IsTypeExtension)
+        OlyAssert.True(key.IsAnonymous)
+        BoundDeclarationTable(
+            valueDecls,
+            entDecls,
+            tyParDecls,
+            anonTyExtDecls.SetItem(key, value)
         )
 
     new() =
         BoundDeclarationTable(
             ImmutableDictionary.Create(SymbolComparers.SimilarValueSymbolComparer()), 
             ImmutableDictionary.Create(SymbolComparers.SimilarEntitySymbolComparer()),
-            ImmutableDictionary.Create(SymbolComparers.TypeParameterSymbolComparer())
+            ImmutableDictionary.Create(SymbolComparers.TypeParameterSymbolComparer()),
+            ImmutableDictionary.Create(SymbolComparers.SimilarEntitySymbolComparer())
         )
 
 [<Sealed>]

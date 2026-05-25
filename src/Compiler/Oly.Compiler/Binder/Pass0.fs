@@ -108,6 +108,12 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         else
             flags
 
+    let enclosing =
+        if flags &&& EntityFlags.Anonymous = EntityFlags.Anonymous then
+            EnclosingSymbol.RootNamespace
+        else
+            enclosing
+
     let entBuilder = EntitySymbolBuilder.Create(env.currentAsm, enclosing, name, flags, kind, docText)
     let ent = entBuilder.Entity
 

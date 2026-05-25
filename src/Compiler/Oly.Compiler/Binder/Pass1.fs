@@ -58,18 +58,6 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
     bindConstraintClauseList cenv env syntaxConstrClauses
     let env = env.SetEnclosingTypeParameters(ent.TypeParameters)
 
-    (* CHECK FOR DUPLICATE NESTED ENTITIES *)
-    let duplicateEnts = HashSet()
-    let syntaxNodes = syntaxEntDefBody.GetNestedTypeDeclarationIdentifiers()
-    (entBuilder.NestedEntityBuilders, syntaxNodes)
-    ||> ImArray.tryIter2 (fun nestedEntBuilder syntaxNode ->
-        let nestedEnt = nestedEntBuilder.Entity
-        let key = (nestedEnt.Name, nestedEnt.TypeParameters.Length)
-        if duplicateEnts.Add(key) |> not then
-            cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxNode)
-    )
-    (**)
-
     let getDefaultExtendType (ty: TypeSymbol) =
         if ty.IsEnum_ste then
             // DEFAULT

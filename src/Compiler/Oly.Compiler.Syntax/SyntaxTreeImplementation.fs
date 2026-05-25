@@ -1445,12 +1445,12 @@ module OlySyntaxTreeExtensions =
             let builder = ImArray.builder()
             let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
                 match expr with
-                | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, _, _, _, _) ->
+                | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDefName, _, _, _, _) ->
                     match syntaxTyDefName.Identifier with
                     | Some syntaxIdent ->
                         builder.Add(syntaxIdent: OlySyntaxNode)
                     | _ ->
-                        ()
+                        builder.Add(syntaxTyDeclKind)
                     cont(FakeUnit)
                 | OlySyntaxExpression.Sequential(expr1, expr2) ->
                     f expr1 (fun FakeUnit ->

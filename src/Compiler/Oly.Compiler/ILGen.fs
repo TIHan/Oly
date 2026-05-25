@@ -51,7 +51,7 @@ let rec deterministicEnclosingName (enclosing: EnclosingSymbol) =
 
 and deterministicEntityName (ent: EntitySymbol) =
     let enclosingName = deterministicEnclosingName ent.Enclosing
-    if ent.IsAnonymous then
+    if ent.IsAnonymousShape || ent.IsAnonymousModule then
         let tyNameArgs =
             ent.TypeArguments
             |> ImArray.map (fun x ->
@@ -1114,7 +1114,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEnclosing = 
          emitILEnclosingForEntity cenv env ent
     let ilName = 
-        if ent.IsShape && ent.IsAnonymous then
+        if ent.IsAnonymousShape then
             OlyILTableIndex(OlyILTableKind.String, -1)
         else
             GenString cenv name

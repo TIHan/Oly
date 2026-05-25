@@ -465,12 +465,12 @@ let private retargetConstant currentAsmIdent importer constant =
         constant
 
 let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: EnclosingSymbol) (ent: EntitySymbol) =
-    if ent.IsAnonymous then
-        match importer.AnonymousEntityCache.TryGetValue(ent) with
+    if ent.IsAnonymousShape then
+        match importer.AnonymousShapeCache.TryGetValue(ent) with
         | true, rtgtEnt -> rtgtEnt
         | _ ->
             let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-            importer.AnonymousEntityCache[ent] <- rtgtEnt
+            importer.AnonymousShapeCache[ent] <- rtgtEnt
             // We do this to stop infinite recursion from happenening.
             // Example:
             //     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
@@ -480,7 +480,6 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
         let qualName = ent.QualifiedName
         match importer.TryGetEntity(qualName) with
         | true, ent -> 
-            OlyAssert.False(ent.IsAnonymous)
             ent
         | _ ->
             let needsNoRetarget =
@@ -687,27 +686,32 @@ type NamespaceEnvironment private (currentAsm: AssemblySymbol, state: Dictionary
         |> Seq.iter (fun x -> f x.Entity)
 
     member this.GetOrCreate(namespacePath: string imarray): NamespaceBuilder =
-        if namespacePath.IsEmpty then
-            invalidArg "namespacePath" "Path must not be empty."
+        //if namespacePath.IsEmpty then
+        //    invalidArg "namespacePath" "Path must not be empty."
 
         match state.TryGetValue(namespacePath) with
         | true, entBuilder -> entBuilder
         | _ ->
-            let enclosing, enclosingNamespaceBuilderOpt =
-                if namespacePath.Length > 1 then
-                    let enclosingNamespaceBuilder = this.GetOrCreate(namespacePath.RemoveAt(namespacePath.Length - 1))
-                    EnclosingSymbol.Entity(enclosingNamespaceBuilder.Entity), Some enclosingNamespaceBuilder
-                else
-                    EnclosingSymbol.RootNamespace, None
-            let name = namespacePath.[namespacePath.Length - 1]
-            let builder = NamespaceBuilder.Create(currentAsm, enclosing, name)
+            if namespacePath.IsEmpty then
+                 let builder = NamespaceBuilder.Create(currentAsm, EnclosingSymbol.RootNamespace, String.Empty)
+                 state.[namespacePath] <- builder
+                 builder
+            else
+                let enclosing, enclosingNamespaceBuilderOpt =
+                    if namespacePath.Length > 1 then
+                        let enclosingNamespaceBuilder = this.GetOrCreate(namespacePath.RemoveAt(namespacePath.Length - 1))
+                        EnclosingSymbol.Entity(enclosingNamespaceBuilder.Entity), Some enclosingNamespaceBuilder
+                    else
+                        EnclosingSymbol.RootNamespace, None
+                let name = namespacePath.[namespacePath.Length - 1]
+                let builder = NamespaceBuilder.Create(currentAsm, enclosing, name)
 
-            match enclosingNamespaceBuilderOpt with
-            | Some enclosingNamespaceBuilder -> enclosingNamespaceBuilder.AddEntity(builder.Entity, builder.Entity.LogicalTypeParameterCount)
-            | _ -> ()
+                match enclosingNamespaceBuilderOpt with
+                | Some enclosingNamespaceBuilder -> enclosingNamespaceBuilder.AddEntity(builder.Entity, builder.Entity.LogicalTypeParameterCount)
+                | _ -> ()
 
-            state.[namespacePath] <- builder
-            builder
+                state.[namespacePath] <- builder
+                builder
 
     static member Create(currentAsm) =
         NamespaceEnvironment(currentAsm, Dictionary(StringImmutableArrayComparer()))
@@ -2153,7 +2157,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
     member val PatternCache: ConcurrentDictionary<int64, IPatternSymbol> = ConcurrentDictionary<int64, IPatternSymbol>()
     member val EntityCache: ConcurrentDictionary<int64, EntitySymbol> = ConcurrentDictionary<int64, EntitySymbol>()
 
-    member val AnonymousEntityCache: ConcurrentDictionary<EntitySymbol, EntitySymbol> = ConcurrentDictionary(EntitySymbolComparer())
+    member val AnonymousShapeCache: ConcurrentDictionary<EntitySymbol, EntitySymbol> = ConcurrentDictionary(EntitySymbolComparer())
 
     member private this.HandleNamespace(ent: INamespaceSymbol) =
         let namespaceBuilder = importNamespace importedNamespaceEnv ent.FullNamespacePath
@@ -2183,7 +2187,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
         currentAssemblies.[ilAsm.Identity] <- ()
 
     member this.ImportEntity(ent: EntitySymbol) =
-        if ent.IsNamespace || ent.IsAnonymous then
+        if ent.IsNamespace || ent.IsAnonymousShape then
             this.HandleEntity(ent)
         else
             let qualName = ent.QualifiedName
@@ -2201,7 +2205,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
         entities.TryGetValue(qualName, &rent)
 
     member this.AddEntity(qualName, ent: EntitySymbol) =
-        OlyAssert.False(ent.IsAnonymous)
+        OlyAssert.False(ent.Name = AnonymousEntityName)
      //   OlyAssert.False(entities.ContainsKey(qualName))
         entities[qualName] <- ent
 
@@ -2254,9 +2258,8 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
                     match ilEntDef.Enclosing with
                     | OlyILEnclosing.Namespace _ ->
                         let ent = importEntitySymbolFromDefinition cenv ilEntDefHandle
-                        if not ent.IsAnonymous then
-                            ct.ThrowIfCancellationRequested()
-                            f(this.RetargetEntity(currentAsmIdent, ent))
+                        ct.ThrowIfCancellationRequested()
+                        f(this.RetargetEntity(currentAsmIdent, ent))
                     | _ ->
                         ()
                 )
