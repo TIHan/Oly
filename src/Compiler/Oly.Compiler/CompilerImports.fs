@@ -1044,92 +1044,16 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
 let private importEntitySymbolFromDefinition (cenv: cenv) (ilEntDefHandle: OlyILEntityDefinitionHandle) =
     cenv.imports.GetOrCreateLocalEntity(cenv.ilAsm, ilEntDefHandle)
 
-let private getEnclosingOfILEntityInstance (ilAsm: OlyILReadOnlyAssembly) (ilEntInst: OlyILEntityInstance) =
-    match ilEntInst with
-    | OlyILEntityInstance(defOrRefHandle=defOrRefHandle)
-    | OlyILEntityConstructor(defOrRefHandle=defOrRefHandle) -> 
-        if defOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-            ilAsm.GetEntityDefinition(defOrRefHandle).Enclosing
-        else
-            ilAsm.GetEntityReference(defOrRefHandle).Enclosing
-    | _ ->
-        unreached()
-
-let private getNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) =
-    let name = ilAsm.GetStringOrEmpty(ilEntDef.NameHandle)
-    if ilEntDef.TypeParameters.IsEmpty then
-        name
-    else
-        name + "````" + ilEntDef.TypeParameters.Length.ToString()
-
-let private getQualifiedNameOfILEntityDefinition (ilAsm: OlyILReadOnlyAssembly) (ilEntDef: OlyILEntityDefinition) =
-    let name = getNameOfILEntityDefinition ilAsm ilEntDef
-    match ilEntDef with
-    | OlyILEntityDefinition(enclosing=enclosing) ->
-        let rec loop enclosing =
-            match enclosing with
-            | OlyILEnclosing.Namespace(path, _) ->
-                (path |> ImArray.map ilAsm.GetStringOrEmpty)
-    
-            | OlyILEnclosing.Entity(ilEntInst) ->
-                let enclosingName =
-                    match ilEntInst with
-                    | OlyILEntityInstance(ilDefOrRefHandle, _)
-                    | OlyILEntityConstructor(ilDefOrRefHandle) ->
-                        if ilDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                            ilAsm.GetEntityDefinition(ilDefOrRefHandle).NameHandle
-                        else
-                            ilAsm.GetEntityReference(ilDefOrRefHandle).NameHandle
-                        |> ilAsm.GetStringOrEmpty
-                    | _ ->
-                        unreached()
-                (loop (getEnclosingOfILEntityInstance ilAsm ilEntInst)).Add(enclosingName).Add("::")
-            | _ ->
-                ImArray.empty
-        (loop enclosing).Add(name)
-        |> String.concat "."
-
 let private tryFindEntityDefinition (qualName: QualifiedName) (ilAsm: OlyILReadOnlyAssembly) =
     ilAsm.EntityDefinitions
-    |> Seq.tryFind (fun (_, ilEntDef) ->
-        qualName = (getQualifiedNameOfILEntityDefinition ilAsm ilEntDef)
+    |> Seq.tryFind (fun (handle, _) ->
+        qualName = ilAsm.GetQualifiedName(handle)
     )
-
-let private getNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (ilEntRef: OlyILEntityReference) =
-    let name = ilAsm.GetStringOrEmpty(ilEntRef.NameHandle)
-    if ilEntRef.TypeParameterCount = 0 then
-        name
-    else
-        name + "````" + ilEntRef.TypeParameterCount.ToString()
-
-let private getQualifiedNameOfILEntityReference (ilAsm: OlyILReadOnlyAssembly) (ilEntRef: OlyILEntityReference) =
-    let name = getNameOfILEntityReference ilAsm ilEntRef
-    let rec loop enclosing =
-        match enclosing with
-        | OlyILEnclosing.Namespace(path, _) ->
-            (path |> ImArray.map ilAsm.GetStringOrEmpty)
-        | OlyILEnclosing.Entity(ilEntInst) ->
-            let enclosingName =
-                match ilEntInst with
-                | OlyILEntityInstance(ilDefOrRefHandle, _)
-                | OlyILEntityConstructor(ilDefOrRefHandle) ->
-                    if ilDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                        ilAsm.GetEntityDefinition(ilDefOrRefHandle).NameHandle
-                    else
-                        ilAsm.GetEntityReference(ilDefOrRefHandle).NameHandle
-                    |> ilAsm.GetStringOrEmpty
-                | _ ->
-                    unreached()
-            (loop (getEnclosingOfILEntityInstance ilAsm ilEntInst)).Add(enclosingName).Add("::")
-        | _ ->
-            ImArray.empty
-    (loop ilEntRef.Enclosing).Add(name)
-    |> String.concat "."
 
 let private tryFindEntityReference (qualName: QualifiedName) (ilAsm: OlyILReadOnlyAssembly) =
     ilAsm.EntityReferences
-    |> Seq.tryFind (fun (_, ilEntRef) ->
-        qualName = getQualifiedNameOfILEntityReference ilAsm ilEntRef
+    |> Seq.tryFind (fun (handle, _) ->
+        qualName = ilAsm.GetQualifiedName(handle)
     )
 
 let private findEntityDefinition cenv (qualName: QualifiedName) (ilEntRef: OlyILEntityReference) =
@@ -1168,7 +1092,7 @@ let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILE
     | _ ->
         let ilEntRef = cenv.ilAsm.GetEntityReference(ilEntRefHandle)
 
-        let qualName = getQualifiedNameOfILEntityReference cenv.ilAsm ilEntRef
+        let qualName = cenv.ilAsm.GetQualifiedName(ilEntRefHandle)
 
         let ent = findEntityDefinition cenv qualName ilEntRef
 

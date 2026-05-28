@@ -760,9 +760,9 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
             ))
         }
 
-    override _.GetImplicitExtendsForStruct() = Some "System.ValueType"
+    override _.GetImplicitExtendsForStruct() = Some "System::ValueType"
 
-    override _.GetImplicitExtendsForEnum() = Some "System.Enum"
+    override _.GetImplicitExtendsForEnum() = Some "System::Enum"
 
     override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
         let diagnostics = OlyDiagnosticLogger.CreateWithPrefix(DotNetDiagnostic.CodePrefixDOTNET)

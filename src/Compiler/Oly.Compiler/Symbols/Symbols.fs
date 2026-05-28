@@ -337,34 +337,36 @@ type EntitySymbol() =
     //              It would be preferrable to have a qualified name that is consistent with the syntax.
     member this.QualifiedName =
         if isNull qualifiedName then
-            qualifiedName <-
-                let rec loop enclosing : string imarray =
-                    match enclosing with
-                    | EnclosingSymbol.Entity(ent) when ent.IsNamespace ->
-                        (loop ent.Enclosing).Add(ent.Name)
-                    | EnclosingSymbol.Entity(ent) ->
-                        let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
-                        let name =
-                            if ilTyParCount = 0 then
-                                ent.Name
-                            else
-                                ent.Name + "````" + ilTyParCount.ToString()                               
-                        (loop ent.Enclosing).Add(name).Add("::")
-                    | _ ->
-                        ImArray.empty
+            if not this.IsFormal then
+                qualifiedName <- this.Formal.QualifiedName
+            else
 
-                if this.IsNamespace then
-                    (loop this.Enclosing).Add(this.Name)
-                    |> String.concat "."
-                else
-                    let ilTyParCount = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length
-                    let name =
-                        if ilTyParCount = 0 then
-                            this.Name
+            let builder = System.Text.StringBuilder()
+            let rec loop (ent: EntitySymbol): unit =
+                match ent.Enclosing with
+                | EnclosingSymbol.Entity(enclosingEnt) ->
+                    loop enclosingEnt
+                    if enclosingEnt.IsNamespace then
+                        if ent.IsNamespace then
+                            builder.Append(".") |> ignore
                         else
-                            this.Name + "````" + ilTyParCount.ToString()  
-                    (loop this.Enclosing).Add(name)
-                    |> String.concat "."
+                            builder.Append("::") |> ignore
+                    else
+                        builder.Append("+") |> ignore
+                | EnclosingSymbol.RootNamespace ->
+                    if not ent.IsNamespace then
+                       builder.Append("::") |> ignore
+                | _ ->
+                    builder.Append("$$$$") |> ignore
+
+                Oly.Metadata.OlyQuotedName.AppendQuotedName ent.Name builder
+                if not ent.IsNamespace then
+                    let ilTyParCount = ent.TypeParameters.Length - ent.Enclosing.TypeParameters.Length
+                    if ilTyParCount > 0 then
+                        builder.Append("^") |> ignore
+                        builder.Append(ilTyParCount) |> ignore
+            loop this
+            qualifiedName <- builder.ToString()
         qualifiedName
 
     override this.ToString() = this.Name

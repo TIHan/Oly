@@ -31,8 +31,8 @@ let globalSetup() =
                 None
         )
         |> ImArray.ofSeq
-    TestUtilities.Configuration.implicitExtendsForEnum <- Some "System.Enum"
-    TestUtilities.Configuration.implicitExtendsForStruct <- Some "System.ValueType"
+    TestUtilities.Configuration.implicitExtendsForEnum <- Some "System::Enum"
+    TestUtilities.Configuration.implicitExtendsForStruct <- Some "System::ValueType"
 
 let createEmitter(asm: OlyILAssembly) =
     OlyRuntimeClrEmitter(asm.Name, true, typeof<obj>.Assembly.GetName(), typeof<System.Console>.Assembly.GetName())

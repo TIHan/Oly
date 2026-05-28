@@ -22,6 +22,18 @@ module OlySpecialNames =
     [<Literal>]
     let PatternGuard = "__oly_guard"
 
+[<RequireQualifiedAccess>]
+module OlyQuotedName =
+
+    let AppendQuotedName (name: string) (builder: Text.StringBuilder) =
+        let hasNonAlphaNumeric = System.Text.RegularExpressions.Regex.IsMatch(name, @"\W")
+        if hasNonAlphaNumeric then
+            builder.Append("`") |> ignore
+            builder.Append(name) |> ignore
+            builder.Append("`") |> ignore
+        else
+            builder.Append(name) |> ignore
+
 type OlyILTableKind =
     | String
     | EntityReference
@@ -1410,71 +1422,49 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
     member this.GetAssemblyIdentity(ilEntInst: OlyILEntityInstance) =
         ilAsm.GetAssemblyIdentity(ilEntInst)
 
-    member private this.GetQualifiedNameForDefinition(ilEntDefHandle: OlyILEntityDefinitionHandle, builder: System.Text.StringBuilder) =
-        let ilEntDef = this.GetEntityDefinition(ilEntDefHandle)
-        let ilTyParCount = ilEntDef.TypeParameters.Length
-        match ilEntDef.Enclosing with
-        | OlyILEnclosing.Witness _ ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Namespace(path, _) ->
-            path
-            |> ImArray.iteri (fun i x ->
-                builder.Append(this.GetStringOrEmpty(x)) |> ignore
-                if i <> (path.Length - 1) then
-                    builder.Append(".") |> ignore
-            )
-            builder.Append("::") |> ignore
-
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
-            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
-
-        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Entity(_) ->
-            unreached()
-                
-        builder.Append("::") |> ignore
-        builder.Append(this.GetStringOrEmpty(ilEntDef.NameHandle)) |> ignore
-        if ilTyParCount > 0 then
-            builder.Append("````" + ilTyParCount.ToString()) |> ignore
-
-    member private this.GetQualifiedNameForReference(ilEntRefHandle: OlyILEntityReferenceHandle, builder: System.Text.StringBuilder) =
-        let ilEntRef = this.GetEntityReference(ilEntRefHandle)
-        let ilTyParCount = ilEntRef.TypeParameterCount
-        match ilEntRef.Enclosing with
-        | OlyILEnclosing.Witness _ ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Namespace(path, _) ->
-            path
-            |> ImArray.iteri (fun i x ->
-                builder.Append(this.GetStringOrEmpty(x)) |> ignore
-                if i <> (path.Length - 1) then
-                    builder.Append(".") |> ignore
-            )
-            builder.Append("::") |> ignore
-
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
-            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
-
-        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Entity(_) ->
-            unreached()
-                
-        builder.Append("::") |> ignore
-        builder.Append(this.GetStringOrEmpty(ilEntRef.NameHandle)) |> ignore
-        if ilTyParCount > 0 then
-            builder.Append("````" + ilTyParCount.ToString()) |> ignore
-
     member private this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, builder: System.Text.StringBuilder) =
-        if ilEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
-            this.GetQualifiedNameForReference(ilEntDefOrRefHandle, builder)
-        else
-            this.GetQualifiedNameForDefinition(ilEntDefOrRefHandle, builder)
+        let rec loop (ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle): unit =
+            let enclosing =
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).Enclosing
+                else
+                    ilAsm.GetEntityReference(ilEntDefOrRefHandle).Enclosing
+            match enclosing with
+            | OlyILEnclosing.Witness _ ->
+                builder.Append("$$$$") |> ignore
+            | OlyILEnclosing.Namespace(pathHandles, _) ->
+                pathHandles
+                |> ImArray.iteri (fun i handle ->
+                    let path = ilAsm.GetStringOrEmpty handle
+                    Oly.Metadata.OlyQuotedName.AppendQuotedName path builder
+                    if i <> pathHandles.Length - 1 then
+                        builder.Append(".") |> ignore
+                )
+                builder.Append("::") |> ignore
+            | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(ilEnclosingEntDefOrRefHandle, _))
+            | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityConstructor(ilEnclosingEntDefOrRefHandle)) ->
+                loop ilEnclosingEntDefOrRefHandle
+                builder.Append("+") |> ignore
+            | _ ->
+                failwith "Unexpected OlyILEnclosing"
+
+            let name = 
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetStringOrEmpty(ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).NameHandle)
+                else
+                    ilAsm.GetStringOrEmpty(ilAsm.GetEntityReference(ilEntDefOrRefHandle).NameHandle)
+
+            Oly.Metadata.OlyQuotedName.AppendQuotedName name builder
+            let tyParCount = 
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).TypeParameters.Length
+                else
+                    ilAsm.GetEntityReference(ilEntDefOrRefHandle).TypeParameterCount
+            if tyParCount > 0 then
+                builder.Append("^") |> ignore
+                builder.Append(tyParCount) |> ignore
+
+        loop ilEntDefOrRefHandle
 
     member this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
         let builder = System.Text.StringBuilder()

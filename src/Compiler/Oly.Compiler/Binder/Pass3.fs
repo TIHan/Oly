@@ -97,13 +97,13 @@ let private fullyQualifiedSignatureTextOfType (ty: TypeSymbol) =
 
 let private createExtensionName (ent: EntitySymbol) =
     if ent.Extends.Length = 1 then
-        let extendName =  "`" + fullyQualifiedSignatureTextOfType ent.Extends[0] + "`"
+        let extendName =  fullyQualifiedSignatureTextOfType ent.Extends[0]
         if ent.Implements.IsEmpty then
             extendName + "__oly_extension"
         else
             let implementsNames =
                 ent.Implements
-                |> ImArray.map (fun x -> "`" + fullyQualifiedSignatureTextOfType x + "`")
+                |> ImArray.map (fun x -> fullyQualifiedSignatureTextOfType x)
                 |> String.concat "_"
             extendName + "_" + implementsNames + "__oly_extension"
     else
