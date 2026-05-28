@@ -2490,7 +2490,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "olytest__oly_module+Test"
 
 [<Fact>]
 let ``Call ToString on newly defined class with overriding ToString``() =
@@ -2543,7 +2543,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "olytest__oly_module+Test"
 
 [<Fact>]
 let ``Call ToString via witness on newly defined class 2``() =
@@ -2584,7 +2584,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "overriding ToString__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "overriding ToStringolytest__oly_module+Test"
 
 [<Fact>]
 let ``Use of '()' should pass 1``() =

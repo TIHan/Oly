@@ -524,12 +524,16 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
 
 #if DEBUG || CHECKED
             match importer.TryGetEntity(qualName) with
-            | true, _ -> OlyAssert.Fail($"'{qualName}' was already added")
+            | true, ent2 when ent.FormalId <> ent2.FormalId -> OlyAssert.Fail($"'{qualName}' was already added")
             | _ -> ()
 #endif
 
+            match importer.TryGetEntity(qualName) with
+            | true, ent -> ent
+            | _ ->
+
             if needsNoRetarget then
-                importer.AddEntity(qualName, ent)
+                importer.SetEntity(qualName, ent)
                 ent
             else
                 let ent =
@@ -540,7 +544,7 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
                     else
                         ent
                 let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
-                importer.AddEntity(qualName, rtgtEnt)
+                importer.SetEntity(qualName, rtgtEnt)
                 // We do this to stop infinite recursion from happenening.
                 rtgtEnt.ComputeConstraints()
                 rtgtEnt
@@ -2204,10 +2208,11 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
     member this.TryGetEntity(qualName, rent: outref<EntitySymbol>): bool =
         entities.TryGetValue(qualName, &rent)
 
-    member this.AddEntity(qualName, ent: EntitySymbol) =
-        OlyAssert.False(ent.Name = AnonymousEntityName)
-     //   OlyAssert.False(entities.ContainsKey(qualName))
-        entities[qualName] <- ent
+    member this.SetEntity(qualName, ent: EntitySymbol) =
+        OlyAssert.NotEqual(ent.Name, AnonymousEntityName)
+        // sanity
+        if ent.Name <> AnonymousEntityName then
+            entities[qualName] <- ent
 
     member this.RetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
         match entities.TryGetValue(ent.QualifiedName) with

@@ -21596,3 +21596,115 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "test_int32"
     |> ignore
+
+[<Fact>]
+let ``Interface that references itself and is used across assemblies``() =
+    let refSrc2 =
+        """
+module Ref2.Interface
+
+module Printer =
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+interface ITest =
+
+    Test(): ()
+
+interface ITest<N, T> where N: constant __oly_int32 where T: trait ITest =
+    inherits ITest
+        """
+    let refSrc1 =
+        """
+module Ref1.Shared
+
+open static Ref2.Interface
+
+newtype Int32 =
+    field value: __oly_int32
+
+extension<N> where N: constant __oly_int32 =
+    inherits Int32
+    implements ITest<N, Int32>
+
+    Test(): () = Printer.print("test_int32")
+        """
+    let src = 
+        """
+open static Ref2.Interface
+open static Ref1.Shared
+
+class C<T> where T: trait ITest<124, T> =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+main(): () =
+    let x = Int32(1)
+    let c = C(x)
+    c.Call()
+        """
+    OlyWithRefTwo refSrc2 refSrc1 src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32"
+    |> ignore
+
+[<Fact>]
+let ``Interface that references itself and is used across assemblies 2``() =
+    let refSrc2 =
+        """
+module Ref2.Interface
+
+module Printer =
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+        """
+    let refSrc1 =
+        """
+module Ref1.Shared
+
+open static Ref2.Interface
+
+interface ITest =
+
+    Test(): ()
+
+interface ITest<N, T> where N: constant __oly_int32 where T: trait ITest =
+    inherits ITest
+        """
+    let src = 
+        """
+open static Ref2.Interface
+open static Ref1.Shared
+
+newtype Int32 =
+    field value: __oly_int32
+
+extension<N> where N: constant __oly_int32 =
+    inherits Int32
+    implements ITest<N, Int32>
+
+    Test(): () = Printer.print("test_int32")
+
+class C<T> where T: trait ITest<124, T> =
+
+    field value: T
+    new(value: T) = this { value = value }
+
+    Call(): () =
+        this.value.Test()
+
+main(): () =
+    let x = Int32(1)
+    let c = C(x)
+    c.Call()
+        """
+    OlyWithRefTwo refSrc2 refSrc1 src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test_int32"
+    |> ignore

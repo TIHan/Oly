@@ -187,8 +187,11 @@ let rec GenWitnessArguments cenv env (witnessArgs: WitnessSolution imarray) =
                     |> Option.map (fun x -> GenFunctionAsILFunctionReference cenv env x)
                 OlyILWitness.Implementation(index, ilKind, ilTyExt, ilSpecificAbstractFuncInstOpt)
                 |> Some
-            | WitnessSymbol.TypeParameter _
-            | WitnessSymbol.Type _ ->
+            | WitnessSymbol.TypeParameter _ ->
+                None
+            | WitnessSymbol.Type(ty) ->
+                if ty.IsError_ste then
+                    failwith "Unexpected error type in witness solution"
                 None
         | _ ->
             failwith "No witnesses found"
@@ -250,7 +253,7 @@ and GenString cenv (value: string) =
 
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
-    OlyAssert.False(ent.Name = AnonymousEntityName)
+    OlyAssert.NotEqual(ent.Name, AnonymousEntityName)
     match cenv.cachedEntRefs.TryGetValue ent with
     | true, handle -> handle
     | _ ->

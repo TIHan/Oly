@@ -167,7 +167,17 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                     let formalAbstractFunc = abstractFunc.Formal
                     // If the struct doesn't have an instance constructor, we will still allow it for the shape member '{ new() }' since it can technically be constructed.
                     if formalAbstractFunc.IsInstanceConstructor && formalAbstractFunc.AsFunction.LogicalParameterCount = 0 && principalTyArg.IsStruct_ste && not principalTyArg.IsAnyVariable_ste then
-                        ()
+                        filteredWitnessArgs
+                        |> ImArray.iter (fun witnessArg ->
+                            if not witnessArg.HasSolution then
+                                match witnessArg.Function with
+                                | Some func2 when areValueSignaturesEqual func2.Formal abstractFunc.Formal ->
+                                    witnessArg.Solution <- Some(WitnessSymbol.Type(principalTyArg))
+                                | _ ->
+                                    ()
+                            else
+                                ()
+                        )
                     else
                         if not isAttempt then
                             env.diagnostics.Error($"Shape member '{printValue env.benv formalAbstractFunc}' does not exist on '{printType env.benv principalTyArg}'.", 10, syntaxNode)
@@ -294,6 +304,9 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             Ok() // Return true for recovery
         elif tyExts.Length = 1 then
             let tyExt = tyExts[0]
+            if tyExt.Extends.Length <> 1 then Ok() // Error recovery
+            else
+
             let mostSpecificTy = (tryFindMostSpecificTypeForExtension env.benv tyExt target).Value
 
             let witnessCandidates =
@@ -310,20 +323,45 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
 
             if witnessCandidates.Length = 1 then
                 let witness = witnessCandidates[0]
-                subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target mostSpecificTy
-                |> ignore
-                let appliedTyExt = 
-                    // Note: This is necessary to do!
-                    if not tyExt.TypeParameters.IsEmpty && tyExt.IsFormal && not ty.IsFormal_steea then
-                        applyEntity ty.TypeArguments tyExt
+                
+                // Note: This is all necessary to do!
+
+                if ty.IsTypeConstructor_steea then
+                    if not(subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible tyExt.Extends[0] ty) then ()
                     else
-                        tyExt
-                witness.Solution <- Some(WitnessSymbol.TypeExtension(appliedTyExt, None))
+
+                    if not(subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target tyExt.AsType) then ()
+                    else
+
+                    witness.Solution <- Some(WitnessSymbol.TypeExtension(tyExt, None))
+                else
+                    let appliedTyExt =
+                        if tyExt.IsTypeConstructor then
+                            applyEntity tyExt.TypeArguments tyExt
+                        else
+                            tyExt
+
+                    let inferredTyExtTy = freshenType env.benv appliedTyExt.TypeParameters ImArray.empty appliedTyExt.AsType
+                    if not(subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible inferredTyExtTy.Inherits[0] ty) then ()
+                    else
+
+                    if not(subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv Flexible target inferredTyExtTy) then ()
+                    else
+
+                    witness.Solution <- Some(WitnessSymbol.TypeExtension(inferredTyExtTy.AsEntityNoAlias, None))
+
+                if witness.HasSolution then
+                    Ok()
+                else
+                    Error(GeneralFailure)
+                
             elif witnessCandidates.Length > 1 then
                 // TODO: Provide a test case that hits this diagnostic, is it possible?
                 env.diagnostics.Error($"Solving witnesses is too complex.", 10, syntaxNode)
+                Ok() // error recovery
 
-            Ok()
+            else
+                Ok()
         else
             if not isAttempt then
                 let names =
@@ -401,8 +439,11 @@ let private solveConstraintConstantType _env (_syntaxNode: OlySyntaxNode) (const
         | TypeSymbol.Int32, TypeSymbol.ConstantInt32 _ -> true
         | _ -> false
 
-let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) tyPar (tyArg: TypeArgumentSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
+let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
     OlyAssert.True(tyArg.IsSolved_ste)
+
+    // There needs to be witness arguments for SubtypeOf, ConstantType, and TraitType.
+    // Therefore, we need to solve them there.
 
     if tyArg.IsError_ste then
         // Error recovery: always assume the constraint is solved for an error type
@@ -443,6 +484,11 @@ let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumen
             solveWitnesses env syntaxNode WitnessSolver.Subtype tyArgs witnessArgs target.Value tyPar tyArg isAttempt
         | ConstraintSymbol.ConstantType(constTy) ->
             if solveConstraintConstantType env syntaxNode constTy.Value tyArg then
+                witnessArgs
+                |> ImArray.iter (fun witnessArg ->
+                    if not witnessArg.HasSolution && witnessArg.TypeParameter.Id = tyPar.Id && areTypesEqual witnessArg.Type constTy.Value then
+                        witnessArg.Solution <- Some(WitnessSymbol.Type(tyArg))
+                )
                 Ok()
             else
                 Error(GeneralFailure)
@@ -528,7 +574,7 @@ let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyAr
         | Error(ShapeMembers_AmbiguousFunctions(abstractFunc, candidates)) ->
             if not isAttempt then
                 env.diagnostics.Report(Error_ShapeFunctionAmbiguousWitnesses(env.benv, syntaxNode, abstractFunc, candidates))
-        | _ ->
+        | Ok(_) ->
             verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode isAttempt (constr, tyArg)
     )
 
