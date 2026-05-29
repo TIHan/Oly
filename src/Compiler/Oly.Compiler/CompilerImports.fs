@@ -292,12 +292,22 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     let asEnclosing = (this :> EntitySymbol).AsEnclosing
 
     let tyPars =
-        ent.TypeParameters
-        |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
+        lazy 
+            let tyPars =
+                ent.TypeParameters
+                |> ImArray.map (retargetTypeParameter currentAsmIdent importer)
+
+            (ent.TypeParameters, tyPars)
+            ||> ImArray.iter2 (fun oldTyPar tyPar ->
+                if not oldTyPar.Constraints.IsEmpty then 
+                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
+            )
+
+            tyPars
 
     let lazyTyArgs =
         lazy
-            tyPars
+            tyPars.Value
             |> ImArray.map (fun (tyPar: TypeParameterSymbol) -> tyPar.AsType)
 
     let lazyEntities =
@@ -328,12 +338,12 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     let lazyExtends =
         lazy
             ent.Extends
-            |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+            |> ImArray.map (retargetType currentAsmIdent importer tyPars.Value)
 
     let lazyImplements =
         lazy
             ent.Implements
-            |> ImArray.map (retargetType currentAsmIdent importer tyPars)
+            |> ImArray.map (retargetType currentAsmIdent importer tyPars.Value)
 
     let lazyInstanceCtors =
         lazy
@@ -349,15 +359,6 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
 
     member this.AssemblyNameThatImportedThis = currentAsmIdent.Name
     member this.DebugName = ent.Name
-
-    member this.ComputeConstraints() =
-        if not ent.TypeParameters.IsEmpty then
-            let tyPars = this.TypeParameters
-            (ent.TypeParameters, tyPars)
-            ||> ImArray.iter2 (fun oldTyPar tyPar ->
-                if not oldTyPar.Constraints.IsEmpty then 
-                    tyPar.SetConstraints(oldTyPar.Constraints |> ImArray.map (retargetConstraint currentAsmIdent importer tyPars))
-            )
 
     override this.FormalId = formalId
     override this.Attributes = ent.Attributes
@@ -376,7 +377,7 @@ type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Im
     override this.Patterns = lazyPats.Value
     override this.Properties = lazyProps.Value
     override this.TypeArguments = lazyTyArgs.Value
-    override this.TypeParameters = tyPars
+    override this.TypeParameters = tyPars.Value
     override this.Documentation = ent.Documentation
 
 
@@ -389,26 +390,26 @@ let private retargetConstraint currentAsmIdent importer (tyPars: TypeParameterSy
     | ConstraintSymbol.Blittable
     | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.SubtypeOf(lazyTy) ->
-        let ty = lazyTy.Value
-        let rty = retargetType currentAsmIdent importer tyPars ty
-        if obj.ReferenceEquals(rty, ty) then
-            constr
-        else
-            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(rty))
+        ConstraintSymbol.SubtypeOf(
+            LazyValue(fun () ->
+                let ty = lazyTy.Value
+                retargetType currentAsmIdent importer tyPars ty
+            )
+        )
     | ConstraintSymbol.ConstantType(lazyTy) ->
-        let ty = lazyTy.Value
-        let rty = retargetType currentAsmIdent importer tyPars ty
-        if obj.ReferenceEquals(rty, ty) then
-            constr
-        else
-            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(rty))
+        ConstraintSymbol.ConstantType(
+            LazyValue(fun () ->
+                let ty = lazyTy.Value
+                retargetType currentAsmIdent importer tyPars ty
+            )
+        )
     | ConstraintSymbol.TraitType(lazyTy) ->
-        let ty = lazyTy.Value
-        let rty = retargetType currentAsmIdent importer tyPars ty
-        if obj.ReferenceEquals(rty, ty) then
-            constr
-        else
-            ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(rty))
+        ConstraintSymbol.TraitType(
+            LazyValue(fun () ->
+                let ty = lazyTy.Value
+                retargetType currentAsmIdent importer tyPars ty
+            )
+        )
 
 let private retargetTypeParameter currentAsmIdent importer (tyPar: TypeParameterSymbol) =
     if tyPar.Constraints.IsEmpty then
@@ -474,7 +475,6 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
             // We do this to stop infinite recursion from happenening.
             // Example:
             //     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
-            rtgtEnt.ComputeConstraints()
             rtgtEnt
     else
         let qualName = ent.QualifiedName
@@ -545,8 +545,6 @@ let private retargetEntity currentAsmIdent (importer: Importer) (enclosing: Encl
                         ent
                 let rtgtEnt = RetargetedEntitySymbol(currentAsmIdent, importer, enclosing, ent)
                 importer.SetEntity(qualName, rtgtEnt)
-                // We do this to stop infinite recursion from happenening.
-                rtgtEnt.ComputeConstraints()
                 rtgtEnt
 
 let private retargetEnclosing currentAsmIdent (importer: Importer) enclosing =
@@ -877,11 +875,11 @@ let private importTypeParameterSymbols cenv (enclosingTyPars: TypeParameterSymbo
                 | OlyILConstraint.Scoped ->
                     ConstraintSymbol.Scoped
                 | OlyILConstraint.SubtypeOf(ilTy) ->
-                    ConstraintSymbol.SubtypeOf(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
+                    ConstraintSymbol.SubtypeOf(LazyValue(fun () -> importTypeSymbol cenv enclosingTyPars funcTyPars ilTy))
                 | OlyILConstraint.ConstantType(ilTy) ->
-                    ConstraintSymbol.ConstantType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
+                    ConstraintSymbol.ConstantType(LazyValue(fun () -> importTypeSymbol cenv enclosingTyPars funcTyPars ilTy))
                 | OlyILConstraint.TraitType(ilTy) ->
-                    ConstraintSymbol.TraitType(lazy importTypeSymbol cenv enclosingTyPars funcTyPars ilTy)
+                    ConstraintSymbol.TraitType(LazyValue(fun () -> importTypeSymbol cenv enclosingTyPars funcTyPars ilTy))
             )
         tyPar.SetConstraints(constrs)
     )

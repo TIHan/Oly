@@ -45,6 +45,37 @@ type LruCache<'TKey, 'TValue when 'TKey: equality> (maxCount: int) =
         )
 
 [<Sealed;NoComparison;NoEquality>]
+type LazyValue<'T> =
+
+    val gate : obj
+    val mutable f : unit -> 'T
+    val mutable value : 'T voption
+
+    new (f) = { gate = obj (); f = f; value = ValueNone }
+    private new (value) = { gate = obj (); f = Unchecked.defaultof<_>; value = ValueSome value }
+
+    member this.HasValue = 
+        this.value.IsSome
+
+    member this.Value =
+        match this.value with
+        | ValueNone ->
+            lock this.gate (fun () ->
+                match this.value with
+                | ValueNone ->
+                    let value = this.f()
+                    this.value <- ValueSome value
+                    this.f <- Unchecked.defaultof<_>
+                    value
+                | ValueSome value ->
+                    value
+            )
+        | ValueSome value ->
+            value
+
+    static member FromValue(value: 'T) = LazyValue(value)
+
+[<Sealed;NoComparison;NoEquality>]
 type CacheValue<'T> =
 
     val gate : obj

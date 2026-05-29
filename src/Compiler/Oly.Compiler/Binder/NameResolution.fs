@@ -2123,10 +2123,10 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
             if isTraitConstr then
                 if not constrTy.IsError_ste && not constrTy.IsInterface_ste && not constrTy.IsShape_ste then
                     cenv.diagnostics.Error("Interfaces and shapes are only allowed for trait constraints.", 10, syntaxConstrTy)
-                ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(constrTy))
+                ConstraintSymbol.TraitType(LazyValue<_>.FromValue(constrTy))
                 |> Some
             else
-                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
+                ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(constrTy))
                 |> Some
 
     | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
@@ -2139,7 +2139,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                 resTyArity
 
         let constTy = bindType cenv env None resTyArity2 syntaxTy
-        let constr = ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(constTy))
+        let constr = ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(constTy))
         match stripTypeEquations constTy with
         | TypeSymbol.Int32 ->
             Some constr

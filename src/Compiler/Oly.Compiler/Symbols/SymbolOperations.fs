@@ -2830,7 +2830,7 @@ let invalidTypeParameter tyParKind =
     TypeParameterSymbol("", 0, 0, tyParKind, ref ImArray.empty)
 
 let invalidConstraint () =
-    ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(invalidType()))
+    ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(invalidType()))
 
 let invalidEntityWithEnclosing enclosing =
     { new EntitySymbol() with

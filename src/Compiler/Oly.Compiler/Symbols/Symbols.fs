@@ -1677,11 +1677,11 @@ let actualConstraint (tyArgs: TypeArgumentSymbol imarray) (constr: ConstraintSym
     | ConstraintSymbol.Blittable
     | ConstraintSymbol.Scoped -> constr
     | ConstraintSymbol.SubtypeOf(ty) ->
-        ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
+        ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(actualType tyArgs ty.Value))
     | ConstraintSymbol.ConstantType(ty) ->
-        ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
+        ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(actualType tyArgs ty.Value))
     | ConstraintSymbol.TraitType(ty) ->
-        ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(actualType tyArgs ty.Value))
+        ConstraintSymbol.TraitType(LazyValue<_>.FromValue(actualType tyArgs ty.Value))
 
 type INamespaceSymbol = EntitySymbol
 
@@ -3166,9 +3166,9 @@ type ConstraintSymbol =
     | Unmanaged
     | Blittable
     | Scoped
-    | SubtypeOf of Lazy<TypeSymbol>
-    | ConstantType of Lazy<TypeSymbol>
-    | TraitType of Lazy<TypeSymbol>
+    | SubtypeOf of LazyValue<TypeSymbol>
+    | ConstantType of LazyValue<TypeSymbol>
+    | TraitType of LazyValue<TypeSymbol>
 
     member this.TryGetAnySubtypeOf() =
         match this with
@@ -3483,7 +3483,7 @@ module private FormalFixedArray =
     let TypeParameters =
         (
             TypeParameterSymbol("T", 0, 0, TypeParameterKind.Type, ref ImArray.empty),
-            TypeParameterSymbol("N", 1, 0, TypeParameterKind.Type, ref (ImArray.createOne (ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(TypeSymbol.Int32)))))
+            TypeParameterSymbol("N", 1, 0, TypeParameterKind.Type, ref (ImArray.createOne (ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(TypeSymbol.Int32)))))
         )
         ||> ImArray.createTwo
 
@@ -6312,11 +6312,11 @@ module SymbolHelpers =
             | ConstraintSymbol.Blittable
             | ConstraintSymbol.Scoped -> this
             | ConstraintSymbol.SubtypeOf(ty) ->
-                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
+                ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(ty.Value.Substitute(tyArgs)))
             | ConstraintSymbol.ConstantType(ty) ->
-                ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
+                ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(ty.Value.Substitute(tyArgs)))
             | ConstraintSymbol.TraitType(ty) ->
-                ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyArgs)))
+                ConstraintSymbol.TraitType(LazyValue<_>.FromValue(ty.Value.Substitute(tyArgs)))
 
         member this.Substitute(tyParLookup: IReadOnlyDictionary<_, _>) =
             match this with
@@ -6327,11 +6327,11 @@ module SymbolHelpers =
             | ConstraintSymbol.Blittable
             | ConstraintSymbol.Scoped -> this
             | ConstraintSymbol.SubtypeOf(ty) ->
-                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))
+                ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(ty.Value.Substitute(tyParLookup)))
             | ConstraintSymbol.ConstantType(ty) ->
-                ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))
+                ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(ty.Value.Substitute(tyParLookup)))
             | ConstraintSymbol.TraitType(ty) ->
-                ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(ty.Value.Substitute(tyParLookup)))
+                ConstraintSymbol.TraitType(LazyValue<_>.FromValue(ty.Value.Substitute(tyParLookup)))
 
 // -----------------------------------------------
 // - Custom asserts

@@ -582,7 +582,7 @@ let LoadTupleElement =
     // __oly_load_tuple_element<N, T...>(__oly_tuple<T...>): T...[N] where N: constant __oly_int32 /// TODO: Rename to 'get_tuple_item'.
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("get_tuple_element")) /// TODO: Rename to 'get_tuple_item'.
     let tyParNConstrs =
-        ConstraintSymbol.ConstantType(Lazy.CreateFromValue TypeSymbol.Int32)
+        ConstraintSymbol.ConstantType(LazyValue.FromValue TypeSymbol.Int32)
         |> ImArray.createOne
     let tyPars =
         seq {

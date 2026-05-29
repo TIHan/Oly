@@ -97,13 +97,13 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                         match witnessArg.Constraint with
                         | ConstraintSymbol.ConstantType(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                            ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
                         | ConstraintSymbol.TraitType(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                            ConstraintSymbol.TraitType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
                         | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
                             let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                            ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
                         | _ ->
                             failwith "Unexpected constraint"
                     )

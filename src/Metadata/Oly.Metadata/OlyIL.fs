@@ -34,6 +34,33 @@ module OlyQuotedName =
         else
             builder.Append(name) |> ignore
 
+[<RequireQualifiedAccess>]
+module OlyFullyQualifiedTypeName =
+
+    type NamespacePart = NamespacePart of name: string * next: Part
+    type TypePart = 
+        | TypePart of name: string * tyParCount: int * next: TypePart
+
+    type Part =
+        | End
+        | Namespace of NamespacePart
+        | Type of TypePart
+
+    //let ToParts(fullyQualifiedTypeName: string) =
+    //    if fullyQualifiedTypeName.StartsWith('`') then
+    //        let mutable count = 0
+    //        let rec scan i =
+    //            match fullyQualifiedTypeName[i] with
+    //            | '`' -> 
+    //                if fullyQualifiedTypeName.Length - 1 = i then
+    //                    i
+    //                else
+    //                    match fullyQualifiedTypeName[i + 1] with
+    //                    | '.' ->
+    //                        i
+    //                    | '^' ->
+    //    let index = fullyQualifiedTypeName.IndexOf('.')
+
 type OlyILTableKind =
     | String
     | EntityReference
