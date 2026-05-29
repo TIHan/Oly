@@ -1817,7 +1817,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                         |> ImArray.choose (fun ilPropDefHandle ->
                             let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
                             let name = ilPropDef.NameHandle |> ilAsm.GetStringOrEmpty
-                            let attrs = ImArray.empty // TODO:
+                            let attrs = ilPropDef.Attributes |> ImArray.map (importAttribute cenv)
                             let propTy = importTypeSymbol cenv (evalTyPars()) ImArray.empty ilPropDef.Type
 
                             let valueFlags = ValueFlags.None
@@ -1919,7 +1919,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                         |> ImArray.choose (fun ilPatDefHandle ->
                             let ilPatDef = ilAsm.GetPatternDefinition(ilPatDefHandle)
                             let name = ilPatDef.NameHandle |> ilAsm.GetStringOrEmpty
-                            let attrs = ImArray.empty // TODO:
+                            let attrs = ilPatDef.Attributes |> ImArray.map (importAttribute cenv)
 
                             let valueFlags = ValueFlags.None
 

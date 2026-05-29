@@ -816,6 +816,7 @@ module internal rec Helpers =
 
         let fieldDef = reader.GetFieldDefinition(fieldDefHandle)
 
+        // TODO: We should actually include this.
         if fieldDef.Attributes &&& FieldAttributes.FieldAccessMask <> FieldAttributes.Public then None
         else
         
@@ -916,7 +917,8 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
-                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
+                yield! fieldDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
             }
             |> ImArray.ofSeq
 
@@ -1026,8 +1028,10 @@ module internal rec Helpers =
             else
                 OlyILFunctionFlags.None
 
+        let attrs = meth.GetCustomAttributes();
+
         let olyFuncFlags =
-            if hasReadOnlyAttribute cenv (meth.GetCustomAttributes()) then
+            if hasReadOnlyAttribute cenv attrs then
                 olyFuncFlags
             else
                 olyFuncFlags ||| OlyILFunctionFlags.Mutable
@@ -1076,7 +1080,8 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
-                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName)
+                yield! attrs.ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName)
             }
             |> ImArray.ofSeq
 
@@ -1283,6 +1288,7 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
+                yield! tyDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
                 yield OlyILAttribute.Import(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name)
                 match olyIntrinsicAttrOpt with
                 | ValueSome(olyAttr, _) -> yield olyAttr
@@ -1371,7 +1377,9 @@ module internal rec Helpers =
             |> ImArray.choose (fun handle ->
                 let propDef = reader.GetPropertyDefinition(handle)
 
-                let olyAttrs = ImArray.empty // TODO:
+                let olyAttrs = 
+                    propDef.GetCustomAttributes().ToImmutableArray() 
+                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
 
                 let name = propDef.Name |> reader.GetString
 

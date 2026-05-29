@@ -273,7 +273,6 @@ type OlyILEntityDefinition =
         match this with
         | OlyILEntityDefinition(propDefs=propDefs) -> propDefs
 
-
     member this.PatternDefinitionHandles =
         match this with
         | OlyILEntityDefinition(patDefs=patDefs) -> patDefs
@@ -693,6 +692,10 @@ type OlyILPatternDefinition =
     member this.GuardDefinitionHandleOption =
         match this with
         | OlyILPatternDefinition(guardDefHandleOpt=guardDefHandleOpt) -> guardDefHandleOpt
+
+    member this.Attributes =
+        match this with
+        | OlyILPatternDefinition(attrs=attrs) -> attrs
 
 [<NoEquality;NoComparison>]
 type OlyILFieldReference =
