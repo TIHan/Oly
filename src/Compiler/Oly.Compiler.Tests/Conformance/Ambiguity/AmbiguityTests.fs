@@ -2404,7 +2404,6 @@ class A // src2
 let ``Class name with the same name as the property should resolve correctly when accessing the property``() =
     let src =
         """
-
 class InputDataKind =
 
     InputDataKind: __oly_int32 get, set = 0

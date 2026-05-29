@@ -12302,3 +12302,45 @@ class C<T> =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Private property should be able to be accessed inside its enclosing module``() =
+    """
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    M(): () =
+        let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Private property should be able to be accessed inside its enclosing module 2 - with open``() =
+    """
+#[open]
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    M(): () =
+        let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Private property should be able to be accessed inside its enclosing module 3 - with open at top``() =
+    """
+open static Logging
+
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    M(): () =
+        let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
