@@ -1464,40 +1464,40 @@ let private stripTypeEquations_InferenceVariable skipAlias skipModifiers (ty: Ty
             match tyParOpt with
             | Some tyPar when not tyPar.IsVariadic && ty2.IsUnit_ste ->
                 TypeSymbol.RealUnit
-            | _ ->
+            | _ when solution.IsMostFlexible ->
                 stripTypeEquationsAux skipAlias skipModifiers ty2
-                // TODO: Uncomment below till we verify the optimization has sound correctness.
-                //       We should also verify if it actually improves performance.
-                //let strippedTy2 =
-                //    match tyParOpt with
-                //    | Some(tyPar) when tyPar.Arity > 0 ->
-                //        if ty2.IsTypeConstructor then
-                //            stripTypeEquationsAux skipAlias skipModifiers ty2
-                //        else
-                //            // Because we have a second-order generic and our solution isn't a type constructor,
-                //            //     we must extract the type constructor out of it and reset the solution using it.
-                //            // TODO: We should make this path illegal if we have a non-error type.
-                //            match stripTypeEquationsAux skipAlias skipModifiers ty2 with
-                //            | TypeSymbol.HigherVariable(tyPar2, _) ->
-                //                solution.SetSolution(TypeSymbol.Variable(tyPar2))
-                //                stripTypeEquationsAux skipAlias skipModifiers ty
+            | _ ->
+                // IMPORTANT: This does significantly increase performance in some situations.
+                let strippedTy2 =
+                    match tyParOpt with
+                    | Some(tyPar) when tyPar.Arity > 0 ->
+                        if ty2.IsTypeConstructor_steea then
+                            stripTypeEquationsAux skipAlias skipModifiers ty2
+                        else
+                            // Because we have a second-order generic and our solution isn't a type constructor,
+                            //     we must extract the type constructor out of it and reset the solution using it.
+                            // TODO: We should make this path illegal if we have a non-error type.
+                            match stripTypeEquationsAux skipAlias skipModifiers ty2 with
+                            | TypeSymbol.HigherVariable(tyPar2, _) ->
+                                solution.SetSolution(TypeSymbol.Variable(tyPar2))
+                                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                //            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
-                //                OlyAssert.True(externalSolution.IsTypeConstructor)
+                            | TypeSymbol.HigherInferenceVariable(_, _, externalSolution, _) ->
+                                OlyAssert.True(externalSolution.IsTypeConstructor)
                 
-                //                solution.SetSolution(TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution))
-                //                stripTypeEquationsAux skipAlias skipModifiers ty
+                                solution.SetSolution(TypeSymbol.CreateInferenceVariable(tyParOpt, externalSolution))
+                                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                //            | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
-                //                solution.SetSolution(ent.Formal.AsType)
-                //                stripTypeEquationsAux skipAlias skipModifiers ty
+                            | TypeSymbol.Entity(ent) when not ent.IsNamespace ->
+                                solution.SetSolution(ent.Formal.AsType)
+                                stripTypeEquationsAux skipAlias skipModifiers ty
                 
-                //            | _ ->
-                //                TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
-                //    | _ ->
-                //        stripTypeEquationsAux skipAlias skipModifiers ty2
-                //solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias ty2) // cache solution
-                //strippedTy2
+                            | _ ->
+                                TypeSymbol.Error(Some tyPar, Some "Internal Error: Expected type constructor.")
+                    | _ ->
+                        stripTypeEquationsAux skipAlias skipModifiers ty2
+                solution.SetSolution((* preserve alias *) stripTypeEquationsExceptAlias ty2) // cache solution
+                strippedTy2
         else
             ty
     | _ ->

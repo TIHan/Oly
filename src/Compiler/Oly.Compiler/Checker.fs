@@ -960,6 +960,20 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
         match syntaxInfo.TryEnvironment with
         | Some benv ->
 
+            if value.AllTypeParameterCount = 0 then ()
+            else
+
+            if witnessArgs.IsEmpty && isAttempt then ()
+            else
+
+            let allSolved =
+                value.Type.IsAllInnerSolved_ste &&
+                witnessArgs
+                |> ImArray.forall (fun x -> x.HasSolution)
+
+            if allSolved && isAttempt then ()
+            else
+
             if not isAttempt then
                 checkStructTypeCycle 
                     (SolverEnvironment.Create(diagnostics, benv, pass))
