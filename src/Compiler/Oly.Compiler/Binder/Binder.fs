@@ -626,7 +626,7 @@ let createInitialBoundEnvironment asmIdent =
         openedEnts = ImmutableHashSet.Empty
         partialAutoOpenedRootEnts = ImmutableHashSet.Empty
         openDecls = ImArray.empty
-        ac = { Entity = None; AssemblyIdentity = asmIdent }
+        ac = { Entity = None; AssemblyIdentity = asmIdent; Flags = AccessorContextFlags.None }
         implicitExtendsForStruct = None
         implicitExtendsForEnum = None
     }

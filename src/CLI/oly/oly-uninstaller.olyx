@@ -1,6 +1,8 @@
 #target "dotnet: net10.0"
 
+#if RELEASE
 #property "publish" "aot"
+#end
 
 main(): () =
-    print("Hello World!")
+    print("The Oly Uninstaller")

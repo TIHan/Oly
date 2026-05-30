@@ -12317,7 +12317,7 @@ module Logging =
     |> shouldCompile
 
 [<Fact>]
-let ``Private property should be able to be accessed inside its enclosing module 2 - with open``() =
+let``Private property should be able to be accessed inside its enclosing module 2 - with open``() =
     """
 #[open]
 module Logging =
@@ -12341,6 +12341,50 @@ module Logging =
 
     M(): () =
         let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+    
+[<Fact>]
+let``Private property should be able to be accessed inside its enclosing module 4``() =
+    """
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    module Logging2 =
+        M(): () =
+            let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+    
+[<Fact>]
+let``Private property should be able to be accessed inside its enclosing module 6 - with open``() =
+    """
+#[open]
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    module Logging2 =
+        M(): () =
+            let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+    
+[<Fact>]
+let``Private property should be able to be accessed inside its enclosing module 7 - with open at top``() =
+    """
+#[open]
+module Logging =
+
+    private WarningMarker: __oly_base_object get() = null
+
+    module Logging2 =
+        M(): () =
+            let _x = WarningMarker
     """
     |> Oly
     |> shouldCompile

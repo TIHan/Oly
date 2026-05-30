@@ -115,12 +115,17 @@ type ScopeEnvironment =
         typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMapEntitySet>
         typeExtensionMembers: TypeSymbolGeneralizedMap<ExtensionMemberSymbolOrderedSet>
     }
+    
+type AccessorContextFlags =
+    | None        = 0x000
+    | PrivateOnly = 0x001
 
 [<NoEquality;NoComparison>]
 type AccessorContext =
     {
         AssemblyIdentity: Oly.Metadata.OlyILAssemblyIdentity
         Entity: EntitySymbol option
+        Flags: AccessorContextFlags
     }
 
 module private BoundEnvironment =
@@ -156,7 +161,7 @@ module private BoundEnvironment =
             openedEnts = ImmutableHashSet.Empty
             partialAutoOpenedRootEnts = ImmutableHashSet.Empty
             openDecls = ImArray.empty
-            ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity> }
+            ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity>; Flags = AccessorContextFlags.None }
             implicitExtendsForStruct = None
             implicitExtendsForEnum = None
         }

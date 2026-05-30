@@ -616,6 +616,12 @@ type BinderEnvironment =
             this
         else
             { this with benv = { this.benv with ac = { this.benv.ac with Entity = Some ent }} }
+            
+    member this.SetAccessorContextFlags(flags: AccessorContextFlags) =
+        if this.benv.ac.Flags = flags then
+            this
+        else
+            { this with benv = { this.benv with ac = { this.benv.ac with Flags = flags }} }
 
     member this.SetEnclosingTypeParameters(tyPars: TypeParameterSymbol imarray) =
         if tyPars.IsEmpty && this.benv.senv.typeParameters.IsEmpty then this

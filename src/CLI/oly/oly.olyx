@@ -6,6 +6,8 @@
 #package "Spectre.Console.Cli,0.50.0"
 #package "Errata,0.14.0"
 
+#copy "version.txt"
+
 #if RELEASE
 #property "publish" "standalone"
 #end
@@ -14,7 +16,7 @@ open olycli
 open Spectre.Console.Cli
 
 main(args: string[]): int32 =
-    let app = CommandApp(null)
+    let app = CommandApp<DefaultCommand>(null)
     app.Configure(
         c ->
             let _ = c.AddCommand<BuildCommand>("build")

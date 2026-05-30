@@ -133,8 +133,32 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
             env.AddOpenedNamespace(ent)
         else
             env
+            
+    let hasOpened = env.HasOpenedEntity(ent)
+    
+    let prevAcFlags = env.benv.ac.Flags
+    let env, earlyReturn =
+        // This is a special case when
+        // an entity opened before its scope
+        // needs to be able to access its private
+        // members. Example:
+        //
+        // open static Logging
+        //
+        // module Logging =
+        //
+        //     private WarningMarker: __oly_base_object get() = null
+        //
+        //     M(): () =
+        //         let _x = WarningMarker // <- we should be able to access this
+        match env.benv.ac.Entity with
+        | Some(entAc) when hasOpened && canOverride && not entAc.IsAnonymous && areEntitiesEqual ent.Formal entAc.Formal ->
+            let env = env.SetAccessorContextFlags(AccessorContextFlags.PrivateOnly)
+            env, false
+        | _ ->
+            env, hasOpened
 
-    if env.HasOpenedEntity(ent) then
+    if earlyReturn then
         env
     else
 
@@ -154,11 +178,11 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
         match openContent with
         | OpenContent.All 
         | OpenContent.Values ->
-            env.AddTypeExtension(ent)
+            env.AddTypeExtension(ent).SetAccessorContextFlags(prevAcFlags)
         | _ ->
-            env
+            env.SetAccessorContextFlags(prevAcFlags)
     elif ent.IsShape then
-        env
+        env.SetAccessorContextFlags(prevAcFlags)
     else
         let env1 =
             (env, ent.GetAccessibleNestedEntities(env.benv.ac) |> ImArray.ofSeq)
@@ -229,7 +253,7 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
             | _ ->
                 env1
         
-        env2
+        env2.SetAccessorContextFlags(prevAcFlags)
 
 let openContentsOfEntity declTable env openContent ent =
     openContentsOfEntityAux declTable false false env openContent ent
@@ -264,4 +288,5 @@ let addTypeParametersFromEntity (cenv: cenv) (env: BinderEnvironment) (syntaxTyP
             ||> ImArray.fold (fun env (syntaxTyPar, tyPar) ->
                 addTypeParameter cenv env syntaxTyPar tyPar |> fst
             )
+
         { env with isInEntityDefinitionTypeParameters = false }

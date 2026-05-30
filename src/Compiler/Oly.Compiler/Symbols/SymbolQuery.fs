@@ -61,6 +61,10 @@ type QueryProperty =
     | IntrinsicAndExtrinsic
 
 let private canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
+    if ac.Flags &&& AccessorContextFlags.PrivateOnly = AccessorContextFlags.PrivateOnly then
+        value.IsPrivate
+    else
+            
     if value.IsPublic then true
     elif value.IsInternal then
         // TODO: There a way to make this a faster check?
@@ -80,10 +84,30 @@ let private canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
         | _ -> false
     else
         match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> areEntitiesEqual ent1.Formal ent2.Formal
-        | _ -> false
+        | Some ent1, Some ent2 ->
+            if areEntitiesEqual ent1.Formal ent2.Formal then
+                true
+            else
+                if (ent1.ContainingAssembly.Identity: IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ent2.ContainingAssembly.Identity) then
+                    let rec canAccess enclosing =
+                        match enclosing with
+                        | EnclosingSymbol.Entity(enclosingEnt) when areEntitiesEqual enclosingEnt ent2 ->
+                            true
+                        | EnclosingSymbol.Entity(enclosingEnt) ->
+                            canAccess enclosingEnt.Enclosing
+                        | _ ->
+                            false
+                    canAccess ent1.Enclosing
+                else
+                    false
+        | _ ->
+            false
 
 let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
+    if ac.Flags &&& AccessorContextFlags.PrivateOnly = AccessorContextFlags.PrivateOnly then
+        ent.IsPrivate
+    else
+        
     if ent.IsPublic then true
     elif ent.IsInternal then
         // TODO: There a way to make this a faster check?
@@ -97,7 +121,21 @@ let private canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
     else
         match ac.Entity, ent.Enclosing.TryEntity with
         | Some ent1, Some ent2 -> 
-            areEntitiesEqual ent1 ent2
+            if areEntitiesEqual ent1 ent2 then
+                true
+            else
+               if (ent1.ContainingAssembly.Identity: IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ent2.ContainingAssembly.Identity) then
+                    let rec canAccess enclosing =
+                        match enclosing with
+                        | EnclosingSymbol.Entity(enclosingEnt) when areEntitiesEqual enclosingEnt ent2 ->
+                            true
+                        | EnclosingSymbol.Entity(enclosingEnt) ->
+                            canAccess enclosingEnt.Enclosing
+                        | _ ->
+                            false
+                    canAccess ent1.Enclosing
+                else
+                    false
         | None, _ ->
             let asm = ent.ContainingAssembly
             (asm.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
@@ -746,7 +784,7 @@ module Extensions =
             match this.TryEntityNoAlias with
             | ValueSome ent ->
                 let asmIdent = ent.ContainingAssembly.Identity
-                let ac = { Entity = Some ent; AssemblyIdentity = asmIdent }
+                let ac = { Entity = Some ent; AssemblyIdentity = asmIdent; Flags = AccessorContextFlags.None }
                 queryIntrinsicFieldsOfEntity ac QueryMemberFlags.StaticOrInstance ValueFlags.None (Some name) ent
                 |> Seq.exactlyOne
             | _ ->
