@@ -12388,3 +12388,31 @@ module Logging =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Private property should be able to be accessed inside its enclosing module 8``() =
+    """
+module Logging
+
+private WarningMarker: __oly_base_object get() = null
+
+module Sub =
+    M(): () =
+        let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Private property should be able to be accessed inside its enclosing module 9``() =
+    """
+module MyNamespace.Logging
+
+private WarningMarker: __oly_base_object get() = null
+
+module Sub =
+    M(): () =
+        let _x = WarningMarker
+    """
+    |> Oly
+    |> shouldCompile

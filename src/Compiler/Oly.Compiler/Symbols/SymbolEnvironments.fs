@@ -158,8 +158,9 @@ module private BoundEnvironment =
         {
             senv = senv
             openedNamespaces = ImmutableHashSet.Empty
-            openedEnts = ImmutableHashSet.Empty
-            partialAutoOpenedRootEnts = ImmutableHashSet.Empty
+            openedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+            fullyOpenedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+            partialAutoOpenedRootEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
             openDecls = ImArray.empty
             ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity>; Flags = AccessorContextFlags.None }
             implicitExtendsForStruct = None
@@ -173,6 +174,7 @@ type BoundEnvironment =
         senv: ScopeEnvironment
         openedNamespaces: ImmutableHashSet<int64>
         openedEnts: ImmutableHashSet<EntitySymbol>
+        fullyOpenedEnts: ImmutableHashSet<EntitySymbol>
         partialAutoOpenedRootEnts: ImmutableHashSet<EntitySymbol>
         openDecls: EntitySymbol imarray
         ac: AccessorContext

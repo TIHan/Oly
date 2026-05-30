@@ -152,9 +152,12 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
         //     M(): () =
         //         let _x = WarningMarker // <- we should be able to access this
         match env.benv.ac.Entity with
-        | Some(entAc) when hasOpened && canOverride && not entAc.IsAnonymous && areEntitiesEqual ent.Formal entAc.Formal ->
-            let env = env.SetAccessorContextFlags(AccessorContextFlags.PrivateOnly)
-            env, false
+        | Some(entAc) when hasOpened && canOverride && areEntitiesEqual ent.Formal entAc.Formal ->
+            if env.HasFullyOpenedEntity(ent) then
+                env, true
+            else
+                let env = env.SetAccessorContextFlags(AccessorContextFlags.PrivateOnly)
+                env, false
         | _ ->
             env, hasOpened
 
@@ -167,7 +170,11 @@ let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOp
         // This ensures that all the conents have been opened at this point.
         // Note: We assume that OpenContent.Entities happened before OpenContent.Values.
         if (openContent = OpenContent.Values || openContent = OpenContent.All) then
-            env.AddOpenedEntity(ent)
+            let fullyOpened =
+                match env.benv.ac.Entity with
+                | Some(entAc) -> areEntitiesEqual entAc.Formal ent.Formal
+                | _ -> false
+            env.AddOpenedEntity(ent, fullyOpened)
         elif ent.IsNonNamespaceRootInScope(env.benv.ac.AssemblyIdentity) && 
              (match env.benv.ac.Entity with Some scopeEnt -> not(areEntitiesEqual scopeEnt.Formal ent.Formal) | _ -> true) then
             env.AddPartialOpenedRootEntity(ent)

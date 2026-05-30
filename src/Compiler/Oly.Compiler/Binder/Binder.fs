@@ -623,8 +623,9 @@ let createInitialBoundEnvironment asmIdent =
     {
         senv = senv
         openedNamespaces = ImmutableHashSet.Empty
-        openedEnts = ImmutableHashSet.Empty
-        partialAutoOpenedRootEnts = ImmutableHashSet.Empty
+        openedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+        fullyOpenedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+        partialAutoOpenedRootEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
         openDecls = ImArray.empty
         ac = { Entity = None; AssemblyIdentity = asmIdent; Flags = AccessorContextFlags.None }
         implicitExtendsForStruct = None

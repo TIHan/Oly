@@ -800,11 +800,19 @@ type BinderEnvironment =
     member this.HasOpenedEntity(ent: EntitySymbol) =
         this.benv.openedEnts.Contains(ent)
 
-    member this.AddOpenedEntity(ent: EntitySymbol) =
+    member this.HasFullyOpenedEntity(ent: EntitySymbol) =
+        this.benv.fullyOpenedEnts.Contains(ent)
+
+    member this.AddOpenedEntity(ent: EntitySymbol, fullyOpened: bool) =
         { this with
             benv = 
                 { this.benv with
                     openedEnts = this.benv.openedEnts.Add(ent)
+                    fullyOpenedEnts =
+                        if fullyOpened then
+                            this.benv.fullyOpenedEnts.Add(ent)
+                        else
+                            this.benv.fullyOpenedEnts
                     partialAutoOpenedRootEnts = this.benv.partialAutoOpenedRootEnts.Remove(ent)
                 }
         }
