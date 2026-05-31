@@ -3085,3 +3085,37 @@ let freshenValueAux tyParExists enclosingTyInst (value: IValueSymbol) =
         if not value.IsInvalid then
             failwith "Invalid value symbol"
         value
+
+[<RequireQualifiedAccess>]
+module ObjectPool =
+
+    let typeSymbolHashSetsPolicy =
+        { new Microsoft.Extensions.ObjectPool.IPooledObjectPolicy<HashSet<TypeSymbol>> with
+            member _.Create() = HashSet(SymbolComparers.TypeSymbolComparer())
+            member this.Return(set) =
+                set.Clear()
+                true
+        }
+
+    let typeSymbolListsPolicy =
+        { new Microsoft.Extensions.ObjectPool.IPooledObjectPolicy<ResizeArray<TypeSymbol>> with
+            member _.Create() = ResizeArray()
+            member this.Return(set) =
+                set.Clear()
+                true
+        }
+
+    let private typeSymbolHashSets = Microsoft.Extensions.ObjectPool.ObjectPool.Create<HashSet<TypeSymbol>>(typeSymbolHashSetsPolicy)
+    let private typeSymbolLists = Microsoft.Extensions.ObjectPool.ObjectPool.Create<ResizeArray<TypeSymbol>>(typeSymbolListsPolicy)
+
+    let rentTypeSymbolHashSet() =
+        typeSymbolHashSets.Get()
+
+    let returnTypeSymbolHashSet (set: HashSet<TypeSymbol>) =
+        typeSymbolHashSets.Return set
+
+    let rentTypeSymbolList() =
+        typeSymbolLists.Get()
+
+    let returnTypeSymbolList (list: ResizeArray<TypeSymbol>) =
+        typeSymbolLists.Return list
