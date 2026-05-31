@@ -1446,67 +1446,6 @@ type TypeSymbol with
             | TypeSymbol.BaseObject -> true
             | _ -> false
 
-        /// Strips type equations and built-in.
-        member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
-            let ty = stripTypeEquationsAndBuiltIn this
-            match ty.TryEntityNoAlias with
-            | ValueSome ent -> ent.Hierarchy(f, set)
-            | _ ->
-                match ty.TryTypeParameter with
-                | ValueSome tyPar ->
-                    let mutable cont = true
-
-                    let mutable i = 0
-                    while (cont && i < tyPar.Constraints.Length) do
-                        match tyPar.Constraints[i] with
-                        | ConstraintSymbol.SubtypeOf(ty)
-                        | ConstraintSymbol.TraitType(ty) ->
-                            let ty = ty.Value
-                            if set.Add(ty) then
-                                cont <- f ty
-                        | _ ->
-                            ()
-                        i <- i + 1
-                | _ ->
-                    ()
-
-        /// Strips type equations and built-in.
-        member this.Hierarchy(f: TypeSymbol -> bool): unit =
-            let set = HashSet(SymbolComparers.TypeSymbolComparer())
-            this.Hierarchy(f, set)
-
-        /// Strips type equations and built-in.
-        member this.HierarchyExists(f: TypeSymbol -> bool): bool =
-            let ty = stripTypeEquationsAndBuiltIn this
-            match ty.TryEntityNoAlias with
-            | ValueSome ent -> ent.HierarchyExists(f)
-            | _ ->
-                let mutable exists = false
-                this.Hierarchy(fun x ->
-                    exists <- f x
-                    not exists
-                )
-                exists
-
-        /// Strips type equations and built-in.
-        member this.FlattenHierarchy(): TypeSymbol imarray =
-            let builder = ImArray.builder()
-            this.Hierarchy(fun x -> builder.Add(x); true)
-            builder.ToImmutable()
-
-        /// Strips type equations and built-in.
-        member this.FlattenHierarchyIncluding(): TypeSymbol imarray =
-            let builder = ImArray.builder()
-            builder.Add(this)
-            this.Hierarchy(fun x -> builder.Add(x); true)
-            builder.ToImmutable()
-
-        /// Strips type equations and built-in.
-        member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
-            if f(this) then
-                let set = HashSet(SymbolComparers.TypeSymbolComparer())
-                this.Hierarchy(f, set)
-
         /// TODO: Remove this.
         ///
         /// Strips type equations and built-in.
@@ -1808,90 +1747,6 @@ type EntitySymbol with
             }
 
         TypeSymbol.Distinct(results) |> ImArray.ofSeq
-
-    member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
-        let mutable cont = true
-        if this.IsTypeExtension then
-            let implements = this.Implements
-            let mutable i = 0
-            while (cont && i < implements.Length) do
-                let ty = implements[i]
-                if set.Add(ty) then
-                    cont <- f ty
-                    if cont then
-                        ty.Hierarchy(f, set)
-                i <- i + 1
-
-        elif this.IsInterface then
-            let extends = this.Extends
-            let mutable i = 0
-            while (cont && i < extends.Length) do
-                let ty = extends[i]
-                if set.Add(ty) then
-                    cont <- f ty
-                    if cont then
-                        ty.Hierarchy(f, set)
-                i <- i + 1
-
-        else
-            let extends = this.Extends
-            let mutable i = 0
-            while (cont && i < extends.Length) do
-                let ty = extends[i]
-                if set.Add(ty) then
-                    cont <- f ty
-                    if cont then
-                        ty.Hierarchy(f, set)
-                i <- i + 1
-
-            let implements = this.Implements
-            let mutable i = 0
-            while (cont && i < implements.Length) do
-                let ty = implements[i]
-                if set.Add(ty) then
-                    cont <- f ty
-                    if cont then
-                        ty.Hierarchy(f, set)
-                i <- i + 1
-
-    member this.Hierarchy(f: TypeSymbol -> bool): unit =
-        let set = HashSet(SymbolComparers.TypeSymbolComparer())
-        this.Hierarchy(f, set)
-
-    member inline this.HierarchyForEach([<InlineIfLambda>] f: TypeSymbol -> unit): unit =
-        this.Hierarchy(fun x ->
-            f x
-            true
-        )
-
-    member this.HierarchyExists(f: TypeSymbol -> bool): bool =
-        let mutable exists = false
-        this.Hierarchy(fun x ->
-            exists <- f x
-            not exists
-        )
-        exists
-
-    member this.FlattenHierarchy(): TypeSymbol imarray =
-        let builder = ImArray.builder()
-        this.Hierarchy(fun x -> builder.Add(x); true)
-        builder.ToImmutable()
-
-    /// 'Logical' means that certain results may not be included based on language rules.
-    /// Includes implicit base types.
-    /// For example: 
-    ///
-    ///    Extension types have to have an inherited type,
-    ///        but when logically looking for members, 
-    ///        we do not want to include the inherited type's members.
-    ///        Therefore, the inherited type is excluded from the result of this call.
-    ///
-    ///    Where as non-'Logical' calls get access to the exact information for the type/entity.
-    ///    For example: 'x.Inherits' where 'x' is the extension type;
-    ///                 this will return the single inherited type which the extension type is extending.
-    // TODO: Remove this.
-    member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
-        this.FlattenHierarchy()
 
     static member private CheckUnmanaged(pass, hash: HashSet<EntitySymbol>, ty: TypeSymbol) =
 #if DEBUG || CHECKED
@@ -3119,3 +2974,156 @@ module ObjectPool =
 
     let returnTypeSymbolList (list: ResizeArray<TypeSymbol>) =
         typeSymbolLists.Return list
+
+// --------------------------------------------------------------
+// HIERARCHY
+// --------------------------------------------------------------
+
+type EntitySymbol with
+
+    member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
+        let mutable cont = true
+        if this.IsTypeExtension then
+            let implements = this.Implements
+            let mutable i = 0
+            while (cont && i < implements.Length) do
+                let ty = implements[i]
+                if set.Add(ty) then
+                    cont <- f ty
+                    if cont then
+                        ty.Hierarchy(f, set)
+                i <- i + 1
+
+        elif this.IsInterface then
+            let extends = this.Extends
+            let mutable i = 0
+            while (cont && i < extends.Length) do
+                let ty = extends[i]
+                if set.Add(ty) then
+                    cont <- f ty
+                    if cont then
+                        ty.Hierarchy(f, set)
+                i <- i + 1
+
+        else
+            let extends = this.Extends
+            let mutable i = 0
+            while (cont && i < extends.Length) do
+                let ty = extends[i]
+                if set.Add(ty) then
+                    cont <- f ty
+                    if cont then
+                        ty.Hierarchy(f, set)
+                i <- i + 1
+
+            let implements = this.Implements
+            let mutable i = 0
+            while (cont && i < implements.Length) do
+                let ty = implements[i]
+                if set.Add(ty) then
+                    cont <- f ty
+                    if cont then
+                        ty.Hierarchy(f, set)
+                i <- i + 1
+
+    member this.Hierarchy(f: TypeSymbol -> bool): unit =
+        let set = HashSet(SymbolComparers.TypeSymbolComparer())
+        this.Hierarchy(f, set)
+
+    member inline this.HierarchyForEach([<InlineIfLambda>] f: TypeSymbol -> unit): unit =
+        this.Hierarchy(fun x ->
+            f x
+            true
+        )
+
+    member this.HierarchyExists(f: TypeSymbol -> bool): bool =
+        let mutable exists = false
+        this.Hierarchy(fun x ->
+            exists <- f x
+            not exists
+        )
+        exists
+
+    member this.FlattenHierarchy(): TypeSymbol imarray =
+        let builder = ImArray.builder()
+        this.Hierarchy(fun x -> builder.Add(x); true)
+        builder.ToImmutable()
+
+    /// 'Logical' means that certain results may not be included based on language rules.
+    /// Includes implicit base types.
+    /// For example: 
+    ///
+    ///    Extension types have to have an inherited type,
+    ///        but when logically looking for members, 
+    ///        we do not want to include the inherited type's members.
+    ///        Therefore, the inherited type is excluded from the result of this call.
+    ///
+    ///    Where as non-'Logical' calls get access to the exact information for the type/entity.
+    ///    For example: 'x.Inherits' where 'x' is the extension type;
+    ///                 this will return the single inherited type which the extension type is extending.
+    // TODO: Remove this.
+    member this.AllLogicalInheritsAndImplements: TypeSymbol imarray =
+        this.FlattenHierarchy()
+
+type TypeSymbol with
+
+    /// Strips type equations and built-in.
+    member this.Hierarchy(f: TypeSymbol -> bool, set: HashSet<TypeSymbol>): unit =
+        let ty = stripTypeEquationsAndBuiltIn this
+        match ty.TryEntityNoAlias with
+        | ValueSome ent -> ent.Hierarchy(f, set)
+        | _ ->
+            match ty.TryTypeParameter with
+            | ValueSome tyPar ->
+                let mutable cont = true
+
+                let mutable i = 0
+                while (cont && i < tyPar.Constraints.Length) do
+                    match tyPar.Constraints[i] with
+                    | ConstraintSymbol.SubtypeOf(ty)
+                    | ConstraintSymbol.TraitType(ty) ->
+                        let ty = ty.Value
+                        if set.Add(ty) then
+                            cont <- f ty
+                    | _ ->
+                        ()
+                    i <- i + 1
+            | _ ->
+                ()
+
+    /// Strips type equations and built-in.
+    member this.Hierarchy(f: TypeSymbol -> bool): unit =
+        let set = HashSet(SymbolComparers.TypeSymbolComparer())
+        this.Hierarchy(f, set)
+
+    /// Strips type equations and built-in.
+    member this.HierarchyExists(f: TypeSymbol -> bool): bool =
+        let ty = stripTypeEquationsAndBuiltIn this
+        match ty.TryEntityNoAlias with
+        | ValueSome ent -> ent.HierarchyExists(f)
+        | _ ->
+            let mutable exists = false
+            this.Hierarchy(fun x ->
+                exists <- f x
+                not exists
+            )
+            exists
+
+    /// Strips type equations and built-in.
+    member this.FlattenHierarchy(): TypeSymbol imarray =
+        let builder = ImArray.builder()
+        this.Hierarchy(fun x -> builder.Add(x); true)
+        builder.ToImmutable()
+
+    /// Strips type equations and built-in.
+    member this.FlattenHierarchyIncluding(): TypeSymbol imarray =
+        let builder = ImArray.builder()
+        builder.Add(this)
+        this.Hierarchy(fun x -> builder.Add(x); true)
+        builder.ToImmutable()
+
+    /// Strips type equations and built-in.
+    member this.HierarchyIncluding(f: TypeSymbol -> bool): unit =
+        if f(this) then
+            let set = HashSet(SymbolComparers.TypeSymbolComparer())
+            this.Hierarchy(f, set)
