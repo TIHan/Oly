@@ -2029,7 +2029,7 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
                     match stripTypeEquations superTy with
                     | TypeSymbol.Variable(tyPar) ->
                         tyPar.Constraints
-                        |> Seq.exists (function
+                        |> ImArray.exists (function
                             | ConstraintSymbol.Null
                             | ConstraintSymbol.Struct
                             | ConstraintSymbol.NotStruct 
