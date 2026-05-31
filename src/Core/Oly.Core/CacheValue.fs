@@ -4,16 +4,23 @@ open System
 open System.Threading
 open System.Collections.Generic
 
+[<Sealed>]
+type EqualityComparerEquatable<'T when 'T :> IEquatable<'T>>(getHashCode: 'T -> int) =
+    interface IEqualityComparer<'T> with
+        member _.GetHashCode(o) = getHashCode(o)
+        member _.Equals(o1, o2) = o1.Equals(o2)
+
 /// Least-Recently-Used Cache
 /// Least-recently-used is the eviction policy of the cache.
+/// Thread safe.
 [<Sealed>]
-type LruCache<'TKey, 'TValue when 'TKey: equality> (maxCount: int) =
+type LruCache<'TKey, 'TValue> (maxCount: int, comparer: IEqualityComparer<'TKey>) =
     do
         if maxCount <= 0 then
             invalidArg (nameof(maxCount)) "Must greater than zero."
 
     let linkedItems = LinkedList<'TKey * 'TValue>()
-    let itemsLookup = Dictionary<'TKey, LinkedListNode<'TKey * 'TValue>>()
+    let itemsLookup = Dictionary<'TKey, LinkedListNode<'TKey * 'TValue>>(comparer)
 
     let lockObj = obj()
 

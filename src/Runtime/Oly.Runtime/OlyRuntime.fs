@@ -1873,7 +1873,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
     let mutable entryPoint = None
 
-    let inlineFunctionBodyCache: LruCache<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = LruCache(64)
+    let inlineFunctionBodyCacheComparer = EqualityComparerEquatable<RuntimeFunction>(fun o -> o.GetHashCode())
+    let inlineFunctionBodyCache: LruCache<RuntimeFunction, Lazy<OlyIRFunctionBody<'Type, 'Function, 'Field>>> = LruCache(64, inlineFunctionBodyCacheComparer)
 
     let primitiveTypes = Dictionary<RuntimeType, RuntimeType>()
     let addPrimitiveType primTy ty =
