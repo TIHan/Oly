@@ -1874,6 +1874,14 @@ type EntitySymbol with
                 this.__CachedFlags <- flags ||| EntityCachedFlags.NotBlittable
                 false
 
+let subsumesCacheComparer =
+    { new IEqualityComparer<struct (EntitySymbol * EntitySymbol)> with
+        member _.GetHashCode((superEnt, ent)) = superEnt.Name.GetHashCode() + ent.Name.Length
+        member _.Equals((superEnt1, ent1), (superEnt2, ent2)) =
+            areEntitiesEqual superEnt1 superEnt2 &&
+            areEntitiesEqual ent1 ent2
+    }
+let subsumesCache = LruCache<struct (EntitySymbol * EntitySymbol), bool>(256, subsumesCacheComparer)
 
 let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
     if ent.FormalId = super.FormalId then
@@ -1904,10 +1912,23 @@ let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
         else
             false
     else
-        let superTy = super.AsType
-        ent.HierarchyExists (fun x ->
-            subsumesTypeWith rigidity superTy x
-        )
+        // The subsumes cache does improve performance in some situations.
+        if rigidity = Rigid || rigidity = Generalizable || rigidity = Indexable then
+            match subsumesCache.TryGetValue((super, ent)) with
+            | ValueSome res -> res
+            | _ ->
+                let superTy = super.AsType
+                let res = ent.HierarchyExists (fun x ->
+                    subsumesTypeWith rigidity superTy x
+                )
+                subsumesCache.SetItem((super, ent), res)
+                res
+        else
+            let superTy = super.AsType
+            ent.HierarchyExists (fun x ->
+                subsumesTypeWith rigidity superTy x
+            )
+
 
 let subsumesEntity (super: EntitySymbol) (ent: EntitySymbol) =
     subsumesEntityWith Rigid super ent
