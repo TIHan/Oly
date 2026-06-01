@@ -730,7 +730,7 @@ let areConstraintsEqualWith rigidity (constr1: ConstraintSymbol) (constr2: Const
             elif ty1.IsShape_ste || ty2.IsShape_ste then
                 false
             else
-                areTypesEqualWithRigidity rigidity ty1 ty2
+                areTypesEqualWith rigidity ty1 ty2
         | _ -> false
 
 let areConstraintsEqual (constr1: ConstraintSymbol) (constr2: ConstraintSymbol) : bool =
@@ -847,28 +847,25 @@ let areWitnessesEqual (witness1: WitnessSymbol) (witness2: WitnessSymbol) =
     | _ ->
         false
 
-let areEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
+let areEntitiesEqualWith rigidity (ent1: EntitySymbol) (ent2: EntitySymbol) =
     if obj.ReferenceEquals(ent1, ent2) then true
     else
-        ent1.Kind = ent2.Kind &&
         ent1.FormalId = ent2.FormalId &&
-        areEnclosingsEqual ent1.Enclosing ent2.Enclosing &&
-        ent1.TypeParameters.Length = ent2.TypeParameters.Length &&
-        (
-            (ent1.TypeParameters, ent2.TypeParameters)
-            ||> Seq.forall2 (fun tyPar1 tyPar2 ->
-                areTypeParametersEqual tyPar1 tyPar2
-            )
-        ) &&
         (
             if ent1.TypeArguments.Length = ent2.TypeArguments.Length then
                 (ent1.TypeArguments, ent2.TypeArguments)
                 ||> Seq.forall2 (fun ty1 ty2 ->
-                    areTypesEqual ty1 ty2
+                    areTypesEqualWith rigidity ty1 ty2
                 )
             else
                 false
         )
+
+let areEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
+    areEntitiesEqualWith Rigid ent1 ent2
+
+let areGeneralizedEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
+    areEntitiesEqualWith Generalizable ent1 ent2
 
 let areNamespacesEqual (nmspace1: INamespaceSymbol) (nmspace2: INamespaceSymbol) =
     OlyAssert.True(nmspace1.IsNamespace)
@@ -885,37 +882,14 @@ let areNamespacesEqual (nmspace1: INamespaceSymbol) (nmspace2: INamespaceSymbol)
     else
         false
 
-let areGeneralizedEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
-    if obj.ReferenceEquals(ent1, ent2) then true
-    else
-        ent1.Kind = ent2.Kind &&
-        ent1.FormalId = ent2.FormalId &&
-        areEnclosingsEqual ent1.Enclosing ent2.Enclosing &&
-        ent1.TypeParameters.Length = ent2.TypeParameters.Length &&
-        (
-            (ent1.TypeParameters, ent2.TypeParameters)
-            ||> Seq.forall2 (fun tyPar1 tyPar2 ->
-                areTypeParametersEqual tyPar1 tyPar2
-            )
-        ) &&
-        (
-            if ent1.TypeArguments.Length = ent2.TypeArguments.Length then
-                (ent1.TypeArguments, ent2.TypeArguments)
-                ||> Seq.forall2 (fun ty1 ty2 ->
-                    areGeneralizedTypesEqual ty1 ty2
-                )
-            else
-                false
-        )
-
-let areTypesEqualWithRigidity rigidity ty1 ty2 =
+let areTypesEqualWith rigidity ty1 ty2 =
     UnifyTypes rigidity ty1 ty2
 
 let areTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
-    areTypesEqualWithRigidity Rigid ty1 ty2
+    areTypesEqualWith Rigid ty1 ty2
 
 let areGeneralizedTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
-    areTypesEqualWithRigidity Generalizable ty1 ty2
+    areTypesEqualWith Generalizable ty1 ty2
 
 /// Type variable checks are indexable
 let areLogicalConstructorSignaturesEqual (func1: IFunctionSymbol) (func2: IFunctionSymbol) =
@@ -1885,32 +1859,7 @@ let subsumesCache = LruCache<struct (EntitySymbol * EntitySymbol), bool>(256, su
 
 let subsumesEntityWith rigidity (super: EntitySymbol) (ent: EntitySymbol) =
     if ent.FormalId = super.FormalId then
-        if ent.TypeArguments.Length = super.TypeArguments.Length then
-            (ent.TypeArguments, super.TypeArguments)
-            ||> ImArray.forall2 (fun ty superTy ->
-                if superTy.IsTypeConstructor_steea then
-                    match stripTypeEquations superTy with
-                    | TypeSymbol.Variable(tyPar) ->
-                        tyPar.Constraints
-                        |> ImArray.exists (function
-                            | ConstraintSymbol.Null
-                            | ConstraintSymbol.Struct
-                            | ConstraintSymbol.NotStruct 
-                            | ConstraintSymbol.Unmanaged
-                            | ConstraintSymbol.Blittable
-                            | ConstraintSymbol.Scoped
-                            | ConstraintSymbol.ConstantType _ -> false
-                            | ConstraintSymbol.SubtypeOf(superTy)
-                            | ConstraintSymbol.TraitType(superTy) ->
-                                subsumesTypeConstructorWith rigidity superTy.Value ty
-                        )
-                    | _ ->
-                        subsumesTypeConstructorWith rigidity superTy ty
-                else
-                    UnifyTypes rigidity ty superTy
-            )
-        else
-            false
+        areEntitiesEqualWith rigidity super ent
     else
         // The subsumes cache does improve performance in some situations.
         if rigidity = Rigid || rigidity = Generalizable || rigidity = Indexable then
@@ -1968,7 +1917,7 @@ let subsumesTypeWith rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
                     else
                         subsumesTypeWith rigidity superTy ty               
                 | ConstraintSymbol.ConstantType(ty) ->
-                    exists || areTypesEqualWithRigidity rigidity superTy ty.Value
+                    exists || areTypesEqualWith rigidity superTy ty.Value
             )
         | TypeSymbol.ByRef(ty, ByRefKind.ReadWrite), TypeSymbol.ByRef(superTy, ByRefKind.ReadOnly) ->
             subsumesTypeWith rigidity superTy ty
