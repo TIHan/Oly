@@ -387,7 +387,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M1(5, _y -> Work())
+    c.M1<__oly_int32>(5, _y -> Work())
         """
         |> getMainOptimizedIR 
     match ir with
@@ -1010,7 +1010,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M1(5, _y -> Work())
+    c.M1<__oly_int32>(5, _y -> Work())
         """
         |> getMainOptimizedIR 
     match ir with
