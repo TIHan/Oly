@@ -21708,3 +21708,45 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "test_int32"
     |> ignore
+
+[<Fact>]
+let ``Should compile for discard of first parameter of lambda``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M(f: int32 -> ()): () =
+    f(0)
+
+main(): () =
+    M((_) -> print("hello"))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore
+
+[<Fact>]
+let ``Should compile for discard of first parameter of lambda 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M(f: int32 -> ()): () =
+    f(0)
+
+main(): () =
+    M(_ -> print("hello"))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+    |> ignore

@@ -2691,7 +2691,7 @@ let isPossibleParenthesisOperator state =
     | _ -> false
 
 let tryParseParenthesisOrTupleOrLambdaExpression state =
-    if isNextToken (function LeftParenthesis | Identifier _ | Static -> true | _ -> false) state then
+    if isNextToken (function LeftParenthesis | Identifier _ | Static | Underscore -> true | _ -> false) state then
         if isPossibleLambdaExpression state then
             tryParseLambdaExpression state
         else
