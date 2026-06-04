@@ -833,13 +833,13 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
     | AutoDereferenced bodyExpr ->
         match bodyExpr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false bodyExpr
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true bodyExpr
         | _ ->
             ()
     | _ ->
         match expr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass false expr 
+            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr 
         | _ ->
             ()
 

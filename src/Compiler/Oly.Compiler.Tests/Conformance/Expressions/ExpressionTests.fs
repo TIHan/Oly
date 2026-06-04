@@ -2694,11 +2694,6 @@ main(): () =
                 ^^^^^^^^^^^
 """
             )
-            ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
-    let x: Test<__oly_int32> = Test<_>()
-                                    ^
-"""
-            )
         ]
     |> ignore
 
@@ -2729,11 +2724,6 @@ main(): () =
                 ^^^^^^^^^^^
 """
             )
-            ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
-    let x: Test<__oly_int32> = Test()
-                               ^^^^
-"""
-            )
         ]
     |> ignore
 
@@ -2762,6 +2752,11 @@ main(): () =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
+            ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
+    let mutable x: Test<_> = Test()
+                             ^^^^
+"""
+            )
             ("Type instantiation '__oly_int32' is missing the constraint 'TraitTest'.", """
     x <- Test<__oly_int32>()
               ^^^^^^^^^^^
@@ -3831,6 +3826,8 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Shape member 'get_Item(TKey): TValue' does not exist on 'byref<Test<__oly_int32>>'."
+            "Type parameter '?TValue' was unable to be inferred."
+            "'byref<Test<__oly_int32>>' not permitted in this context."
         ]
     |> ignore
 
@@ -3913,6 +3910,7 @@ main(): () =
     |> withErrorDiagnostics
         [
             "Shape member 'get_Item(TKey): TValue' does not exist on 'byref<Test<__oly_int32>>'."
+            "'byref<Test<__oly_int32>>' not permitted in this context."
         ]
     |> ignore
 
@@ -4722,6 +4720,12 @@ test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
                 """
     IndexQueue<DefaultMemory, DefaultMemoryAllocator>()
                               ^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("'IndexQueue<DefaultMemory, DefaultMemoryAllocator>' is less accessible than the member its used in.",
+                """
+test(): IndexQueue<DefaultMemory, DefaultMemoryAllocator> =
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]
