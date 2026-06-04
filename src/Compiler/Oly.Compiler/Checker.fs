@@ -283,7 +283,7 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
         tyPars
         tyArgs
-        false
+        ConstraintSolverMode.ReportErrors
         witnesses
 
 let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
@@ -946,11 +946,11 @@ and checkFunctionConstraints
         syntaxFuncTyArgsOpt
         funcTyPars
         funcTyArgs
-        (isAttempt: bool)
+        mode
         (witnessArgs: WitnessSolution imarray) =
-    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs isAttempt witnessArgs
+    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs mode witnessArgs
 
-and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt: bool) (expr: BoundExpression) =
+and checkConstraintsFromCallExpression diagnostics pass (mode: ConstraintSolverMode) (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
         // We cannot check constraints and witnesses for function groups, so skip it.
@@ -963,7 +963,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
             if value.AllTypeParameterCount = 0 then ()
             else
 
-            if witnessArgs.IsEmpty && isAttempt then ()
+            if witnessArgs.IsEmpty && mode.IsAttempt then ()
             else
 
             let allSolved =
@@ -971,10 +971,10 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
                 witnessArgs
                 |> ImArray.forall (fun x -> x.HasSolution)
 
-            if allSolved && isAttempt then ()
+            if allSolved && mode.IsAttempt then ()
             else
 
-            if not isAttempt then
+            if mode.IsReportErrors then
                 checkStructTypeCycle 
                     (SolverEnvironment.Create(diagnostics, benv, pass))
                     syntaxInfo.SyntaxNameOrDefault
@@ -1033,7 +1033,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
 
             checkFunctionConstraints 
                 (SolverEnvironment.Create(diagnostics, benv, pass)) 
-                skipUnsolved
+                mode.IsAttempt
                 syntaxNode 
                 syntaxEnclosingTyArgsOpt
                 value.Enclosing.TypeParameters
@@ -1041,7 +1041,7 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (isAttempt:
                 syntaxFuncTyArgsOpt
                 value.TypeParameters
                 funcTyArgs
-                isAttempt
+                mode
                 witnessArgs
         | _ ->
             ()

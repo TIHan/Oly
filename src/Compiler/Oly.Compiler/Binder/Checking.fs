@@ -833,13 +833,13 @@ let checkReturnExpression (cenv: cenv) (env: BinderEnvironment) tyChecking (expe
     | AutoDereferenced bodyExpr ->
         match bodyExpr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true bodyExpr
+            checkConstraintsFromCallExpression cenv.diagnostics cenv.pass ConstraintSolverMode.Attempt bodyExpr
         | _ ->
             ()
     | _ ->
         match expr with
         | E.Call _ ->
-            checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr 
+            checkConstraintsFromCallExpression cenv.diagnostics cenv.pass ConstraintSolverMode.Attempt expr 
         | _ ->
             ()
 
@@ -1234,7 +1234,7 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                     checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value expectedArgTyOpt argExpr
 
                     let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf expectedArgTyOpt argExpr
-                    checkConstraintsFromCallExpression cenv.diagnostics true cenv.pass true expr
+                    checkConstraintsFromCallExpression cenv.diagnostics cenv.pass ConstraintSolverMode.Attempt expr
                     newArgExpr
                 )
             )

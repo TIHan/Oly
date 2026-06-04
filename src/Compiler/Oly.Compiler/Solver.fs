@@ -41,6 +41,11 @@ type SolverEnvironment =
 type WitnessSolver =
     | Subtype
     | Trait
+
+[<RequireQualifiedAccess>]
+type ConstraintSolverMode =
+    | Attempt
+    | ReportErrors
     
 type ConstraintSolverError =
     | GeneralFailure
@@ -84,7 +89,7 @@ let private tryFindMostSpecificTypeForExtension benv (tyExt: EntitySymbol) targe
     )
     |> Seq.tryExactlyOne
 
-let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg (isAttempt: bool) queryFunc : Result<unit, ConstraintSolverError> =
+let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (targetShape: TypeSymbol) (principalTyPar: TypeParameterSymbol) principalTyArg (mode: ConstraintSolverMode) queryFunc : Result<unit, ConstraintSolverError> =
     OlyAssert.True(targetShape.IsShape_ste)
 
     let filteredWitnessArgs =
@@ -108,13 +113,13 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             let func = funcs[0]
 
             if not(areFunctionTypeParameterConstraintsEqualWith Indexable abstractFunc func) then
-                if not isAttempt then
+                if mode.IsReportErrors then
                     env.diagnostics.Error($"Shape member '{printValue env.benv abstractFunc}' has different constraints compared to '{printValue env.benv func}'.", 10, syntaxNode)
             else
 
             // If the static abstract function does not have a most specific implementation,
             // report an error.
-            if not isAttempt && func.IsStatic && func.IsAbstract && not func.Enclosing.IsShape then
+            if mode.IsReportErrors && func.IsStatic && func.IsAbstract && not func.Enclosing.IsShape then
                 unimplementedMostSpecificStaticFuncs <- unimplementedMostSpecificStaticFuncs.Add(func)
 
             let witnessArgOpt =
@@ -179,7 +184,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
                                 ()
                         )
                     else
-                        if not isAttempt then
+                        if mode.IsReportErrors then
                             env.diagnostics.Error($"Shape member '{printValue env.benv formalAbstractFunc}' does not exist on '{printType env.benv principalTyArg}'.", 10, syntaxNode)
                 elif funcs.Length > 1 then
                     if err.IsNone then
@@ -191,7 +196,7 @@ let private solveShape env syntaxNode (tyArgs: TypeArgumentSymbol imarray) (witn
             | _ ->
                 Ok()
 
-let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) (isAttempt: bool) : bool =
+let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (actualTarget: TypeSymbol) (tyPar: TypeParameterSymbol) (tyParTyArgs: TypeArgumentSymbol imarray) (witnesses: WitnessSolution seq) (mode: ConstraintSolverMode) : bool =
     let possibleConstrs =
         tyPar.Constraints
         |> Seq.choose (fun constr ->
@@ -231,7 +236,7 @@ let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solve
         else
             false
     | _ ->
-        if not isAttempt then
+        if mode.IsReportErrors then
             let names =
                 possibleConstrs
                 |> Seq.map (fun (_, constrTy) -> printType env.benv constrTy)
@@ -239,7 +244,7 @@ let private solveWitnessesByTypeParameter env (syntaxNode: OlySyntaxNode) (solve
             env.diagnostics.Error(sprintf "Unable to solve '%s' due to the possible implementations:\n    %s\nUse explicit type annotations." (printType env.benv (tyPar.AsType)) names, 10, syntaxNode)
         true // Return true for recovery
 
-let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
+let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (ty: TypeSymbol) (mode: ConstraintSolverMode) : Result<unit, ConstraintSolverError> =
 
     let ty =
         // Built-in types themselves are not entities, but an entity can be equivelant to a built-in type.
@@ -258,7 +263,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
                 match solver with
                 | WitnessSolver.Trait -> QueryFunction.IntrinsicAndExtrinsic
                 | WitnessSolver.Subtype -> QueryFunction.Intrinsic
-            solveShape env syntaxNode tyArgs witnessArgs target tyPar ty isAttempt queryFunc
+            solveShape env syntaxNode tyArgs witnessArgs target tyPar ty mode queryFunc
         else
             if subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith env.benv TypeVariableRigidity.Generalizable target ty then
                 witnessArgs
@@ -299,7 +304,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             )
 
         if tyExts.IsEmpty then
-            if not isAttempt then
+            if mode.IsReportErrors then
                 env.diagnostics.Error("Unable to solve. TODO better msg.", 10, syntaxNode)
             Ok() // Return true for recovery
         elif tyExts.Length = 1 then
@@ -363,7 +368,7 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
             else
                 Ok()
         else
-            if not isAttempt then
+            if mode.IsReportErrors then
                 let names =
                     tyExts
                     |> Seq.map (fun x -> printEntity env.benv x)
@@ -371,23 +376,23 @@ let rec private solveWitnessesByType env (syntaxNode: OlySyntaxNode) (solver: Wi
                 env.diagnostics.Error(sprintf "Unable to solve due to ambiguity of the possibly resolved constraints:\n    %s\n\nUse explicit type annotations to disambiguate." names, 10, syntaxNode)
             Ok() // Return true for recovery
 
-let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (isAttempt: bool): Result<unit, ConstraintSolverError> =
+let private solveWitnesses env (syntaxNode: OlySyntaxNode) (solver: WitnessSolver) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (target: TypeSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (mode: ConstraintSolverMode) : Result<unit, ConstraintSolverError> =
     OlyAssert.True(tyArg.IsSolved_ste)
 
     let ty = stripTypeEquations tyArg
     match ty with
     | TypeSymbol.HigherVariable(tyPar2, tyParTyArgs) ->
-        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 tyParTyArgs witnessArgs isAttempt then
+        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 tyParTyArgs witnessArgs mode then
             Ok()
         else
             Error(GeneralFailure)
     | TypeSymbol.Variable(tyPar2) ->
-        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 ImArray.empty witnessArgs isAttempt then
+        if solveWitnessesByTypeParameter env syntaxNode solver target tyPar2 ImArray.empty witnessArgs mode then
             Ok()
         else
             Error(GeneralFailure)
     | _ ->
-        solveWitnessesByType env syntaxNode solver tyArgs witnessArgs target tyPar ty isAttempt
+        solveWitnessesByType env syntaxNode solver tyArgs witnessArgs target tyPar ty mode
 
 let private solveConstraintNull _env (_syntaxNode: OlySyntaxNode) (tyArg: TypeArgumentSymbol) =
     tyArg.IsNullable_ste
@@ -439,7 +444,7 @@ let private solveConstraintConstantType _env (_syntaxNode: OlySyntaxNode) (const
         | TypeSymbol.Int32, TypeSymbol.ConstantInt32 _ -> true
         | _ -> false
 
-let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (isAttempt: bool) : Result<unit, ConstraintSolverError> =
+let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumentSymbol imarray) (witnessArgs: WitnessSolution imarray) (constr: ConstraintSymbol) (tyPar: TypeParameterSymbol) (tyArg: TypeArgumentSymbol) (mode: ConstraintSolverMode) : Result<unit, ConstraintSolverError> =
     OlyAssert.True(tyArg.IsSolved_ste)
 
     // There needs to be witness arguments for SubtypeOf, ConstantType, and TraitType.
@@ -481,7 +486,7 @@ let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumen
             else
                 Error(GeneralFailure)
         | ConstraintSymbol.SubtypeOf(target) ->
-            solveWitnesses env syntaxNode WitnessSolver.Subtype tyArgs witnessArgs target.Value tyPar tyArg isAttempt
+            solveWitnesses env syntaxNode WitnessSolver.Subtype tyArgs witnessArgs target.Value tyPar tyArg mode
         | ConstraintSymbol.ConstantType(constTy) ->
             if solveConstraintConstantType env syntaxNode constTy.Value tyArg then
                 witnessArgs
@@ -493,7 +498,7 @@ let private solveConstraint env (syntaxNode: OlySyntaxNode) (tyArgs: TypeArgumen
             else
                 Error(GeneralFailure)
         | ConstraintSymbol.TraitType(target) ->
-            solveWitnesses env syntaxNode WitnessSolver.Trait tyArgs witnessArgs target.Value tyPar tyArg isAttempt
+            solveWitnesses env syntaxNode WitnessSolver.Trait tyArgs witnessArgs target.Value tyPar tyArg mode
  
 let private getUnsolvedWitnessArgumentsForTypeParameter (witnessArgs: WitnessSolution imarray) (tyPar: TypeParameterSymbol) =
     witnessArgs
@@ -543,9 +548,9 @@ let private reportUnimplementedStaticMembers env syntaxNode (ty, unimplementedMo
 /// This function will not be inlined in order to be able performance trace if this function is expensive.
 /// REVIEW: This might be an expensive check as we are having to query functions against the constraint type and the type argument.
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
-let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (isAttempt: bool) (constr: ConstraintSymbol, tyArg: TypeArgumentSymbol) =
+let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (mode: ConstraintSolverMode) (constr: ConstraintSymbol, tyArg: TypeArgumentSymbol) =
     // Checks if a solution for a witness is an abstract type, except shape types (illegal anyway), has a most specific implementation for static abstract members.
-    if not isAttempt && tyArg.IsAbstract_ste && not tyArg.IsShape_ste then
+    if mode.IsReportErrors && tyArg.IsAbstract_ste && not tyArg.IsShape_ste then
         match constr.TryGetAnySubtypeOf() with
         | ValueSome(subty) when subty.IsAbstract_ste && not subty.IsShape_ste && subsumesType subty tyArg ->
             let unimplementedMostSpecificStaticFuncs =
@@ -560,28 +565,28 @@ let private verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode (isAt
         | _ ->
             ()
 
-let private solveTypeParameterConstraints env syntaxNode (isAttempt: bool) (tyArgs: TypeArgumentSymbol imarray) witnessArgs (tyPar: TypeParameterSymbol, tyArg) =
+let private solveTypeParameterConstraints env syntaxNode (mode: ConstraintSolverMode) (tyArgs: TypeArgumentSymbol imarray) witnessArgs (tyPar: TypeParameterSymbol, tyArg) =
     tyPar.Constraints
     |> ImArray.iter (fun constr ->
         let constr = constr.Substitute(tyArgs)
-        let solved = solveConstraint env syntaxNode tyArgs witnessArgs constr tyPar tyArg isAttempt
+        let solved = solveConstraint env syntaxNode tyArgs witnessArgs constr tyPar tyArg mode
 
         match solved with
         | Error(GeneralFailure) ->
-            if not isAttempt then
+            if mode.IsReportErrors then
                 Error_MissingConstraint(env.benv, syntaxNode, tyArg, constr)
                 |> env.diagnostics.Report
         | Error(ShapeMembers_AmbiguousFunctions(abstractFunc, candidates)) ->
-            if not isAttempt then
+            if mode.IsReportErrors then
                 env.diagnostics.Report(Error_ShapeFunctionAmbiguousWitnesses(env.benv, syntaxNode, abstractFunc, candidates))
         | Ok(_) ->
-            verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode isAttempt (constr, tyArg)
+            verifyTypeArgumentForAbstractNonShapeConstraint env syntaxNode mode (constr, tyArg)
     )
 
     // Error recovery
     witnessArgs
     |> ImArray.iter (fun witnessArg ->
-        if not witnessArg.HasSolution && not isAttempt then
+        if mode.IsReportErrors && not witnessArg.HasSolution then
             witnessArg.Solution <- Some(WitnessSymbol.Type(TypeSymbol.Error(None, None)))
     )
 
@@ -612,7 +617,7 @@ let solveConstraints
         (syntaxTyArgsOpt: OlySyntaxType imarray option) 
         (tyPars: TypeParameterSymbol imarray)
         (tyArgs: TypeArgumentSymbol imarray)
-        (isAttempt: bool)
+        (mode: ConstraintSolverMode)
         (witnessArgs: WitnessSolution imarray) =
 
 #if DEBUG || CHECKED
@@ -641,9 +646,9 @@ let solveConstraints
 
                 let witnessArgs = getUnsolvedWitnessArgumentsForTypeParameter witnessArgs tyPar
                 inferTypeArgumentFromTypeParameterConstraints env (tyPar, tyArg)    
-                solveTypeParameterConstraints env syntaxNode isAttempt tyArgs witnessArgs (tyPar, tyArg)
+                solveTypeParameterConstraints env syntaxNode mode tyArgs witnessArgs (tyPar, tyArg)
             | _ ->
-                OlyAssert.Fail("Expected type parameter associated with inference variable.")
+                failwith "Expected type parameter associated with inference variable."
         else
             if not skipUnsolved then
                 reportUnableToInferTypeParameter env syntaxNode witnessArgs (tyPars[i], tyArg)
@@ -659,7 +664,7 @@ let solveFunctionConstraints
         (syntaxFuncTyArgsOpt: OlySyntaxType imarray option)
         (funcTyPars: TypeParameterSymbol imarray)
         (funcTyArgs: TypeArgumentSymbol imarray) 
-        (isAttempt: bool)
+        (mode: ConstraintSolverMode)
         (witnessArgs: WitnessSolution imarray) =
-    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs isAttempt witnessArgs
-    solveConstraints env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyPars funcTyArgs isAttempt witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs mode witnessArgs
+    solveConstraints env skipUnsolved syntaxNode syntaxFuncTyArgsOpt funcTyPars funcTyArgs mode witnessArgs

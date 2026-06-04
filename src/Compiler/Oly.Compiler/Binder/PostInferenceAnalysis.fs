@@ -564,7 +564,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
         else
             { aenv with isMemberSig = true }
 
-    if value.IsLocal && not(value.IsFunction) && not value.IsGenerated then
+    if value.IsLocal && not(value.IsFunction) then
         acenv.scopes[value.Id] <- { Value = aenv.scope; ValueLambda = aenv.scopeLambda; Limits = scopeResult.ScopeLimits }
 
     let checkValueTy () =
@@ -1101,7 +1101,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         //         What are the pitfalls? It would make analysis more than just analysis, but doesn't retrying to solve constraints also mean that?
 
         // Re-check constraints
-        checkConstraintsFromCallExpression acenv.cenv.diagnostics false PostInferenceAnalysis false expr
+        checkConstraintsFromCallExpression acenv.cenv.diagnostics PostInferenceAnalysis ConstraintSolverMode.ReportErrors expr
 
         if not value.IsFunctionGroup then
             witnessArgs
