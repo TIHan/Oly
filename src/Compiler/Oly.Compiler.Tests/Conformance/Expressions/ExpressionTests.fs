@@ -1629,7 +1629,7 @@ main() : () =
     |> ignore
 
 [<Fact>]
-let ``Can return byref from struct field``() =
+let ``Cannot return byref from struct field``() =
     let src =
         """
 #[intrinsic("by_ref")]
@@ -1653,7 +1653,15 @@ struct Test =
         &this.x
         """
     Oly src
-    |> withCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'this' as it might escape its scope at this point.",
+                """
+        &this.x
+         ^^^^
+"""
+            )
+        ]
     |> ignore
 
 [<Fact>]
@@ -1675,13 +1683,18 @@ alias inref<T>
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
+module M =
+
+    #[import("DUMMY", "DUMMY", "DUMMY")]
+    GetByRef(): byref<int32>
+
 struct Test =
 
     field mutable x: int32
     new(x: int32) = this { x = x }
 
     test() : inref<__oly_int32> =
-        &this.x
+        &M.GetByRef()
 
 derefTest() : () =
     let x = Test(1)
@@ -1747,6 +1760,10 @@ alias inref<T>
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
+module M =
+
+    #[import("DUMMY", "DUMMY", "DUMMY")]
+    GetByRef(): byref<int32>
 
 struct Test =
 
@@ -1754,7 +1771,7 @@ struct Test =
     new(x: int32) = this { x = x }
 
     test() : inref<__oly_int32> =
-        &this.x
+        &M.GetByRef()
 
 derefTest() : () =
     let x = Test(1)
@@ -3769,7 +3786,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Indexer operator example with struct 3``() =
+let ``Indexer operator example with struct 3 - should fail``() =
     let src =
         """
 module TestModule
@@ -3800,7 +3817,15 @@ main(): () =
     (s[0]) <- 5
         """
     Oly src
-    |> withCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'this' as it might escape its scope at this point.",
+                """
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+                                                                ^^^^
+"""
+            )
+        ]
     |> ignore
 
 [<Fact>]
@@ -5138,6 +5163,11 @@ alias inref<T>
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
+module M =
+
+    #[import("DUMMY", "DUMMY", "DUMMY")]
+    GetByRef(): byref<int32>
+
 interface ITest<T> =
 
     get_Item(index: int32): T
@@ -5152,10 +5182,10 @@ struct TestStruct =
         index
 
     mutable get_Item(index: int32): byref<int32> =
-        &this.Value
+        &M.GetByRef()
 
     get_Item(index: int32): inref<int32> =
-        &this.Value
+        &M.GetByRef()
 
 test(): () =
     let mutable t = TestStruct()
@@ -5196,6 +5226,11 @@ alias inref<T>
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
+module M =
+
+    #[import("DUMMY", "DUMMY", "DUMMY")]
+    GetByRef(): byref<int32>
+
 interface ITest<T> =
 
     get_Item(index: int32): T
@@ -5210,10 +5245,10 @@ struct TestStruct =
         index
 
     mutable get_Item(index: int32): byref<int32> =
-        &this.Value
+        &M.GetByRef()
 
     get_Item(index: int32): inref<int32> =
-        &this.Value
+        &M.GetByRef()
 
 test(): () =
     let mutable t = TestStruct()
@@ -5249,6 +5284,11 @@ alias inref<T>
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
+module M =
+
+    #[import("DUMMY", "DUMMY", "DUMMY")]
+    GetByRef(): byref<int32>
+
 interface ITest<T> =
 
     get_Item(index: int32): T
@@ -5263,10 +5303,10 @@ struct TestStruct =
         index
 
     mutable get_Item(index: int32): byref<int32> =
-        &this.Value
+        &M.GetByRef()
 
     get_Item(index: int32): inref<int32> =
-        &this.Value
+        &M.GetByRef()
 
 test(): () =
     let t = TestStruct()
@@ -5522,7 +5562,7 @@ struct Test =
         let ~^~w = &this.X
         &w
         """
-    src |> hasSymbolSignatureTextByCursor "w: inref<__oly_int32>"
+    src |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "w: inref<__oly_int32>"
 
 [<Fact>]
 let ``ByRef of a field should have correct signature 2``() =
@@ -5553,7 +5593,7 @@ struct Test =
         let ~^~w = &this.X
         &w
         """
-    src |> hasSymbolSignatureTextByCursor "w: byref<int32>"
+    src |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "w: byref<int32>"
 
 [<Fact>]
 let ``ByRef of a field should have correct signature 3``() =
@@ -5581,7 +5621,7 @@ struct Test =
         let ~^~w = &this.X
         &w
         """
-    src |> hasSymbolSignatureTextByCursor "w: inref<__oly_int32>"
+    src |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "w: inref<__oly_int32>"
 
 [<Fact>]
 let ``ByRef of a field should have correct signature 4``() =
@@ -5612,7 +5652,7 @@ test(): () =
     let t = Test()
     let ~^~x = t.get_Item()
         """
-    src |> hasSymbolSignatureTextByCursor "x: __oly_int32"
+    src |> hasSymbolSignatureTextByCursorIgnoreDiagnostics "x: __oly_int32"
 
 [<Fact>]
 let ``ByRef of a field should have correct signature 5``() =

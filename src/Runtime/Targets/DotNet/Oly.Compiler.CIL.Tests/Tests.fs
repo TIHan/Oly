@@ -11146,18 +11146,6 @@ struct ComponentBitMask =
     field mutable Page7: uint64 = 0
 
     #[inline]
-    mutable get_Item(index: int32): byref<uint64> =
-        match (index)
-        | 0 => &this.Page0
-        | 1 => &this.Page1
-        | 2 => &this.Page2
-        | 3 => &this.Page3
-        | 4 => &this.Page4
-        | 5 => &this.Page5
-        | 6 => &this.Page6
-        | _ => &this.Page7
-
-    #[inline]
     get_Item(index: int32): uint64 =
         match (index)
         | 0 => this.Page0
@@ -11173,7 +11161,16 @@ struct ComponentBitMask =
     mutable Set(index: int32, value: bool): () =
         let fieldIndex = index / 64
         let bitIndex = index % 64
-        let item = &this.get_Item(fieldIndex)
+        let item =
+            match (fieldIndex)
+            | 0 => &this.Page0
+            | 1 => &this.Page1
+            | 2 => &this.Page2
+            | 3 => &this.Page3
+            | 4 => &this.Page4
+            | 5 => &this.Page5
+            | 6 => &this.Page6
+            | _ => &this.Page7
         if (value)
             item <- item | (1u64 << bitIndex)
         else
@@ -11340,10 +11337,12 @@ alias byref<T>
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
-struct TestStruct =
+module M =
     public field mutable A: int32 = 0
 
-    mutable GetByRefOfA(): byref<int32> = &this.A
+struct TestStruct =
+
+    mutable GetByRefOfA(): byref<int32> = &M.A
 
     mutable SetA(): () =
         this.GetByRefOfA() <- 1     
@@ -11351,7 +11350,7 @@ struct TestStruct =
 main(): () =
     let mutable s = TestStruct()
     s.SetA()
-    print(s.A)
+    print(M.A)
         """
     Oly src
     |> withCompile
@@ -11374,10 +11373,12 @@ alias byref<T>
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
-struct TestStruct =
+module M =
     public field mutable A: int32 = 0
 
-    mutable GetByRefOfA(): byref<int32> = &this.A
+struct TestStruct =
+
+    mutable GetByRefOfA(): byref<int32> = &M.A
 
     mutable SetA(): () =
         this.GetByRefOfA() <- 1    
@@ -11391,7 +11392,7 @@ struct TestStruct2 =
 main(): () =
     let mutable s = TestStruct2()
     s.SetA()
-    print(s.S.A)
+    print(M.A)
         """
     Oly src
     |> withCompile
@@ -11464,6 +11465,9 @@ alias inref<T>
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
+module M =
+    public field Value: int32 = 123
+
 interface ITest<T> =
 
     get_Item(index: int32): T
@@ -11472,19 +11476,17 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    field mutable Value: int32 = 123
-
     get_Item(index: int32): int32 =
         print("FAILED")
-        this.Value
+        M.Value
 
     mutable get_Item(index: int32): byref<int32> =
         print("byref")
-        &this.Value
+        &M.Value
 
     get_Item(index: int32): inref<int32> =
         print("inref")
-        &this.Value
+        &M.Value
 
 test(x: inref<int32>): () = ()
 
@@ -11535,6 +11537,9 @@ alias inref<T>
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): byref<TValue> where T: { get_Item(TKey): byref<TValue> } = &x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): inref<TValue> where T: { get_Item(TKey): inref<TValue> } = &x.get_Item(key)
 
+module M =
+    public field Value: int32 = 123
+
 interface ITest<T> =
 
     get_Item(index: int32): T
@@ -11543,19 +11548,17 @@ interface ITest<T> =
 struct TestStruct =
     implements ITest<int32>
 
-    field mutable Value: int32 = 123
-
     get_Item(index: int32): int32 =
         print("FAILED")
-        this.Value
+        M.Value
 
     mutable get_Item(index: int32): byref<int32> =
         print("byref")
-        &this.Value
+        &M.Value
 
     get_Item(index: int32): inref<int32> =
         print("inref")
-        &this.Value
+        &M.Value
 
 main(): () =
     let mutable t = TestStruct()
@@ -11732,11 +11735,12 @@ alias inref<T>
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-struct Test =
-
+module M =
     public field mutable X: __oly_int32 = 1
 
-    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+struct Test =
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &M.X
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
@@ -11746,9 +11750,9 @@ struct Test =
 
 main(): () =
     let mutable s = Test()
-    print(s.X)
+    print(M.X)
     (s[0]) <- 5
-    print(s.X)
+    print(M.X)
         """
     Oly src
     |> withCompile
@@ -11776,11 +11780,12 @@ alias inref<T>
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-struct Test =
-
+module M =
     public field mutable X: __oly_int32 = 1
 
-    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+struct Test =
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &M.X
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
@@ -11797,9 +11802,9 @@ extension TestSetItemExtension =
 
 main(): () =
     let mutable s = Test()
-    print(s.X)
+    print(M.X)
     s[0] <- 5
-    print(s.X)
+    print(M.X)
         """
     Oly src
     |> withCompile
@@ -11827,11 +11832,12 @@ alias inref<T>
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-struct Test =
-
+module M =
     public field mutable X: __oly_int32 = 1
 
-    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &this.X
+struct Test =
+
+    mutable get_Item(index: __oly_int32): byref<__oly_int32> = &M.X
 
 (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = x.get_Item(key)
@@ -11848,9 +11854,9 @@ extension TestSetItemExtension =
 
 main(): () =
     let mutable s = Test()
-    print(s.X)
+    print(M.X)
     s[0] <- 5
-    print(s.X)
+    print(M.X)
         """
     Oly src
     |> withCompile

@@ -352,6 +352,12 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
+            ("Cannot take the address of 'this' as it might escape its scope at this point.",
+                """
+            &this.X
+             ^^^^
+"""
+            )
             ("Cannot take the address of 'result' as it might escape its scope at this point.",
                 """
     &result
@@ -362,7 +368,7 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Byref return should be able to return from inside a struct``() =
+let ``Byref return should NOT be able to return from inside a struct``() =
     """
 #[intrinsic("int32")]
 alias int32
@@ -386,7 +392,16 @@ main(): () =
     let a = A()
     """
     |> Oly
-    |> shouldCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot take the address of 'result' as it might escape its scope at this point.",
+                """
+        &result
+         ^^^^^^
+"""
+            )
+        ]
+    |> ignore
 
 [<Fact>]
 let ``Byref return should error if a struct is returning itself``() =

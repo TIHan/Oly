@@ -265,6 +265,11 @@ type InterpreterField = InterpreterField of declaringTy: InterpreterType * name:
         | InterpreterField(staticFieldValueOpt=valueOpt) ->
             valueOpt.contents <- Some value
 
+    member this.GetFieldValueAddress(): obj =
+        match this with
+        | InterpreterField(staticFieldValueOpt=valueOpt) ->
+            InterpreterByReferenceOfStaticField(valueOpt)
+
     member this.Type =
         match this with
         | InterpreterField(ty=ty) -> ty
@@ -1163,6 +1168,9 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterValue.StaticField(irField, _) ->
                 irField.EmittedField.GetStaticValue()
                 |> stack.Push
+            | InterpreterValue.StaticFieldAddress(irField, _, _) ->
+                irField.EmittedField.GetFieldValueAddress()
+                |> stack.Push
             | InterpreterValue.Function(func, resultTy) ->
                 InterpreterInstanceOfFunctionType(resultTy, func.EmittedFunction)
                 |> stack.Push
@@ -1485,6 +1493,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 match evalArg stack argExpr with
                 | :? InterpreterByReferenceOfInstance as arg ->
                     stack.Push(arg.Instance |> copyIfStruct)
+                | :? InterpreterByReferenceOfStaticField as arg ->
+                    stack.Push(arg.Value |> copyIfStruct)
                 | _ ->
                     failwith "Invalid 'LoadFromAddress' operation."
 
@@ -1492,6 +1502,8 @@ type InterpreterFunction(env: InterpreterEnvironment,
                 match evalArg stack argExpr1 with
                 | :? InterpreterByReferenceOfInstance as arg1 ->
                     arg1.Instance <- evalArg stack argExpr2
+                | :? InterpreterByReferenceOfStaticField as arg1 ->
+                    arg1.Value <- evalArg stack argExpr2
                 | _ ->
                     failwith "Invalid 'StoreToAddress' operation."
 
@@ -1751,6 +1763,19 @@ type InterpreterByReferenceOfInstanceField(fieldName, lookup: ConcurrentDictiona
     override this.Instance
         with get() = lookup[fieldName]
         and set value = lookup[fieldName] <- value
+
+type InterpreterByReferenceOfStaticField(valueOpt: obj option ref) =
+
+    member this.Value
+        with get() =
+            match valueOpt.contents with
+            | None -> failwith "No static value found."
+            | Some value -> value
+        and set x =
+            match valueOpt.contents with
+            | None -> failwith "No static value found."
+            | Some _ ->
+                valueOpt.contents <- Some(x)
 
 type InterpreterByReferenceOfArrayElement(index, arr: obj[]) =
     inherit InterpreterByReferenceOfInstance(null)
