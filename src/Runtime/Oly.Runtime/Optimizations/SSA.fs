@@ -197,7 +197,7 @@ let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (o
 let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
-       // optenv.argLocalManager.SetLocalImmutable(localIndex)
+        optenv.argLocalManager.SetLocalImmutable(localIndex)
         ToSSAAux optenv used rhsExpr (
             fun (newRhsExpr, used) ->
                 let used = 

@@ -165,7 +165,7 @@ let private handleExpressionAuxCopyPropagation optenv items irExpr : E<_, _, _> 
     | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
         let irNewRhsExpr = handleExpression optenv items irRhsExpr
 
-        if not(optenv.IsLocalMutable(localIndex)) then
+        if optenv.CanPropagateLocal localIndex then
             match irNewRhsExpr with
             | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
                 items.Add(localIndex, CopyPropagationItem.Local(localIndexToPropagate))
