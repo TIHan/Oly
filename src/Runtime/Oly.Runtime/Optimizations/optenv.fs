@@ -456,7 +456,8 @@ module internal Helpers =
 
     let isBaseCall op =
         match op with
-        | O.Call(irFunc, argExprs, _) ->
+        | O.Call(irFunc, argExprs, _) 
+        | O.CallVirtual(irFunc, argExprs, _) ->
             let func = irFunc.RuntimeFunction
             if func.Flags.IsInstance && func.Flags.IsVirtual && not func.Flags.IsFinal && argExprs.Length > 0 && not(func.EnclosingType.IsAnyStruct) then
                 true
@@ -467,7 +468,8 @@ module internal Helpers =
 
     let isProtectedCall op =
         match op with
-        | O.Call(irFunc, _, _) ->
+        | O.Call(irFunc, _, _)
+        | O.CallVirtual(irFunc, _, _) ->
             irFunc.RuntimeFunction.Flags.IsProtected
         | _ ->
             false

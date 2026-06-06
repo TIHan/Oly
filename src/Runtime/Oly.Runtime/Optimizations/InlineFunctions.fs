@@ -55,7 +55,7 @@ let popInline optenv (func: RuntimeFunction) =
 
 let isPassthroughExpression argCount irExpr =
     match irExpr with
-    | E.Operation(_, irOp) when irOp.ArgumentCount = argCount && not(isBaseCall irOp) ->
+    | E.Operation(_, irOp) when irOp.ArgumentCount = argCount && not(isBaseCall irOp) && not(isProtectedCall irOp) ->
         let mutable isPassthrough = true
         irOp.ForEachArgument (fun i irArgExpr ->
             match irArgExpr with

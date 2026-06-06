@@ -81,11 +81,11 @@ class DefaultCommand =
     class Settings =
         inherits CommandSettings
 
-        #[CommandOption("--version")]
+        #[CommandOption("--version", false)]
         #[Description("Display Oly version in use.")]
         Version: bool get, set = false
 
-    overrides Execute(context: CommandContext, settings: Settings): int32 =
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
         if (settings.Version)
             AnsiConsole.WriteLine(VersionHelpers.GetVersionText())
         0
@@ -98,18 +98,18 @@ class BuildCommand =
     class Settings =
         inherits CommandSettings
 
-        #[CommandOption("-c|--configuration")]
+        #[CommandOption("-c|--configuration", false)]
         #[DefaultValue("Debug")]
         Configuration: string get, set = "Debug"
 
-        #[CommandOption("-v|--verbosity")]
+        #[CommandOption("-v|--verbosity", false)]
         #[DefaultValue("normal")]
         Verbosity: LogVerbosity get, set = LogVerbosity.Normal
 
         #[CommandArgument(0, "<project-file>")]
         ProjectFile: string get, set = String.Empty
 
-    overrides Execute(context: CommandContext, settings: Settings): int32 =
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
         OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
         OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
@@ -168,11 +168,11 @@ class CleanCommand =
     class Settings =
         inherits CommandSettings
 
-        #[CommandOption("-v|--verbosity")]
+        #[CommandOption("-v|--verbosity", false)]
         #[DefaultValue("normal")]
         Verbosity: LogVerbosity get, set = LogVerbosity.Normal
 
-    overrides Execute(context: CommandContext, settings: Settings): int32 =
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
         OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
         OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
@@ -274,7 +274,7 @@ private module InstallHelpers =
             let normalizedInstallPath = olyInstallPath.ToString().Replace('/', '\\')
             let paths = String.Join(';', paths) + ";" + normalizedInstallPath
             Environment.SetEnvironmentVariable("PATH", paths, envVarTarget)
-            let _ = OlyTrace.LogWarning.Invoke("PATH modified\n")
+            let _ = OlyTrace.LogWarning.Invoke("PATH modified")
 
     private ModifyPathIfNeededUnix(installPath: string): () =
         let shellConfigPath =
@@ -315,11 +315,11 @@ class InstallCommand =
     class Settings =
         inherits CommandSettings
 
-        #[CommandOption("-v|--verbosity")]
+        #[CommandOption("-v|--verbosity", false)]
         #[DefaultValue("normal")]
         Verbosity: LogVerbosity get, set = LogVerbosity.Normal
 
-    overrides Execute(context: CommandContext, settings: Settings): int32 =
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
         OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
         OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
         OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
@@ -359,7 +359,7 @@ class LspCommand =
     class Settings =
         inherits CommandSettings
 
-    overrides Execute(context: CommandContext, settings: Settings): int32 =
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
         try
             // This is needed because the 'deps.json' doesn't seem to include 'Microsoft.VisualStudio.Threading.dll'.
             let handler: ResolveEventHandler =

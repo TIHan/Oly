@@ -10826,3 +10826,80 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "Hello"
     |> ignore
+
+[<Fact>]
+let ``C# abstract protected method can be overriden``() =
+    let csSrc =
+        """
+public abstract class Base
+{
+    protected abstract void M();
+}
+        """
+
+    let src =
+        """
+class A =
+    inherits Base
+
+    protected overrides M(): () = print("world")
+
+    PrintIt(): () = this.M()
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+    a.PrintIt()
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "helloworld"
+        )
+
+[<Fact>]
+let ``C# abstract protected method can be overriden 2 - generic``() =
+    let csSrc =
+        """
+public abstract class Base<T>
+{
+    protected abstract void M(T x);
+}
+        """
+
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A =
+    inherits Base<int32>
+
+    protected overrides M(x: int32): () = print(x)
+
+    PrintIt(): () = this.M(42)
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+    a.PrintIt()
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "hello42"
+        )
