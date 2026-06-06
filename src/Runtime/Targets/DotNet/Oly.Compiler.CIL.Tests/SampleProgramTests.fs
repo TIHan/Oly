@@ -277,6 +277,34 @@ main() : () =
     run expectedOutput src
 
 [<Fact>]
+let ``Fizz buzz with some random assignments``() =
+    let src =
+        """
+#[inline]
+loop(i: int32) : () =
+    let mutable y = i
+    if (i <= 100)
+        if (i % 3 == 0 && i % 5 == 0)
+            print("FizzBuzz")
+        else if (i % 3 == 0)
+            print("Fizz")
+        else if (i % 5 == 0)
+            print("Buzz")
+        else
+            print(i)
+        y <- 50
+        loop(i + 1)
+ 
+main() : () =
+    loop(1)
+        """
+
+    let expectedOutput =
+        """12Fizz4BuzzFizz78FizzBuzz11Fizz1314FizzBuzz1617Fizz19BuzzFizz2223FizzBuzz26Fizz2829FizzBuzz3132Fizz34BuzzFizz3738FizzBuzz41Fizz4344FizzBuzz4647Fizz49BuzzFizz5253FizzBuzz56Fizz5859FizzBuzz6162Fizz64BuzzFizz6768FizzBuzz71Fizz7374FizzBuzz7677Fizz79BuzzFizz8283FizzBuzz86Fizz8889FizzBuzz9192Fizz94BuzzFizz9798FizzBuzz"""
+
+    run expectedOutput src
+
+[<Fact>]
 let ``Fizz buzz with some random assignments byref``() =
     let src =
         """
@@ -292,8 +320,8 @@ loop(i: int32) : () =
             print("Buzz")
         else
             print(i)
-        //let z = &y
-        y <- 50
+        let z = &y
+        z <- 50
         loop(i + 1)
  
 main() : () =
