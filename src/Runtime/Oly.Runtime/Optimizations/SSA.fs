@@ -39,6 +39,32 @@ type SsaUsage =
     member this.SetArgument(argIndex: int, ssaIndex: int) =
         { this with argUsed = this.argUsed.SetItem(argIndex, ssaIndex) }
 
+let internal createPhi (optenv: optenv<_, _, _>) (used: SsaUsage) (manyUsed: SsaUsage seq) (bodyExpr: E<_, _, _>) =
+    (bodyExpr, Seq.append used.argUsed.Values used.localUsed.Values)
+    ||> Seq.fold (fun expr ssaIndex ->
+        match optenv.ssaenv.GetValue(ssaIndex) with
+        | SsaValue.UseLocal(localIndex, resultTy) ->
+            let values =
+                seq {
+                    for used in manyUsed do
+                        yield used.GetSsaLocal(localIndex)
+                }
+                |> Seq.distinct
+                |> ImArray.ofSeq
+            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
+        | SsaValue.UseArgument(argIndex, resultTy) ->
+            let values =
+                seq {
+                    for used in manyUsed do
+                        yield used.GetSsaArgument(argIndex)
+                }
+                |> Seq.distinct
+                |> ImArray.ofSeq
+            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
+        | SsaValue.Definition ->
+            expr
+    ) |> ToSSA optenv used
+
 let internal ToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) =
     StackGuard.Do(fun () -> ToSSAAux optenv used expr id)
 let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
@@ -322,31 +348,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
             expr, used
         else
             let newExpr = E.While(newConditionExpr, newBodyExpr, resultTy)
-            let phiExprs, used =
-                (expr2, Seq.append used.argUsed.Values used.localUsed.Values)
-                ||> Seq.fold (fun expr ssaIndex ->
-                    match optenv.ssaenv.GetValue(ssaIndex) with
-                    | SsaValue.UseLocal(localIndex, resultTy) ->
-                        let values =
-                            seq {
-                                usedBranch.GetSsaLocal(localIndex)
-                                used.GetSsaLocal(localIndex)
-                            }
-                            |> Seq.distinct
-                            |> ImArray.ofSeq
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
-                    | SsaValue.UseArgument(argIndex, resultTy) ->
-                        let values =
-                            seq {
-                                usedBranch.GetSsaArgument(argIndex)
-                                used.GetSsaArgument(argIndex)
-                            }
-                            |> Seq.distinct
-                            |> ImArray.ofSeq
-                        E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
-                    | SsaValue.Definition ->
-                        expr
-                ) |> ToSSA optenv used
+            let phiExprs, used = createPhi optenv used (seq { used }) expr2
             E.Sequential(newExpr, phiExprs), used
         |> cont
 
