@@ -194,26 +194,45 @@ let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (o
             |> ToSSA optenv used
         E.Sequential(newExpr, phiExprs), used
 
-let private createLinearSsaLocals (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (expr2: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
+let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
-    | E.Operation(_, O.Store(localIndex, rhsExpr, _)) ->
+    | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
+        optenv.argLocalManager.SetLocalImmutable(localIndex)
+        ToSSAAux optenv used rhsExpr (
+            fun (newRhsExpr, used) ->
+                let used = 
+                    match optenv.ssaenv.GetValue(localIndex) with
+                    | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
+                        used.SetLocal(nonSsaLocalIndex, localIndex)
+                    | SsaValue.UseArgument(argIndex, _) ->
+                        used.SetArgument(argIndex, localIndex)
+                    | SsaValue.Definition ->
+                        used.SetLocal(localIndex, localIndex)
+                let newBodyExpr, used = ToSSA optenv used bodyExpr
+
+                cont(E.Let(name, localIndex, newRhsExpr, newBodyExpr), used)
+        )
+
+    | E.Sequential(E.Operation(_, O.Store(localIndex, rhsExpr, _)), expr2) ->
         let rhsExpr2, used = ToSSA optenv used rhsExpr
         let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, rhsExpr2.ResultType)
         let used = used.SetLocal(localIndex, newLocalIndex)
         let newExpr2, used = ToSSA optenv used expr2
-        cont((E.Let("ssa_local", newLocalIndex, rhsExpr2, newExpr2), used))
+        (E.Let("ssa_local", newLocalIndex, rhsExpr2, newExpr2), used)
+        |> cont
 
-    | E.Operation(_, O.StoreArgument(argIndex, rhsExpr, _)) ->
+    | E.Sequential(E.Operation(_, O.StoreArgument(argIndex, rhsExpr, _)), expr2) ->
         let rhsExpr2, used = ToSSA optenv used rhsExpr
         let newLocalIndex = optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, rhsExpr2.ResultType)
         let used = used.SetArgument(argIndex, newLocalIndex)
         let newExpr2, used = ToSSA optenv used expr2
-        cont(E.Let("ssa_arg", newLocalIndex, rhsExpr2, newExpr2), used)
+        (E.Let("ssa_arg", newLocalIndex, rhsExpr2, newExpr2), used)
+        |> cont
 
-    | E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy) ->
+    | E.Sequential(E.IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy), expr2) ->
         cont(handleSequentialIfElse optenv used expr resultTy expr2 conditionExpr trueTargetExpr falseTargetExpr)
 
-    | E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy) ->
+    | E.Sequential(E.Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy), expr2) ->
         let newBodyExpr, used = ToSSA optenv used bodyExpr
         let manyUsed = ResizeArray()
         let mutable used = used
@@ -263,9 +282,10 @@ let private createLinearSsaLocals (optenv: optenv<_, _, _>) (used: SsaUsage) (ex
                 | SsaValue.Definition ->
                     expr
             ) |> ToSSA optenv used
-        cont(E.Sequential(newExpr, phiExprs), used)
+        (E.Sequential(newExpr, phiExprs), used)
+        |> cont
 
-    | E.While(conditionExpr, bodyExpr, resultTy) ->
+    | E.Sequential(E.While(conditionExpr, bodyExpr, resultTy), expr2) ->
         let newConditionExpr, used = ToSSA optenv used conditionExpr
         let newBodyExpr, usedBranch = ToSSA optenv used bodyExpr
         let used = usedBranch
@@ -299,43 +319,18 @@ let private createLinearSsaLocals (optenv: optenv<_, _, _>) (used: SsaUsage) (ex
                     | SsaValue.Definition ->
                         expr
                 ) |> ToSSA optenv used
-            cont(E.Sequential(newExpr, phiExprs), used)
-    | _ ->
-        let newExpr1, used = ToSSA optenv used expr
-        let newExpr2, used = ToSSA optenv used expr2
-
-        if newExpr1 = expr && newExpr2 = expr2 then
-            cont(E.Sequential(expr, expr2), used)
-        else
-            cont(E.Sequential(newExpr1, newExpr2), used)
-
-let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
-    match expr with
-    | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
-        optenv.argLocalManager.SetLocalImmutable(localIndex)
-        ToSSAAux optenv used rhsExpr (
-            fun (newRhsExpr, used) ->
-                let used = 
-                    match optenv.ssaenv.GetValue(localIndex) with
-                    | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
-                        used.SetLocal(nonSsaLocalIndex, localIndex)
-                    | SsaValue.UseArgument(argIndex, _) ->
-                        used.SetArgument(argIndex, localIndex)
-                    | SsaValue.Definition ->
-                        used.SetLocal(localIndex, localIndex)
-                let newBodyExpr, used = ToSSA optenv used bodyExpr
-
-                cont(E.Let(name, localIndex, newRhsExpr, newBodyExpr), used)
-        )
+            E.Sequential(newExpr, phiExprs), used
+        |> cont
 
     | E.Sequential(expr1, expr2) ->
-        let newExpr1, used = ToSSA optenv used expr
+        let newExpr1, used = ToSSA optenv used expr1
         let newExpr2, used = ToSSA optenv used expr2
 
-        if newExpr1 = expr && newExpr2 = expr2 then
-            cont(E.Sequential(expr, expr2), used)
+        if newExpr1 = expr1 && newExpr2 = expr2 then
+            expr, used
         else
-            cont(E.Sequential(newExpr1, newExpr2), used)
+            E.Sequential(newExpr1, newExpr2), used
+        |> cont
 
     | _ ->
         failwith "Invalid linear expression"
