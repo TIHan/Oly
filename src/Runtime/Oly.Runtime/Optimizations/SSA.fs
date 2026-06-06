@@ -191,33 +191,7 @@ let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (o
         origExpr, used
     else
         let newExpr = E.IfElse(newConditionExpr, newTrueTargetExpr, newFalseTargetExpr, resultTy)
-            
-        let phiExprs, used =
-            (expr2, Seq.append used.argUsed.Values used.localUsed.Values)
-            ||> Seq.fold (fun expr ssaIndex ->
-                match optenv.ssaenv.GetValue(ssaIndex) with
-                | SsaValue.UseLocal(localIndex, resultTy) ->
-                    let values =
-                        seq {
-                            usedBranch.GetSsaLocal(localIndex)
-                            used.GetSsaLocal(localIndex)
-                        }
-                        |> Seq.distinct
-                        |> ImArray.ofSeq
-                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
-                | SsaValue.UseArgument(argIndex, resultTy) ->
-                    let values =
-                        seq {
-                            usedBranch.GetSsaArgument(argIndex)
-                            used.GetSsaArgument(argIndex)
-                        }
-                        |> Seq.distinct
-                        |> ImArray.ofSeq
-                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
-                | SsaValue.Definition ->
-                    expr
-            )
-            |> ToSSA optenv used
+        let phiExprs, used = createPhi optenv used (seq { usedBranch; used }) expr2
         E.Sequential(newExpr, phiExprs), used
 
 let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
