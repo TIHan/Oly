@@ -173,10 +173,15 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     /// In Debug or Checked builds, this checks the IR to make sure its valid.
     let inline checkExpr name optenv expr =
 #if DEBUG || CHECKED
-        // TODO: We could expand this, but NormalizeLocals is good enough.
-//        try
-        let _ = NormalizeLocals optenv expr
-        ()
+        try
+            // TODO: We could expand this, but NormalizeLocals is good enough.
+    //        try
+            let _ = NormalizeLocals optenv expr
+            ()
+        with
+        | _ ->
+            Debug.WriteLine(Dump.DumpExpression expr)
+            reraise()
 
 #endif
         expr
@@ -207,12 +212,12 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
                 irNewExpr
                 |> OptimizeExpression optenv  
                 |> checkExpr "OptimizeExpression" optenv
-            //irNewExpr <- SSA.ToSSA optenv SSA.SsaUsage.Default irNewExpr |> fst |> checkExpr "ToSSA" optenv
+          //  irNewExpr <- SSA.ToSSA optenv SSA.SsaUsage.Default irNewExpr |> fst |> checkExpr "ToSSA" optenv
 
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
 
-            //irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
+       //     irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
             //if optenv.IsDebuggable then
             //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_debug.oly-ir", Dump.DumpExpression irNewExpr)
             //else

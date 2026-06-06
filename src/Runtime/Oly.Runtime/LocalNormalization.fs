@@ -12,15 +12,15 @@ open Oly.Metadata
 open Oly.Core
 open Oly.Core.TaskExtensions
 
-let private addLocal (optenv: optenv<_, _, _>) (normalizedLocals: ArgumentLocalManager) (localToNormalizedLocalMap: Dictionary<int, int>) localIndex =
+let private addLocal (optenv: optenv<_, _, _>) (localScope: ImmutableHashSet<int>)  (normalizedLocals: ArgumentLocalManager) (localToNormalizedLocalMap: Dictionary<int, int>) localIndex =
     let newLocalIndex = normalizedLocals.CreateLocal(optenv.GetLocalFlags(localIndex))
     localToNormalizedLocalMap.Add(localIndex, newLocalIndex)
-    newLocalIndex
+    newLocalIndex, localScope.Add(newLocalIndex)
 
 let private getLocal (localScope: ImmutableHashSet<int>) (localToNormalizedLocalMap: Dictionary<int, int>) localIndex =
     let newLocalIndex = localToNormalizedLocalMap[localIndex]
     if localScope.Contains(newLocalIndex) |> not then
-        failwith $"Local '{newLocalIndex}' not in scope."
+        failwith $"Normalized local '{newLocalIndex}' not in scope. Mapped from local '{localIndex}'."
     newLocalIndex
 
 let private handleOperation (optenv: optenv<_, _, _>) (localScope: ImmutableHashSet<int>) (normalizedLocals: ArgumentLocalManager) (localToNormalizedLocalMap: Dictionary<int, int>) origExpr : E<_, _, _> =
@@ -60,8 +60,7 @@ let private handleLinearExpression (optenv: optenv<_, _, _>) (localScope: Immuta
                 | _ ->
                     handleExpression optenv localScope normalizedLocals localToNormalizedLocalMap irRhsExpr
 
-            let newLocalIndex = addLocal optenv normalizedLocals localToNormalizedLocalMap localIndex
-            let localScope = localScope.Add(newLocalIndex)
+            let newLocalIndex, localScope = addLocal optenv localScope normalizedLocals localToNormalizedLocalMap localIndex
 
             let irNewBodyExpr =
                 match irBodyExpr with
@@ -155,8 +154,7 @@ let private handleExpressionAuxNormalizeLocals (optenv: optenv<_, _, _>) (localS
             |> ImArray.map (fun irCatchCase ->
                 match irCatchCase with
                 | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
-                    let newLocalIndex = addLocal optenv normalizedLocals localToNormalizedLocalMap localIndex
-                    let localScope = localScope.Add(newLocalIndex)
+                    let newLocalIndex, localScope = addLocal optenv localScope normalizedLocals localToNormalizedLocalMap localIndex
                     let irNewCaseBodyExpr = handleExpression optenv localScope normalizedLocals localToNormalizedLocalMap irCaseBodyExpr
 
                     if newLocalIndex = localIndex && irNewCaseBodyExpr = irCaseBodyExpr then
