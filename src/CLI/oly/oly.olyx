@@ -3,7 +3,7 @@
 
 #reference "../../LanguageServer/Oly.LanguageServer/Oly.LanguageServer.fsproj"
 
-#package "Spectre.Console.Cli,0.50.0"
+#package "Spectre.Console.Cli,0.55"
 #package "Errata,0.14.0"
 
 #copy "version.txt"
@@ -24,4 +24,4 @@ main(args: string[]): int32 =
             let _ = c.AddCommand<InstallCommand>("install")
             let _ = c.AddCommand<LspCommand>("lsp")
     )
-    app.Run(Cast(args))
+    app.Run(Cast(args), System.Threading.CancellationToken.None)
