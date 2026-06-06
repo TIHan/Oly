@@ -239,31 +239,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
                     | SsaValue.Definition ->
                         used.SetLocal(localIndex, localIndex)
 
-                let phiExprs, used =
-                    (bodyExpr, Seq.append used.argUsed.Values used.localUsed.Values)
-                    ||> Seq.fold (fun expr ssaIndex ->
-                        match optenv.ssaenv.GetValue(ssaIndex) with
-                        | SsaValue.UseLocal(localIndex, resultTy) ->
-                            let values =
-                                seq {
-                                    used.GetSsaLocal(localIndex)
-                                }
-                                |> Seq.distinct
-                                |> ImArray.ofSeq
-                            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
-                        | SsaValue.UseArgument(argIndex, resultTy) ->
-                            let values =
-                                seq {
-                                    used.GetSsaArgument(argIndex)
-                                }
-                                |> Seq.distinct
-                                |> ImArray.ofSeq
-                            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
-                        | SsaValue.Definition ->
-                            expr
-                    )
-                    |> ToSSA optenv used
-
+                let phiExprs, used = createPhi optenv used (seq { used }) bodyExpr
                 cont(E.Let(name, localIndex, newRhsExpr, phiExprs), used)
         )
 
@@ -309,33 +285,7 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
                 newFinallyBodyExpr
             )
         let newExpr = E.Try(newBodyExpr, newCatchCases, newFinallyBodyExprOpt, resultTy)
-        let phiExprs, used =
-            (expr2, Seq.append used.argUsed.Values used.localUsed.Values)
-            ||> Seq.fold (fun expr ssaIndex ->
-                match optenv.ssaenv.GetValue(ssaIndex) with
-                | SsaValue.UseLocal(localIndex, resultTy) ->
-                    let values =
-                        seq {
-                            for usedBranch in manyUsed do
-                                usedBranch.GetSsaLocal(localIndex)
-                            used.GetSsaLocal(localIndex)
-                        }
-                        |> Seq.distinct
-                        |> ImArray.ofSeq
-                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
-                | SsaValue.UseArgument(argIndex, resultTy) ->
-                    let values =
-                        seq {
-                            for usedBranch in manyUsed do
-                                usedBranch.GetSsaArgument(argIndex)
-                            used.GetSsaLocal(argIndex)
-                        }
-                        |> Seq.distinct
-                        |> ImArray.ofSeq
-                    E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
-                | SsaValue.Definition ->
-                    expr
-            ) |> ToSSA optenv used
+        let phiExprs, used = createPhi optenv used manyUsed expr2
         (E.Sequential(newExpr, phiExprs), used)
         |> cont
 
