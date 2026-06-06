@@ -81,7 +81,7 @@ let private ToSSAAux (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _
         if newOp = op then
             expr, used
         else
-            E.Operation(textRange, op), used
+            E.Operation(textRange, newOp), used
         |> cont
     
     | E.While(conditionExpr, bodyExpr, resultTy) ->
@@ -197,6 +197,7 @@ let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (o
 let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
+       // optenv.argLocalManager.SetLocalImmutable(localIndex)
         ToSSAAux optenv used rhsExpr (
             fun (newRhsExpr, used) ->
                 let used = 

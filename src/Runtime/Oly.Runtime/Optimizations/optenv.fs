@@ -33,6 +33,9 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
     member _.IsArgumentAddressExposed(argIndex) =
         argFlags[argIndex].HasFlag(OlyIRLocalFlags.AddressExposed)
 
+    member _.SetLocalImmutable(localIndex) =
+        localFlags[localIndex] <- localFlags[localIndex] &&& ~~~OlyIRLocalFlags.Mutable
+
     member _.GetLocalFlags(localIndex) =
         localFlags[localIndex]
 
