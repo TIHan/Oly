@@ -165,15 +165,29 @@ let private handleExpressionAuxCopyPropagation optenv items irExpr : E<_, _, _> 
     | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
         let irNewRhsExpr = handleExpression optenv items irRhsExpr
 
-        if optenv.IsLocalMutable(localIndex) |> not then
+        if not(optenv.IsLocalMutable(localIndex)) then
             match irNewRhsExpr with
             | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
                 items.Add(localIndex, CopyPropagationItem.Local(localIndexToPropagate))
-                handleExpression optenv items irBodyExpr
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
+                if optenv.ssaenv.IsSsaLocal(localIndex) then
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                else
+                    irNewBodyExpr
 
             | E.Value(value=V.Argument(argIndexToPropagate, _)) when optenv.CanPropagateArgument argIndexToPropagate ->
                 items.Add(localIndex, CopyPropagationItem.Argument(argIndexToPropagate))
-                handleExpression optenv items irBodyExpr
+                let irNewBodyExpr = handleExpression optenv items irBodyExpr
+                if optenv.ssaenv.IsSsaLocal(localIndex) then
+                    if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then
+                        irExpr
+                    else
+                        E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
+                else
+                    irNewBodyExpr
 
             | E.Value(value=V.Constant(c, _)) ->
                 items.Add(localIndex, CopyPropagationItem.Constant(c))

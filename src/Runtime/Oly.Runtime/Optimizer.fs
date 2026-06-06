@@ -174,12 +174,10 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     let inline checkExpr name optenv expr =
 #if DEBUG || CHECKED
         // TODO: We could expand this, but NormalizeLocals is good enough.
-        try
-            let _ = NormalizeLocals optenv expr
-            ()
-        with
-        | ex ->
-            raise(AggregateException($"Error in '{name}'.", ex))
+//        try
+        let _ = NormalizeLocals optenv expr
+        ()
+
 #endif
         expr
         

@@ -20,6 +20,7 @@ open Oly.Compiler.Internal.ILGen
 open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SemanticDiagnostics
 open System.Diagnostics.Tracing
 open Oly.Compiler.Internal.SymbolOperations
 
@@ -399,28 +400,28 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
+        let checkDuplicate (diagnostics: OlyDiagnosticLogger) (b: BinderPass4) (ent: EntitySymbol) =
             match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
             | true, srcLoc ->
                 if ent.IsAnonymous then
-                    OlyDiagnostic.CreateError($"Another anonymous module already exists.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
-                    |> Some
+                    diagnostics.ErrorWithSourceLocation($"Another anonymous module already exists.", 10, srcLoc)
                 else
-                    OlyDiagnostic.CreateError($"'{ent.Name}' already exists across compilation units.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
-                    |> Some
+                    diagnostics.ErrorWithSourceLocation($"'{ent.Name}' already exists across compilation units.", 10, srcLoc)
             | _ ->
-                None
+                ()
 
-        let checkDuplicateAnonymousTypeExtension (b: BinderPass4) (ent: EntitySymbol) =
+        let checkDuplicateAnonymousTypeExtension (diagnostics: OlyDiagnosticLogger) (b: BinderPass4) (ent: EntitySymbol) =
             if ent.IsAnonymousTypeExtension && ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
                 match b.PartialDeclarationTable.TryGetAnonymousTypeExtensionDeclaration ent with
-                | Some srcLoc ->
-                    OlyDiagnostic.CreateError($"Anonymous type extension has already been declared.", OlyDiagnostic.CodePrefixOLY, 10, srcLoc)
-                    |> Some
+                | Some(benv, existingEnts, intersectedImplTys, srcLoc) ->
+                    existingEnts
+                    |> Seq.iter (fun existingEnt ->
+                        if existingEnt.Extends.Length = 1 && ent.Extends.Length = 1 then
+                            if areGeneralizedTypesEqual existingEnt.Extends[0] ent.Extends[0] then
+                                diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(benv, srcLoc,existingEnt.Extends[0], ent.Extends[0], intersectedImplTys))
+                    )
                 | _ ->
-                    None
-            else
-                None
+                    ()
 
         // This checks for ambiguity of types with the same signature declared across multiple compilation units.
         // TODO: This is quadratic, but not super bad since we are able to look at a dictionary to determine if a similar entity exists in
@@ -429,32 +430,26 @@ module private CompilationPhases =
         //       We should find another way to do this without being quadratic.
         binders4
         |> map (fun (b1, diags) ->
-            let newDiags = ImArray.builder()
+            let newDiags = OlyDiagnosticLogger.Create()
             binders4
             |> ImArray.iter (fun (b2, _) ->
                 if obj.ReferenceEquals(b1, b2) |> not then
                     if b1.Entity.IsNamespace then
                         b1.Entity.Entities
                         |> ImArray.iter (fun ent ->
-                            match checkDuplicate b2 ent with
-                            | Some(diag) -> newDiags.Add(diag)
-                            | _ -> ()
+                            checkDuplicate newDiags b2 ent
                         )
                     else
-                        match checkDuplicate b2 b1.Entity with
-                        | Some(diag) -> newDiags.Add(diag)
-                        | _ -> ()
+                        checkDuplicate newDiags b2 b1.Entity
                     b1.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.Values
-                    |> Seq.iter (fun (_, ents, _) ->
+                    |> Seq.iter (fun (_, _, ents, _) ->
                         ents
                         |> Seq.iter (fun ent ->
-                            match checkDuplicateAnonymousTypeExtension b2 ent with
-                            | Some(diag) -> newDiags.Add(diag)
-                            | _ -> ()
+                            checkDuplicateAnonymousTypeExtension newDiags b2 ent
                         )
                     )
             )
-            (b1, diags.AddRange(newDiags))
+            (b1, diags.AddRange(newDiags.GetDiagnostics()))
         )
 
     let signature (state: CompilationState) (ct: CancellationToken) =

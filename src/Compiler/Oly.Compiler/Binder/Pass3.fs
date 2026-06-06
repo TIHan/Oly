@@ -188,8 +188,14 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
         if ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
             let extensionName = createExtensionName ent
             (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
-            if not(recordAnonymousTypeExtensionDeclaration cenv ent syntaxNode) then
-                cenv.diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(syntaxNode.GetLocation()))
+            let succeeded, existingEnts, intersectedImplTys = recordAnonymousTypeExtensionDeclaration cenv env ent syntaxNode
+            if not succeeded then
+                existingEnts
+                |> Seq.iter (fun existingEnt ->
+                    if existingEnt.Extends.Length = 1 && ent.Extends.Length = 1 then
+                        if areGeneralizedTypesEqual existingEnt.Extends[0] ent.Extends[0] then
+                            cenv.diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(env.benv, syntaxNode.GetLocation(), existingEnt.Extends[0], ent.Extends[0], intersectedImplTys))
+                )
 
     let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 

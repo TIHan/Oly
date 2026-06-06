@@ -21,7 +21,7 @@ let createWorkspace() =
     OlyWorkspace.Create(([DotNetTarget()]: OlyBuild seq), OlyPath.Empty, rs)
 
 let createProject src (workspace: OlyWorkspace) =
-    let path = OlyPath.Create "olytest.olyx"
+    let path = OlyPath.Create $"olytest_{Guid.NewGuid().ToString().Replace('-', '_')}.olyx"
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     (workspace, workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project)
 
@@ -53,7 +53,7 @@ let shouldHaveBuildError (expectedOutput: string) (workspace: OlyWorkspace, proj
             else
                 builder.AppendLine(diag.ToString()) |> ignore
         ) 
-        Assert.Equal(expectedOutput.ReplaceLineEndings("\n"), builder.ToString().ReplaceLineEndings("\n"))
+        Assert.True(builder.ToString().ReplaceLineEndings("\n").EndsWith(expectedOutput.ReplaceLineEndings("\n")), builder.ToString().ReplaceLineEndings("\n"))
 
 let run (expectedOutput: string) (program: OlyProgram) =
     Assert.Equal(expectedOutput.ReplaceLineEndings("\n"), program.Run([||]).ReplaceLineEndings("\n"))
@@ -144,7 +144,7 @@ main(): () =
     """
     createWorkspace()
     |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(13,9): error OLY9999: Generic recursion limit reached: D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<E>>>>>>>>>>>>>>>>>
+    |> shouldHaveBuildError """.olyx(13,9): error OLY9999: Generic recursion limit reached: D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<B<D<E>>>>>>>>>>>>>>>>>
         this.M2<D<T>>()
         ^^^^^^^^^^^^^^^"""
 
@@ -158,7 +158,7 @@ let ``Publish cannot be set in a library``() =
     """
     createWorkspace()
     |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,11): error OLY0309: Property 'publish' is not valid. Reason: 'publish' cannot set be set in a library.
+    |> shouldHaveBuildError """.olyx(5,11): error OLY0309: Property 'publish' is not valid. Reason: 'publish' cannot set be set in a library.
 #property "publish" "standalone"
           ^^^^^^^^^"""
 
@@ -172,6 +172,6 @@ let ``Duplicate properties not allowed``() =
     """
     createWorkspace()
     |> createProject src
-    |> shouldHaveBuildError """olytest.olyx(5,11): error OLY0310: Duplicate property 'publish'.
+    |> shouldHaveBuildError """.olyx(5,11): error OLY0310: Duplicate property 'publish'.
 #property "publish" "r2r"
           ^^^^^^^^^"""

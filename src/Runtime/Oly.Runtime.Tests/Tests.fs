@@ -941,7 +941,7 @@ let ``Test 9`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "Ssa not completed")>]
+[<Fact>]
 let ``Test 10`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -998,8 +998,8 @@ let ``Test 10`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "not ready")>]
-let ``Test 11`` () =
+[<Fact>]
+let ``Test 11 - needs ssa`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
     let locals = builder.CreateLocalManager()
@@ -1014,10 +1014,7 @@ let ``Test 11`` () =
                 local0 <- 2
                 local2
             Turns into:
-                let mutable local0 = 1
-                let local1 = local0
-                local0 <- 2
-                local2
+                1
         *)
         let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
@@ -1029,6 +1026,59 @@ let ``Test 11`` () =
                         (Store 0 (ConstantInt32 2))
                         (Local local2)
                     )
+                )
+            )
+
+    let finalLocalCount, irExpr = 
+        getIR
+            builder
+            ImArray.empty
+            ImArray.empty
+            (locals.GetLocals())
+            ilExpr
+            ilExprTy
+            (fun _ ilEnclosing ilFuncSpecHandle ->
+                Call
+                    ilEnclosing
+                    ilFuncSpecHandle
+                    ImArray.empty
+                    ImArray.empty
+                    ImArray.empty
+            )
+
+    match irExpr with
+    | ConstantInt32(1) ->
+        Assert.Equal(0, finalLocalCount)
+    | _ ->
+        failwithexpr irExpr
+
+[<Fact>]
+let ``Test 11 - does not need ssa`` () =
+    let builder = DummyAssemblyBuilder(isDebuggable = false)
+
+    let locals = builder.CreateLocalManager()
+    let ilExprTy = OlyILTypeInt32
+
+    let ilExpr =
+        (*
+            Pseudo:
+                let local0 = 1
+                let local1 = local0
+                let local2 = local1
+                let local3 = 2
+                local2
+            Turns into:
+                1
+        *)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local3 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        Let local0 (ConstantInt32 1)
+            (Let local1 (Local local0)
+                (Let local2 (Local local1)
+                        (Let local3 (ConstantInt32 2)
+                            (Local local2))
                 )
             )
 

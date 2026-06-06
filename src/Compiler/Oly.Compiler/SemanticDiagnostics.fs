@@ -1,10 +1,13 @@
 ﻿[<AutoOpen>]
 module internal Oly.Compiler.Internal.SemanticDiagnostics
 
+open System.Collections.Immutable
+
 open Oly.Core
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.PrettyPrint
 
 // TODO: Expand this to all semantic diagnostics.
@@ -13,7 +16,13 @@ type SemanticDiagnostic =
     | Error_AmbiguousFunctions of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * funcGroup: FunctionGroupSymbol
     | Error_ShapeFunctionAmbiguousWitnesses of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * abstractFunc: IFunctionSymbol * candidates: IFunctionSymbol imarray
     | Error_MissingConstraint of benv: BoundEnvironment * syntaxNode: OlySyntaxNode * tyArg: TypeSymbol * constr: ConstraintSymbol
-    | Error_AnonymousTypeExtensionAlreadyDeclared of srcLoc: OlySourceLocation
+    | Error_AnonymousTypeExtensionAlreadyDeclared 
+        of 
+            benv: BoundEnvironment *
+            srcLoc: OlySourceLocation *
+            existingExtendsTy: TypeSymbol * 
+            extendsTy: TypeSymbol * 
+            intersectedImplTys: ImmutableHashSet<TypeSymbol>
 
     // TODO: We should figure out what permanent code numbers to use.
     member this.Code =
@@ -77,5 +86,14 @@ type OlyDiagnosticLogger with
         | Error_MissingConstraint(benv, syntaxNode, tyArg, constr) ->
             this.Error($"Type instantiation '{printType benv tyArg}' is missing the constraint '{printConstraint benv constr}'.", code, syntaxNode)
 
-        | Error_AnonymousTypeExtensionAlreadyDeclared(srcLoc) ->
-            this.ErrorWithSourceLocation($"Anonymous type extension has already been declared.", 10, srcLoc)
+        | Error_AnonymousTypeExtensionAlreadyDeclared(benv, srcLoc, existingExtendsTy, extendsTy, intersectedImplTys) ->
+            OlyAssert.True(intersectedImplTys.Count > 0)
+            intersectedImplTys
+            |> Seq.iter (fun implTy ->
+                let msg =
+                    if areTypesEqualWith Indexable existingExtendsTy extendsTy then
+                        $"Type '{printType benv existingExtendsTy}' already has an existing anonymous extension implementation of interface '{printType benv implTy}'."
+                    else
+                        $"Types '{printType benv existingExtendsTy}' and '{printType benv extendsTy}' conflict with an anonymous extension implementation of interface '{printType benv implTy}'."
+                this.ErrorWithSourceLocation(msg, 10, srcLoc)
+            )

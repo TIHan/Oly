@@ -144,12 +144,12 @@ type internal optenv<'Type, 'Function, 'Field> =
         this.argLocalManager.CreateLocal(flags)
 
     member this.CanPropagateLocal(localIndex) =
-        not(this.IsLocalMutable(localIndex)) &&
-        not(this.IsLocalAddressExposed(localIndex))
+        not(this.IsLocalAddressExposed(localIndex)) &&
+        not(this.IsLocalMutable(localIndex))
 
     member this.CanPropagateArgument(argIndex) =
-        not(this.IsArgumentMutable(argIndex)) &&
-        not(this.IsArgumentAddressExposed(argIndex))
+        not(this.IsArgumentAddressExposed(argIndex)) &&
+        not(this.IsArgumentMutable(argIndex))
 
 [<AutoOpen>]
 module internal Helpers =

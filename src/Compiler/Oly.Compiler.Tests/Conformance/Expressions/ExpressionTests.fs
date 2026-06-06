@@ -12023,10 +12023,10 @@ M(x: nint): bool =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Type 'Zoot<T>' is exported and not valid because its enclosing type 'Beef<U>' is not exported and has type parameters.",
+            ("Expected type 'inref<byte>' but is 'byte'.",
                 """
-    class Zoot<T> =
-          ^^^^
+    let y2: inref<byte> = to_inref(x)
+                          ^^^^^^^^^^^
 """
             )
         ]

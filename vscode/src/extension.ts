@@ -260,7 +260,7 @@ export function activate(context: ExtensionContext) {
 			if (olyWorkspaceSettings.activeProject !== undefined &&
 				olyWorkspaceSettings.activeProject !== null &&
 				await client.doesProjectExist(olyWorkspaceSettings.activeProject)) {
-				projText = olyWorkspaceSettings.activeProject;
+				projText = olyWorkspaceSettings.activeProject;5
 			}
 			else {
 				isValid = false;

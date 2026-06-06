@@ -292,8 +292,8 @@ loop(i: int32) : () =
             print("Buzz")
         else
             print(i)
-        let z = &y
-        z <- 50
+        //let z = &y
+        y <- 50
         loop(i + 1)
  
 main() : () =

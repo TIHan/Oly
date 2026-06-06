@@ -2808,7 +2808,7 @@ extension =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
@@ -2850,13 +2850,13 @@ extension =
     OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
 """
             )
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
@@ -2900,13 +2900,13 @@ module M2 =
     OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
     extension =
     ^^^^^^^^^
 """
             )
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
     extension =
     ^^^^^^^^^
@@ -2986,7 +2986,7 @@ extension =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
@@ -3031,13 +3031,13 @@ extension =
     OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
 """
             )
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension =
 ^^^^^^^^^
@@ -3084,13 +3084,13 @@ module M2 =
     OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
     extension =
     ^^^^^^^^^
 """
             )
-            ("Anonymous type extension has already been declared.",
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
     extension =
     ^^^^^^^^^
@@ -3131,13 +3131,13 @@ extension<T> =
     OlyTwo src1 src2
     |> withErrorHelperTextDiagnostics
         [
-            ("Anonymous type extension has already been declared.",
+            ("Type 'C<T>' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension<T> =
 ^^^^^^^^^
 """
             )
-            ("Anonymous type extension has already been declared.",
+            ("Type 'C<T>' already has an existing anonymous extension implementation of interface 'ITest'.",
                 """
 extension<T> =
 ^^^^^^^^^
@@ -3299,7 +3299,7 @@ extension =
     |> ignore
 
 [<Fact>]
-let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 5 - generic``() =
+let ``Anonymous type extension should fail as C<__oly_int32> and C<T> are conflicting``() =
     let refSrc = 
         """
 namespace CoolNamespace
@@ -3330,7 +3330,62 @@ extension<T> =
     Test(): () = ()
         """
     OlyWithRef refSrc src
-    |> shouldCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types 'C<__oly_int32>' and 'C<T>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail as C<__oly_int32> and C<T> are conflicting 2``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace CoolNamespace
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types 'C<__oly_int32>' and 'C<T>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Types 'C<T>' and 'C<__oly_int32>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
     |> ignore
 
 [<Fact>]

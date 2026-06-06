@@ -21756,3 +21756,71 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "hello"
     |> ignore
+
+[<Fact>]
+let ``While loop should work under SSA``() =
+    let src =
+        """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+#[intrinsic("and")]
+(&&)(bool, bool): bool
+
+#[intrinsic("not")]
+(!)(bool): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("get_length")]
+getLength<T>(T[]): int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[open]
+extension ArrayExtensions<T> =
+    inherits T[]
+
+    Length: int32
+        #[inline]
+        get() = getLength(this)
+
+find<T>(arr: T[], predicate: scoped T -> bool): T =
+    let mutable result: T = unchecked default
+    let mutable isFound = false
+    let mutable i = 0
+    while (i < arr.Length && !isFound)
+        let item = arr[i]
+        if (predicate(item))
+            result <- item
+            isFound <- true
+        else
+            i <- i + 1
+    if (isFound)
+        result
+    else
+        unchecked default
+
+main(): () =
+    let xs = [10;12;42;56]
+    let result = find(xs, x -> x == 42)
+    print(result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "42"
+    |> ignore
