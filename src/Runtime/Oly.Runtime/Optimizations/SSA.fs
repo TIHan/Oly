@@ -196,6 +196,10 @@ let private handleSequentialIfElse (optenv: optenv<_, _, _>) (used: SsaUsage) (o
 
 let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: E<_, _, _>) (cont: (E<_, _, _> * SsaUsage) -> (E<_, _, _> * SsaUsage)) =
     match expr with
+    | E.Let(name, localIndex, ((E.Phi _) as rhsExpr), bodyExpr) ->
+        let newBodyExpr, used = ToSSA optenv used bodyExpr
+        E.Let(name, localIndex, rhsExpr, newBodyExpr), used
+
     | E.Let(name, localIndex, rhsExpr, bodyExpr) ->
         optenv.argLocalManager.SetLocalImmutable(localIndex)
         ToSSAAux optenv used rhsExpr (
@@ -208,9 +212,33 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
                         used.SetArgument(argIndex, localIndex)
                     | SsaValue.Definition ->
                         used.SetLocal(localIndex, localIndex)
-                let newBodyExpr, used = ToSSA optenv used bodyExpr
 
-                cont(E.Let(name, localIndex, newRhsExpr, newBodyExpr), used)
+                let phiExprs, used =
+                    (bodyExpr, Seq.append used.argUsed.Values used.localUsed.Values)
+                    ||> Seq.fold (fun expr ssaIndex ->
+                        match optenv.ssaenv.GetValue(ssaIndex) with
+                        | SsaValue.UseLocal(localIndex, resultTy) ->
+                            let values =
+                                seq {
+                                    used.GetSsaLocal(localIndex)
+                                }
+                                |> Seq.distinct
+                                |> ImArray.ofSeq
+                            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromLocal(localIndex, resultTy), E.Phi(values, resultTy), expr)
+                        | SsaValue.UseArgument(argIndex, resultTy) ->
+                            let values =
+                                seq {
+                                    used.GetSsaArgument(argIndex)
+                                }
+                                |> Seq.distinct
+                                |> ImArray.ofSeq
+                            E.Let("ssa_phi", optenv.ssaenv.CreateSsaIndexFromArgument(argIndex, resultTy), E.Phi(values, resultTy), expr)
+                        | SsaValue.Definition ->
+                            expr
+                    )
+                    |> ToSSA optenv used
+
+                cont(E.Let(name, localIndex, newRhsExpr, phiExprs), used)
         )
 
     | E.Sequential(E.Operation(_, O.Store(localIndex, rhsExpr, _)), expr2) ->
