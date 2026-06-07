@@ -212,16 +212,12 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
                 irNewExpr
                 |> OptimizeExpression optenv  
                 |> checkExpr "OptimizeExpression" optenv
-            irNewExpr <- SSA.ToSSA optenv SSA.SsaUsage.Default irNewExpr |> fst |> checkExpr "ToSSA" optenv
+        //    irNewExpr <- SSA.ToSSA optenv SSA.SsaUsage.Default irNewExpr |> fst |> checkExpr "ToSSA" optenv
 
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
 
-            irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
-            //if optenv.IsDebuggable then
-            //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_debug.oly-ir", Dump.DumpExpression irNewExpr)
-            //else
-            //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}.oly-ir", Dump.DumpExpression irNewExpr)
+           // irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
             irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr "DeadCodeElimination after FromSSA" optenv
         irNewExpr
 

@@ -162,12 +162,15 @@ let private handleExpression optenv items irExpr : E<_, _, _> =
 let private handleExpressionAuxCopyPropagation optenv items irExpr : E<_, _, _> =
     let irExpr = copyPropagationOptimizeExpression optenv items irExpr
     match irExpr with
+    | E.Let(name, localIndex, ((E.Phi(_phiValues, _)) as irRhsExpr), irBodyExpr) ->
+            E.Let(name, localIndex, irRhsExpr, handleExpression optenv items irBodyExpr)
+
     | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
         let irNewRhsExpr = handleExpression optenv items irRhsExpr
 
-        if optenv.CanPropagateLocal localIndex then
+        if optenv.CanPropagateLocal localIndex && not(optenv.ssaenv.IsSsaIndexInLoop(localIndex)) then
             match irNewRhsExpr with
-            | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate ->
+            | E.Value(value=V.Local(localIndexToPropagate, _)) when optenv.CanPropagateLocal localIndexToPropagate && not(optenv.ssaenv.IsSsaIndexInLoop(localIndexToPropagate)) ->
                 items.Add(localIndex, CopyPropagationItem.Local(localIndexToPropagate))
                 let irNewBodyExpr = handleExpression optenv items irBodyExpr
                 if irNewRhsExpr = irRhsExpr && irNewRhsExpr = irBodyExpr then

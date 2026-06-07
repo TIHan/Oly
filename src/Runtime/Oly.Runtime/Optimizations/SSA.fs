@@ -204,15 +204,6 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
         optenv.argLocalManager.SetLocalImmutable(localIndex)
         ToSSAAux optenv used rhsExpr (
             fun (newRhsExpr, used) ->
-                let used = 
-                    match optenv.ssaenv.GetValue(localIndex) with
-                    | SsaValue.UseLocal(nonSsaLocalIndex, _) ->
-                        used.SetLocal(nonSsaLocalIndex, localIndex)
-                    | SsaValue.UseArgument(argIndex, _) ->
-                        used.SetArgument(argIndex, localIndex)
-                    | SsaValue.Definition ->
-                        used.SetLocal(localIndex, localIndex)
-
                 let phiExprs, used = createPhi optenv used (seq { used }) bodyExpr
                 cont(E.Let(name, localIndex, newRhsExpr, phiExprs), used)
         )
@@ -264,17 +255,31 @@ let private handleLinearToSSA (optenv: optenv<_, _, _>) (used: SsaUsage) (expr: 
         |> cont
 
     | E.Sequential(E.While(conditionExpr, bodyExpr, resultTy), expr2) ->
-        let newConditionExpr, used = ToSSA optenv used conditionExpr
-        let newBodyExpr, usedBranch = ToSSA optenv used bodyExpr
-        let used = usedBranch
+        let newConditionExpr, used2 = createPhi optenv used (seq { used }) conditionExpr
+        let newBodyExpr, used3 = createPhi optenv used2 (seq { used2 }) bodyExpr
 
-        if newConditionExpr = conditionExpr && newBodyExpr = bodyExpr then
-            expr, used
-        else
-            let newExpr = E.While(newConditionExpr, newBodyExpr, resultTy)
-            let phiExprs, used = createPhi optenv used (seq { used }) expr2
-            E.Sequential(newExpr, phiExprs), used
-        |> cont
+        used2.argUsed.Keys
+        |> Seq.iter (fun ssaIndex ->
+            optenv.ssaenv.SetSsaIndexInLoop(ssaIndex)
+        )
+
+        used2.localUsed.Keys
+        |> Seq.iter (fun ssaIndex ->
+            optenv.ssaenv.SetSsaIndexInLoop(ssaIndex)
+        )
+
+        used3.argUsed.Keys
+        |> Seq.iter (fun ssaIndex ->
+            optenv.ssaenv.SetSsaIndexInLoop(ssaIndex)
+        )
+
+        used3.localUsed.Keys
+        |> Seq.iter (fun ssaIndex ->
+            optenv.ssaenv.SetSsaIndexInLoop(ssaIndex)
+        )
+
+        let newExpr2, used4 = createPhi optenv used3 (seq { used3 }) expr2
+        cont(E.Sequential(E.While(newConditionExpr, newBodyExpr, resultTy), newExpr2), used4)
 
     | E.Sequential(expr1, expr2) ->
         let newExpr1, used = ToSSA optenv used expr1

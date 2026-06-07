@@ -62,6 +62,7 @@ type internal ssaenv<'Type>(argLocalManager: ArgumentLocalManager) =
     let ssaLookup = Dictionary<int, SsaValue<'Type>>()
     let localIndexToSsaIndexLookup = Dictionary<int, int>()
     let argIndexToSsaIndexLookup = Dictionary<int, int>()
+    let ssaInLoop = HashSet<int>()
 
     member this.TryGetSsaIndexFromLocal(localIndex: int) =
         match localIndexToSsaIndexLookup.TryGetValue(localIndex) with
@@ -85,6 +86,12 @@ type internal ssaenv<'Type>(argLocalManager: ArgumentLocalManager) =
         ssaLookup[ssaIndex] <- SsaValue.UseArgument(argIndex, resultTy)
         argIndexToSsaIndexLookup[argIndex] <- ssaIndex
         ssaIndex
+
+    member this.SetSsaIndexInLoop(ssaIndex: int) =
+        ssaInLoop.Add(ssaIndex) |> ignore
+
+    member this.IsSsaIndexInLoop(ssaIndex: int) =
+        ssaInLoop.Contains(ssaIndex)
 
     member this.GetValue(ssaIndex: int) =
         match ssaLookup.TryGetValue(ssaIndex) with
