@@ -483,9 +483,6 @@ module rec SpirvLowering =
         | E.While(conditionExpr, bodyExpr, resultTy) ->
             LowerWhile cenv env expr conditionExpr bodyExpr resultTy
 
-        | E.Phi _ ->
-            raise(NotImplementedException())
-
         | E.Try _ ->
             raise(NotSupportedException("Exception handling is not supported in SPIR-V."))
 

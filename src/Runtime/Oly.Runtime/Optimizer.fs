@@ -20,128 +20,6 @@ open Oly.Runtime.CodeGen.Internal.Optimizations.AssertionPropagation
 open Oly.Runtime.CodeGen.Internal.Optimizations.DeadCodeElimination
 open Oly.Runtime.CodeGen.Internal.LocalNormalization
 
-(* Template ************************************************************************************************************************************************
-let handleOperation irExpr =
-    match irExpr with
-    | E.Operation(irTextRange, irOp) ->
-        irExpr
-    | _ ->
-        OlyAssert.Fail("Expected opertion")
-
-let rec handleExpression irExpr : E<_, _, _> =
-    match irExpr with
-    | E.Let(name, localIndex, irRhsExpr, irBodyExpr) ->
-        let irNewRhsExpr = handleExpression irRhsExpr
-        let irNewBodyExpr = handleExpression irBodyExpr
-
-        if irNewRhsExpr = irRhsExpr && irNewBodyExpr = irBodyExpr then
-            irExpr
-        else
-            E.Let(name, localIndex, irNewRhsExpr, irNewBodyExpr)
-
-    | E.IfElse(irConditionExpr, irTrueTargetExpr, irFalseTargetExpr, resultTy) ->
-        let irNewConditionExpr = handleExpression irConditionExpr
-
-        match irNewConditionExpr with
-        | E.Value(value=V.Constant(C.True, _)) ->
-            handleExpression irTrueTargetExpr
-
-        | E.Value(value=V.Constant(C.False, _)) ->
-            handleExpression irFalseTargetExpr
-
-        | _ ->
-            let irNewTrueTargetExpr = handleExpression irTrueTargetExpr
-            let irNewFalseTargetExpr = handleExpression irFalseTargetExpr
-
-            if irNewConditionExpr = irConditionExpr && irNewTrueTargetExpr = irTrueTargetExpr && irNewFalseTargetExpr = irFalseTargetExpr then
-                irExpr
-            else
-                E.IfElse(irNewConditionExpr, irNewTrueTargetExpr, irNewFalseTargetExpr, resultTy)
-
-    | E.While(irConditionExpr, irBodyExpr, resultTy) ->
-        let irNewConditionExpr = handleExpression irConditionExpr
-
-        match irNewConditionExpr with
-        | E.Value(value=V.Constant(C.False, _)) ->
-            E.None(resultTy)
-        | _ ->
-            let irNewBodyExpr = handleExpression irBodyExpr
-
-            if irNewConditionExpr = irConditionExpr && irNewBodyExpr = irBodyExpr then
-                irExpr
-            else
-                E.While(irNewConditionExpr, irNewBodyExpr, resultTy)
-
-    | E.Try(irBodyExpr, irCatchCases, irFinallyBodyExprOpt, resultTy) ->
-        let irNewBodyExpr = handleExpression irBodyExpr
-
-        let mutable didChange = false
-        let irNewCatchCases =
-            irCatchCases
-            |> ImArray.map (fun irCatchCase ->
-                match irCatchCase with
-                | OlyIRCatchCase.CatchCase(localName, localIndex, irCaseBodyExpr, catchTy) ->
-                    let irNewCaseBodyExpr = handleExpression irCaseBodyExpr
-
-                    if irNewCaseBodyExpr = irCaseBodyExpr then
-                        irCatchCase
-                    else
-                        didChange <- true
-                        OlyIRCatchCase.CatchCase(localName, localIndex, irNewCaseBodyExpr, catchTy)
-            )
-
-        let irNewFinallyBodyExprOpt =
-            irFinallyBodyExprOpt
-            |> Option.map (fun irExpr ->
-                let irNewExpr = handleExpression irExpr
-                if irNewExpr = irExpr then
-                    irExpr
-                else
-                    didChange <- true
-                    irNewExpr
-            )
-
-        if irNewBodyExpr = irBodyExpr && not didChange then
-            irExpr
-        else
-            E.Try(irNewBodyExpr, irNewCatchCases, irNewFinallyBodyExprOpt, resultTy)
-
-    | E.Sequential(irExpr1, irExpr2) ->
-        let irNewExpr1 = handleExpression irExpr1
-        let irNewExpr2 = handleExpression irExpr2
-
-        if irNewExpr1 = irExpr1 && irNewExpr2 = irExpr2 then
-            irExpr
-        else
-            E.Sequential(irNewExpr1, irNewExpr2)
-
-    | E.Operation(irTextRange, irOp) ->
-        let irNewArgExprs = irOp.MapArguments(fun _ irArgExpr -> handleExpression irArgExpr)
-        let mutable areSame = true
-        irOp.ForEachArgument(fun i irArgExpr ->
-            if irNewArgExprs[i] <> irArgExpr then
-                areSame <- false
-        )
-        if areSame then
-            handleOperation irExpr
-        else
-            let irNewOp = irOp.ReplaceArguments(irNewArgExprs) 
-            E.Operation(irTextRange, irNewOp)
-            |> handleOperation
-
-    | _ ->
-        irExpr
-
-handleExpression irExpr
-
-*)
-
-
-
-// -------------------------------------------------------------------------------------------------------------
-
-// -------------------------------------------------------------------------------------------------------------
-
 let OptimizeFunctionBody<'Type, 'Function, 'Field> 
         (tryGetFunctionBody: RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option) 
         (emitFunction: RuntimeFunction -> 'Function)
@@ -174,8 +52,6 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
     let inline checkExpr name optenv expr =
 #if DEBUG || CHECKED
         try
-            // TODO: We could expand this, but NormalizeLocals is good enough.
-    //        try
             let _ = NormalizeLocals optenv expr
             ()
         with
@@ -199,26 +75,11 @@ let OptimizeFunctionBody<'Type, 'Function, 'Field>
         |> DeadCodeElimination optenv
         |> checkExpr "DeadCodeElimination" optenv
 
-    //if optenv.IsDebuggable then
-    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_debug_before.oly-ir", Dump.DumpExpression irExpr)
-    //else
-    //    System.IO.File.WriteAllText($"{enclosingTyName}_{funcName}_before.oly-ir", Dump.DumpExpression irExpr)
-
     let irOptimizedExpr = 
         let mutable irNewExpr = InlineFunctions optenv irExpr |> checkExpr "InlineFunctions" optenv
         if optenv.IsDebuggable |> not then
-            // Run an optimize expression pass before SSA.
-            irNewExpr <-
-                irNewExpr
-                |> OptimizeExpression optenv  
-                |> checkExpr "OptimizeExpression" optenv
-        //    irNewExpr <- SSA.ToSSA optenv SSA.SsaUsage.Default irNewExpr |> fst |> checkExpr "ToSSA" optenv
-
             for _ = 1 to 3 do // 3 passes
                 irNewExpr <- optimizationPass optenv irNewExpr
-
-           // irNewExpr <- SSA.FromSSA optenv ImmutableHashSet.Empty irNewExpr |> checkExpr "FromSSA" optenv
-            irNewExpr <- DeadCodeElimination optenv irNewExpr |> checkExpr "DeadCodeElimination after FromSSA" optenv
         irNewExpr
 
     let irOptimizedExpr, optenv = 

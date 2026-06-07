@@ -908,7 +908,6 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
-    | Phi of            int imarray * resultTy: 'Type
 
     member this.WithResultType(resultTy: 'Type) =
         match this with
@@ -929,8 +928,6 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
             While(conditionExpr, bodyExpr, resultTy)
         | Try(bodyExpr, catchCases, finallyBodyExprOpt, _) ->
             Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy)
-        | Phi(values, _) ->
-            Phi(values, resultTy)
 
     member this.GetExpressions() : _ imarray =
         match this with
@@ -969,8 +966,7 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | None(resultTy=resultTy)
         | While(resultTy=resultTy)
         | IfElse(resultTy=resultTy) 
-        | Try(resultTy=resultTy)
-        | Phi(resultTy=resultTy) -> resultTy
+        | Try(resultTy=resultTy) -> resultTy
 
     member this.TextRange =
         match this with
@@ -982,7 +978,6 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
         | IfElse(conditionExpr, _, _, _)
         | While(conditionExpr, _, _) -> conditionExpr.TextRange
         | Try(bodyExpr=bodyExpr) -> bodyExpr.TextRange
-        | Phi _ -> OlyIRDebugSourceTextRange.Empty
 
     override this.ToString() =
         Dump.DumpExpression this
@@ -1300,8 +1295,5 @@ module Dump =
         | E.Try _ ->
             // TODO: Implement this.
             "TRY"
-
-        | E.Phi _ ->
-            "PHI"
 
 exception OlyRuntimeException of message: string * textRange: OlyIRDebugSourceTextRange

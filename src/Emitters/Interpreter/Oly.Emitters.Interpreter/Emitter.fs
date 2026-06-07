@@ -1658,9 +1658,6 @@ type InterpreterFunction(env: InterpreterEnvironment,
             | InterpreterExpression.None(_) ->
                 ()
 
-            | InterpreterExpression.Phi _ ->
-                failwith "Phi not supported."
-
         evalExpr stack expr
 
 type InterpreterExpression = OlyIRExpression<InterpreterType, InterpreterFunction, InterpreterField>

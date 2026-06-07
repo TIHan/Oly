@@ -33,9 +33,6 @@ type internal ArgumentLocalManager (argFlags: OlyIRLocalFlags [], localFlags: Re
     member _.IsArgumentAddressExposed(argIndex) =
         argFlags[argIndex].HasFlag(OlyIRLocalFlags.AddressExposed)
 
-    member _.SetLocalImmutable(localIndex) =
-        localFlags[localIndex] <- localFlags[localIndex] &&& ~~~OlyIRLocalFlags.Mutable
-
     member _.GetLocalFlags(localIndex) =
         localFlags[localIndex]
 
@@ -86,12 +83,6 @@ type internal ssaenv<'Type>(argLocalManager: ArgumentLocalManager) =
         ssaLookup[ssaIndex] <- SsaValue.UseArgument(argIndex, resultTy)
         argIndexToSsaIndexLookup[argIndex] <- ssaIndex
         ssaIndex
-
-    member this.SetSsaIndexInLoop(ssaIndex: int) =
-        ssaInLoop.Add(ssaIndex) |> ignore
-
-    member this.IsSsaIndexInLoop(ssaIndex: int) =
-        ssaInLoop.Contains(ssaIndex)
 
     member this.GetValue(ssaIndex: int) =
         match ssaLookup.TryGetValue(ssaIndex) with

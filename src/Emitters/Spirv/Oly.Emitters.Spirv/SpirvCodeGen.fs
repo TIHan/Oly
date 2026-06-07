@@ -452,9 +452,6 @@ module rec SpirvCodeGen =
         | E.While _ ->
             raise(NotImplementedException())
 
-        | E.Phi _ ->
-            raise(NotImplementedException())
-
         | E.Let _ ->
             raise(InvalidOperationException($"Should have been lowered:\n{expr}"))
 

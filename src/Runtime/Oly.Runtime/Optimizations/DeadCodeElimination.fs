@@ -21,11 +21,6 @@ let DeadCodeElimination optenv (irExpr: E<_, _, _>) =
     
     let rec analyzeExpression inCandidate (localDefs: ImmutableHashSet<int>) irExpr : unit =
         match irExpr with
-        | E.Let(_, localIndex, E.Phi _, irBodyExpr) ->
-            let localDefs = localDefs.Add(localIndex)
-            doNotRemove.Add(localIndex) |> ignore
-            analyzeExpression inCandidate localDefs irBodyExpr
-
         | E.Let(_, localIndex, irRhsExpr, irBodyExpr) ->
             analyzeExpression inCandidate localDefs irRhsExpr
 

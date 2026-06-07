@@ -941,7 +941,7 @@ let ``Test 9`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "needs ssa")>]
 let ``Test 10`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -998,7 +998,7 @@ let ``Test 10`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact>]
+[<Fact(Skip = "needs ssa")>]
 let ``Test 11 - needs ssa`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
