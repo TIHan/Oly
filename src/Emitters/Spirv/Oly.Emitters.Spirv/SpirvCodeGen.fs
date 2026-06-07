@@ -248,6 +248,18 @@ module rec SpirvCodeGen =
                 | _ ->
                     raise(NotSupportedException(arg1Expr.ResultType.ToString()))
 
+            | O.LessThan(arg1Expr, _, resultTy) ->
+                let arg1IdRef = idRefs |> Array.head
+                let arg2IdRef = idRefs[1]
+
+                match arg1Expr.ResultType with
+                | SpirvType.Int32 _ ->
+                    let idResult = cenv.Module.NewIdResult()
+                    OpSLessThan(resultTy.IdResult, idResult, arg1IdRef, arg2IdRef) |> emitInstruction cenv
+                    idResult
+                | _ ->
+                    raise(NotSupportedException(op.ToString()))
+
             | O.Cast(argExpr, castToTy) ->
                 let idRef1 = idRefs |> Array.head
 
@@ -411,28 +423,28 @@ module rec SpirvCodeGen =
             OlyAssert.Equal(trueTargetExpr.ResultType, resultTy)
 #endif
 
-            let contLabel = cenv.Module.NewIdResult()
-            let trueTargetLabel = cenv.Module.NewIdResult()
-            let falseTargetLabel = cenv.Module.NewIdResult()
+            let mergeLabel = cenv.Module.NewIdResult()
+            let trueLabel = cenv.Module.NewIdResult()
+            let falseLabel = cenv.Module.NewIdResult()
 
             [
-                OpSelectionMerge(contLabel, SelectionControl.None)
-                OpBranchConditional(conditionIdRef, trueTargetLabel, falseTargetLabel, [])
+                OpSelectionMerge(mergeLabel, SelectionControl.None)
+                OpBranchConditional(conditionIdRef, trueLabel, falseLabel, [])
             ]
             |> emitInstructions cenv
 
-            OpLabel(trueTargetLabel) |> emitInstruction cenv
-            let trueTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = trueTargetLabel } trueTargetExpr
+            OpLabel(trueLabel) |> emitInstruction cenv
+            let trueTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = trueLabel } trueTargetExpr
             let trueTargetPredecessorBlockLabel = cenv.PredecessorBlockLabel
-            OpBranch(contLabel) |> emitInstruction cenv
+            OpBranch(mergeLabel) |> emitInstruction cenv
 
-            OpLabel(falseTargetLabel) |> emitInstruction cenv
-            let falseTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = falseTargetLabel } falseTargetExpr
+            OpLabel(falseLabel) |> emitInstruction cenv
+            let falseTargetIdRef = GenExpression cenv { env with CurrentBlockLabel = falseLabel } falseTargetExpr
             let falseTargetPredecessorBlockLabel = cenv.PredecessorBlockLabel
-            OpBranch(contLabel) |> emitInstruction cenv
+            OpBranch(mergeLabel) |> emitInstruction cenv
 
-            OpLabel(contLabel) |> emitInstruction cenv
-            cenv.PredecessorBlockLabel <- contLabel
+            OpLabel(mergeLabel) |> emitInstruction cenv
+            cenv.PredecessorBlockLabel <- mergeLabel
             
             match resultTy with
             | SpirvType.Void _ ->
@@ -449,8 +461,60 @@ module rec SpirvCodeGen =
                 ) |> emitInstruction cenv
                 idResult
 
-        | E.While _ ->
-            raise(NotImplementedException())
+        | E.While(conditionExpr, bodyExpr, resultTy) ->
+            let headerLabel = cenv.Module.NewIdResult()
+            let bodyLabel = cenv.Module.NewIdResult()
+            let continueLabel = cenv.Module.NewIdResult()
+            let mergeLabel = cenv.Module.NewIdResult()
+
+//; --- LOOP HEADER BLOCK ---
+//%loop_header = OpLabel
+//    ; Merge block = %loop_merge, Continue target = %loop_continue
+//    OpLoopMerge %loop_merge %loop_continue None
+//    OpBranch %loop_body
+
+//; --- LOOP BODY BLOCK ---
+//%loop_body = OpLabel
+//    %condition = OpLoad %bool %my_cond_var
+//    OpBranchConditional %condition %loop_continue %loop_merge
+
+//; --- CONTINUE TARGET BLOCK ---
+//%loop_continue = OpLabel
+//    ; Code like "i++" goes here
+//    OpBranch %loop_header  ; Branch back to loop header
+
+//; --- LOOP MERGE BLOCK ---
+//%loop_merge = OpLabel
+//    ; Execution continues here after the loop breaks
+
+            [
+                OpBranch(headerLabel)
+                OpLabel(headerLabel)
+                OpLoopMerge(mergeLabel, continueLabel, LoopControl.None)
+                OpBranch(bodyLabel)
+            ]
+            |> emitInstructions cenv
+
+            // BODY BLOCK
+            OpLabel(bodyLabel) |> emitInstruction cenv
+            let conditionIdRef = GenExpression cenv { env with CurrentBlockLabel = bodyLabel }.NotReturnable conditionExpr
+            OpBranchConditional(conditionIdRef, continueLabel, mergeLabel, []) |> emitInstruction cenv
+
+            // CONTINUE BLOCK
+            OpLabel(continueLabel) |> emitInstruction cenv
+            let bodyLabelIdRef = GenExpression cenv { env with CurrentBlockLabel = continueLabel }.NotReturnable bodyExpr
+            OpBranch(headerLabel) |> emitInstruction cenv
+
+            // MERGE BLOCK
+            OpLabel(mergeLabel) |> emitInstruction cenv
+            cenv.PredecessorBlockLabel <- mergeLabel
+            
+            match resultTy with
+            | SpirvType.Void _ ->
+                OlyAssert.Equal(IdRef0,bodyLabelIdRef)
+                IdRef0
+            | _ ->
+                raise(InvalidOperationException("Expected void type"))
 
         | E.Let _ ->
             raise(InvalidOperationException($"Should have been lowered:\n{expr}"))

@@ -639,6 +639,9 @@ module BuiltInFunctions =
                         | SpirvType.Vec(elementTy=SpirvType.Float64 _) ->
                             idResult,
                             [OpFAdd(returnTy.IdResult, idResult, idRefs[0], idRefs[1])]
+                        | SpirvType.Int32 _ ->
+                            idResult,
+                            [OpIAdd(returnTy.IdResult, idResult, idRefs[0], idRefs[1])]
                         | _ ->
                             invalidOp "Bad return type."
                     | _ ->

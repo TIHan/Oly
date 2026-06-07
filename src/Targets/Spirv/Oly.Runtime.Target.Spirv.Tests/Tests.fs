@@ -1099,3 +1099,87 @@ main(): () =
     |> OlyCompute_1_3
         [|Vector4(0.0f)|] 
         [|Vector4(123.0f, 456.0f, 789.0f, 999.0f)|]
+
+[<Fact>]
+let ``Should use while loop`` () =
+    let src =
+        """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
+main(): () =
+    let mutable color = color
+    let mutable i = 0
+    while (i < 5)
+        color <- vec4(0.5)
+        i <- i + 1
+    outColor <- color
+        """
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+
+[<Fact>]
+let ``Should use while loop 2`` () =
+    let src =
+        """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
+main(): () =
+    let mutable color = color
+    let mutable i = 0
+    color <- vec4(1)
+    if (color.X == 1)
+        while (i < 5)
+            color <- vec4(0.5)
+            i <- i + 1
+    outColor <- color
+        """
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+
+[<Fact>]
+let ``Should use while loop 3`` () =
+    let src =
+        """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
+main(): () =
+    let mutable color = color
+    let mutable i = 0
+    color <- vec4(1)
+    if (color.X == 1)
+        while (i < 5)
+            if (color.X == 1)
+                while (i < 5)
+                    color <- vec4(0.5)
+                    i <- i + 1
+    outColor <- color
+        """
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey

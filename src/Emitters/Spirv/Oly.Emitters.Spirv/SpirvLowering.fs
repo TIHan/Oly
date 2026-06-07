@@ -291,6 +291,7 @@ module rec SpirvLowering =
                     loweredArgExpr
                 
                 | O.Equal _
+                | O.LessThan _
                 | O.Cast _ ->
                     AutoDereferenceLoweredExpressionIfPossible loweredArgExpr
 
@@ -327,7 +328,7 @@ module rec SpirvLowering =
                             CopyLoweredArgument cenv loweredArgExpr
 
                 | _ ->
-                    raise(NotImplementedException(op.ToString()))
+                    loweredArgExpr
             )
 
         let handleCallVariable (var: SpirvVariable) (irFunc: OlyIRFunction<_, _, _>) argExprs resultTy =
