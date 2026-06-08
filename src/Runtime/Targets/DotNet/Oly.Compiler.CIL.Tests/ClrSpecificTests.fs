@@ -10903,3 +10903,29 @@ main(): () =
                 |> withCompile
                 |> shouldRunWithExpectedOutput "hello42"
         )
+
+[<Fact>]
+let ``Pointer should work from a value``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+Call(x: int32*): () = print("test")
+
+main(): () =
+    let mutable x = 1
+    Call(&&x)
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"

@@ -796,7 +796,9 @@ module rec ClrCodeGen =
 
         | O.Cast(irArg, resultTy) ->
             GenArgumentExpression cenv env irArg
-            if resultTy.IsTypeVariable then
+            if irArg.ResultType.IsByRef_t && resultTy.IsNativePointer then
+                I.Conv_u |> emitInstruction cenv
+            elif resultTy.IsTypeVariable then
                 I.Box(irArg.ResultType.Handle) |> emitInstruction cenv
                 I.Unbox_any(resultTy.Handle) |> emitInstruction cenv
             else
@@ -1256,7 +1258,7 @@ module rec ClrCodeGen =
     let canTailCall cenv (func: ClrMethodInfoDefinition) =
         cenv.emitTailCalls && 
       //  func.ReturnType.Handle <> cenv.assembly.TypeReferenceVoid && 
-        not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x)) &&
+        not(func.Parameters |> ImArray.exists (fun (_, x) -> isByRefLike cenv.assembly x || x.IsNativePointer)) &&
         not(isByRefLike cenv.assembly func.ReturnType)
 
     let GenCall (cenv: cenv) env isReturnable (func: ClrMethodInfoDefinition) (irArgs: E<_, _, _> imarray) isVirtual (constrainedTyOpt: ClrTypeInfo voption) =

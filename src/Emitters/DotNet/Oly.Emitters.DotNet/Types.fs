@@ -158,7 +158,7 @@ and [<RequireQualifiedAccess;NoComparison;NoEquality;System.Diagnostics.Debugger
 
     member this.IsNativePointer =
         match this with
-        | TypeGenericInstance(_, _, handle) ->
+        | TypeReference(handle, _, _) ->
             handle.IsNativePointer_t
         | _ ->
             false

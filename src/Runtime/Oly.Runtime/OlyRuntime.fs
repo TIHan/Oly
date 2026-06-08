@@ -1762,7 +1762,9 @@ let importArgumentExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env
                     | _ ->
                         // TODO: Add extra checks? And/or add a new node that understands the relationship between the two types.
                         if argTy.IsByRef_t && (argTy.TypeArguments[0].IsTypeVariable || argTy.TypeArguments[0].IsAnyStruct) then
-                            if expectedArgTy.IsAbstract || expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt then
+                            if expectedArgTy.IsAnyPtr || expectedArgTy.IsAnyNativeInt then
+                                E.Operation(NoRange, O.Cast(irArg, cenv.EmitType(expectedArgTy)))
+                            elif expectedArgTy.IsAbstract then
                                 irArg
                             else
                                 failwith $"Type {argTy.DebugText} is not a sub-type of {expectedArgTy.DebugText}."
