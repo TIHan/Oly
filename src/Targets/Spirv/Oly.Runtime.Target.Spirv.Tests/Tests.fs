@@ -1236,4 +1236,4 @@ main(): () =
         i <- i + 1
     outColor <- color
         """
-    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 0, 0, 255)) src // should show grey
+    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 0, 0, 255)) src // should NOT show grey
