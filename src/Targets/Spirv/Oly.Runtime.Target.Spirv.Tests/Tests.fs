@@ -1183,3 +1183,57 @@ main(): () =
     outColor <- color
         """
     OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+
+[<Fact>]
+let ``Should use while loop 4`` () =
+    let src =
+        """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
+main(): () =
+    let mutable color = color
+    let mutable i = 0
+    while (i < 5)
+        if (i == 4)
+            color <- vec4(0.5)
+        i <- i + 1
+    outColor <- color
+        """
+    OlyFragment_1_0 (0, 0, Color.FromArgb(127, 127, 127, 127)) src // should show grey
+
+[<Fact>]
+let ``Should use while loop 5`` () =
+    let src =
+        """
+texCoords: vec2
+    #[location(0)]
+    get
+
+color: vec4    
+    #[location(1)] 
+    get
+
+outColor: vec4 
+    #[location(0)] 
+    set
+
+main(): () =
+    let mutable color = color
+    let mutable i = 0
+    while (i < 5)
+        if (i == 5)
+            color <- vec4(0.5)
+        i <- i + 1
+    outColor <- color
+        """
+    OlyFragment_1_0 (0, 0, Color.FromArgb(255, 0, 0, 255)) src // should show grey
