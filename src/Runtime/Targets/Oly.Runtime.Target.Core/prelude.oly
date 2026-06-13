@@ -1,5 +1,5 @@
 #[open]
-module OlyPrelude
+module Oly.Prelude.Core
 
 #if DOTNET
 open System

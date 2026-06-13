@@ -1,5 +1,5 @@
 #[open]
-module OlyNumerics
+module Oly.Prelude.Numerics
 
 #[import("spirv", "std", "vec2")]
 struct vec2 =

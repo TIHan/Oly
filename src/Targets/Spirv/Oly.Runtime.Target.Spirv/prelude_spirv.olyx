@@ -4,4 +4,4 @@
 #load "prelude.oly"
 #load "numerics_spirv.oly"
 
-namespace Oly
+namespace Oly.Prelude

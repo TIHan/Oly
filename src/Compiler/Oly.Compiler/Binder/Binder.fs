@@ -58,7 +58,10 @@ let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnos
                         else
                             env
                 | _ ->
-                    env
+                    if ent.IsPreludeNamespace then
+                        openContentsOfEntity declTable env openContent ent
+                    else
+                        env
             )
 
     importDiags

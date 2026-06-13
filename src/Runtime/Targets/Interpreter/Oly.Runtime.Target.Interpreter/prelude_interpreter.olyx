@@ -3,4 +3,4 @@
 
 #load "prelude.oly"
 
-namespace Oly
+namespace Oly.Prelude

@@ -5675,6 +5675,13 @@ module SymbolExtensions =
             member this.IsAutoOpenable =
                 this.Flags.HasFlag(EntityFlags.AutoOpen)
 
+            member this.IsPreludeNamespace =
+                this.IsNamespace && 
+                this.Name = "Prelude" && 
+                this.Enclosing.IsNamespace && 
+                this.Enclosing.AsEntity.Name = "Oly" && 
+                this.Enclosing.Enclosing.IsRootNamespace
+
             // Gets the type parameter count that does not include its enclosing's type parameter count.
             member this.LogicalTypeParameterCount =
                 let n = this.TypeParameters.Length - this.Enclosing.TypeParameters.Length

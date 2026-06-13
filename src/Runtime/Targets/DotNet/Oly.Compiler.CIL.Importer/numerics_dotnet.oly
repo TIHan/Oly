@@ -1,5 +1,5 @@
 #[open]
-module OlyNumerics
+module Oly.Prelude.Numerics
 
 open System
 open System.Numerics

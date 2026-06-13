@@ -4,4 +4,4 @@
 #load "prelude.oly"
 #load "numerics_dotnet.oly"
 
-namespace Oly
+namespace Oly.Prelude
