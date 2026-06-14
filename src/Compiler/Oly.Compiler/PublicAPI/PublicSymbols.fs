@@ -477,7 +477,7 @@ and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | Float32 of value: float32
     | Float64 of value: float
     | Char16 of value: char
-    | Utf16 of value: string
+    | String16 of value: string
     | Array of elementTy: OlyTypeSymbol * values: OlyConstant imarray
     | Variable of OlyTypeSymbol
     | External of OlyValueSymbol
@@ -511,7 +511,7 @@ type OlyConstantSymbol internal (internalLiteral: BoundLiteral) =
         | ConstantSymbol.True -> OlyConstant.True
         | ConstantSymbol.False -> OlyConstant.False
         | ConstantSymbol.Char16(value) -> OlyConstant.Char16(value)
-        | ConstantSymbol.Utf16(value) -> OlyConstant.Utf16(value)
+        | ConstantSymbol.String16(value) -> OlyConstant.String16(value)
         | ConstantSymbol.Array(elementTy, values) ->
             OlyConstant.Array(
                 OlyTypeSymbol(elementTy), 
@@ -1137,7 +1137,7 @@ type OlySymbolUseInfo internal (symbol: OlySymbol, subModel: OlyBoundSubModel) =
                     | OlyConstant.True -> "true"
                     | OlyConstant.False -> "false"
                     | OlyConstant.Char16(value) -> $"'{value}'"
-                    | OlyConstant.Utf16(value) -> $"\"{value}\""
+                    | OlyConstant.String16(value) -> $"\"{value}\""
                     | OlyConstant.Null -> "null"
                     | OlyConstant.Default -> "default"
                     | OlyConstant.Array(_, values) ->
@@ -1612,7 +1612,7 @@ let private getTypeSymbolByExpression bm (collector: ISymbolCollector) (syntaxEx
         | OlySyntaxLiteral.Integer(syntaxToken)
         | OlySyntaxLiteral.Real(syntaxToken)
         | OlySyntaxLiteral.Char16(syntaxToken)
-        | OlySyntaxLiteral.Utf16(syntaxToken) ->
+        | OlySyntaxLiteral.String16(syntaxToken) ->
             if collector.FilterSyntax syntaxToken then
                 collector.CollectSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(bm, syntaxToken, boundNode)))
         | _ ->
@@ -1891,7 +1891,7 @@ type OlyBoundModel internal (
             | OlySyntaxLiteral.Integer(syntaxToken)
             | OlySyntaxLiteral.Real(syntaxToken)
             | OlySyntaxLiteral.Char16(syntaxToken)
-            | OlySyntaxLiteral.Utf16(syntaxToken) ->
+            | OlySyntaxLiteral.String16(syntaxToken) ->
                 if collector.FilterSyntax syntaxToken then
                     collector.CollectSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(this, syntaxToken, boundNode)))
             | _ ->
@@ -1936,7 +1936,7 @@ type OlyBoundModel internal (
                             | OlySyntaxLiteral.Integer(syntaxToken)
                             | OlySyntaxLiteral.Real(syntaxToken)
                             | OlySyntaxLiteral.Char16(syntaxToken)
-                            | OlySyntaxLiteral.Utf16(syntaxToken) ->
+                            | OlySyntaxLiteral.String16(syntaxToken) ->
                                 if collector.FilterSyntax syntaxToken then
                                     collector.CollectSymbol(OlySymbolUseInfo(OlyConstantSymbol(arg.ToLiteral()), OlyBoundSubModel(this, syntaxToken, boundNode)))
                             | _ ->

@@ -3901,7 +3901,7 @@ let ``Nested module calls should work``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("print")]
@@ -3931,7 +3931,7 @@ let ``Nested type calls with ctor value should work``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("print")]
@@ -3966,7 +3966,7 @@ let ``Nested type calls should work``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4006,7 +4006,7 @@ let ``Nested type calls should work 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4054,7 +4054,7 @@ let ``Nested type calls should work 3``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4100,7 +4100,7 @@ let ``Nested type calls should work 4``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4149,7 +4149,7 @@ let ``Nested type calls should work 5``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4207,7 +4207,7 @@ let ``Nested type calls should work 6``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4265,7 +4265,7 @@ let ``Nested type calls should work 7``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -4314,7 +4314,7 @@ let ``Nested type calls should work 8``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -6041,7 +6041,7 @@ main(): () =
 let ``Simple pattern match should give expected output 22``() =
     let src = 
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("bool")]
@@ -6071,7 +6071,7 @@ main(): () =
 let ``Simple pattern match should give expected output 23``() =
     let src = 
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("bool")]
@@ -8167,7 +8167,7 @@ pattern Some<T>(value: Option<T>): T when (value !== null) => value.Value
 pattern Some<T>(value: Option<T>): (T, T) when SomeGuardTuple(value !== null) =>
     (value.Value, value.Value)
 
-test(option: Option<Option<Option<__oly_utf16>>>): () =
+test(option: Option<Option<Option<__oly_string16>>>): () =
     match (option)
     | Some(Some(Some("hello"), None))
     | Some(Some(Some("hello"), Some(_))) => print("passed")
@@ -9490,7 +9490,7 @@ test<A, B>(a: A, b: B): B where A: struct =
     s.b
 
 main(): () =
-    let x = test<__oly_int32, __oly_utf16>(123, "test")
+    let x = test<__oly_int32, __oly_string16>(123, "test")
     print(x)
         """
     Oly src
@@ -9517,7 +9517,7 @@ test<A, B>(a: A, b: B): B where A: struct =
     s.b
 
 main(): () =
-    let x = test<__oly_int32, __oly_utf16>(123, "test")
+    let x = test<__oly_int32, __oly_string16>(123, "test")
     print(x)
         """
     Oly src
@@ -9537,7 +9537,7 @@ test<A, B>(a: A, b: B): A where A: struct =
     test2<__oly_int32>()
 
 main(): () =
-    let x = test<__oly_int32, __oly_utf16>(123, "test")
+    let x = test<__oly_int32, __oly_string16>(123, "test")
     print(x)
         """
     Oly src
@@ -10450,7 +10450,7 @@ alias nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -13079,7 +13079,7 @@ let ``Basic newtype 2``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 newtype NewtypeTest =
@@ -13152,7 +13152,7 @@ let ``Basic newtype 5``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 newtype NewtypeTest =
@@ -13179,7 +13179,7 @@ let ``Basic newtype 6``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 newtype NewtypeTest =
@@ -13436,7 +13436,7 @@ module OptionPatterns<T> =
         print("Some was hit")
         value.Value
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | Some(_) => ()
 
@@ -13468,7 +13468,7 @@ module OptionPatterns<T> =
         print("Some was hit")
         value.Value
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | Some(y) => ()
 
@@ -13500,7 +13500,7 @@ module OptionPatterns<T> =
         print("None was hit")
         ()
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | None => ()
     | _ => ()
@@ -13914,7 +13914,7 @@ print(__oly_base_object): ()
 #[intrinsic("int32")]
 alias int
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("by_ref")]
@@ -13977,7 +13977,7 @@ print(__oly_base_object): ()
 #[intrinsic("int32")]
 alias int
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("by_ref")]
@@ -14044,7 +14044,7 @@ print(__oly_base_object): ()
 #[intrinsic("int32")]
 alias int
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("by_ref")]
@@ -15226,7 +15226,7 @@ newtype Option<T> where T: not struct =
 print(__oly_base_object): ()
 
 main(): () =
-    let x: Option<__oly_utf16> = None
+    let x: Option<__oly_string16> = None
     match (x)
     | Some(text) =>
         print(text)
@@ -15602,7 +15602,7 @@ let ``Generic interface that handles functions that have ambiguity 3``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
@@ -15683,7 +15683,7 @@ let ``Generic class that handles functions that have ambiguity 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
@@ -15785,7 +15785,7 @@ main(): () =
 let ``Multiple constructors where one calls the other``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
@@ -19813,7 +19813,7 @@ unsafeCast<T>(__oly_base_object): T
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -20868,7 +20868,7 @@ namespace Oly.Test
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 class C<T1> =

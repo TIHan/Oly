@@ -273,7 +273,7 @@ let ``Constraint should compile 4``() =
         """
 class Test<T> where T: not struct
 
-test(x: Test<__oly_utf16>): () =
+test(x: Test<__oly_string16>): () =
     ()
     """
     Oly src

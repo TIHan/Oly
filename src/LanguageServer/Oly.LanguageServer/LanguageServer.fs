@@ -1889,7 +1889,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                                                 | OlyConstant.True -> "true"
                                                 | OlyConstant.False -> "false"
                                                 | OlyConstant.Char16(value) -> $"'{value}'"
-                                                | OlyConstant.Utf16(value) -> $"\"{value}\""
+                                                | OlyConstant.String16(value) -> $"\"{value}\""
                                                 | OlyConstant.Null -> "null"
                                                 | OlyConstant.Default -> "default"
                                                 | OlyConstant.Array _ -> "OlyConstant.Array (implement this)"

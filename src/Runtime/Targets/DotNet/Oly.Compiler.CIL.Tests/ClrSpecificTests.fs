@@ -207,7 +207,7 @@ class List<T> =
 
     Add(item: T) : ()
 
-    overrides ToString() : __oly_utf16
+    overrides ToString() : __oly_string16
 
 main() : () =
     let xs : List<__oly_int32> = List<__oly_int32>()
@@ -234,9 +234,9 @@ print(__oly_base_object): ()
 struct CustomInt32 =
     inherits System.ValueType
 
-    static Parse(s: __oly_utf16) : CustomInt32
+    static Parse(s: __oly_string16) : CustomInt32
 
-    overrides ToString() : __oly_utf16
+    overrides ToString() : __oly_string16
 
 main() : () =
     let x = CustomInt32.Parse("123")
@@ -2266,7 +2266,7 @@ main(): () =
 let ``String concat with fully qualified calls``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
@@ -2498,7 +2498,7 @@ let ``Call ToString on newly defined class with overriding ToString``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
 main(): () =
     let x = Test()
@@ -2515,7 +2515,7 @@ let ``Call ToString on newly defined class with overriding ToString 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
 main(): () =
     let x = Test()
@@ -2533,7 +2533,7 @@ let ``Call ToString via witness on newly defined class``() =
         """
 class Test
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16 } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16 } = 
     System.Console.Write(x.ToString())
 
 main(): () =
@@ -2551,9 +2551,9 @@ let ``Call ToString via witness on newly defined class 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16 } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16 } = 
     System.Console.Write(x.ToString())
 
 main(): () =
@@ -2571,9 +2571,9 @@ let ``Call ToString via witness on newly defined class 3``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16; GetType(): System.Type } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16; GetType(): System.Type } = 
     System.Console.Write(x.ToString())
     System.Console.Write(x.GetType())
 
@@ -2743,7 +2743,7 @@ shape DotNetIndexSetter<TKey, TValue> =
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
 
 main(): () =
-    let lookup = Dictionary<__oly_utf16, int32>()
+    let lookup = Dictionary<__oly_string16, int32>()
     lookup["hello"] <- 123
     Console.Write(lookup["hello"])
         """
@@ -2783,7 +2783,7 @@ shape DotNetIndexSetter<TKey, TValue> =
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
 
 main(): () =
-    let strs = List<__oly_utf16>()
+    let strs = List<__oly_string16>()
     strs.Add("hello")
     Console.Write(strs[0])
         """
@@ -3181,7 +3181,7 @@ let ``Overrides ToString()``() =
 class Test =
     inherits System.Object
 
-    overrides ToString(): __oly_utf16 = "overrides"
+    overrides ToString(): __oly_string16 = "overrides"
 
 #[intrinsic("print")]
 print(__oly_base_object): ()
@@ -3200,7 +3200,7 @@ let ``Overrides ToString() 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overrides"
+    overrides ToString(): __oly_string16 = "overrides"
 
 #[intrinsic("print")]
 print(__oly_base_object): ()
@@ -3430,7 +3430,7 @@ abstract class BClass<T> =
 
 #[export]
 class AClass =
-    inherits BClass<__oly_utf16>
+    inherits BClass<__oly_string16>
 
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
@@ -3475,7 +3475,7 @@ class AClass<T> =
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
+        let a = AClass<__oly_string16>()
         print(a.Mtd<__oly_base_object>())
         """
     Oly src
@@ -3512,7 +3512,7 @@ class AClass<T> =
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
+        let a = AClass<__oly_string16>()
         print(a.Mtd<__oly_base_object>())
         """
     Oly src
@@ -3545,7 +3545,7 @@ class AClass<T> =
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
+        let a = AClass<__oly_string16>()
         print(a.Mtd<__oly_base_object>())
         """
     Oly src
@@ -3567,7 +3567,7 @@ module Prelude =
     #[intrinsic("int32")]
     alias int
     
-    #[intrinsic("utf16")]
+    #[intrinsic("string16")]
     alias string
     
     #[intrinsic("by_ref")]
@@ -3637,7 +3637,7 @@ module Prelude =
     #[intrinsic("int32")]
     alias int
     
-    #[intrinsic("utf16")]
+    #[intrinsic("string16")]
     alias string
     
     #[intrinsic("by_ref")]
@@ -3803,7 +3803,7 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("native_int")]
@@ -4160,7 +4160,7 @@ let ``Use 'Length' property from string``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -4178,7 +4178,7 @@ let ``Use 'Length' property from string 2``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -4196,7 +4196,7 @@ let ``Use 'Length' property from string 3``() =
 #[intrinsic("print")]
 print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -4514,7 +4514,7 @@ alias nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -6663,7 +6663,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -6725,7 +6725,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -6784,7 +6784,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -6844,7 +6844,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -6905,7 +6905,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -8184,7 +8184,7 @@ class A
 print(__oly_base_object): ()
 
 #[inline(never)]
-consume(x: __oly_utf16): () = ()
+consume(x: __oly_string16): () = ()
 
 main(): () =
     let ty = typeof<A>
@@ -8202,7 +8202,7 @@ let ``Int32 ToString via a shape abstraction``() =
     """
 open System
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -8828,7 +8828,7 @@ alias int32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
@@ -9149,7 +9149,7 @@ print(__oly_base_object): ()
 newtype A =
     field Value: __oly_int32
 
-    overrides ToString(): __oly_utf16 =
+    overrides ToString(): __oly_string16 =
         "A"
 
 main(): () = ()
@@ -9159,7 +9159,7 @@ main(): () = ()
         [
             ("'ToString' cannot be overriden in a newtype declaration.",
                 """
-    overrides ToString(): __oly_utf16 =
+    overrides ToString(): __oly_string16 =
               ^^^^^^^^
 """
             )
@@ -9178,7 +9178,7 @@ print(__oly_base_object): ()
 newtype A =
     field Value: __oly_int32
 
-    ToString(): __oly_utf16 =
+    ToString(): __oly_string16 =
         "Test"
 
 main(): () = ()
@@ -9188,7 +9188,7 @@ main(): () = ()
         [
             ("The member 'ToString' will hide over its base.",
                 """
-    ToString(): __oly_utf16 =
+    ToString(): __oly_string16 =
     ^^^^^^^^
 """
             )
@@ -9207,7 +9207,7 @@ print(__oly_base_object): ()
 newtype A =
     field Value: __oly_int32
 
-    new ToString(): __oly_utf16 =
+    new ToString(): __oly_string16 =
         "Test"
 
 main(): () =
@@ -9826,7 +9826,7 @@ open System
 open System.Threading
 open System.Threading.Tasks
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias strbg
 
 #[intrinsic("print")]

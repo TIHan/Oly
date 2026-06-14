@@ -2023,7 +2023,7 @@ type InterpreterRuntimeEmitter(stdout) =
         member this.EmitTypeUnit(): InterpreterType = 
             InterpreterType.Unit
 
-        member this.EmitTypeUtf16(): InterpreterType = 
+        member this.EmitTypeString16(): InterpreterType = 
             InterpreterType.Utf16
 
         member this.EmitTypeVariable(_, _): InterpreterType = 

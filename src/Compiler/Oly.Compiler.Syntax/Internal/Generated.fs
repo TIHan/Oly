@@ -2232,7 +2232,7 @@ type SyntaxLiteral =
     | Char16
         of
         valueToken: SyntaxToken
-    | Utf16
+    | String16
         of
         valueToken: SyntaxToken
     | Null
@@ -2313,7 +2313,7 @@ type SyntaxLiteral =
                 match index with
                 | 0 -> valueToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Utf16(valueToken) ->
+            | String16(valueToken) ->
                 match index with
                 | 0 -> valueToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
@@ -2353,7 +2353,7 @@ type SyntaxLiteral =
             | Float64 _ -> 1
             | Bool _ -> 1
             | Char16 _ -> 1
-            | Utf16 _ -> 1
+            | String16 _ -> 1
             | Null _ -> 1
             | Default _ -> 1
             | UncheckedDefault _ -> 2
@@ -2386,7 +2386,7 @@ type SyntaxLiteral =
                 (x :> ISyntaxNode).FullWidth
             | Char16(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | Utf16(x) ->
+            | String16(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Null(x) ->
                 (x :> ISyntaxNode).FullWidth

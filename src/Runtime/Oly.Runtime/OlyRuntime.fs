@@ -1180,7 +1180,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             let irArg1, resultTy1 = importExpression cenv env None irArg1
             let irArg2, resultTy2 = importExpression cenv env None irArg2
 
-            if resultTy1.IsUtf16_t && resultTy2.IsUtf16_t then
+            if resultTy1.IsString16_t && resultTy2.IsString16_t then
                 O.Utf16Equal(irArg1, irArg2, cenv.EmittedTypeBool) |> asExpr, RuntimeType.Bool
             else
                 O.Equal(irArg1, irArg2, cenv.EmittedTypeBool) |> asExpr, RuntimeType.Bool
@@ -2176,7 +2176,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         | OlyILConstant.True -> C.True, RuntimeType.Bool
         | OlyILConstant.False -> C.False, RuntimeType.Bool
         | OlyILConstant.Char16(value) -> C.Char16(value), RuntimeType.Char16
-        | OlyILConstant.Utf16(value) -> C.Utf16(value), RuntimeType.Utf16
+        | OlyILConstant.String16(value) -> C.Utf16(value), RuntimeType.String16
         | OlyILConstant.Array(ilTy, elements) ->
             let elementTy = this.ResolveType(ilAsm, ilTy, GenericContext.Default)
             let emittedTy = this.EmitType(elementTy)
@@ -2714,7 +2714,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | RuntimeType.NativeInt -> this.TypeNativeInt.Value
             | RuntimeType.NativeUInt -> this.TypeNativeUInt.Value
             | RuntimeType.Char16 -> this.TypeChar.Value
-            | RuntimeType.Utf16 -> this.TypeUtf16.Value
+            | RuntimeType.String16 -> this.TypeString16.Value
             | RuntimeType.Void -> this.TypeVoid.Value
             | RuntimeType.Unit -> this.TypeUnit.Value
             | RuntimeType.BaseObject -> this.TypeBaseObject.Value
@@ -2919,9 +2919,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let splitted = fullyQualifiedTypeName.Split(".") |> ImArray.ofSeq
         tryFindTypeAux(splitted, tyParCount)
 
-    member val TypeVoid: _ Lazy =       lazy emitter.EmitTypeVoid()
+    member val TypeVoid: _ Lazy =        lazy emitter.EmitTypeVoid()
     member val TypeUnit: _ Lazy  =       lazy emitter.EmitTypeUnit()
-    member val TypeUInt8: 'Type Lazy  =      lazy emitter.EmitTypeUInt8()
+    member val TypeUInt8: 'Type Lazy  =  lazy emitter.EmitTypeUInt8()
     member val TypeInt8: _ Lazy  =       lazy emitter.EmitTypeInt8()
     member val TypeUInt16: _ Lazy  =     lazy emitter.EmitTypeUInt16()
     member val TypeInt16: _ Lazy  =      lazy emitter.EmitTypeInt16()
@@ -2930,9 +2930,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member val TypeUInt64: _ Lazy  =     lazy emitter.EmitTypeUInt64()
     member val TypeInt64: _ Lazy  =      lazy emitter.EmitTypeInt64()
     member val TypeFloat32: _ Lazy  =    lazy emitter.EmitTypeFloat32()
-    member val TypeFloat64: _ Lazy =    lazy emitter.EmitTypeFloat64()
+    member val TypeFloat64: _ Lazy =     lazy emitter.EmitTypeFloat64()
     member val TypeChar: _ Lazy  =       lazy emitter.EmitTypeChar16()
-    member val TypeUtf16: _ Lazy  =      lazy emitter.EmitTypeUtf16()
+    member val TypeString16: _ Lazy  =   lazy emitter.EmitTypeString16()
     member val TypeBool: _ Lazy  =       lazy emitter.EmitTypeBool()
     member val TypeNativeInt: _ Lazy  =  lazy emitter.EmitTypeNativeInt()
     member val TypeNativeUInt: _ Lazy  = lazy emitter.EmitTypeNativeUInt()
@@ -4004,7 +4004,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             | OlyILTypeVoid -> RuntimeType.Void
             | OlyILTypeUnit -> RuntimeType.Unit
             | OlyILTypeChar16 -> RuntimeType.Char16
-            | OlyILTypeUtf16 -> RuntimeType.Utf16
+            | OlyILTypeString16 -> RuntimeType.String16
             | OlyILTypeNativeInt -> RuntimeType.NativeInt
             | OlyILTypeNativeUInt -> RuntimeType.NativeUInt
 

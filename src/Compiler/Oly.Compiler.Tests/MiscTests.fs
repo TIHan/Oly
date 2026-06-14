@@ -114,7 +114,7 @@ open extension Int32AddExtension
 open extension Utf16AddExtension
 
 #[import("PLATFORM", "", "IntrinsicStringConcat")]
-IntrinsicStringConcat(value1: __oly_utf16, value2: __oly_utf16) : __oly_utf16
+IntrinsicStringConcat(value1: __oly_string16, value2: __oly_string16) : __oly_string16
 
 #[import("PLATFORM", "", "IntrinsicPrint")]
 IntrinsicPrint<T>(value: T) : ()
@@ -134,10 +134,10 @@ extension Int32AddExtension =
         __oly_add(value1, value2)
 
 extension Utf16AddExtension =
-    inherits __oly_utf16
-    implements Add<__oly_utf16>
+    inherits __oly_string16
+    implements Add<__oly_string16>
 
-    static overrides add(value1: __oly_utf16, value2: __oly_utf16) : __oly_utf16 =
+    static overrides add(value1: __oly_string16, value2: __oly_string16) : __oly_string16 =
         IntrinsicStringConcat(value1, value2)
 
 f() : () =
@@ -726,7 +726,7 @@ let ``Overloaded functions on type``() =
 class Test =
 
     static M(x: __oly_int32) : __oly_int32 = x
-    static M(x: __oly_utf16) : __oly_utf16 = x
+    static M(x: __oly_string16) : __oly_string16 = x
 
 test() : () =
     let f = Test.M(1i)

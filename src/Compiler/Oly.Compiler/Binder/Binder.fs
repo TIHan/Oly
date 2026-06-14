@@ -579,7 +579,7 @@ let createInitialBoundEnvironment asmIdent =
                 mk TypeSymbol.Float32
                 mk TypeSymbol.Char16
                 mk TypeSymbol.Bool
-                mk TypeSymbol.Utf16
+                mk TypeSymbol.String16
                 mk TypeSymbol.BaseObject
             }
             |> NameMap.ofSeq

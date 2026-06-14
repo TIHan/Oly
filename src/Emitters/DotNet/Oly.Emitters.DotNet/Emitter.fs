@@ -2229,7 +2229,7 @@ type OlyRuntimeClrEmitter(assemblyName, isExe, primaryAssembly, consoleAssembly)
         member this.EmitTypeChar16() =
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceChar, true, true)
 
-        member this.EmitTypeUtf16() =
+        member this.EmitTypeString16() =
             ClrTypeInfo.TypeReference(asmBuilder.TypeReferenceString, true, false)
 
         member this.EmitTypeTuple(itemTys, _) =

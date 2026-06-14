@@ -404,7 +404,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.Float64, TypeSymbol.Float64
         | TypeSymbol.Bool, TypeSymbol.Bool
         | TypeSymbol.Char16, TypeSymbol.Char16
-        | TypeSymbol.Utf16, TypeSymbol.Utf16 
+        | TypeSymbol.String16, TypeSymbol.String16 
         | TypeSymbol.NativeInt, TypeSymbol.NativeInt
         | TypeSymbol.NativeUInt, TypeSymbol.NativeUInt -> true
 
@@ -762,8 +762,8 @@ let areConstantsEqual (cns1: ConstantSymbol) (cns2: ConstantSymbol) : bool =
           ConstantSymbol.Float64(value2) -> value1 = value2
         | ConstantSymbol.Char16(value1), 
           ConstantSymbol.Char16(value2) -> value1 = value2
-        | ConstantSymbol.Utf16(value1), 
-          ConstantSymbol.Utf16(value2) -> value1 = value2
+        | ConstantSymbol.String16(value1), 
+          ConstantSymbol.String16(value2) -> value1 = value2
         | ConstantSymbol.True, 
           ConstantSymbol.True -> true
         | ConstantSymbol.False, 

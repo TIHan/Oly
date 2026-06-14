@@ -173,7 +173,7 @@ let private classifyConstantKind (constantSymbol: OlyConstantSymbol) =
     | OlyConstant.Float32 _
     | OlyConstant.Float64 _ -> OlyClassificationKind.NumberLiteral
     | OlyConstant.Char16 _ -> OlyClassificationKind.CharLiteral
-    | OlyConstant.Utf16 _ -> OlyClassificationKind.StringLiteral
+    | OlyConstant.String16 _ -> OlyClassificationKind.StringLiteral
     | OlyConstant.True
     | OlyConstant.False -> OlyClassificationKind.BoolLiteral
     | OlyConstant.Default -> OlyClassificationKind.DefaultLiteral

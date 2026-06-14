@@ -868,7 +868,7 @@ nuint(void*): nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -992,7 +992,7 @@ nuint(void*): nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -2014,7 +2014,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2047,7 +2047,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2078,7 +2078,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2109,7 +2109,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2141,7 +2141,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]

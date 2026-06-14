@@ -1584,7 +1584,7 @@ let ``Test 42``() =
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
     
 #[intrinsic("float32")]
@@ -1630,7 +1630,7 @@ let ``Test 43``() =
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
     
 #[intrinsic("float32")]

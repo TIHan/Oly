@@ -2178,9 +2178,9 @@ module OlySyntaxLiteral =
         | _ ->
             Option.None
 
-    let (|Utf16|_|) (node: OlySyntaxLiteral) : ( OlySyntaxToken ) option =
+    let (|String16|_|) (node: OlySyntaxLiteral) : ( OlySyntaxToken ) option =
         match node.Internal with
-        | SyntaxLiteral.Utf16 _ ->
+        | SyntaxLiteral.String16 _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
         | _ ->
             Option.None

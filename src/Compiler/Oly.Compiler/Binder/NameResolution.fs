@@ -2685,8 +2685,8 @@ let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
         | _ ->
             cenv.diagnostics.Error("Invalid character literal.", 100, syntaxToken)
             BoundLiteral.Error
-    | OlySyntaxLiteral.Utf16(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Utf16(unescapeText syntaxToken.ValueText))
+    | OlySyntaxLiteral.String16(syntaxToken) ->
+        BoundLiteral.Constant(ConstantSymbol.String16(unescapeText syntaxToken.ValueText))
     | OlySyntaxLiteral.Null _ ->
         BoundLiteral.NullInference(mkEagerInferenceVariableType TypeSymbol.BaseObject)
     | OlySyntaxLiteral.Default _ ->

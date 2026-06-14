@@ -183,7 +183,7 @@ alias float64
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("base_object")]

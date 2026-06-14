@@ -2803,7 +2803,7 @@ type ConstantSymbol =
     | False
     | Array of elementTy: TypeSymbol * elements: ConstantSymbol imarray
     | Char16 of  value: char
-    | Utf16 of value: string
+    | String16 of value: string
     | TypeVariable of TypeParameterSymbol
     | External of IFunctionSymbol
     | Error
@@ -2823,7 +2823,7 @@ type ConstantSymbol =
         | True
         | False -> TypeSymbol.Bool
         | Char16 _ -> TypeSymbol.Char16
-        | Utf16 _ -> TypeSymbol.Utf16
+        | String16 _ -> TypeSymbol.String16
         | Array(elementTy, _) -> TypeSymbol.CreateArray(elementTy)
         | External(func) -> func.ReturnType
         | Error -> TypeSymbolError
@@ -3610,7 +3610,7 @@ type TypeSymbol =
     | Float64
     | Bool
     | Char16
-    | Utf16
+    | String16
     | ConstantInt32 of int32
     | ByRef of TypeSymbol * ByRefKind
     | NativeInt
@@ -3717,7 +3717,7 @@ type TypeSymbol =
         | Float64
         | Bool
         | Char16
-        | Utf16
+        | String16
         | ConstantInt32 _
         | ByRef _
         | NativeInt
@@ -3788,7 +3788,7 @@ type TypeSymbol =
         | Float64 -> "__oly_float64"
         | Bool -> "__oly_bool"
         | Char16 -> "__oly_char16"
-        | Utf16 -> "__oly_utf16"
+        | String16 -> "__oly_string16"
         | Entity(ent) -> ent.Name
         | Tuple _ -> "__oly_tuple"
         | RefCell _ -> "__oly_ref_cell"
@@ -3954,7 +3954,7 @@ type TypeSymbol =
         | Float64
         | Bool
         | Char16
-        | Utf16 
+        | String16 
         | ConstantInt32 _
         | Error _ 
         | BaseObject
@@ -4002,7 +4002,7 @@ type TypeSymbol =
         | Float64
         | Bool
         | Char16
-        | Utf16 
+        | String16 
         | ConstantInt32 _ 
         | Error _ 
         | BaseObject
@@ -4072,7 +4072,7 @@ type TypeSymbol =
         | Float64 -> 12
         | Bool -> 13
         | Char16 -> 14
-        | Utf16 -> 15
+        | String16 -> 15
         | Function _ -> 16
         | ForAll _ -> 17
         | Variable _ -> 18
@@ -4120,7 +4120,7 @@ type TypeSymbol =
         | Float64 
         | Bool
         | Char16 
-        | Utf16 
+        | String16 
         | Function _ 
         | ForAll _
         | Variable _ 
@@ -4743,7 +4743,7 @@ type TypeSymbol =
         | Float64 
         | Bool
         | Char16 
-        | Utf16
+        | String16
         | Tuple _
         | Function _ 
         | ConstantInt32 _ -> true
@@ -4813,7 +4813,7 @@ type TypeSymbol =
         | Float64 
         | Bool
         | Char16 
-        | Utf16 -> true
+        | String16 -> true
         | ByRef(_, ByRefKind.ReadOnly) as ty ->
             obj.ReferenceEquals(ty, FormalReadOnlyByRef)
         | ByRef(_, ByRefKind.WriteOnly) as ty ->
@@ -5968,7 +5968,7 @@ module OtherExtensions =
             | AttributeSymbol.Intrinsic("float64") -> outTy <- TypeSymbol.Float64; true
             | AttributeSymbol.Intrinsic("bool") -> outTy <- TypeSymbol.Bool; true
             | AttributeSymbol.Intrinsic("char16") -> outTy <- TypeSymbol.Char16; true
-            | AttributeSymbol.Intrinsic("utf16") -> outTy <- TypeSymbol.Utf16; true
+            | AttributeSymbol.Intrinsic("string16") -> outTy <- TypeSymbol.String16; true
             | AttributeSymbol.Intrinsic("native_int") -> outTy <- TypeSymbol.NativeInt; true
             | AttributeSymbol.Intrinsic("native_uint") -> outTy <- TypeSymbol.NativeUInt; true
             | AttributeSymbol.Intrinsic("native_ptr") -> outTy <- Types.NativePtr; true

@@ -97,7 +97,7 @@ let bindEarlyAttribute (cenv: cenv) (env: BinderEnvironment) syntaxAttr =
                     argExprs
                     |> ImArray.mapi (fun i x ->
                         match x with
-                        | BoundExpression.Literal(syntaxInfo, BoundLiteral.Constant(ConstantSymbol.Utf16(value))) -> 
+                        | BoundExpression.Literal(syntaxInfo, BoundLiteral.Constant(ConstantSymbol.String16(value))) -> 
                             if i = 0 && System.String.IsNullOrWhiteSpace value then
                                 cenv.diagnostics.Error("Import platform cannot be a whitespace-only or empty string.", 10, syntaxInfo.Syntax)
                             if i = 2 && System.String.IsNullOrWhiteSpace value then
@@ -196,8 +196,8 @@ let tryAddIntrinsicPrimitivesForEntity cenv (env: BinderEnvironment) (kind: Enti
                     Some TypeSymbol.NativeInt
                 | "native_uint" ->
                     Some TypeSymbol.NativeUInt
-                | "utf16" ->
-                    Some TypeSymbol.Utf16
+                | "string16" ->
+                    Some TypeSymbol.String16
                 | "base_object" ->
                     Some TypeSymbol.BaseObject
                 | "void" ->

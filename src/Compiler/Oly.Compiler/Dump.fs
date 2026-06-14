@@ -106,7 +106,7 @@ let dumpConstantSymbol (constant: ConstantSymbol) =
         "true"
     | ConstantSymbol.False ->
         "false"
-    | ConstantSymbol.Utf16 value ->
+    | ConstantSymbol.String16 value ->
         "\"" + value + "\""
     | ConstantSymbol.TypeVariable(tyPar) ->
         dumpTypeParameter tyPar

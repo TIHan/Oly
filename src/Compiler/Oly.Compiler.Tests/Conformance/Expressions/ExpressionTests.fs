@@ -27,13 +27,13 @@ let ``Shift right definition``() =
 let ``Should error as return value is not supposed to be unit``() =
     let src =
         """
-M(): __oly_utf16 =
+M(): __oly_string16 =
     let x = 1
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '__oly_utf16' but is '()'.",
+            ("Expected type '__oly_string16' but is '()'.",
                 """
     let x = 1
     ^^^^^^^^^
@@ -46,7 +46,7 @@ M(): __oly_utf16 =
 let ``Should error as return value is not supposed to be unit 2``() =
     let src =
         """
-M(): __oly_utf16 =
+M(): __oly_string16 =
     if (true)
         let x = 1
     else
@@ -55,7 +55,7 @@ M(): __oly_utf16 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '__oly_utf16' but is '()'.",
+            ("Expected type '__oly_string16' but is '()'.",
                 """
         let x = 1
         ^^^^^^^^^
@@ -68,7 +68,7 @@ M(): __oly_utf16 =
 let ``Should error as return value is not supposed to be unit 3``() =
     let src =
         """
-M(): __oly_utf16 =
+M(): __oly_string16 =
     if (true)
         "test"
     else
@@ -77,7 +77,7 @@ M(): __oly_utf16 =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '__oly_utf16' but is '()'.",
+            ("Expected type '__oly_string16' but is '()'.",
                 """
         let x = 1
         ^^^^^^^^^
@@ -129,7 +129,7 @@ let ``Inner expression has the right symbol``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("base_object")]
@@ -1182,7 +1182,7 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "Expected type '__oly_utf16' but is '__oly_int32'."
+        "Expected type '__oly_string16' but is '__oly_int32'."
     ]
     |> ignore
 
@@ -1201,7 +1201,7 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "Expected type '__oly_utf16' but is '__oly_int32'."
+        "Expected type '__oly_string16' but is '__oly_int32'."
     ]
     |> ignore
 
@@ -2533,7 +2533,7 @@ class Test1<T> =
                 Console.WriteLine(z)
 
 main(): () =
-    let x = Test1<__oly_int32>.Test2<__oly_float32, __oly_utf16>.()
+    let x = Test1<__oly_int32>.Test2<__oly_float32, __oly_string16>.()
     x.printTest2(1, 2.3f, "Hello World!")
     ()
         """
@@ -2575,7 +2575,7 @@ class Test1<T> =
                 Console.WriteLine(z)
 
 main(): () =
-    let x = Test1<__oly_int32>.Test2<__oly_float32, __oly_utf16>.Test3<_>
+    let x = Test1<__oly_int32>.Test2<__oly_float32, __oly_string16>.Test3<_>
     x.printTest2(1, 2.3f, "Hello World!")
     ()
         """
@@ -2618,7 +2618,7 @@ class Test1<T> =
                 Console.WriteLine(z)
 
 main(): () =
-    let mutable x = Test1<__oly_int32>.Test2<__oly_float32, __oly_utf16>.Test3<_>
+    let mutable x = Test1<__oly_int32>.Test2<__oly_float32, __oly_string16>.Test3<_>
     x.printTest2(1, 2.3f, "Hello World!")
     ()
         """
@@ -2650,7 +2650,7 @@ class Test1<T> =
             Console.WriteLine(v)
 
 main(): () =
-    let x = Test1<__oly_int32>.Test2<__oly_float64, __oly_utf16>()
+    let x = Test1<__oly_int32>.Test2<__oly_float64, __oly_string16>()
     x.printTest2(1, 2.3, "Hello World!")
         """
     Oly src
@@ -2678,7 +2678,7 @@ class Test1<T> =
             Console.WriteLine(v)
 
 main(): () =
-    let x = Test1<__oly_int32>.Test2<~^~__oly_float64, __oly_utf16>()
+    let x = Test1<__oly_int32>.Test2<~^~__oly_float64, __oly_string16>()
     x.printTest2(1, 2.3, "Hello World!")
         """
     src
@@ -3146,7 +3146,7 @@ let ``Should have correct signature when referencing a field in module that is i
     """
 namespace TestNamespace
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 module TestModule =
@@ -3164,7 +3164,7 @@ let ``Should have correct signature when referencing a field in module that is i
     """
 namespace TestNamespace
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 struct TestStruct =
@@ -6226,7 +6226,7 @@ test<A, B>(a: A, b: B): () =
     test2<A>()
 
 main(): () =
-    let x = test<__oly_int32, __oly_utf16>(123, "test")
+    let x = test<__oly_int32, __oly_string16>(123, "test")
     print(x)
         """
     Oly src
@@ -6314,7 +6314,7 @@ module TestModule
 Null<T>: T where T: not struct = unchecked default: T
 
 main(): () =
-    let x: __oly_utf16 = Null
+    let x: __oly_string16 = Null
         """
     Oly src
     |> withCompile
@@ -6333,7 +6333,7 @@ class Option<T> =
 None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
 main(): () =
-    let x: Option<__oly_utf16> = None
+    let x: Option<__oly_string16> = None
         """
     Oly src
     |> withCompile
@@ -6355,7 +6355,7 @@ pattern None<T>(value: Option<T>): () =
 None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
 main(): () =
-    let x: Option<__oly_utf16> = None
+    let x: Option<__oly_string16> = None
         """
     Oly src
     |> withCompile
@@ -6378,7 +6378,7 @@ module Test2Module =
     None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
 main(): () =
-    let x: Option<__oly_utf16> = Test2Module.None
+    let x: Option<__oly_string16> = Test2Module.None
         """
     Oly src
     |> withCompile
@@ -6400,7 +6400,7 @@ module Test2Module =
 
     None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | Test2Module.None => ()
     | _ => ()
@@ -6424,7 +6424,7 @@ pattern None<T>(value: Option<T>): () =
 
 None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | ~^~None => ()
     | _ => ()
@@ -6447,7 +6447,7 @@ module OptionPatterns<T> =
     pattern Some(value: Option<T>): T =
         value.Value
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | Some(_) => ()
         """
@@ -6464,15 +6464,15 @@ module TestModule
 Null<T>: T where T: not struct = unchecked default: T
 
 main(): () =
-    let x: __oly_utf16 = Null()
+    let x: __oly_string16 = Null()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("'Null' is parameter-less which requires not to be explicit with '()'.",
             """
-    let x: __oly_utf16 = Null()
-                         ^^^^^^
+    let x: __oly_string16 = Null()
+                            ^^^^^^
 """
             )
         ]
@@ -6488,15 +6488,15 @@ module Test2Module =
     Null<T>: T where T: not struct = unchecked default: T
 
 main(): () =
-    let x: __oly_utf16 = Test2Module.Null()
+    let x: __oly_string16 = Test2Module.Null()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("'Null' is parameter-less which requires not to be explicit with '()'.",
             """
-    let x: __oly_utf16 = Test2Module.Null()
-                         ^^^^^^^^^^^^^^^^^^
+    let x: __oly_string16 = Test2Module.Null()
+                            ^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -6518,7 +6518,7 @@ module Test2Module =
 
     None<T>: Option<T> where T: not struct = unchecked default: Option<T>
 
-test(x: Option<__oly_utf16>): () =
+test(x: Option<__oly_string16>): () =
     match (x)
     | Test2Module.None() => ()
     | _ => ()
@@ -6545,7 +6545,7 @@ module TestModule
 Null<require T>(): T where T: not struct = unchecked default: T
 
 main(): () =
-    let x = Null<__oly_utf16>()
+    let x = Null<__oly_string16>()
         """
     Oly src
     |> withCompile
@@ -6560,15 +6560,15 @@ module TestModule
 Null<require T>(): T where T: not struct = unchecked default: T
 
 main(): () =
-    let x: __oly_utf16 = Null()
+    let x: __oly_string16 = Null()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
             ("'Null' requires explicit type arguments.",
             """
-    let x: __oly_utf16 = Null()
-                         ^^^^^^
+    let x: __oly_string16 = Null()
+                            ^^^^^^
 """
             )
         ]
@@ -7935,7 +7935,7 @@ test2(): ITest2 =
 let ``Trying to call constructor in a constructor with the explicit type name should work``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
@@ -9080,7 +9080,7 @@ let ``Nested type calls should fail``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -9135,7 +9135,7 @@ let ``Nested type calls should fail 2``() =
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("float32")]
@@ -11352,7 +11352,7 @@ main(): () = ()
 let ``Able to get symbol for 'this'``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("by_ref")]
@@ -11372,7 +11372,7 @@ main() : () =
 let ``Able to get symbol for 'this' 2``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 class TestData =
@@ -12250,7 +12250,7 @@ let ``Should error with invalid type for return value for an 'if' expression wit
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 fail<TResult>(msg: string): TResult = unchecked default

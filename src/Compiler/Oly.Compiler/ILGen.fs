@@ -403,8 +403,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeBool
     | TypeSymbol.Char16 ->
         OlyILTypeChar16
-    | TypeSymbol.Utf16 ->
-        OlyILTypeUtf16
+    | TypeSymbol.String16 ->
+        OlyILTypeString16
     | TypeSymbol.Entity(ent) ->
         let env = setLocalContextWithEnclosing env ent.Enclosing
         OlyILTypeEntity(GenEntityAsILEntityInstanceOrConstructor cenv env ent)
@@ -938,7 +938,7 @@ and GenConstant cenv env (constant: ConstantSymbol) =
     | ConstantSymbol.Array(elementTy, elements) ->
         OlyILConstant.Array(emitILType cenv env elementTy, elements |> ImArray.map (GenConstant cenv env))
     | ConstantSymbol.Char16(value) -> OlyILConstant.Char16(value)
-    | ConstantSymbol.Utf16(value) -> OlyILConstant.Utf16(value)
+    | ConstantSymbol.String16(value) -> OlyILConstant.String16(value)
     | ConstantSymbol.TypeVariable(tyPar) -> 
         let index, ilKind = GenTypeParameterAsILTypeVariableInfo env tyPar
         OlyILConstant.TypeVariable(index, ilKind)
@@ -1279,8 +1279,8 @@ and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
         OlyILValue.Constant(OlyILConstant.False)
     | BoundLiteral.Constant(ConstantSymbol.Char16(value=value)) ->
         OlyILValue.Constant(OlyILConstant.Char16(value))
-    | BoundLiteral.Constant(ConstantSymbol.Utf16(value=value)) ->
-        OlyILValue.Constant(OlyILConstant.Utf16(value))
+    | BoundLiteral.Constant(ConstantSymbol.String16(value=value)) ->
+        OlyILValue.Constant(OlyILConstant.String16(value))
     | BoundLiteral.NullInference ty ->
         OlyILValue.Null(emitILType cenv env ty)
     | BoundLiteral.NumberInference(lazyValue, _) ->

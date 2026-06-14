@@ -423,9 +423,9 @@ let importAttrFunc =
     let tyPars = ImArray.empty
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "platform", TypeSymbol.Utf16, false)
-            createLocalParameterValue(ImArray.empty, "path", TypeSymbol.Utf16, false)
-            createLocalParameterValue(ImArray.empty, "name", TypeSymbol.Utf16, false)
+            createLocalParameterValue(ImArray.empty, "platform", TypeSymbol.String16, false)
+            createLocalParameterValue(ImArray.empty, "path", TypeSymbol.String16, false)
+            createLocalParameterValue(ImArray.empty, "name", TypeSymbol.String16, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.Unit
     createFunctionValue EnclosingSymbol.RootNamespace attrs "import" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Import None false

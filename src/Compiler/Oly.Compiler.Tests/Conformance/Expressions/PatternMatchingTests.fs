@@ -190,14 +190,14 @@ pattern Some<T>(option: Option<T>): T when (option !== null) =>
 
 test(x: Option<__oly_int32>): () =
     match (x)
-    | Some<__oly_utf16>(_) => ()
+    | Some<__oly_string16>(_) => ()
     | _ => ()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Option<__oly_utf16>' but is 'Option<__oly_int32>'.", """
-    | Some<__oly_utf16>(_) => ()
+            ("Expected type 'Option<__oly_string16>' but is 'Option<__oly_int32>'.", """
+    | Some<__oly_string16>(_) => ()
       ^^^^
 """)
         ]
@@ -223,15 +223,15 @@ pattern Some<T>(option: Option<T>): (T, T) when SomeGuardTuple(option !== null) 
 
 test(x: Option<__oly_int32>): () =
     match (x)
-    | Some<__oly_utf16>(_) => ()
+    | Some<__oly_string16>(_) => ()
     | _ => ()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Option<__oly_utf16>' but is 'Option<__oly_int32>'.", """
-    | Some<__oly_utf16>(_) => ()
-      ^^^^^^^^^^^^^^^^^^^^
+            ("Expected type 'Option<__oly_string16>' but is 'Option<__oly_int32>'.", """
+    | Some<__oly_string16>(_) => ()
+      ^^^^^^^^^^^^^^^^^^^^^^^
 """)
         ]
     |> ignore

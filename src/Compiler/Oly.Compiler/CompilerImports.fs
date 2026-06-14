@@ -985,7 +985,7 @@ let private importTypeSymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol 
     | OlyILType.OlyILTypeUInt32 -> TypeSymbol.UInt32
     | OlyILType.OlyILTypeInt64 -> TypeSymbol.Int64
     | OlyILType.OlyILTypeUInt64 -> TypeSymbol.UInt64
-    | OlyILType.OlyILTypeUtf16 -> TypeSymbol.Utf16
+    | OlyILType.OlyILTypeString16 -> TypeSymbol.String16
     | OlyILType.OlyILTypeBool -> TypeSymbol.Bool
     | OlyILType.OlyILTypeChar16 -> TypeSymbol.Char16
     | OlyILType.OlyILTypeFloat32 -> TypeSymbol.Float32

@@ -523,7 +523,7 @@
     <Case name="Char16">
       <Field name="valueToken">SyntaxToken</Field>
     </Case>
-    <Case name="Utf16">
+    <Case name="String16">
       <Field name="valueToken">SyntaxToken</Field>
     </Case>
 	<Case name="Null">

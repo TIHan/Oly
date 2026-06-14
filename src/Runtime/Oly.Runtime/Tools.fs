@@ -87,7 +87,7 @@ type DummyEmitter(onEmitBody) =
         member this.EmitTypeUInt64() = DummyType("uint64")
         member this.EmitTypeUInt8() = DummyType("uint8")
         member this.EmitTypeUnit() = DummyType("unit")
-        member this.EmitTypeUtf16() = DummyType("utf16")
+        member this.EmitTypeString16() = DummyType("string16")
         member this.EmitTypeVariable(index, enclosingTyParCount) = DummyType("variable")
         member this.EmitTypeVoid() = DummyType("void")
 

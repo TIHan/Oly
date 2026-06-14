@@ -9,7 +9,7 @@ let ``Simple throw should compile``() =
     let src =
         """
 #[intrinsic("throw")]
-(throw)<TResult>(__oly_utf16): TResult
+(throw)<TResult>(__oly_string16): TResult
 
 test(): __oly_int32 =
     throw "a message for throw"

@@ -57,7 +57,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeBool           : unit -> 'Type
 
     abstract EmitTypeChar16         : unit -> 'Type
-    abstract EmitTypeUtf16          : unit -> 'Type
+    abstract EmitTypeString16       : unit -> 'Type
     abstract EmitTypeVariable       : index: int32 * kind: OlyIRTypeVariableKind -> 'Type
 
     abstract EmitTypeHigherVariable : index: int32 * tyInst: 'Type imarray * kind: OlyIRTypeVariableKind -> 'Type

@@ -43,7 +43,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.Bool
     | TypeSymbol.Char16
     | TypeSymbol.BaseObject
-    | TypeSymbol.Utf16
+    | TypeSymbol.String16
     | TypeSymbol.Void
     | TypeSymbol.NativeInt
     | TypeSymbol.NativeUInt
@@ -416,7 +416,7 @@ let private printConstant (benv: BoundEnvironment) (constant: ConstantSymbol) =
     | ConstantSymbol.True -> "true"
     | ConstantSymbol.False -> "false"
     | ConstantSymbol.Char16(value) -> value.ToString()
-    | ConstantSymbol.Utf16(value) -> value
+    | ConstantSymbol.String16(value) -> value
     | ConstantSymbol.TypeVariable(tyPar) -> tyPar.Name
     | ConstantSymbol.Array(_, elements) ->
         let printedConstants =

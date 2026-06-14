@@ -347,7 +347,7 @@ type SpirvEmitter(majorVersion: uint, minorVersion: uint, executionModel) =
         member this.EmitTypeUnit(): SpirvType = 
             raise(NotImplementedException())
 
-        member this.EmitTypeUtf16(): SpirvType = 
+        member this.EmitTypeString16(): SpirvType = 
             raise(NotSupportedException())
 
         member this.EmitTypeVariable(index: int32, kind: OlyIRTypeVariableKind): SpirvType = 

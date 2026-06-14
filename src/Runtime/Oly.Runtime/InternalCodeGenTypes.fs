@@ -649,7 +649,7 @@ type RuntimeType =
     | Float64
     | Bool
     | Char16
-    | Utf16
+    | String16
     | NativeInt
     | NativeUInt
     | NativePtr of elementTy: RuntimeType
@@ -675,9 +675,9 @@ type RuntimeType =
         | Entity(ent) -> ent.StaticConstructor
         | _ -> None
 
-    member this.IsUtf16_t =
+    member this.IsString16_t =
         match this.StripAlias() with
-        | Utf16 -> true
+        | String16 -> true
         | _ -> false
 
     member this.IsByRef_t =
@@ -868,7 +868,7 @@ type RuntimeType =
         | NativeFunctionPtr _ -> "__oly_func_pointer"
         | Bool -> "__oly_bool"
         | Tuple _ -> "__oly_tuple"
-        | Utf16 -> "__oly_utf16"
+        | String16 -> "__oly_string16"
         | Char16 -> "__oly_char16"
         | ReferenceCell _ -> "__oly_reference_cell"
         | Function(kind=kind) -> 
@@ -1257,7 +1257,7 @@ type RuntimeType =
             | Some name ->
                 match name with
                 | "base_object" -> RuntimeType.BaseObject
-                | "utf16" -> RuntimeType.Utf16
+                | "string16" -> RuntimeType.String16
                 | "char16" -> RuntimeType.Char16
                 | "int8" -> RuntimeType.Int8
                 | "uint8" -> RuntimeType.UInt8
@@ -1336,7 +1336,7 @@ type RuntimeType =
             | Float64, Float64
             | Bool, Bool
             | Char16, Char16
-            | Utf16, Utf16 -> true
+            | String16, String16 -> true
             | BaseObject, BaseObject -> true
             | NativeInt, NativeInt
             | NativeUInt, NativeUInt -> true

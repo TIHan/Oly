@@ -587,7 +587,7 @@ type OlyILConstant =
     | False
     | Array of elementTy: OlyILType * value: OlyILConstant imarray
     | Char16 of value: char
-    | Utf16 of value: string
+    | String16 of value: string
     | TypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | External of funcInst: OlyILFunctionInstance * returnTy: OlyILType
 
@@ -607,7 +607,7 @@ type OlyILConstant =
         | False -> OlyILTypeBool
         | Array(elementTy, _) -> OlyILTypeArray(elementTy, 1, OlyILArrayKind.Immutable)
         | Char16 _ -> OlyILTypeChar16
-        | Utf16 _ -> OlyILTypeUtf16
+        | String16 _ -> OlyILTypeString16
         | TypeVariable(index, kind) -> OlyILTypeVariable(index, kind)
         | External(_, ilTy) -> ilTy
 
@@ -746,7 +746,7 @@ type OlyILType =
     | OlyILTypeFloat64
     | OlyILTypeBool
     | OlyILTypeChar16
-    | OlyILTypeUtf16
+    | OlyILTypeString16
 
     | OlyILTypeByRef of elementTy: OlyILType * kind: OlyILByRefKind
 
@@ -793,7 +793,7 @@ type OlyILType =
         | OlyILTypeFloat64
         | OlyILTypeBool
         | OlyILTypeChar16
-        | OlyILTypeUtf16 
+        | OlyILTypeString16 
         | OlyILTypeTuple _
         | OlyILTypeConstantInt32 _
         | OlyILTypeVariable _ 
@@ -835,7 +835,7 @@ type OlyILType =
         | OlyILTypeFloat64
         | OlyILTypeBool
         | OlyILTypeChar16
-        | OlyILTypeUtf16
+        | OlyILTypeString16
         | OlyILTypeTuple _
         | OlyILTypeFunction _
         | OlyILTypeRefCell _

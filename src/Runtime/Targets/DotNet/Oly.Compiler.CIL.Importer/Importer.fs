@@ -340,7 +340,7 @@ module internal rec Helpers =
                 | PrimitiveTypeCode.Double -> OlyILTypeFloat64
                 | PrimitiveTypeCode.Void -> OlyILTypeVoid
                 | PrimitiveTypeCode.TypedReference -> invalidType cenv "Unsupported .NET type."
-                | PrimitiveTypeCode.String -> OlyILTypeUtf16
+                | PrimitiveTypeCode.String -> OlyILTypeString16
                 | PrimitiveTypeCode.IntPtr -> OlyILTypeNativeInt
                 | PrimitiveTypeCode.UIntPtr -> OlyILTypeNativeUInt
                 | PrimitiveTypeCode.Object -> OlyILTypeBaseObject
@@ -1225,7 +1225,7 @@ module internal rec Helpers =
                     (OlyILAttribute.Intrinsic(importRawString cenv "bool"), OlyILTypeBool)
                     |> ValueSome
                 | "String" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "utf16"), OlyILTypeUtf16)
+                    (OlyILAttribute.Intrinsic(importRawString cenv "string16"), OlyILTypeString16)
                     |> ValueSome
                 | "IntPtr" ->
                     (OlyILAttribute.Intrinsic(importRawString cenv "native_int"), OlyILTypeNativeInt)

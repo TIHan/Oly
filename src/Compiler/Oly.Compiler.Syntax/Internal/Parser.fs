@@ -1454,7 +1454,7 @@ let tryParseLiteral state =
 
     match bt STRING_LITERAL state with
     | Some(valueToken) ->
-        SyntaxLiteral.Utf16(valueToken) |> Some
+        SyntaxLiteral.String16(valueToken) |> Some
     | _ ->
 
     match bt CHAR_LITERAL state with

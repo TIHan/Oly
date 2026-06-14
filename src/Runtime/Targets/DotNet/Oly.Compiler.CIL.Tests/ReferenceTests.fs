@@ -374,7 +374,7 @@ let ``Basic ambiguity handling of functions across references``() =
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -411,7 +411,7 @@ module Test.A
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -449,7 +449,7 @@ module OlyPrelude
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
