@@ -12460,3 +12460,21 @@ module Sub =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Cannot use access modifier for a local type declaration``() =
+    """
+main(): () =
+    internal class C
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Locally declared types cannot have an access modifier.",
+                """
+    internal class C
+    ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

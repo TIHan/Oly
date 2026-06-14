@@ -9,7 +9,17 @@ open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Binder.EarlyAttributes
 
-let private bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syntaxAccessor: OlySyntaxAccessor) =
+let private bindAccessorAsEntityFlags (cenv: cenv) (enclosing: EnclosingSymbol) (syntaxAccessor: OlySyntaxAccessor) =
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Internal _
+    | OlySyntaxAccessor.Public _
+    | OlySyntaxAccessor.Private _
+    | OlySyntaxAccessor.Protected _ -> 
+        if enclosing.IsLocal then
+            cenv.diagnostics.Error("Locally declared types cannot have an access modifier.", 10, syntaxAccessor)
+    | _ -> 
+        ()
+
     match syntaxAccessor with
     | OlySyntaxAccessor.Internal _ -> EntityFlags.Internal
     | OlySyntaxAccessor.Public _ -> EntityFlags.Public
@@ -19,10 +29,17 @@ let private bindAccessorAsEntityFlags (cenv: cenv) (env: BinderEnvironment) (syn
         EntityFlags.None
     | _ ->
         if cenv.config.AccessorBehavior.IsPrivateByDefault then
-            EntityFlags.Private
+            if enclosing.IsLocal then
+                EntityFlags.Internal
+            else
+                // Default is private.
+                EntityFlags.Private
         else
-            // Default is public.
-            EntityFlags.Public
+            if enclosing.IsLocal then
+                EntityFlags.Internal
+            else
+                // Default is public.
+                EntityFlags.Public
 
 let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
     (flags, attrs)
@@ -69,7 +86,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         | _ ->
             raise(InternalCompilerException())
 
-    let flags = flags ||| (bindAccessorAsEntityFlags cenv env syntaxAccessor)
+    let enclosing = currentEnclosing env
+
+    let flags = flags ||| (bindAccessorAsEntityFlags cenv enclosing syntaxAccessor)
 
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
@@ -81,8 +100,6 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
             flags
 
     let flags = processAttributesForEntityFlags flags attrs
-
-    let enclosing = currentEnclosing env
 
     let name =
         match syntaxIdentOpt with
