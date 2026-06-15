@@ -21824,3 +21824,38 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "42"
     |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        i <- i + 1
+        if (i == 1)
+            f()
+        else
+            print(i)
+            i   
+    print(f())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "22"
+    |> ignore

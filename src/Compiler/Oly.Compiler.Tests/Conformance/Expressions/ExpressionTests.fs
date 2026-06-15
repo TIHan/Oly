@@ -12478,3 +12478,27 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Recursive local functions are allowed``() =
+    """
+main(): () =
+    let f() =
+        f()
+    f()
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Recursive static local functions are allowed``() =
+    """
+main(): () =
+    static let f() =
+        f()
+    f()
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
