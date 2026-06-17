@@ -1140,8 +1140,32 @@ module EntitySymbolExtensions =
 let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
     freshenValueAux benv.TypeParameterExists benv.senv.enclosingTyInst value
 
-let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imarray) (func: FunctionSymbol) =
-    let funcTy = TypeSymbol.CreateFunction(tyPars, func.Parameters |> ImArray.map (fun x -> x.Type), func.ReturnType, FunctionKind.Normal)
+let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imarray) (solutionIdReplace: Dictionary<int64, TypeSymbol>) (func: FunctionSymbol) =
+    
+    let rec handleTy ty =
+        match ty with
+        | TypeSymbol.InferenceVariable(_, solution) ->
+            match solutionIdReplace.TryGetValue solution.Id with
+            | true, ty -> ty
+            | _ -> ty
+        | _ ->
+            let ty = stripTypeEquationsExceptAlias ty
+            if ty.TypeArguments.IsEmpty then
+                ty
+            else
+                let tyArgs = ty.TypeArguments |> ImArray.map handleTy
+                applyType ty.Formal tyArgs
+                
+    let pars =
+        func.Parameters
+        |> ImArray.map (fun par ->
+            LocalParameterSymbol(par.Attributes, par.Name, handleTy par.Type, par.IsThis, par.IsBase, par.IsMutable): ILocalParameterSymbol
+        )
+        
+    let returnTy =
+        handleTy func.ReturnType
+
+    let funcTy = TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
     let tyArgs = tyPars |> ImArray.map (fun tyPar -> tyPar.AsType)
 
     OlyAssert.False(func.FunctionOverrides.IsSome)
@@ -1151,7 +1175,7 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
         func.Attributes,
         func.Name,
         funcTy,
-        func.Parameters,
+        pars,
         tyPars,
         tyArgs,
         func.MemberFlags,

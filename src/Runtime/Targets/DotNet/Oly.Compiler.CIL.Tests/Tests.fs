@@ -21859,3 +21859,77 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "22"
     |> ignore
+    
+[<Fact>]
+let ``Should do give the correct output for recursive local function 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let mutable i = 0
+    let f<T>(): T =
+        let g<U>(): U =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        g()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+    
+[<Fact>]
+let ``Should do give the correct output for recursive local function 3``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        g()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore

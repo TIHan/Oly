@@ -12490,6 +12490,76 @@ main(): () =
     |> Oly
     |> shouldCompile
     |> ignore
+    
+[<Fact>]
+let ``Recursive local functions are allowed 2``() =
+    """
+main(): () =
+    let f<T>(): T =
+        let g(): T =
+            f<T>()
+        g()
+    f()
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
+    
+[<Fact>]
+let ``Recursive local functions are allowed 3``() =
+    """
+main(): () =
+    let f<T>(): T =
+        let g<U>(): U =
+            f<U>()
+        g()
+    f()
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
+    
+[<Fact>]
+let ``Recursive local functions are allowed 4``() =
+    """
+main(): () =
+    let f() =
+        let g<U>(): U =
+            f() // f 1
+        g()
+    f() // f 2
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
+    
+[<Fact>]
+let ``Recursive local functions are allowed 5``() =
+    """
+main(): () =
+    let f() =
+        let g() =
+            f() // f 1
+        g()
+    f() // f 2
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
+    
+[<Fact>]
+let ``Recursive local functions are allowed 6``() =
+    """
+M<T>: () =
+    let f() =
+        let g() =
+            f() // f 1
+        g()
+    f() // f 2
+    """
+    |> Oly
+    |> shouldCompile
+    |> ignore
 
 [<Fact>]
 let ``Recursive static local functions are allowed``() =

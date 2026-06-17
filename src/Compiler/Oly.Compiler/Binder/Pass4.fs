@@ -608,21 +608,28 @@ let private bindSequentialExpression (cenv: cenv) (env: BinderEnvironment) (expe
 
 let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment) (syntaxStartToken: OlySyntaxToken) (envOfBinding: BinderEnvironment) (syntaxRhs: OlySyntaxExpression) (pars: ILocalParameterSymbol imarray) (func: FunctionSymbol) : BoundExpression =
     let envRhs = envOfBinding
-    let expectedRhsTyOpt =
-        if not func.IsConstructor then
-            Some func.ReturnType
-        else
-            None
+        
+    let lazyBodyExpr =
+        LazyExpression(None, fun _ ->
+            let expectedRhsTyOpt =
+                if not func.IsConstructor then
+                    Some func.ReturnType
+                else
+                    None
+            let envBody = envRhs.SetReturnable(true)
+            let _, rhsBodyExpr = bindLocalExpression cenv envBody expectedRhsTyOpt syntaxRhs syntaxRhs
 
-    let envBody = envRhs.SetReturnable(true)
-    let _, rhsBodyExpr = bindLocalExpression cenv envBody expectedRhsTyOpt syntaxRhs syntaxRhs
-
-    let rhsBodyExpr =
-        E.CreateGeneratedSequential(
-            // for debugging
-            E.None(BoundSyntaxInfo.User(syntaxStartToken, env.benv)),
+            let rhsBodyExpr =
+                E.CreateGeneratedSequential(
+                    // for debugging
+                    E.None(BoundSyntaxInfo.User(syntaxStartToken, env.benv)),
+                    rhsBodyExpr
+                )
             rhsBodyExpr
         )
+        
+    if not func.IsLocal then
+        lazyBodyExpr.Run()
 
     let rhsExpr = 
         BoundExpression.CreateGeneratedLambda(
@@ -630,7 +637,7 @@ let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment
             LambdaFlags.None,
             func.TypeParameters, 
             pars, 
-            LazyExpression.CreateNonLazy(None, fun _ -> rhsBodyExpr)
+            lazyBodyExpr
         )
     let solverEnv = SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)
     checkLocalLambdaKind solverEnv rhsExpr pars func.IsStaticLocalFunction

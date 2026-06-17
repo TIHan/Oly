@@ -20,8 +20,10 @@ type CheckExpressionMode =
     | Flexible
     | MostFlexible
 
-let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (witnessArgLookup: Dictionary<int64, HashSet<WitnessSolution>>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
+let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) replace (freeInputTyVars: ResizeArray<_>) (witnessArgLookup: Dictionary<int64, HashSet<WitnessSolution>>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
+    
+    let solutionIdReplace = Dictionary()
 
     let generalizedTyPars = ResizeArray()
     let mutable tyParIndex = env.benv.EnclosingTypeParameters.Length
@@ -46,80 +48,93 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                 computeNextTyParName()
             | _ ->
                 nextTyParName <- nextName
+                
+    let newTyPar (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) =
+        if tyPars.IsEmpty then
+            let arity =
+                match tyParOpt with
+                | Some(tyPar) -> tyPar.Arity
+                | _ -> 0
+
+            let witnessArgs =
+                match tyParOpt with
+                | Some tyPar ->
+                    match witnessArgLookup.TryGetValue(tyPar.Id) with
+                    | true, witnessArgs -> witnessArgs.ToImmutableArray()
+                    | _ -> ImArray.empty
+                | _ ->
+                    ImArray.empty
+
+            let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
+
+            let oldConstrs =
+                match tyParOpt with
+                | None -> solution.Constraints |> ImArray.ofSeq
+                | Some tyPar -> tyPar.Constraints
+
+            let newConstrs =
+                oldConstrs
+                |> ImArray.choose (fun constr ->
+                    match constr with
+                    | ConstraintSymbol.Null
+                    | ConstraintSymbol.Struct
+                    | ConstraintSymbol.NotStruct
+                    | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Blittable
+                    | ConstraintSymbol.Scoped ->
+                        Some constr
+                    | ConstraintSymbol.ConstantType _
+                    | ConstraintSymbol.TraitType _
+                    | ConstraintSymbol.SubtypeOf _ ->
+                        None
+                )
+
+            // REVIEW: Do we care about the order of these constraints?
+            let newTyConstrs =
+                witnessArgs
+                |> ImArray.map (fun witnessArg ->
+                    match witnessArg.Constraint with
+                    | ConstraintSymbol.ConstantType(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | ConstraintSymbol.TraitType(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.TraitType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | _ ->
+                        failwith "Unexpected constraint"
+                )
+
+            newTyPar.SetConstraints(newConstrs.AddRange(newTyConstrs))
+
+            if not solution.HasSolution then
+                solution.SetSolution(newTyPar.AsType)
+            solutionIdReplace.Add(solution.Id, newTyPar.AsType)
+            generalizedTyPars.Add(newTyPar)
+            tyParIndex <- tyParIndex + 1
+            computeNextTyParName()
+        else
+            ()
+            if not solution.HasSolution then
+                env.diagnostics.Error(sprintf "Unable to infer the type. Be explicit i.e. 'x: int32'.", 6, syntaxNode)
 
     let addInferenceVariableTy ty =
         match stripTypeEquations ty with
         | TypeSymbol.InferenceVariable(tyParOpt, solution) 
         | TypeSymbol.HigherInferenceVariable(tyParOpt, _, _, solution) when not solution.HasSolution ->
-            if tyPars.IsEmpty then
-                let arity =
-                    match tyParOpt with
-                    | Some(tyPar) -> tyPar.Arity
-                    | _ -> 0
-
-                let witnessArgs =
-                    match tyParOpt with
-                    | Some tyPar ->
-                        match witnessArgLookup.TryGetValue(tyPar.Id) with
-                        | true, witnessArgs -> witnessArgs.ToImmutableArray()
-                        | _ -> ImArray.empty
-                    | _ ->
-                        ImArray.empty
-
-                let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
-
-                let oldConstrs =
-                    match tyParOpt with
-                    | None -> solution.Constraints |> ImArray.ofSeq
-                    | Some tyPar -> tyPar.Constraints
-
-                let newConstrs =
-                    oldConstrs
-                    |> ImArray.choose (fun constr ->
-                        match constr with
-                        | ConstraintSymbol.Null
-                        | ConstraintSymbol.Struct
-                        | ConstraintSymbol.NotStruct
-                        | ConstraintSymbol.Unmanaged
-                        | ConstraintSymbol.Blittable
-                        | ConstraintSymbol.Scoped ->
-                            Some constr
-                        | ConstraintSymbol.ConstantType _
-                        | ConstraintSymbol.TraitType _
-                        | ConstraintSymbol.SubtypeOf _ ->
-                            None
-                    )
-
-                // REVIEW: Do we care about the order of these constraints?
-                let newTyConstrs =
-                    witnessArgs
-                    |> ImArray.map (fun witnessArg ->
-                        match witnessArg.Constraint with
-                        | ConstraintSymbol.ConstantType(oldConstrTy) ->
-                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                        | ConstraintSymbol.TraitType(oldConstrTy) ->
-                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.TraitType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                        | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
-                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                        | _ ->
-                            failwith "Unexpected constraint"
-                    )
-
-                newTyPar.SetConstraints(newConstrs.AddRange(newTyConstrs))
-
-                solution.SetSolution(TypeSymbol.Variable(newTyPar))
-                generalizedTyPars.Add(newTyPar)
-                tyParIndex <- tyParIndex + 1
-                computeNextTyParName()
-            else
-                env.diagnostics.Error(sprintf "Unable to infer the type. Be explicit i.e. 'x: int32'.", 6, syntaxNode)
+            newTyPar tyParOpt solution
         | TypeSymbol.Variable(tyPar) when tyPar.Arity > 0 ->
             env.diagnostics.Error(sprintf "Unable to infer the type variable with an arity greater than zero.", 6, syntaxNode)
             ()
         | _ ->
+            match ty with
+            | TypeSymbol.InferenceVariable(tyParOpt, solution)
+                    when solution.HasSolution && ty.IsAnyVariable_ste && ty.IsVariableZeroArity_ste ->
+                newTyPar tyParOpt solution
+            | _ ->
+                ()
             ()
 
     freeInputTyVars
@@ -128,7 +143,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
     )
 
     generalizedTyPars
-    |> ImmutableArray.CreateRange
+    |> ImmutableArray.CreateRange, solutionIdReplace
 
 let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match ty.Enclosing with
@@ -552,10 +567,11 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
             FunctionFlags.None
     
     if freeInputTyVars.Count > 0 && value.IsLocal then
-        let generalizedTyPars =
+        let generalizedTyPars, _ =
             createGeneralizedFunctionTypeParameters
                 env
                 syntax
+                false
                 freeInputTyVars
                 witnessArgLookup
                 ImmutableArray.Empty
@@ -719,20 +735,87 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 and checkMemberBindingDeclaration (env: SolverEnvironment) (_syntaxBinding: OlySyntaxBinding) (binding: BindingInfoSymbol) (rhsExpr: BoundExpression) =
     checkValueBinding env rhsExpr binding.Value |> ignore
     binding, rhsExpr
+    
+and private substituteValues
+        (
+            benv: BoundEnvironment,
+            expr: BoundExpression, 
+            localLookup: Dictionary<int64, IValueSymbol>
+        ) =
+    let newExpr =
+        expr.Rewrite(
+            (fun origExpr ->
+                origExpr
+            ),
+            (fun origExpr ->
+                match origExpr with
+                | BoundExpression.Value(syntaxInfo, value) when value.IsLocal && not value.IsFunction ->
+                    match localLookup.TryGetValue value.Formal.Id with
+                    | true, newValue ->          
+                        BoundExpression.Value(syntaxInfo, newValue)
+                    | _ ->
+                        origExpr
+
+                | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtualCall) ->
+
+                    match localLookup.TryGetValue value.Formal.Id with
+                    | true, newValue ->
+                        let newValue =
+                            if value.IsFormal then
+                                if newValue.TypeParameters.IsEmpty then
+                                    newValue
+                                else
+                                    OlyAssert.True(newValue.IsFormal)
+                                    let newValue2 = freshenValue benv newValue
+                                    UnifyTypes Flexible newValue2.Type value.Type
+                                    |> ignore
+                                    newValue2
+                            else
+                                let tyArgs = value.TypeArguments
+                                OlyAssert.True(newValue.IsFormal)
+                                actualValue newValue.Enclosing tyArgs newValue
+                        BoundExpression.Call(
+                            syntaxInfo,
+                            None,
+                            witnessArgs,
+                            argExprs,
+                            newValue,
+                            isVirtualCall
+                        )
+                    | _ ->
+                        origExpr
+                | _ ->
+                    origExpr
+            ),
+            fun _ -> true
+        )
+
+    newExpr
 
 and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntaxBinding: OlySyntaxBinding) (binding: LocalBindingInfoSymbol) (rhsExpr: BoundExpression) =
     let syntax = checkValueBinding env rhsExpr binding.Value
 
     // Auto-generalization
+    
+    let valueLookup = Dictionary<_, IValueSymbol>()
 
     let bindingInfo2 =
         match binding with
         | BindingLocalFunction(func) when func.IsLocal ->
-            let freeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
+            let possibleFreeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
+            
+            let freeInputTyVars = ResizeArray()
+            for (id, ty) in possibleFreeInputTyVars do
+                let exists =
+                    func.TypeParameters
+                    |> ImArray.exists (fun x -> areTypesEqual x.AsType ty)
+                if not exists then
+                    freeInputTyVars.Add(struct(id, ty))
 
             if freeInputTyVars.Count > 0 && binding.Value.IsLocal then
-                let generalizedTyPars = createGeneralizedFunctionTypeParameters env syntax freeInputTyVars witnessArgLookup func.TypeParameters
-                let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars func
+                let generalizedTyPars, solutionIdReplace = createGeneralizedFunctionTypeParameters env syntax true freeInputTyVars witnessArgLookup func.TypeParameters
+                let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars solutionIdReplace func
+                valueLookup[func.Id] <- generalizedFunc
                 BindingLocalFunction(generalizedFunc)
             else
                 binding
@@ -761,8 +844,11 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
                 // If the function has type parameters but the lambda expression does not, we probably generalized the function;
                 //     therefore, we need to create a new lambda expression with those type parameters.
                 match rhsExpr.Strip() with
-                | BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, body, _, _, _) when tyPars.IsEmpty ->
-                    BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, func.TypeParameters, parValues, body)
+                | BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, lazyBodyExpr, _, _, _) when tyPars.IsEmpty ->
+                    let bodyExpr = lazyBodyExpr.Expression
+                    let newBodyExpr = substituteValues(env.benv, bodyExpr, valueLookup)
+                    let lazyBodyExpr = LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr)
+                    BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, func.TypeParameters, parValues, lazyBodyExpr)
                 | _ ->
                     rhsExpr
             else

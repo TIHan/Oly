@@ -144,7 +144,7 @@ module private Helpers =
 
         ReadOnlyFreeLocals(freeLocals)
     
-    let getFreeInferenceVariablesFromType add (ty: TypeSymbol) =
+    let getFreeInferenceVariablesFromType captureSolved add (ty: TypeSymbol) =
         let rec implType ty =
             match stripTypeEquations ty with
             | TypeSymbol.InferenceVariable(_, solution) ->
@@ -169,6 +169,12 @@ module private Helpers =
                 for i = 0 to ent.TypeArguments.Length - 1 do
                     implType ent.TypeArguments.[i]
             | _ ->
+                if ty.IsAnyVariable_ste && captureSolved then
+                    match ty with
+                    | TypeSymbol.InferenceVariable(None, solution) when solution.HasSolution ->
+                        add solution.Id ty
+                    | _ ->
+                        ()
                 ()
     
         implType ty
@@ -184,7 +190,11 @@ module private Helpers =
             if not exists then
                 inputs.Add(struct(id, item))
     
-        let implType ty = getFreeInferenceVariablesFromType addInput ty
+        let implType ty =
+            getFreeInferenceVariablesFromType false addInput ty
+            
+        let implTypeCaptureSolved ty =
+            getFreeInferenceVariablesFromType true addInput ty
 
         let handleLiteral (literal: BoundLiteral) =
             // TODO:
@@ -254,7 +264,11 @@ module private Helpers =
                 args |> Seq.iter (fun arg -> handleExpression arg)
                 receiverOpt
                 |> Option.iter (fun receiver -> handleExpression receiver)
-                implType value.Type
+                
+                if value.IsLocal then
+                    implTypeCaptureSolved value.Type
+                else
+                    implType value.Type
 
                 // REVIEW: There a way to make this more efficient for GC?
                 witnessArgs
@@ -326,13 +340,10 @@ module private FreeVariablesHelper =
             match expr with
             | BoundExpression.EntityDefinition _ 
             | BoundExpression.MemberDefinition _ -> false
-            | BoundExpression.Lambda(tyPars=tyPars;pars=pars;freeVars=freeVarsRef) ->
+            | BoundExpression.Lambda(tyPars=tyPars;pars=pars;freeVars=freeVarsRef;cachedLambdaTy=cachedLambdaTy) ->
                 addTyPars tyPars
 
-                pars
-                |> ImArray.iter (fun par ->
-                    visitType par.Type
-                )
+                visitType cachedLambdaTy.Type
                 base.VisitExpression(expr)
 
             | BoundExpression.Value(value=value) ->
