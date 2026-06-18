@@ -146,8 +146,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
         addInferenceVariableTy ty
     )
 
-    generalizedTyPars
-    |> ImmutableArray.CreateRange, solutionIdReplace, tyParReplace
+    generalizedTyPars |> ImArray.ofSeq, solutionIdReplace, tyParReplace
 
 let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match ty.Enclosing with
@@ -788,32 +787,33 @@ and private substituteValues
                             isVirtualCall
                         )
                     | _ ->
-                        // if value.IsLocal && value.IsFunction && not value.TypeParameters.IsEmpty then
-                        //     let rec handleTy ty =
-                        //         match stripTypeEquationsExceptAlias ty with
-                        //         | TypeSymbol.Variable(tyPar) ->
-                        //             match tyParReplace.TryGetValue(tyPar.Id) with
-                        //             | true, ty -> ty
-                        //             | _ -> ty
-                        //         | _ ->
-                        //             let ty = stripTypeEquationsExceptAlias ty
-                        //             if ty.TypeArguments.IsEmpty then
-                        //                 ty
-                        //             else
-                        //                 let tyArgs = ty.TypeArguments |> ImArray.map handleTy
-                        //                 applyType ty.Formal tyArgs
-                        //     let tyArgs = value.TypeArguments |> ImArray.map handleTy
-                        //     OlyAssert.False(value.IsFormal)
-                        //     let newValue = actualValue value.Enclosing tyArgs value.Formal
-                        //     BoundExpression.Call(
-                        //         syntaxInfo,
-                        //         None,
-                        //         witnessArgs,
-                        //         argExprs,
-                        //         newValue,
-                        //         isVirtualCall
-                        //     )
-                        // else
+                         if value.IsLocal && value.IsFunction && not value.TypeParameters.IsEmpty then
+                             let rec handleTy ty =
+                                 match stripTypeEquationsExceptAlias ty with
+                                 | TypeSymbol.Variable(tyPar) ->
+                                     match tyParReplace.TryGetValue(tyPar.Id) with
+                                     | true, ty -> ty
+                                     | _ -> ty
+                                 | _ ->
+                                     let ty = stripTypeEquationsExceptAlias ty
+                                     if ty.TypeArguments.IsEmpty then
+                                         ty
+                                     else
+                                         let tyArgs = ty.TypeArguments |> ImArray.map handleTy
+                                         applyType ty.Formal tyArgs
+                             let tyArgs = value.TypeArguments |> ImArray.map handleTy
+                             OlyAssert.False(value.IsFormal)
+                             let tyArgs = (benv.EnclosingTypeParameters |> ImArray.map (fun tyPar -> tyPar.AsType)).AddRange(tyArgs)
+                             let newValue = actualValue value.Enclosing tyArgs value.Formal
+                             BoundExpression.Call(
+                                 syntaxInfo,
+                                 None,
+                                 witnessArgs,
+                                 argExprs,
+                                 newValue,
+                                 isVirtualCall
+                             )
+                         else
                             origExpr
                 | _ ->
                     origExpr
