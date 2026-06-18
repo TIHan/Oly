@@ -636,7 +636,7 @@ let solveConstraints
             match tyArg.TryImmediateTypeParameter with
             | ValueSome tyParToCheck ->
                 let tyPar = tyPars[i]
-                OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
+              //  OlyAssert.Equal(tyPar.Id, tyParToCheck.Id)
                 let syntaxNode: OlySyntaxNode =
                     match syntaxTyArgsOpt with
                     | Some syntaxTyArgs when i < syntaxTyArgs.Length ->

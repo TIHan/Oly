@@ -2225,8 +2225,11 @@ type IFunctionSymbol =
     abstract AssociatedFormalProperty: IPropertySymbol option
 
 [<Sealed;DebuggerDisplay("{Name}")>]
-type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalParameterSymbol imarray, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
+type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalParameterSymbol imarray, tyPars: TypeParameterSymbol imarray, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
 
+    let mutable tyPars = tyPars
+    let mutable tyArgs = tyPars |> ImArray.map (fun x -> x.AsType)
+    
 #if DEBUG || CHECKED
     do
         match funcTy.TryAnyFunction with
@@ -2363,6 +2366,16 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         OlyAssert.True(this.IsVirtual)
 #endif
         memberFlags <- memberFlags ||| MemberFlags.Sealed
+        
+    /// Mutability
+    member this.SetLocalEmptyTypeParameters_Pass4(pass: CompilerPass, newTyPars: TypeParameterSymbol imarray) =
+        if not this.IsLocal then failwith "expected local function"
+        if pass <> Pass4 then failwith "expected pass4"
+        if newTyPars.IsEmpty then failwith "expected new type parameters"
+        if not tyPars.IsEmpty then failwith "expected empty type parameters"
+        
+        tyPars <- newTyPars
+        tyArgs <- tyPars |> ImArray.map (fun x -> x.AsType)
 
     interface IFunctionSymbol with
         member _.Enclosing = enclosing
@@ -2405,8 +2418,7 @@ type InvalidFunctionSymbol(enclosing, name) =
             name, 
             TypeSymbolError, 
             ImArray.empty, 
-            ImArray.empty, 
-            ImArray.empty, 
+            ImArray.empty,
             MemberFlags.None, 
             FunctionFlags.None,
             NormalFunction,

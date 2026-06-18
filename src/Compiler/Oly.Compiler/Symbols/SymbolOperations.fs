@@ -2280,8 +2280,6 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
     let funcTy = 
         TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
 
-    let tyArgs = tyPars |> Seq.map (fun x -> x.AsType) |> ImmutableArray.CreateRange
-
     // TODO: Clean this up. We do not need to iterate over all the attributes multiple times to determine the flags.
     //       We only need to do it once.
 
@@ -2326,7 +2324,7 @@ let createFunctionValueSemantic (enclosing: EnclosingSymbol) attrs name (tyPars:
         | _ ->
             name
 
-    FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, tyArgs, memberFlags, funcFlags, funcSemantic, funcIntrin, overrides, isMutable)
+    FunctionSymbol(enclosing, attrs, name, funcTy, pars, tyPars, memberFlags, funcFlags, funcSemantic, funcIntrin, overrides, isMutable)
 
 let createFunctionValue (enclosing: EnclosingSymbol) attrs name (tyPars: TypeParameterSymbol imarray) (pars: ILocalParameterSymbol imarray) returnTy memberFlags funcFlags funcIntrin overrides isMutable =
     createFunctionValueSemantic enclosing attrs name tyPars pars returnTy memberFlags funcFlags NormalFunction funcIntrin overrides isMutable

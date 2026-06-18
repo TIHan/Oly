@@ -1166,7 +1166,6 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
         handleTy func.ReturnType
 
     let funcTy = TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
-    let tyArgs = tyPars |> ImArray.map (fun tyPar -> tyPar.AsType)
 
     OlyAssert.False(func.FunctionOverrides.IsSome)
 
@@ -1177,7 +1176,6 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
         funcTy,
         pars,
         tyPars,
-        tyArgs,
         func.MemberFlags,
         func.FunctionFlags,
         func.Semantic,

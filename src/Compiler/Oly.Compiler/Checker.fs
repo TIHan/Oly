@@ -24,6 +24,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
     
     let solutionIdReplace = Dictionary()
+    let tyParReplace = Dictionary()
 
     let generalizedTyPars = ResizeArray()
     let mutable tyParIndex = env.benv.EnclosingTypeParameters.Length
@@ -111,6 +112,9 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
 
             if not solution.HasSolution then
                 solution.SetSolution(newTyPar.AsType)
+            else
+                let currentTyPar = solution.Solution.TryTypeParameter.Value
+                tyParReplace.Add(currentTyPar.Id, newTyPar.AsType)
             solutionIdReplace.Add(solution.Id, newTyPar.AsType)
             generalizedTyPars.Add(newTyPar)
             tyParIndex <- tyParIndex + 1
@@ -143,7 +147,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
     )
 
     generalizedTyPars
-    |> ImmutableArray.CreateRange, solutionIdReplace
+    |> ImmutableArray.CreateRange, solutionIdReplace, tyParReplace
 
 let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match ty.Enclosing with
@@ -567,7 +571,7 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
             FunctionFlags.None
     
     if freeInputTyVars.Count > 0 && value.IsLocal then
-        let generalizedTyPars, _ =
+        let generalizedTyPars, _, _ =
             createGeneralizedFunctionTypeParameters
                 env
                 syntax
@@ -740,7 +744,8 @@ and private substituteValues
         (
             benv: BoundEnvironment,
             expr: BoundExpression, 
-            localLookup: Dictionary<int64, IValueSymbol>
+            localLookup: Dictionary<int64, IValueSymbol>,
+            tyParReplace: Dictionary<int64, TypeSymbol>
         ) =
     let newExpr =
         expr.Rewrite(
@@ -783,7 +788,33 @@ and private substituteValues
                             isVirtualCall
                         )
                     | _ ->
-                        origExpr
+                        // if value.IsLocal && value.IsFunction && not value.TypeParameters.IsEmpty then
+                        //     let rec handleTy ty =
+                        //         match stripTypeEquationsExceptAlias ty with
+                        //         | TypeSymbol.Variable(tyPar) ->
+                        //             match tyParReplace.TryGetValue(tyPar.Id) with
+                        //             | true, ty -> ty
+                        //             | _ -> ty
+                        //         | _ ->
+                        //             let ty = stripTypeEquationsExceptAlias ty
+                        //             if ty.TypeArguments.IsEmpty then
+                        //                 ty
+                        //             else
+                        //                 let tyArgs = ty.TypeArguments |> ImArray.map handleTy
+                        //                 applyType ty.Formal tyArgs
+                        //     let tyArgs = value.TypeArguments |> ImArray.map handleTy
+                        //     OlyAssert.False(value.IsFormal)
+                        //     let newValue = actualValue value.Enclosing tyArgs value.Formal
+                        //     BoundExpression.Call(
+                        //         syntaxInfo,
+                        //         None,
+                        //         witnessArgs,
+                        //         argExprs,
+                        //         newValue,
+                        //         isVirtualCall
+                        //     )
+                        // else
+                            origExpr
                 | _ ->
                     origExpr
             ),
@@ -799,7 +830,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     
     let valueLookup = Dictionary<_, IValueSymbol>()
 
-    let bindingInfo2 =
+    let bindingInfo2, tyParReplace =
         match binding with
         | BindingLocalFunction(func) when func.IsLocal ->
             let possibleFreeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
@@ -813,18 +844,18 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
                     freeInputTyVars.Add(struct(id, ty))
 
             if freeInputTyVars.Count > 0 && binding.Value.IsLocal then
-                let generalizedTyPars, solutionIdReplace = createGeneralizedFunctionTypeParameters env syntax true freeInputTyVars witnessArgLookup func.TypeParameters
+                let generalizedTyPars, solutionIdReplace, tyParReplace = createGeneralizedFunctionTypeParameters env syntax true freeInputTyVars witnessArgLookup func.TypeParameters
                 let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars solutionIdReplace func
                 valueLookup[func.Id] <- generalizedFunc
-                BindingLocalFunction(generalizedFunc)
+                BindingLocalFunction(generalizedFunc), tyParReplace
             else
-                binding
+                binding, Dictionary()
         | BindingLocal(value) when not value.IsMutable ->
             match rhsExpr.Strip() with
             | BoundExpression.Lambda(_, lambdaFlags, _, parValues, body, _, _, _) ->
-                checkLambdaFunctionValueBindingAndAutoGeneralize env (lambdaFlags.HasFlag(LambdaFlags.Static)) syntaxBinding binding rhsExpr parValues body.Expression
+                checkLambdaFunctionValueBindingAndAutoGeneralize env (lambdaFlags.HasFlag(LambdaFlags.Static)) syntaxBinding binding rhsExpr parValues body.Expression, Dictionary()
             | _ ->
-                binding
+                binding, Dictionary()
         | _ ->
             match rhsExpr.Strip() with
             | BoundExpression.Lambda(body=bodyExpr) ->
@@ -834,7 +865,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
                 ()
             | _ ->
                 ()
-            binding
+            binding, Dictionary()
 
     let rhsExpr2 =
         match bindingInfo2 with
@@ -846,7 +877,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
                 match rhsExpr.Strip() with
                 | BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, lazyBodyExpr, _, _, _) when tyPars.IsEmpty ->
                     let bodyExpr = lazyBodyExpr.Expression
-                    let newBodyExpr = substituteValues(env.benv, bodyExpr, valueLookup)
+                    let newBodyExpr = substituteValues(env.benv, bodyExpr, valueLookup, tyParReplace)
                     let lazyBodyExpr = LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr)
                     BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, func.TypeParameters, parValues, lazyBodyExpr)
                 | _ ->

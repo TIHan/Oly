@@ -292,7 +292,6 @@ let substitute
                                 )
 
                             let tyPars = func.TypeParameters // TODO: Substitute constraints?
-                            let tyArgs = func.TypeArguments
                             let pars = func.Parameters // TODO: We must subsitute parameter types?
 
                             let isMutable = valueFlags.HasFlag(ValueFlags.Mutable)
@@ -305,7 +304,6 @@ let substitute
                                     ty,
                                     pars,
                                     tyPars,
-                                    tyArgs,
                                     MemberFlags.None,
                                     funcFlags,
                                     FunctionSemantic.NormalFunction,
