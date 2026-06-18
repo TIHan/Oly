@@ -749,7 +749,28 @@ and private substituteValues
     let newExpr =
         expr.Rewrite(
             (fun origExpr ->
-                origExpr
+                match origExpr with
+                | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.IsLocal && not bindingInfo.IsFunction ->
+                    let value = bindingInfo.Value
+                    let rec handleTy ty =
+                        match stripTypeEquationsExceptAlias ty with
+                        | TypeSymbol.Variable(tyPar) ->
+                            match tyParReplace.TryGetValue(tyPar.Id) with
+                            | true, ty -> ty
+                            | _ -> ty
+                        | ty ->
+                            if ty.TypeArguments.IsEmpty then
+                                ty
+                            else
+                                let tyArgs = ty.TypeArguments |> ImArray.map handleTy
+                                applyType ty.Formal tyArgs
+                    let valueTy = value.Type
+                    let newValueTy = handleTy valueTy
+                    let newValue = createLocalValue value.Name newValueTy
+                    localLookup[value.Id] <- newValue
+                    BoundExpression.Let(syntaxInfo, LocalBindingInfoSymbol.BindingLocal(newValue), rhsExpr, bodyExpr)
+                | _ ->
+                    origExpr
             ),
             (fun origExpr ->
                 match origExpr with
@@ -761,6 +782,11 @@ and private substituteValues
                         origExpr
 
                 | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtualCall) ->
+                    let witnessArgs = 
+                        WitnessSolution.EmplaceSubstitute(
+                            witnessArgs,
+                            tyParReplace
+                        )
 
                     match localLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
@@ -787,15 +813,14 @@ and private substituteValues
                             isVirtualCall
                         )
                     | _ ->
-                         if value.IsLocal && value.IsFunction && not value.TypeParameters.IsEmpty then
+                         if value.IsFunction && not value.TypeParameters.IsEmpty then
                              let rec handleTy ty =
                                  match stripTypeEquationsExceptAlias ty with
                                  | TypeSymbol.Variable(tyPar) ->
                                      match tyParReplace.TryGetValue(tyPar.Id) with
                                      | true, ty -> ty
                                      | _ -> ty
-                                 | _ ->
-                                     let ty = stripTypeEquationsExceptAlias ty
+                                 | ty ->
                                      if ty.TypeArguments.IsEmpty then
                                          ty
                                      else
@@ -803,7 +828,13 @@ and private substituteValues
                                          applyType ty.Formal tyArgs
                              let tyArgs = value.TypeArguments |> ImArray.map handleTy
                              OlyAssert.False(value.IsFormal)
+                             let tyPars = benv.EnclosingTypeParameters.AddRange(value.TypeParameters)
                              let tyArgs = (benv.EnclosingTypeParameters |> ImArray.map (fun tyPar -> tyPar.AsType)).AddRange(tyArgs)
+                             let tyArgs =
+                                (tyPars, tyArgs)
+                                ||> ImArray.map2 (fun tyPar tyArg ->
+                                    mkSolvedInferenceVariableType tyPar tyArg
+                                )
                              let newValue = actualValue value.Enclosing tyArgs value.Formal
                              BoundExpression.Call(
                                  syntaxInfo,
