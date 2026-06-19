@@ -326,7 +326,7 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
 
     let invokeRhs =
         let newBodyExpr =
-            substitute(
+            substituteForClosure(
                 bodyExpr,
                 tyParLookup, 
                 valueLookup,
@@ -827,7 +827,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                     valueLookup[func.Id] <- newFunc
 
                     let newLambdaBodyExpr =
-                        substitute(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
+                        substituteForClosure(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
 
                     let newLazyLambdaBodyExpr =
                         LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
