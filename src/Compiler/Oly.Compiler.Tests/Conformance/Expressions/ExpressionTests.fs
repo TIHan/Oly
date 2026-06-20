@@ -813,7 +813,7 @@ test() : () =
     let test2(~^~z) =
         let y = A<_>(z)
         """
-    src |> hasSymbolSignatureTextByCursor "z: T<A<T>>"
+    src |> hasSymbolSignatureTextByCursor "z: a<A<a>>"
 
 [<Fact>]
 let ``Second-order generic inference 2``() =
@@ -849,7 +849,7 @@ test() : () =
     let ~^~test2(z) =
         let y = A<_>(z)
         """
-    src |> hasSymbolSignatureTextByCursor "test2<T<_>>(z: T<A<T>>): ()"
+    src |> hasSymbolSignatureTextByCursor "test2<a<_>>(z: a<A<a>>): ()"
 
 [<Fact>]
 let ``Second-order generic struct should fail``() =
@@ -1954,7 +1954,7 @@ main() : __oly_int32 =
     let ~^~a = id<_>
     a(456)
         """
-    src |> hasSymbolSignatureTextByCursor "a<T>(x: T): T"
+    src |> hasSymbolSignatureTextByCursor "a<a>(x: a): a"
 
 [<Fact>]
 let ``Simple partial application of generic id function should have correct symbol 2``() =
@@ -1968,7 +1968,7 @@ main() : __oly_int32 =
     let ~^~a = id<_>
     test<_>(456, a)
         """
-    src |> hasSymbolSignatureTextByCursor "a<T>(x: T): T"
+    src |> hasSymbolSignatureTextByCursor "a<a>(x: a): a"
 
 [<Fact>]
 let ``Simple partial application of generic id function should have correct symbol 3``() =
@@ -1982,7 +1982,7 @@ main() : __oly_int32 =
     let a = id<_>
     test<_>(456, ~^~a)
         """
-    src |> hasSymbolSignatureTextByCursor "a<T>(x: T): T"
+    src |> hasSymbolSignatureTextByCursor "a<a>(x: a): a"
 
 [<Fact>]
 let ``Simple partial application of generic id function should have correct symbol 4``() =
@@ -1997,7 +1997,7 @@ main() : __oly_int32 =
     let r : __oly_float64 = test<_>(456.0, a)
     test<_>(456, ~^~a)
         """
-    src |> hasSymbolSignatureTextByCursor "a<T>(x: T): T"
+    src |> hasSymbolSignatureTextByCursor "a<a>(x: a): a"
 
 [<Fact>]
 let ``Should error with right diagnostics``() =
@@ -3138,7 +3138,7 @@ test<T>(x: T): () where T: IExample = ()
 main(): () =
     let ~^~f = test<_>
     """
-    |> hasSymbolSignatureTextByCursor "f<T>(x: T): () where T: IExample"
+    |> hasSymbolSignatureTextByCursor "f<a>(x: a): () where a: IExample"
     |> ignore
 
 [<Fact>]

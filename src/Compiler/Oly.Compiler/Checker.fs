@@ -28,27 +28,17 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
 
     let generalizedTyPars = ResizeArray()
     let mutable tyParIndex = env.benv.EnclosingTypeParameters.Length
-    let mutable nextTyParName = 'T'
-    let rec computeNextTyParName () =
-        if nextTyParName = 'z' then
+    let mutable nextTyParName = 'a'
+    let rec computeNextTyParName (possibleTyParName: char) =
+        if possibleTyParName = 'z' then
             env.diagnostics.Error("The function definition was unable to generalize type parameters.", 10, syntaxNode)
+            possibleTyParName
         else
-            let nextName =
-                let name = 
-                    if nextTyParName = 'S' then
-                        'a'
-                    else
-                        nextTyParName + char 1
-                if name > 'Z' then
-                    'A'
-                else
-                    name
-
-            match env.benv.TryFindTypeParameter (string nextName) with
+            match env.benv.TryFindTypeParameter (string possibleTyParName) with
             | Some _ ->
-                computeNextTyParName()
+                computeNextTyParName(possibleTyParName + char 1)
             | _ ->
-                nextTyParName <- nextName
+                possibleTyParName
                 
     let newTyPar (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) =
         if tyPars.IsEmpty then
@@ -66,6 +56,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
                 | _ ->
                     ImArray.empty
 
+            nextTyParName <- computeNextTyParName nextTyParName
             let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
 
             let oldConstrs =
@@ -118,7 +109,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
             solutionIdReplace.Add(solution.Id, newTyPar.AsType)
             generalizedTyPars.Add(newTyPar)
             tyParIndex <- tyParIndex + 1
-            computeNextTyParName()
+            nextTyParName <- computeNextTyParName nextTyParName
         else
             ()
             if not solution.HasSolution then

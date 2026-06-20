@@ -562,24 +562,43 @@ let substituteForAutoGeneralization
                 | true, newValue ->          
                     BoundExpression.SetValue(syntaxInfo, newValue, rhsExpr)
                 | _ ->
-                    origExpr              
+                    origExpr    
+                    
+            | BoundExpression.GetField(syntaxInfo, receiverExprOpt, field) ->
+                let enclosingTy = field.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newField = actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
+                    BoundExpression.GetField(syntaxInfo, receiverExprOpt, newField)
+
+            | BoundExpression.SetField(syntaxInfo, receiverExprOpt, field, rhsExpr, isCtorInit) ->
+                let enclosingTy = field.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newField = actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
+                    BoundExpression.SetField(syntaxInfo, receiverExprOpt, newField, rhsExpr, isCtorInit)
                     
             | BoundExpression.GetProperty(syntaxInfo, receiverExprOpt, prop, isVirtual) ->
-                match receiverExprOpt with
-                | Some(receiverExpr) ->
-                    let receiverTy = receiverExpr.Type
-                    if not(areTypesEqual receiverTy prop.Enclosing.AsType) then
-                        failwith "TODO"
-                    else
-                        origExpr
-                | _ ->
-                    let enclosingTy = prop.Enclosing.AsType
-                    let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                    if areTypesEqual enclosingTy newEnclosingTy then
-                        origExpr
-                    else
-                        let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity.Formal)) enclosingTy.TypeArguments prop.Formal.AsProperty
-                        BoundExpression.GetProperty(syntaxInfo, receiverExprOpt, newProp, isVirtual)
+                let enclosingTy = prop.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
+                    BoundExpression.GetProperty(syntaxInfo, receiverExprOpt, newProp, isVirtual)
+
+            | BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, isVirtual) ->
+                let enclosingTy = prop.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
+                    BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, newProp, rhsExpr, isVirtual)
 
             | BoundExpression.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                 let witnessArgs = 

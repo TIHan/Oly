@@ -22181,3 +22181,144 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function 10``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+class C<T> =
+
+    Prop: T get, set
+
+    new(x: T) =
+        this { Prop = x }
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        c.Prop <- unchecked default
+        c.Prop
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function 11``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+class C<T> =
+
+    public field mutable X: T
+
+    new(x: T) =
+        this { X = x }
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        c.X <- unchecked default
+        c.X
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function 12``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    pattern Pat(x: C<T>): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        match (c)
+        | C<_>.Pat(x) => x
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore

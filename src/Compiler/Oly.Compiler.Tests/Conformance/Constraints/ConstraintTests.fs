@@ -85,7 +85,7 @@ test(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Type instantiation 'T' is missing the constraint 'not struct'."
+            "Type instantiation 'a' is missing the constraint 'not struct'."
         ]
     |> ignore
 
@@ -445,7 +445,7 @@ main () : () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Type parameter '?T' was unable to be inferred."
+            "Type parameter '?a' was unable to be inferred."
         ]
     |> ignore
 
