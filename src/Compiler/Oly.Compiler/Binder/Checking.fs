@@ -207,7 +207,7 @@ let autoDereferenceValueOrCallExpression expr =
 
 let determineByRefKind argExpr =
     match argExpr with
-    | E.Value(value=value) when value.IsLocal ->
+    | E.Value(value=value) when value.HasLocalEnclosing ->
         if value.IsMutable then
             ByRefKind.ReadWrite
         else
@@ -239,7 +239,7 @@ let filterByRefReturnTypes (argExprs: E imarray) (funcs: IFunctionSymbol imarray
         if x.IsAddressOf then
             let argExpr = argExprs[0]
             match argExpr with
-            | E.Value(value=value) when value.IsLocal ->
+            | E.Value(value=value) when value.HasLocalEnclosing ->
                 if value.IsMutable && x.ReturnType.IsReadWriteByRef_ste then
                     true
                 elif not value.IsMutable && x.ReturnType.IsReadOnlyByRef_ste then

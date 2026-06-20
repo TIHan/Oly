@@ -62,13 +62,13 @@ let dumpyTypeParameters (tyPars: TypeParameterSymbol imarray) =
 
 let dumpFunctionSymbol (func: IFunctionSymbol) =
     if func.TypeParameters.IsEmpty then
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             func.Name + "__" + func.Formal.Id.ToString()
         else
             func.Name
     else
         let tyArgs = func.TypeArguments |> ImArray.map dumpTypeSymbol |> String.concat ", "
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             func.Name + $"<{tyArgs}>" + "__" + func.Formal.Id.ToString()
         else
             func.Name + $"<{tyArgs}>"
@@ -226,7 +226,7 @@ let dumpExpression indentAmount (expr: E) =
                     "LOAD_TUPLE_ITEM"
                 | _ ->
                     let name =
-                        if value.IsLocal then
+                        if value.HasLocalEnclosing then
                             if value.Name = "" then
                                 $"__v{value.Formal.Id}"
                             else
@@ -236,7 +236,7 @@ let dumpExpression indentAmount (expr: E) =
                     $"CALL `{name}`"
             | _ ->
                 let name =
-                    if value.IsLocal then
+                    if value.HasLocalEnclosing then
                         if value.Name = "" then
                             $"__v{value.Formal.Id}"
                         else
@@ -258,7 +258,7 @@ let dumpExpression indentAmount (expr: E) =
 
     | E.Value(_, value) ->
         let name =
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 if value.Name = "" then
                     $"__v{value.Formal.Id}"
                 else

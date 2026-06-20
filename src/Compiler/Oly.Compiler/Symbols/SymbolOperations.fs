@@ -2870,12 +2870,12 @@ let freshenValueAux tyParExists enclosingTyInst (value: IValueSymbol) =
         let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
         let tyArgs =
             let tyPars =
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     value.TypeParameters
                 else
                     value.AllTypeParameters
             let tyArgs = 
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     value.TypeArguments
                 else
                     value.AllTypeArguments
@@ -2892,7 +2892,7 @@ let freshenValueAux tyParExists enclosingTyInst (value: IValueSymbol) =
                 |> ImmutableArray.CreateRange
             applyEnclosing tyArgsForEnclosing value.Enclosing.Formal
 
-        if value.IsLocal then
+        if value.HasLocalEnclosing then
             value.Formal.Substitute(tyArgs)
         else
             match value.Formal.Enclosing with

@@ -151,17 +151,17 @@ let optimizeImmediateExpression cenv origExpr =
 
 #if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         origExpr
 #endif
 
-    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.IsLocal || bindingInfo.Value.IsBase ->
+    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.HasLocalEnclosing || bindingInfo.Value.IsBase ->
         match rhsExpr with
-        | E.Value(_, rhsValue) when not(rhsValue.IsMutable) && rhsValue.IsLocal ->
+        | E.Value(_, rhsValue) when not(rhsValue.IsMutable) && rhsValue.HasLocalEnclosing ->
             if canEliminateBinding settings bindingInfo rhsValue.Type then
                 let newBodyExpr =
                     bodyExpr.Rewrite(function
-                        | E.Value(syntaxInfo, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
+                        | E.Value(syntaxInfo, value) when value.HasLocalEnclosing && value.Id = bindingInfo.Value.Id ->
                             E.Value(syntaxInfo, rhsValue)
                         | E.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, isVirtualCall) when value.Formal.Id = bindingInfo.Value.Id ->
                             E.Call(syntaxInfo, receiverOpt, witnessArgs, args, actualValue rhsValue.Enclosing value.AllTypeArguments rhsValue, isVirtualCall)
@@ -192,7 +192,7 @@ let optimizeImmediateExpression cenv origExpr =
                                 true
                         ), fun expr ->
                         match expr with
-                        | E.Value(_, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
+                        | E.Value(_, value) when value.HasLocalEnclosing && value.Id = bindingInfo.Value.Id ->
                             rhsExpr
                         | _ ->
                             expr

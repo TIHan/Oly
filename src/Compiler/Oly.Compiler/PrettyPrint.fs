@@ -438,7 +438,7 @@ let private printField (benv: BoundEnvironment) (field: IFieldSymbol) =
 
 let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbol) =
     let prefixText =
-        if value.IsInstance || value.IsLocal || OlySyntaxFacts.IsOperator(value.Name) then String.Empty
+        if value.IsInstance || value.HasLocalEnclosing || OlySyntaxFacts.IsOperator(value.Name) then String.Empty
         elif value.IsFunction && (value :?> IFunctionSymbol).IsPatternFunction then "pattern "
         elif value.IsFieldConstant then "constant "
         else "static "

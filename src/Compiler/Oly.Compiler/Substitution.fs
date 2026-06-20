@@ -16,9 +16,9 @@ let private handleCallExpression syntaxInfo receiverOpt subbedWitnessArgs argExp
         if appliedNewValue.Type.IsAnyVariable_ste then
             argExprs
         else
-            BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
+            E.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
 
-    BoundExpression.Call(
+    E.Call(
         syntaxInfo,
         receiverOpt,
         subbedWitnessArgs,
@@ -27,7 +27,7 @@ let private handleCallExpression syntaxInfo receiverOpt subbedWitnessArgs argExp
         isVirtualCall
     )
 
-let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
+let private substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
     match constant with
     | ConstantSymbol.Array(elementTy, elements) ->
         let newElementTy = elementTy.Substitute(tyParLookup)
@@ -57,7 +57,7 @@ let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, cons
     | _ ->
         constant
 
-let substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, literal: BoundLiteral) =
+let private substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, literal: BoundLiteral) =
     match literal with
     | BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)) ->
         let newElementTy = elementTy.Substitute(tyParLookup)
@@ -104,13 +104,239 @@ let substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, liter
             literal
 
     | _ ->
-        literal   
+        literal
 
+let private substituteField(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, field: IFieldSymbol) =
+    let enclosingTy = field.Enclosing.AsType
+    let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+    if areTypesEqual enclosingTy newEnclosingTy then
+        field
+    else
+        actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
+
+/// Do not use for LambdaLifting.
+let private substituteValue(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, value: IValueSymbol) =
+    match valueLookup.TryGetValue value.Formal.Id with
+    | true, newValue ->
+        if value.IsFormal then
+            if newValue.TypeParameters.IsEmpty then
+                newValue
+            else
+                OlyAssert.True(newValue.IsFormal)
+                let newValue2 = freshenValue benv newValue
+                let result = UnifyTypes Flexible newValue2.Type value.Type
+                OlyAssert.True(result)
+                newValue2
+        else
+            let tyArgs = value.TypeArguments
+            OlyAssert.True(newValue.IsFormal)
+            actualValue newValue.Enclosing tyArgs newValue
+    | _ ->
+        if value.HasLocalEnclosing then
+            if value.TypeParameters.IsEmpty then
+                value
+            else
+                OlyAssert.False(value.IsFormal)
+                let tyArgs = 
+                    value.TypeArguments
+                    |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
+                    |> ImArray.append (
+                        benv.EnclosingTypeParameters 
+                        |> ImArray.map (fun tyPar -> tyPar.AsType)
+                    )
+                let tyPars = benv.EnclosingTypeParameters.AddRange(value.TypeParameters)
+                let tyArgs =
+                    (tyPars, tyArgs)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar tyArg
+                    )
+                actualValue value.Enclosing tyArgs value.Formal
+        else
+            if value.AllTypeParameters.IsEmpty then
+                value
+            else
+                // TODO:
+                value
+                //let enclosingTy = value.Enclosing.AsType
+                //let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                //let tyArgs =
+                //    newEnclosingTy.TypeArguments.AddRange(
+                //        value.TypeArguments 
+                //        |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
+                //    )
+                //actualValue (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) tyArgs value.Formal
+
+let private substituteLocal(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, local: ILocalSymbol) =
+    OlyAssert.False(local.IsFunction)
+    substituteValue(benv, valueLookup, tyParLookup, local).AsLocal
+
+let private substitutePattern(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, pat: IPatternSymbol) =
+    substituteValue(benv, valueLookup, tyParLookup, pat).AsPattern
+
+let private substituteLocalLetBinding(valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, local: ILocalSymbol) =
+    let newLocal = 
+        if local.IsMutable then
+            createMutableLocalValue local.Name (local.Type.Substitute(tyParLookup))
+        else
+            createLocalValue local.Name (local.Type.Substitute(tyParLookup))
+    valueLookup[local.Id] <- newLocal
+    newLocal
+
+let private substituteCasePattern(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, casePat: BoundCasePattern) =
+    match casePat with
+    | BoundCasePattern.Discard _ -> casePat
+
+    | BoundCasePattern.Tuple(syntaxInfo, casePats) ->
+        let newCasePats =
+            casePats
+            |> ImArray.map (fun casePat -> substituteCasePattern(benv, valueLookup, tyParLookup, casePat))
+        BoundCasePattern.Tuple(syntaxInfo, newCasePats)
+
+    | BoundCasePattern.Literal(syntaxInfo, literal) ->
+        let newLiteral = substituteLiteral(tyParLookup, literal)
+        BoundCasePattern.Literal(syntaxInfo, newLiteral)
+
+    | BoundCasePattern.FieldConstant(syntaxInfo, field) ->
+        let newField = substituteField(tyParLookup, field)
+        if obj.ReferenceEquals(newField, field) then
+            casePat
+        else
+            BoundCasePattern.FieldConstant(syntaxInfo, newField)
+
+    | BoundCasePattern.Local(syntaxInfo, local) ->
+        let newLocal = substituteLocalLetBinding(valueLookup, tyParLookup, local)
+        BoundCasePattern.Local(syntaxInfo, newLocal)
+
+    | BoundCasePattern.Function(syntaxInfo, pat, witnessArgs, casePatArgs) ->
+        let newWitnessArgs = 
+            WitnessSolution.EmplaceSubstitute(
+                witnessArgs,
+                tyParLookup
+            )
+        let newPat = substitutePattern(benv, valueLookup, tyParLookup, pat)
+        let newCasePatArgs =
+            casePatArgs
+            |> ImArray.map (fun casePat -> substituteCasePattern(benv, valueLookup, tyParLookup, casePat))
+        BoundCasePattern.Function(syntaxInfo, newPat, newWitnessArgs, newCasePatArgs)
+
+let private substituteMatchPattern(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, matchPat: BoundMatchPattern) =
+    match matchPat with
+    | BoundMatchPattern.Cases(syntax, casePats) ->
+        let newCasePats =
+            casePats
+            |> ImArray.map (fun casePat ->
+                substituteCasePattern(benv, valueLookup, tyParLookup, casePat)
+            )
+        BoundMatchPattern.Cases(syntax, newCasePats)
+    | BoundMatchPattern.Or(syntax, lhsMatchPat, rhsMatchPat) ->
+        let newLhsMatchPat = substituteMatchPattern(benv, valueLookup, tyParLookup, lhsMatchPat)
+        let newRhsMatchPat = substituteMatchPattern(benv, valueLookup, tyParLookup, rhsMatchPat)
+        BoundMatchPattern.Or(syntax, newLhsMatchPat, newRhsMatchPat)
+
+let substituteForAutoGeneralization
+        (
+            benv: BoundEnvironment,
+            expr: E, 
+            valueLookup: Dictionary<int64, IValueSymbol>,
+            tyParLookup: Dictionary<int64, TypeSymbol>
+        ) =
+    expr.Rewrite(
+        (fun origExpr ->
+            match origExpr with
+            | E.Let(syntaxInfo, BindingLocal(local), rhsExpr, bodyExpr) ->
+                let newLocal = substituteLocalLetBinding(valueLookup, tyParLookup, local)
+                E.Let(
+                    syntaxInfo, 
+                    LocalBindingInfoSymbol.BindingLocal(newLocal), 
+                    rhsExpr, 
+                    bodyExpr
+                )
+
+            | E.Value(syntaxInfo, value) when value.HasLocalEnclosing && not value.IsFunction ->
+                let newLocal = substituteLocal(benv, valueLookup, tyParLookup, value.AsLocal).AsLocal
+                if obj.ReferenceEquals(newLocal, value) then
+                    origExpr
+                else
+                    E.Value(syntaxInfo, newLocal)
+
+            | E.SetValue(syntaxInfo, value, rhsExpr) when value.HasLocalEnclosing && not value.IsFunction ->
+                match valueLookup.TryGetValue value.Formal.Id with
+                | true, newValue ->          
+                    E.SetValue(syntaxInfo, newValue, rhsExpr)
+                | _ ->
+                    origExpr    
+                    
+            | E.GetField(syntaxInfo, receiverExprOpt, field) ->
+                let newField = substituteField(tyParLookup, field)
+                if obj.ReferenceEquals(newField, field) then
+                    origExpr
+                else
+                    E.GetField(syntaxInfo, receiverExprOpt, newField)
+
+            | E.SetField(syntaxInfo, receiverExprOpt, field, rhsExpr, isCtorInit) ->
+                let newField = substituteField(tyParLookup, field)
+                if obj.ReferenceEquals(newField, field) then
+                    origExpr
+                else
+                    E.SetField(syntaxInfo, receiverExprOpt, newField, rhsExpr, isCtorInit)
+                    
+            | E.GetProperty(syntaxInfo, receiverExprOpt, prop, isVirtual) ->
+                let enclosingTy = prop.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
+                    E.GetProperty(syntaxInfo, receiverExprOpt, newProp, isVirtual)
+
+            | E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, isVirtual) ->
+                let enclosingTy = prop.Enclosing.AsType
+                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                if areTypesEqual enclosingTy newEnclosingTy then
+                    origExpr
+                else
+                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
+                    E.SetProperty(syntaxInfo, receiverExprOpt, newProp, rhsExpr, isVirtual)
+
+            | E.Match(syntax, benv, matchItemExprs, matchClauses, cachedExprTy) ->
+                let newMatchClauses =
+                    matchClauses
+                    |> ImArray.map (fun matchClause ->
+                        match matchClause with
+                        | BoundMatchClause.MatchClause(syntax, matchPat, guardExprOpt, targetExpr) ->
+                            let newMatchPat = substituteMatchPattern(benv, valueLookup, tyParLookup, matchPat)
+                            BoundMatchClause.MatchClause(syntax, newMatchPat, guardExprOpt, targetExpr)
+                    )
+                E.Match(syntax, benv, matchItemExprs, newMatchClauses, cachedExprTy)
+
+            | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
+                let witnessArgs = 
+                    WitnessSolution.EmplaceSubstitute(
+                        witnessArgs,
+                        tyParLookup
+                    )
+
+                let newValue = substituteValue(benv, valueLookup, tyParLookup, value)
+                E.Call(
+                    syntaxInfo,
+                    receiverExprOpt,
+                    witnessArgs,
+                    argExprs,
+                    newValue,
+                    isVirtualCall
+                )
+            | _ ->
+                origExpr
+        ),
+        id,
+        fun _ -> true
+    )
 
 /// Substitutes type variables with the new types and values with new values in the entire expression.
+/// This is a little different than subsitution for auto-generalization when it comes to the "valueLookup".
 /// Some special rules:
 ///     - TODO: Document special rules here. Such as if the old value was a local and the new value is a instance field, it handles this by calling handleReceiverExpr callback.
-let substituteForClosure
+let substituteForLambdaLifting
         (
             expr: E,
             tyParLookup: Dictionary<int64, TypeSymbol>, 
@@ -121,6 +347,10 @@ let substituteForClosure
         expr.Rewrite(
             (fun origExpr ->
                 match origExpr with
+                | E.GetProperty _
+                | E.SetProperty _
+                | E.Match _ -> failwith "expected expression to have been lowered"
+
                 | E.Lambda(syntaxInfo, lambdaFlags, tyPars, pars, lazyBodyExpr, _lambdaCachedTy, _lambdaFreeLocals, _lambdaFreeTyVars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) && not(lambdaFlags.HasFlag(LambdaFlags.Static)) ->
                     
                     let constrsList = ResizeArray()
@@ -154,11 +384,11 @@ let substituteForClosure
 
                     E.CreateLambda(syntaxInfo, lambdaFlags, newTyPars, newPars, lazyBodyExpr)
 
-                | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
+                | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
                     let newBindingInfo =
                         match bindingInfo with
                         | BindingLocal(value) ->
-                            OlyAssert.True(value.IsLocal)
+                            OlyAssert.True(value.HasLocalEnclosing)
                             let newValue = 
                                 LocalSymbol(value.Name, value.Formal.Type.Substitute(tyParLookup), value.IsGenerated, value.IsMutable)
 
@@ -168,7 +398,7 @@ let substituteForClosure
                         | BindingLocalFunction(func) ->
                             // TODO: Handle type parameter constraints as they may have captured type variables we need to substitute.
                             OlyAssert.True(func.IsFormal)
-                            OlyAssert.True(func.IsLocal)
+                            OlyAssert.True(func.HasLocalEnclosing)
 
                             let name = func.Name
                             let ty = func.Type.Substitute(tyParLookup)
@@ -211,35 +441,35 @@ let substituteForClosure
 
                             BindingLocalFunction(newFunc)
 
-                    BoundExpression.Let(syntaxInfo, newBindingInfo, rhsExpr, bodyExpr)
+                    E.Let(syntaxInfo, newBindingInfo, rhsExpr, bodyExpr)
                 | _ ->
                     origExpr
             ),
             (fun origExpr ->
                 match origExpr with
-                | BoundExpression.GetField(syntaxInfo, receiverExpr, field) ->
+                | E.GetField(syntaxInfo, receiverExpr, field) ->
                     if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
                         origExpr
                     else
                         let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
                         E.GetField(syntaxInfo, receiverExpr, newField)
 
-                | BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr, isCtorInit) ->
+                | E.SetField(syntaxInfo, receiverExpr, field, rhsExpr, isCtorInit) ->
                     if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
                         origExpr
                     else
                         let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
                         E.SetField(syntaxInfo, receiverExpr, newField, rhsExpr, isCtorInit)
 
-                | BoundExpression.Literal(syntaxInfo, literal) ->
+                | E.Literal(syntaxInfo, literal) ->
                     let newLiteral = substituteLiteral(tyParLookup, literal)
 
                     if newLiteral = literal then
                         origExpr
                     else
-                        BoundExpression.Literal(syntaxInfo, newLiteral)
+                        E.Literal(syntaxInfo, newLiteral)
 
-                | BoundExpression.Value(syntaxInfo, value) ->
+                | E.Value(syntaxInfo, value) ->
                     match valueLookup.TryGetValue value.Formal.Id with
                     | true, newValue -> 
 
@@ -247,7 +477,7 @@ let substituteForClosure
                             if value.IsFunction then
                                 let tyPars =
                                     // Special!
-                                    if value.IsLocal && not newValue.IsLocal then
+                                    if value.HasLocalEnclosing && not newValue.HasLocalEnclosing then
                                         newValue.TypeParameters
                                     else
                                         newValue.AllTypeParameters
@@ -263,7 +493,7 @@ let substituteForClosure
 
                         let valueExpr =
                             // Special!
-                            if value.IsLocal && newValue.IsInstance then
+                            if value.HasLocalEnclosing && newValue.IsInstance then
                                 if newValue.IsFunction then
                                     OlyAssert.True(value.Type.IsAnyFunction_ste)
                                     OlyAssert.False(newValue.IsConstructor)
@@ -273,7 +503,7 @@ let substituteForClosure
                                 else
                                     OlyAssert.True(newValue.IsField)
                                     let getFieldExpr =
-                                        BoundExpression.GetField(
+                                        E.GetField(
                                             syntaxInfo, 
                                             (
                                                 (handleReceiverExpr newValue)
@@ -286,7 +516,7 @@ let substituteForClosure
                                     else
                                         getFieldExpr                                      
                             else
-                                let valueExpr = BoundExpression.Value(syntaxInfo, appliedNewValue)
+                                let valueExpr = E.Value(syntaxInfo, appliedNewValue)
                                 // Special!
                                 if newValue.Type.IsAnyByRef_ste && not value.Type.IsAnyByRef_ste then
                                     WellKnownExpressions.FromAddress valueExpr
@@ -305,15 +535,15 @@ let substituteForClosure
                                 value.Formal.Substitute(allTyArgs)
                             else
                                 value
-                        BoundExpression.Value(syntaxInfo, appliedValue)
+                        E.Value(syntaxInfo, appliedValue)
 
-                | BoundExpression.SetValue(syntaxInfo, value, rhsExpr) ->
+                | E.SetValue(syntaxInfo, value, rhsExpr) ->
                     match valueLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
 
                         let tyPars =
                             // Special!
-                            if value.IsLocal && not newValue.IsLocal then
+                            if value.HasLocalEnclosing && not newValue.HasLocalEnclosing then
                                 newValue.TypeParameters
                             else
                                 newValue.AllTypeParameters
@@ -330,23 +560,23 @@ let substituteForClosure
                         if appliedNewValue.Type.IsAnyByRef_ste && not value.Type.IsAnyByRef_ste then
                             match appliedNewValue with
                             | :? IFieldSymbol as appliedNewField ->
-                                BoundExpression.SetContentsOfAddress(
+                                E.SetContentsOfAddress(
                                     syntaxInfo, 
-                                    BoundExpression.GetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField),
+                                    E.GetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField),
                                     rhsExpr
                                 )
                             | _ ->
-                                BoundExpression.SetContentsOfAddress(
+                                E.SetContentsOfAddress(
                                     syntaxInfo, 
-                                    BoundExpression.CreateGeneratedValue(syntaxInfo.Syntax, appliedNewValue),
+                                    E.CreateGeneratedValue(syntaxInfo.Syntax, appliedNewValue),
                                     rhsExpr
                                 )
                         else
                             match appliedNewValue with
                             | :? IFieldSymbol as appliedNewField ->
-                                BoundExpression.SetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField, rhsExpr, isCtorInit = false)
+                                E.SetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField, rhsExpr, isCtorInit = false)
                             | _ ->
-                                BoundExpression.SetValue(syntaxInfo, appliedNewValue, rhsExpr)
+                                E.SetValue(syntaxInfo, appliedNewValue, rhsExpr)
                     | _ ->
                         let allTyArgs =
                             (value.AllTypeParameters, value.AllTypeArguments) 
@@ -355,9 +585,9 @@ let substituteForClosure
                             )
 
                         let appliedValue = value.Formal.Substitute(allTyArgs)
-                        BoundExpression.SetValue(syntaxInfo, appliedValue, rhsExpr)
+                        E.SetValue(syntaxInfo, appliedValue, rhsExpr)
 
-                | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
+                | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                     let subbedWitnessArgs = 
                         WitnessSolution.EmplaceSubstitute(
                             witnessArgs,
@@ -382,14 +612,14 @@ let substituteForClosure
                                 Some(handleReceiverExpr newValue)
                             | _ ->
                                 if newValue.Type.IsClosure_ste then
-                                    BoundExpression.Value(syntaxInfo, newValue)
+                                    E.Value(syntaxInfo, newValue)
                                     |> Some
                                 else
                                     receiverOpt
 
                         let tyPars =
                             // Special!
-                            if value.IsLocal && not newValue.IsLocal then
+                            if value.HasLocalEnclosing && not newValue.HasLocalEnclosing then
                                 newValue.TypeParameters
                             else
                                 // Special!
@@ -417,9 +647,9 @@ let substituteForClosure
                             let appliedClosureInvoke = closureInvoke.Formal.Substitute(allTyArgs)
 
                             let newArgExprs =
-                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedClosureInvoke)
+                                E.TryImplicitCalls_LoadFunction(argExprs, appliedClosureInvoke)
 
-                            BoundExpression.Call(
+                            E.Call(
                                 syntaxInfo,
                                 receiverOpt,
                                 subbedWitnessArgs,
@@ -489,9 +719,9 @@ let substituteForClosure
                             if appliedValue.Type.IsAnyVariable_ste then
                                 argExprs
                             else
-                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
+                                E.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
 
-                        BoundExpression.Call(
+                        E.Call(
                             syntaxInfo,
                             receiverOpt,
                             subbedWitnessArgs,
@@ -512,7 +742,7 @@ let substituteForClosure
 
     newExpr
 
-let substituteValuesForClosure
+let substituteValuesForLambdaLifting
     (expr, substitutions: (int64 * IValueSymbol) imarray)
     =
     let valueLookup = Dictionary()
@@ -520,146 +750,4 @@ let substituteValuesForClosure
     |> ImArray.iter (fun (id, value) ->
         valueLookup[id] <- value
     )
-    substituteForClosure(expr, Dictionary(), valueLookup, fun _ -> OlyAssert.Fail("handleReceiverExpr"))
-
-let substituteForAutoGeneralization
-        (
-            benv: BoundEnvironment,
-            expr: BoundExpression, 
-            localLookup: Dictionary<int64, IValueSymbol>,
-            tyParLookup: Dictionary<int64, TypeSymbol>
-        ) =
-    expr.Rewrite(
-        (fun origExpr ->
-            match origExpr with
-            | BoundExpression.Let(syntaxInfo, BindingLocal(value), rhsExpr, bodyExpr) ->
-                let newValue = 
-                    if value.IsMutable then
-                        createMutableLocalValue value.Name (value.Type.Substitute(tyParLookup))
-                    else
-                        createLocalValue value.Name (value.Type.Substitute(tyParLookup))
-                localLookup[value.Id] <- newValue
-                BoundExpression.Let(
-                    syntaxInfo, 
-                    LocalBindingInfoSymbol.BindingLocal(newValue), 
-                    rhsExpr, 
-                    bodyExpr
-                )
-            | _ ->
-                origExpr
-        ),
-        (fun origExpr ->
-            match origExpr with
-            | BoundExpression.Value(syntaxInfo, value) when value.IsLocal && not value.IsFunction ->
-                match localLookup.TryGetValue value.Formal.Id with
-                | true, newValue ->          
-                    BoundExpression.Value(syntaxInfo, newValue)
-                | _ ->
-                    origExpr
-
-            | BoundExpression.SetValue(syntaxInfo, value, rhsExpr) when value.IsLocal && not value.IsFunction ->
-                match localLookup.TryGetValue value.Formal.Id with
-                | true, newValue ->          
-                    BoundExpression.SetValue(syntaxInfo, newValue, rhsExpr)
-                | _ ->
-                    origExpr    
-                    
-            | BoundExpression.GetField(syntaxInfo, receiverExprOpt, field) ->
-                let enclosingTy = field.Enclosing.AsType
-                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                if areTypesEqual enclosingTy newEnclosingTy then
-                    origExpr
-                else
-                    let newField = actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
-                    BoundExpression.GetField(syntaxInfo, receiverExprOpt, newField)
-
-            | BoundExpression.SetField(syntaxInfo, receiverExprOpt, field, rhsExpr, isCtorInit) ->
-                let enclosingTy = field.Enclosing.AsType
-                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                if areTypesEqual enclosingTy newEnclosingTy then
-                    origExpr
-                else
-                    let newField = actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
-                    BoundExpression.SetField(syntaxInfo, receiverExprOpt, newField, rhsExpr, isCtorInit)
-                    
-            | BoundExpression.GetProperty(syntaxInfo, receiverExprOpt, prop, isVirtual) ->
-                let enclosingTy = prop.Enclosing.AsType
-                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                if areTypesEqual enclosingTy newEnclosingTy then
-                    origExpr
-                else
-                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
-                    BoundExpression.GetProperty(syntaxInfo, receiverExprOpt, newProp, isVirtual)
-
-            | BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, isVirtual) ->
-                let enclosingTy = prop.Enclosing.AsType
-                let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                if areTypesEqual enclosingTy newEnclosingTy then
-                    origExpr
-                else
-                    let newProp = actualProperty (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments prop.Formal.AsProperty
-                    BoundExpression.SetProperty(syntaxInfo, receiverExprOpt, newProp, rhsExpr, isVirtual)
-
-            | BoundExpression.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
-                let witnessArgs = 
-                    WitnessSolution.EmplaceSubstitute(
-                        witnessArgs,
-                        tyParLookup
-                    )
-
-                match localLookup.TryGetValue value.Formal.Id with
-                | true, newValue ->
-                    let newValue =
-                        if value.IsFormal then
-                            if newValue.TypeParameters.IsEmpty then
-                                newValue
-                            else
-                                OlyAssert.True(newValue.IsFormal)
-                                let newValue2 = freshenValue benv newValue
-                                let result = UnifyTypes Flexible newValue2.Type value.Type
-                                OlyAssert.True(result)
-                                newValue2
-                        else
-                            let tyArgs = value.TypeArguments
-                            OlyAssert.True(newValue.IsFormal)
-                            actualValue newValue.Enclosing tyArgs newValue
-                    BoundExpression.Call(
-                        syntaxInfo,
-                        receiverExprOpt,
-                        witnessArgs,
-                        argExprs,
-                        newValue,
-                        isVirtualCall
-                    )
-                | _ ->
-                    if not value.TypeParameters.IsEmpty then
-                        OlyAssert.False(value.IsFormal)
-                        let tyArgs = 
-                            value.TypeArguments 
-                            |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
-                            |> ImArray.append (
-                                benv.EnclosingTypeParameters 
-                                |> ImArray.map (fun tyPar -> tyPar.AsType)
-                            )
-                        let tyPars = benv.EnclosingTypeParameters.AddRange(value.TypeParameters)
-                        let tyArgs =
-                            (tyPars, tyArgs)
-                            ||> ImArray.map2 (fun tyPar tyArg ->
-                                mkSolvedInferenceVariableType tyPar tyArg
-                            )
-                        let newValue = actualValue value.Enclosing tyArgs value.Formal
-                        BoundExpression.Call(
-                            syntaxInfo,
-                            receiverExprOpt,
-                            witnessArgs,
-                            argExprs,
-                            newValue,
-                            isVirtualCall
-                        )
-                    else
-                        origExpr
-            | _ ->
-                origExpr
-        ),
-        fun _ -> true
-    )
+    substituteForLambdaLifting(expr, Dictionary(), valueLookup, fun _ -> OlyAssert.Fail("handleReceiverExpr"))

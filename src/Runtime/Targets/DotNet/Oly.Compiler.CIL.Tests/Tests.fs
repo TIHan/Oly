@@ -22322,3 +22322,95 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function 13``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    GetValue(): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        c.GetValue()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function 14``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    GetValue<U>(): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        c.GetValue<()>()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore

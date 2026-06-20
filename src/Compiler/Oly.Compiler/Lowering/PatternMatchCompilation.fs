@@ -53,7 +53,7 @@ let substituteLocals
             ),
             (fun origExpr ->
                 match origExpr with
-                | BoundExpression.Value(syntaxInfo, value) when value.IsLocal && not value.IsFunction ->
+                | BoundExpression.Value(syntaxInfo, value) when value.HasLocalEnclosing && not value.IsFunction ->
                     match localLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->          
                         BoundExpression.Value(syntaxInfo, newValue)
@@ -61,7 +61,7 @@ let substituteLocals
                         origExpr
 
                 | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtualCall) 
-                        when value.IsLocal && not value.IsFunction ->
+                        when value.HasLocalEnclosing && not value.IsFunction ->
 
                     match localLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
@@ -242,7 +242,7 @@ let isSimpleMatchClause (matchClause: BoundMatchClause) =
 let isReallySimpleExpression (expr: E) =
     match expr with
     | E.Literal _ -> true
-    | E.Value(value=value) -> value.IsLocal || value.IsFieldConstant
+    | E.Value(value=value) -> value.HasLocalEnclosing || value.IsFieldConstant
     | _ -> false
 
 let isSimpleExpression (expr: E) =
@@ -1292,7 +1292,7 @@ let lowerMatchExpression (matchExpr: E) =
             matchValueExprs
             |> ImArray.mapi (fun i expr ->
                 match expr with
-                | E.Value(syntaxInfo, value) when value.IsLocal ->
+                | E.Value(syntaxInfo, value) when value.HasLocalEnclosing ->
                     {| syntaxInfo = syntaxInfo; value = value :?> ILocalSymbol; isTmp = false; index = i |}
                 | _ ->
                     let tmpValue = createLocalGeneratedValue "tmp" expr.Type
@@ -1371,7 +1371,7 @@ let Lower (ct: CancellationToken) (boundTree: BoundTree) =
         match origExpr with
 #if DEBUG || CHECKED
         | E.MemberDefinition(binding=binding) ->
-            Assert.ThrowIf(binding.Info.Value.IsLocal)
+            Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
             origExpr
 #endif
 

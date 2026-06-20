@@ -533,7 +533,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
 
             // Context Analysis: UnmanagedAllocationOnly
             if aenv.IsInUnmanagedAllocationOnlyContext then
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     if not value.IsStaticLocalFunction || not value.IsUnmanagedAllocationOnly then
                         reportUnmanagedAllocationOnly acenv syntaxNode
 
@@ -543,14 +543,14 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
                 else
                     aenv.limits
 
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
             else
                 analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentNonLocalFunctionOpt = Some value.AsFunction; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
             { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
         | ValueSome(rhsExpr) ->
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
             else
                 analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
@@ -564,7 +564,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
         else
             { aenv with isMemberSig = true }
 
-    if value.IsLocal && not(value.IsFunction) && not value.IsGenerated then
+    if value.HasLocalEnclosing && not(value.IsFunction) && not value.IsGenerated then
         acenv.scopes[value.Id] <- { Value = aenv.scope; ValueLambda = aenv.scopeLambda; Limits = scopeResult.ScopeLimits }
 
     let checkValueTy () =
@@ -1273,7 +1273,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
     | E.MemberDefinition(_, binding) ->
         let aenv = (notLastExprOfScope aenv)
         let aenv = { aenv with memberFlags = binding.Info.Value.MemberFlags }
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         analyzeBinding acenv aenv expr.Syntax binding
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 

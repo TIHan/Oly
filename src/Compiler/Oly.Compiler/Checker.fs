@@ -555,12 +555,12 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
     let freeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
 
     let funcFlags =
-        if value.IsLocal && isStatic then
+        if value.HasLocalEnclosing && isStatic then
             FunctionFlags.StaticLocal
         else
             FunctionFlags.None
     
-    if freeInputTyVars.Count > 0 && value.IsLocal then
+    if freeInputTyVars.Count > 0 && value.HasLocalEnclosing then
         let generalizedTyPars, _, _ =
             createGeneralizedFunctionTypeParameters
                 env
@@ -739,7 +739,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
 
     let bindingInfo2, tyParReplace =
         match binding with
-        | BindingLocalFunction(func) when func.IsLocal ->
+        | BindingLocalFunction(func) when func.HasLocalEnclosing ->
             let possibleFreeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
             
             let freeInputTyVars = ResizeArray()
@@ -750,7 +750,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
                 if not exists then
                     freeInputTyVars.Add(struct(id, ty))
 
-            if freeInputTyVars.Count > 0 && binding.Value.IsLocal then
+            if freeInputTyVars.Count > 0 && binding.Value.HasLocalEnclosing then
                 let generalizedTyPars, solutionIdReplace, tyParReplace = createGeneralizedFunctionTypeParameters env syntax true freeInputTyVars witnessArgLookup func.TypeParameters
                 let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars solutionIdReplace func
                 valueLookup[func.Id] <- generalizedFunc
@@ -777,7 +777,7 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     let rhsExpr2 =
         match bindingInfo2 with
         | BindingLocalFunction(func=func) ->
-            OlyAssert.True(func.IsLocal)
+            OlyAssert.True(func.HasLocalEnclosing)
             if not func.TypeParameters.IsEmpty then
                 // If the function has type parameters but the lambda expression does not, we probably generalized the function;
                 //     therefore, we need to create a new lambda expression with those type parameters.

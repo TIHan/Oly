@@ -155,7 +155,7 @@ type RefCellRewriterCore(cenv: cenv) =
 
     override this.Rewrite(origExpr) =
         match origExpr with
-        | E.MemberDefinition(syntaxInfo1, BoundBinding.Implementation(syntaxInfo2, bindingInfo, rhsExpr)) when not bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction ->
+        | E.MemberDefinition(syntaxInfo1, BoundBinding.Implementation(syntaxInfo2, bindingInfo, rhsExpr)) when not bindingInfo.Value.HasLocalEnclosing && bindingInfo.Value.IsFunction ->
             let newRhsExpr =
                 match rhsExpr with
                 | E.Lambda _ ->

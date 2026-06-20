@@ -694,7 +694,7 @@ and GenFunctionAsILFunctionSpecificationNoCache (cenv: cenv) (env: env) (func: I
     | EnclosingSymbol.Entity(ent) when ent.IsModule && func.IsAbstract -> failwith "invalid"
     | _ -> ()
     let name =
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             cenv.GenerateName() + "_" + func.Name
         else
             func.Name
@@ -1526,7 +1526,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
     | E.MemberDefinition(_, binding) ->
 #if DEBUG || CHECKED
-        OlyAssert.False(binding.Info.Value.IsLocal)
+        OlyAssert.False(binding.Info.Value.HasLocalEnclosing)
         OlyAssert.True(binding.Info.Value.IsFormal)
 #endif
         match binding with
@@ -1560,7 +1560,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
     | E.SetValue(value=value;rhs=rhs) ->
 #if DEBUG || CHECKED
-        if value.IsLocal && not value.IsMutable then
+        if value.HasLocalEnclosing && not value.IsMutable then
             failwith "Value must be mutable."
 
         OlyAssert.False(value.IsFunction)
@@ -1665,7 +1665,7 @@ and GenLoadFieldExpression cenv env ilTextRange (takeAddress: OlyILByRefKind vop
 and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind voption) (witnessArgs: WitnessSolution imarray) (value: IValueSymbol) (ilArgExprs: OlyILExpression imarray) : OlyILExpression =
     OlyAssert.False(value.IsFunction)
 
-    if value.IsLocal && not(value.IsParameter) && (env.locals.Contains(value.Id) |> not) then
+    if value.HasLocalEnclosing && not(value.IsParameter) && (env.locals.Contains(value.Id) |> not) then
         failwith $"Local '{value.Name}' is missing or is out-of-scope."
 
     let env = { env with isReturnable = false }
@@ -2094,7 +2094,7 @@ and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhs
     | BindingFunction(func)
     | BindingPattern(_, func) ->
         GenFunctionDefinitionExpression cenv env func rhsExpr
-        OlyAssert.False(func.IsLocal)
+        OlyAssert.False(func.HasLocalEnclosing)
         OlyAssert.True(bodyExprOpt.IsNone)
         OlyILExpressionNone
       
@@ -2105,7 +2105,7 @@ and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E)
     match bindingInfo with
     | BindingLocalFunction(func) ->
         OlyAssert.True(bodyExprOpt.IsSome)
-        OlyAssert.True(func.IsLocal)
+        OlyAssert.True(func.HasLocalEnclosing)
         GenFunctionDefinitionExpression cenv env func rhsExpr
         GenExpression cenv env bodyExprOpt.Value
       
@@ -2180,7 +2180,7 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rh
     OlyAssert.False(func.Enclosing.IsShape)
     let freeTyVars = rhsExpr.GetLogicalFreeTypeVariables()
     let freeLocals = rhsExpr.GetLogicalFreeAnyLocals()
-    if (freeTyVars.Length > 0 || freeLocals.Length > 0) && func.IsLocal then
+    if (freeTyVars.Length > 0 || freeLocals.Length > 0) && func.HasLocalEnclosing then
         failwith "Expected free local and free variables to be lifted from the expression in lowering."
     else
         let isValid =

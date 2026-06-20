@@ -1177,6 +1177,8 @@ let actualValue (enclosing: EnclosingSymbol) (tyArgs: TypeArgumentSymbol imarray
         actualField enclosing tyArgs field :> IValueSymbol
     | :? IPropertySymbol as prop ->
         actualProperty enclosing tyArgs prop :> IValueSymbol
+    | :? IPatternSymbol as pat ->
+        actualPattern enclosing tyArgs pat
     | _ ->
         if value.ValueFlags &&& ValueFlags.Invalid = ValueFlags.Invalid then
             value
@@ -2335,7 +2337,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         | Pass2 ->
             OlyAssert.True(pat.IsFormal)
             OlyAssert.True(this.IsPatternFunction)
-            OlyAssert.False(this.IsLocal)
+            OlyAssert.False(this.HasLocalEnclosing)
             patOpt <- Some pat
         | _ ->
             failwith "Expected Pass2."
@@ -2346,7 +2348,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         | Pass2 ->
             OlyAssert.True(prop.IsFormal)
             OlyAssert.True(this.Semantic = FunctionSemantic.GetterFunction || this.Semantic = FunctionSemantic.SetterFunction)
-            OlyAssert.False(this.IsLocal)
+            OlyAssert.False(this.HasLocalEnclosing)
             propOpt <- Some prop
         | _ ->
             failwith "Expected Pass2."
@@ -2369,7 +2371,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         
     /// Mutability
     member this.SetLocalEmptyTypeParameters_Pass4(pass: CompilerPass, newTyPars: TypeParameterSymbol imarray) =
-        if not this.IsLocal then failwith "expected local function"
+        if not this.HasLocalEnclosing then failwith "expected local function"
         if pass <> Pass4 then failwith "expected pass4"
         if newTyPars.IsEmpty then failwith "expected new type parameters"
         if not tyPars.IsEmpty then failwith "expected empty type parameters"
@@ -3125,7 +3127,7 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
             flags
 
     do
-        OlyAssert.True(value.IsLocal)
+        OlyAssert.True(value.HasLocalEnclosing)
 
     interface ILocalSymbol with
 
@@ -5125,7 +5127,7 @@ module SymbolExtensions =
     
             /// Is this value a local and only used a single time?
             member this.IsSingleUse =
-                this.IsLocal && this.Name = LocalBridgeName && not this.IsMutable
+                this.HasLocalEnclosing && this.Name = LocalBridgeName && not this.IsMutable
 
             member this.IsFieldConstant =
                 this.IsField && (this :?> IFieldSymbol).Constant.IsSome
@@ -5146,12 +5148,12 @@ module SymbolExtensions =
                 else
                     this.Type
     
-            member this.IsLocal =
+            member this.HasLocalEnclosing =
                 match this.Enclosing with
                 | EnclosingSymbol.Local -> true
                 | _ -> false
 
-            member this.IsLocalAndNotFunction =
+            member this.HasLocalEnclosingAndIsNotStaticLocalFunction =
                 match this.Enclosing with
                 | EnclosingSymbol.Local -> not this.IsStaticLocalFunction
                 | _ -> false
@@ -5311,7 +5313,7 @@ module SymbolExtensions =
     
             member this.IsStaticLocalFunction =
                 (this.FunctionFlags &&& FunctionFlags.StaticLocal = FunctionFlags.StaticLocal) &&
-                this.IsLocal
+                this.HasLocalEnclosing
 
             member this.RequiresExplicitTypeArguments =
                 this.FunctionFlags &&& FunctionFlags.RequiresExplicitTypeArguments = FunctionFlags.RequiresExplicitTypeArguments

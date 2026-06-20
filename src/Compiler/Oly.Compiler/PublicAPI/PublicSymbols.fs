@@ -617,7 +617,7 @@ type OlyFunctionGroupSymbol internal (funcGroup: FunctionGroupSymbol) =
     override this.IsImported = false
 
     override this.IsInLocalScope =
-        funcGroup.IsLocal
+        funcGroup.HasLocalEnclosing
 
     member _.Functions =
         funcGroup.Functions
@@ -638,7 +638,7 @@ type OlyValueSymbol internal (value: IValueSymbol) =
             value.Name
 
     override _.TryGetDefinitionLocation(boundModel, ct) =
-        if value.IsLocal then
+        if value.HasLocalEnclosing then
             boundModel.TryFindDefinition(value, ct)
         else
             match boundModel.TryFindDefinition(value, ct) with
@@ -731,7 +731,7 @@ type OlyValueSymbol internal (value: IValueSymbol) =
 
     override this.IsImported = value.IsImported
 
-    override _.IsInLocalScope = value.IsLocal
+    override _.IsInLocalScope = value.HasLocalEnclosing
 
     member _.ReturnType = 
         match value with
@@ -783,7 +783,7 @@ type OlyValueSymbol internal (value: IValueSymbol) =
 
     member this.IsMutable = value.IsMutable
 
-    member this.IsStatic = not value.IsInstance && not value.IsLocal
+    member this.IsStatic = not value.IsInstance && not value.HasLocalEnclosing
 
     member this.IsAbstract = value.IsAbstract
 

@@ -504,7 +504,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
             if isExplicitSet && (logicalPars.IsEmpty || not (areTypesEqual logicalPars.[0].Type propTy)) then
                 cenv.diagnostics.Error($"Expected first parameter of 'set' binding to be of type '{printType env.benv propTy}'.", 10, syntaxNode)
     
-            if func.IsLocal then
+            if func.HasLocalEnclosing then
                 BindingLocalFunction(func)
                 |> Choice2Of2
                 |> Some
@@ -625,7 +625,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
         let returnTy = bindReturnTypeAnnotation cenv env1 syntaxReturnTyAnnot
 
         let func = bindFunction env1 syntaxIdent.ValueText (syntaxTyPars.HasRequire, tyPars) returnTy syntaxIdent syntaxPars memberFlags
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             BindingLocalFunction(func)
             |> Choice2Of2
             |> Some
@@ -703,7 +703,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
                     None
                     false
 
-            if func.IsLocal then
+            if func.HasLocalEnclosing then
                 BindingLocalFunction(func)
                 |> Choice2Of2
                 |> Some

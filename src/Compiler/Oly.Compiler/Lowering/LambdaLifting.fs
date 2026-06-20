@@ -27,7 +27,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
     | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
         checkLocals localScope rhsExpr
         let localScope = 
-            if bindingInfo.Value.IsLocalAndNotFunction then
+            if bindingInfo.Value.HasLocalEnclosingAndIsNotStaticLocalFunction then
                 localScope.Add(bindingInfo.Value.Id)
             else
                 localScope
@@ -47,7 +47,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         checkLocals localScope expr2
 
     | E.Call(receiverOpt=receiverExprOpt;args=argExprs;value=value) ->
-        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
         match receiverExprOpt with
@@ -60,7 +60,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         |> ImArray.iter (checkLocals localScope)
 
     | E.Value(value=value) ->
-        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
     | E.EntityDefinition(body=bodyExpr) ->
@@ -71,7 +71,7 @@ let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
         checkLocals localScope rhsExpr
 
     | E.SetValue(value=value;rhs=rhsExpr) ->
-        if value.IsLocalAndNotFunction && not(localScope.Contains(value.Formal.Id)) then
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
             OlyAssert.Fail("Local out of scope")
 
         checkLocals localScope rhsExpr
@@ -326,7 +326,7 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
 
     let invokeRhs =
         let newBodyExpr =
-            substituteForClosure(
+            substituteForLambdaLifting(
                 bodyExpr,
                 tyParLookup, 
                 valueLookup,
@@ -827,7 +827,7 @@ type LambdaLiftingRewriter(cenv: cenv) =
                     valueLookup[func.Id] <- newFunc
 
                     let newLambdaBodyExpr =
-                        substituteForClosure(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
+                        substituteForLambdaLifting(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
 
                     let newLazyLambdaBodyExpr =
                         LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
@@ -897,8 +897,8 @@ type LambdaLiftingRewriter(cenv: cenv) =
 
                 let newBindingInfo = BindingLocal(local)
 
-                let newRhsExpr = substituteValuesForClosure(newRhsExpr, ImArray.createOne (value.Id, local))
-                let newBodyExpr = substituteValuesForClosure(bodyExpr, ImArray.createOne (value.Id, local))
+                let newRhsExpr = substituteValuesForLambdaLifting(newRhsExpr, ImArray.createOne (value.Id, local))
+                let newBodyExpr = substituteValuesForLambdaLifting(bodyExpr, ImArray.createOne (value.Id, local))
 
                 E.Let(
                     syntaxInfo,

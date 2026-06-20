@@ -164,7 +164,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
 
 #if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         origExpr
 #endif
 
@@ -381,7 +381,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
                 let fieldBindings =
                     exprs
                     |> ImArray.choose (function
-                        | E.MemberDefinition(binding=binding) when binding.Info.Value.IsField && not binding.Info.Value.IsLocal ->
+                        | E.MemberDefinition(binding=binding) when binding.Info.Value.IsField && not binding.Info.Value.HasLocalEnclosing ->
                             Some binding
                         | _ ->
                             None

@@ -35,7 +35,7 @@ module private Helpers =
         inherit BoundTreeVisitor(BoundTreeVisitorCore())
 
         let checkValue (value: IValueSymbol) =
-            value.IsLocal && not value.IsStaticLocalFunction && predicate value && not (locals.Contains(value.Id))
+            value.HasLocalEnclosing && not value.IsStaticLocalFunction && predicate value && not (locals.Contains(value.Id))
 
         static member HandlePossibleLambda(predicate: IValueSymbol -> bool, canCache, checkInnerLambdas, expr, freeLocals: FreeLocals, locals: Locals) =
             match expr with
@@ -254,7 +254,7 @@ module private Helpers =
                 implType ty
 
             | BoundExpression.Value(value=value) ->
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     implType value.Type
 
             | BoundExpression.Literal(_, literal) ->
@@ -265,7 +265,7 @@ module private Helpers =
                 receiverOpt
                 |> Option.iter (fun receiver -> handleExpression receiver)
                 
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     implTypeCaptureSolved value.Type
                 else
                     implType value.Type
@@ -1017,14 +1017,14 @@ let areTargetExpressionsEqual (expr1: E) (expr2: E) =
             (argExprs1, argExprs2)
             ||> ImArray.forall2 (fun expr1 expr2 ->
                 match expr1, expr2 with
-                | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+                | E.Value(value=value1), E.Value(value=value2) when value1.HasLocalEnclosing && not value1.IsMutable ->
                     areValueSignaturesEqual value1 value2
                 | E.Literal(_, literal1), E.Literal(_, literal2) ->
                     areLiteralsEqual literal1 literal2
                 | _ ->
                     false
             )
-        | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+        | E.Value(value=value1), E.Value(value=value2) when value1.HasLocalEnclosing && not value1.IsMutable ->
             areValueSignaturesEqual value1 value2
         | E.Literal(_, literal1), E.Literal(_, literal2) ->
             areLiteralsEqual literal1 literal2

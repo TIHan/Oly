@@ -385,7 +385,7 @@ type BinderEnvironment =
 
     static member private SetUnqualifiedValue(unqualifiedSymbols: NameMap<UnqualifiedSymbol>, unqualified, value: IValueSymbol) =
         let unqualifiedSymbols =
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 unqualifiedSymbols.SetItem(value.Name, unqualified)
             else
                 match unqualifiedSymbols.TryGetValue(value.Name) with

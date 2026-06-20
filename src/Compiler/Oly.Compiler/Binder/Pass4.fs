@@ -628,7 +628,7 @@ let private bindFunctionRightSideExpression (cenv: cenv) (env: BinderEnvironment
             rhsBodyExpr
         )
         
-    if not func.IsLocal then
+    if not func.HasLocalEnclosing then
         lazyBodyExpr.Run()
 
     let rhsExpr = 
@@ -694,7 +694,7 @@ let private bindMemberValueRightSideExpression (cenv: cenv) (env: BinderEnvironm
                 envOfBinding.SetIsInInstanceConstructorType(ent)
             | _ ->
                 envOfBinding.UnsetIsInInstanceConstructorType()
-        elif (binding.Value.IsFunction && not binding.Value.IsLocal) || binding.Value.IsStaticLocalFunction then
+        elif (binding.Value.IsFunction && not binding.Value.HasLocalEnclosing) || binding.Value.IsStaticLocalFunction then
             envOfBinding.UnsetIsInInstanceConstructorType()
         else
             envOfBinding
@@ -1524,7 +1524,7 @@ let private bindLocalValueDeclaration
 
         let envForRhsExpr = 
             let env = envWithValue.SetReturnable(false)
-            if bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction then
+            if bindingInfo.Value.HasLocalEnclosing && bindingInfo.Value.IsFunction then
                 setIsInLocalLambda env
             else
                 env
