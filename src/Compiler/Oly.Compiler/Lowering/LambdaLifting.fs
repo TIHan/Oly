@@ -476,7 +476,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let closureTyPars = 
             freeTyVars
             |> ImArray.mapi (fun i x -> 
-                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.IsVariadic, TypeParameterKind.Type, ref ImArray.empty)
+                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.Flags, TypeParameterKind.Type, ref ImArray.empty)
                 tyParLookup[x.Id] <- tyPar.AsType
                 closureTyParLookup[x.Id] <- tyPar.AsType
                 tyPar
@@ -485,7 +485,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let invokeTyPars =
             tyPars
             |> ImArray.mapi (fun i x ->
-                let tyPar = TypeParameterSymbol(x.Name, closureTyPars.Length + i, x.Arity, x.IsVariadic, TypeParameterKind.Function i, ref ImArray.empty)
+                let tyPar = TypeParameterSymbol(x.Name, closureTyPars.Length + i, x.Arity, x.Flags, TypeParameterKind.Function i, ref ImArray.empty)
                 tyParLookup[x.Id] <- tyPar.AsType
                 tyPar
             )

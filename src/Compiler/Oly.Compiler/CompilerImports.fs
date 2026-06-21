@@ -415,7 +415,7 @@ let private retargetTypeParameter currentAsmIdent importer (tyPar: TypeParameter
     if tyPar.Constraints.IsEmpty then
         tyPar
     else
-        TypeParameterSymbol(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.IsVariadic, tyPar.Kind, ref ImArray.empty)
+        TypeParameterSymbol(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.Flags, tyPar.Kind, ref ImArray.empty)
 
 let private retargetParameter currentAsmIdent importer (tyPars: TypeParameterSymbol imarray) (par: ILocalParameterSymbol) =
     match par with

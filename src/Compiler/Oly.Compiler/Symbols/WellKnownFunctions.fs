@@ -513,9 +513,9 @@ let LoadFunctionPtr =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
     let tyPars =
         seq {
-            TypeParameterSymbol("TFunctionPtr", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
-            TypeParameterSymbol("TReturn", 1, 0, false, TypeParameterKind.Function 1, ref ImArray.empty)
-            TypeParameterSymbol("TParameters", 2, 0, true, TypeParameterKind.Function 2, ref ImArray.empty)
+            TypeParameterSymbol("TFunctionPtr", 0, 0, TypeParameterFlags.None, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TReturn", 1, 0, TypeParameterFlags.None, TypeParameterKind.Function 1, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 2, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 2, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {
@@ -526,8 +526,8 @@ let LoadFunctionPtr =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
     let tyPars =
         seq {
-            TypeParameterSymbol("TFunctionPtr", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
-            TypeParameterSymbol("TParameters", 1, 0, true, TypeParameterKind.Function 1, ref ImArray.empty)
+            TypeParameterSymbol("TFunctionPtr", 0, 0, TypeParameterFlags.None, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 1, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {
@@ -587,7 +587,7 @@ let LoadTupleElement =
     let tyPars =
         seq {
             TypeParameterSymbol("N", 0, 0, TypeParameterKind.Function 0, ref tyParNConstrs)
-            TypeParameterSymbol("T", 1, 0, true, TypeParameterKind.Function 1, ref ImArray.empty)
+            TypeParameterSymbol("T", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 1, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {
@@ -610,7 +610,7 @@ let IgnoreFunction =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("ignore"))
     let tyPars =
         seq {
-            TypeParameterSymbol("T", 0, 0, true, TypeParameterKind.Function 0, ref(ImArray.createOne ConstraintSymbol.Scoped))
+            TypeParameterSymbol("T", 0, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 0, ref(ImArray.createOne ConstraintSymbol.Scoped))
         } |> ImArray.ofSeq
     let pars =
         seq {

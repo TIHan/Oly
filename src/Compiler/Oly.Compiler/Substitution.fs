@@ -28,91 +28,100 @@ let private handleCallExpression syntaxInfo receiverOpt subbedWitnessArgs argExp
     )
 
 let private substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
-    match constant with
-    | ConstantSymbol.Array(elementTy, elements) ->
-        let newElementTy = elementTy.Substitute(tyParLookup)
-        let newElements =
-            elements
-            |> ImArray.map (fun x -> substituteConstant(tyParLookup, constant))
-
-        // TODO: Perf/Memory - Check to see if we really need to create a new constant symbol here.
-        ConstantSymbol.Array(newElementTy, newElements)
-
-    | ConstantSymbol.TypeVariable(tyPar) ->
-        let newTyPar = tyPar.EmplaceSubstitute(tyParLookup)
-
-        if newTyPar.Id = tyPar.Id then
-            constant
-        else
-            ConstantSymbol.TypeVariable(newTyPar)
-
-    | ConstantSymbol.External(func) ->
-        let newFunc = func.Substitute(tyParLookup) :?> IFunctionSymbol
-
-        if areLogicalFunctionSignaturesEqual newFunc func then
-            constant
-        else
-            ConstantSymbol.External(newFunc)
-
-    | _ ->
+    if tyParLookup.Count = 0 then
         constant
+    else
+        match constant with
+        | ConstantSymbol.Array(elementTy, elements) ->
+            let newElementTy = elementTy.Substitute(tyParLookup)
+            let newElements =
+                elements
+                |> ImArray.map (fun x -> substituteConstant(tyParLookup, constant))
+
+            // TODO: Perf/Memory - Check to see if we really need to create a new constant symbol here.
+            ConstantSymbol.Array(newElementTy, newElements)
+
+        | ConstantSymbol.TypeVariable(tyPar) ->
+            let newTyPar = tyPar.EmplaceSubstitute(tyParLookup)
+
+            if newTyPar.Id = tyPar.Id then
+                constant
+            else
+                ConstantSymbol.TypeVariable(newTyPar)
+
+        | ConstantSymbol.External(func) ->
+            let newFunc = func.Substitute(tyParLookup) :?> IFunctionSymbol
+
+            if areLogicalFunctionSignaturesEqual newFunc func then
+                constant
+            else
+                ConstantSymbol.External(newFunc)
+
+        | _ ->
+            constant
 
 let private substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, literal: BoundLiteral) =
-    match literal with
-    | BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)) ->
-        let newElementTy = elementTy.Substitute(tyParLookup)
+    if tyParLookup.Count = 0 then
+        literal
+    else
+        match literal with
+        | BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)) ->
+            let newElementTy = elementTy.Substitute(tyParLookup)
 
-        if areTypesEqual newElementTy elementTy then
-            literal
-        else
-            BoundLiteral.Constant(ConstantSymbol.Array(newElementTy, elements))
-
-    | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        let newTy = ty.Substitute(tyParLookup)
-
-        if areTypesEqual newTy ty then
-            literal
-        else
-            BoundLiteral.DefaultInference(newTy, isUnchecked)
-
-    | BoundLiteral.NullInference(ty) ->
-        let newTy = ty.Substitute(tyParLookup)
-
-        if areTypesEqual newTy ty then
-            literal
-        else
-            BoundLiteral.NullInference(newTy)
-
-    | BoundLiteral.ConstantEnum(constant, enumTy) ->
-        let newConstant = substituteConstant(tyParLookup, constant)
-        let newEnumTy = enumTy.Substitute(tyParLookup)
-
-        // TODO: Perf/Memory - Check to see if we really need to create a new literal here.
-        BoundLiteral.ConstantEnum(newConstant, newEnumTy)
-
-    | BoundLiteral.NumberInference(lazyLiteral, ty) ->
-        match lazyLiteral.Value with
-        | Ok(literal) ->
-            let newLiteral = substituteLiteral(tyParLookup, literal)
-            let newTy = ty.Substitute(tyParLookup)
-
-            if newLiteral = literal && areTypesEqual newTy ty then
+            if areTypesEqual newElementTy elementTy then
                 literal
             else
-                BoundLiteral.NumberInference(Lazy.CreateFromValue(Ok(newLiteral)), newTy)
+                BoundLiteral.Constant(ConstantSymbol.Array(newElementTy, elements))
+
+        | BoundLiteral.DefaultInference(ty, isUnchecked) ->
+            let newTy = ty.Substitute(tyParLookup)
+
+            if areTypesEqual newTy ty then
+                literal
+            else
+                BoundLiteral.DefaultInference(newTy, isUnchecked)
+
+        | BoundLiteral.NullInference(ty) ->
+            let newTy = ty.Substitute(tyParLookup)
+
+            if areTypesEqual newTy ty then
+                literal
+            else
+                BoundLiteral.NullInference(newTy)
+
+        | BoundLiteral.ConstantEnum(constant, enumTy) ->
+            let newConstant = substituteConstant(tyParLookup, constant)
+            let newEnumTy = enumTy.Substitute(tyParLookup)
+
+            // TODO: Perf/Memory - Check to see if we really need to create a new literal here.
+            BoundLiteral.ConstantEnum(newConstant, newEnumTy)
+
+        | BoundLiteral.NumberInference(lazyLiteral, ty) ->
+            match lazyLiteral.Value with
+            | Ok(literal) ->
+                let newLiteral = substituteLiteral(tyParLookup, literal)
+                let newTy = ty.Substitute(tyParLookup)
+
+                if newLiteral = literal && areTypesEqual newTy ty then
+                    literal
+                else
+                    BoundLiteral.NumberInference(Lazy.CreateFromValue(Ok(newLiteral)), newTy)
+            | _ ->
+                literal
+
         | _ ->
             literal
 
-    | _ ->
-        literal
-
 let private substituteField(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, field: IFieldSymbol) =
-    let enclosingTy = field.Enclosing.AsType
-    let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-    if areTypesEqual enclosingTy newEnclosingTy then
+    if tyParLookup.Count = 0 then
         field
     else
-        actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
+        let enclosingTy = field.Enclosing.AsType
+        let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+        if areTypesEqual enclosingTy newEnclosingTy then
+            field
+        else
+            actualField (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) newEnclosingTy.TypeArguments field.Formal.AsField
 
 /// Do not use for LambdaLifting.
 let private substituteValue(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, value: IValueSymbol) =
@@ -137,34 +146,43 @@ let private substituteValue(benv: BoundEnvironment, valueLookup: Dictionary<int6
                 value
             else
                 OlyAssert.False(value.IsFormal)
-                let tyArgs = 
-                    value.TypeArguments
-                    |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
-                    |> ImArray.append (
-                        benv.EnclosingTypeParameters 
-                        |> ImArray.map (fun tyPar -> tyPar.AsType)
-                    )
-                let tyPars = benv.EnclosingTypeParameters.AddRange(value.TypeParameters)
-                let tyArgs =
-                    (tyPars, tyArgs)
-                    ||> ImArray.map2 (fun tyPar tyArg ->
-                        mkSolvedInferenceVariableType tyPar tyArg
-                    )
+                let tyArgsBuilder = ImArray.builder()
+
+                for tyPar in benv.EnclosingTypeParameters do
+                    if not tyPar.IsLocallyDefined then
+                        tyArgsBuilder.Add(mkSolvedInferenceVariableType tyPar tyPar.AsType)
+
+                (value.TypeParameters, value.TypeArguments)
+                ||> ImArray.iter2 (fun tyPar tyArg ->
+                    tyArgsBuilder.Add(mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup)))
+                )
+
+                let tyArgs = tyArgsBuilder.ToImmutable()
                 actualValue value.Enclosing tyArgs value.Formal
         else
             if value.AllTypeParameters.IsEmpty then
                 value
             else
-                // TODO:
-                value
-                //let enclosingTy = value.Enclosing.AsType
-                //let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
-                //let tyArgs =
-                //    newEnclosingTy.TypeArguments.AddRange(
-                //        value.TypeArguments 
-                //        |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
-                //    )
-                //actualValue (EnclosingSymbol.Entity(newEnclosingTy.AsEntity)) tyArgs value.Formal
+                let newEnclosing =
+                    match value.Enclosing with
+                    | EnclosingSymbol.Entity(ent) when not ent.IsNamespace ->
+                        let enclosingTy = value.Enclosing.AsType
+                        let newEnclosingTy = enclosingTy.Substitute(tyParLookup)
+                        EnclosingSymbol.Entity(newEnclosingTy.AsEntity)
+                    | enclosing ->
+                        enclosing
+                let tyArgs =
+                    newEnclosing.TypeArguments.AddRange(
+                        value.TypeArguments 
+                        |> ImArray.map (fun tyArg -> tyArg.Substitute(tyParLookup))
+                    )
+                let tyPars = newEnclosing.TypeParameters.AddRange(value.TypeParameters)
+                let tyArgs =
+                    (tyPars, tyArgs)
+                    ||> ImArray.map2 (fun tyPar tyArg ->
+                        mkSolvedInferenceVariableType tyPar tyArg
+                    )
+                actualValue newEnclosing tyArgs value.Formal
 
 let private substituteLocal(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, local: ILocalSymbol) =
     OlyAssert.False(local.IsFunction)
@@ -174,13 +192,18 @@ let private substitutePattern(benv: BoundEnvironment, valueLookup: Dictionary<in
     substituteValue(benv, valueLookup, tyParLookup, pat).AsPattern
 
 let private substituteLocalLetBinding(valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, local: ILocalSymbol) =
-    let newLocal = 
-        if local.IsMutable then
-            createMutableLocalValue local.Name (local.Type.Substitute(tyParLookup))
-        else
-            createLocalValue local.Name (local.Type.Substitute(tyParLookup))
-    valueLookup[local.Id] <- newLocal
-    newLocal
+    if tyParLookup.Count = 0 then
+        local
+    else
+        let newLocal = 
+            let localName = local.Name
+            let localTy = local.Type.Substitute(tyParLookup)
+            if local.IsMutable then
+                createMutableLocalValue localName localTy
+            else
+                createLocalValue localName localTy
+        valueLookup[local.Id] <- newLocal
+        newLocal
 
 let private substituteCasePattern(benv: BoundEnvironment, valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, casePat: BoundCasePattern) =
     match casePat with
@@ -232,6 +255,16 @@ let private substituteMatchPattern(benv: BoundEnvironment, valueLookup: Dictiona
         let newLhsMatchPat = substituteMatchPattern(benv, valueLookup, tyParLookup, lhsMatchPat)
         let newRhsMatchPat = substituteMatchPattern(benv, valueLookup, tyParLookup, rhsMatchPat)
         BoundMatchPattern.Or(syntax, newLhsMatchPat, newRhsMatchPat)
+
+let private substituteCatchCase(valueLookup: Dictionary<int64, IValueSymbol>, tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, catchCase: BoundCatchCase) =
+    if tyParLookup.Count = 0 then
+        catchCase
+    else
+        match catchCase with
+        | BoundCatchCase.CatchCase(syntaxInfo, par, catchBodyExpr) ->
+            let newPar = createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
+            valueLookup[par.Id] <- newPar
+            BoundCatchCase.CatchCase(syntaxInfo, newPar, catchBodyExpr)
 
 let substituteForAutoGeneralization
         (
@@ -308,6 +341,12 @@ let substituteForAutoGeneralization
                             BoundMatchClause.MatchClause(syntax, newMatchPat, guardExprOpt, targetExpr)
                     )
                 E.Match(syntax, benv, matchItemExprs, newMatchClauses, cachedExprTy)
+
+            | E.Try(syntaxInfo, bodyExpr, catchCases, finallyBodyExprOpt) ->
+                let newCatchCases =
+                    catchCases
+                    |> ImArray.map(fun catchCase -> substituteCatchCase(valueLookup, tyParLookup, catchCase))
+                E.Try(syntaxInfo, bodyExpr, newCatchCases, finallyBodyExprOpt)
 
             | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, isVirtualCall) ->
                 let witnessArgs = 

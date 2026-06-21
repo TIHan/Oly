@@ -2024,39 +2024,41 @@ type MemberFlags =
 
 [<System.Flags>]
 type FunctionFlags =
-    | None                          = 0x0000000000000L
+    | None                          = 0x00000000000000L
 
     /// Constructor member.
-    | Constructor                   = 0x0000000000001L
+    | Constructor                   = 0x00000000000001L
 
     /// Static local (not a member).
-    | StaticLocal                   = 0x0000000000010L
+    | StaticLocal                   = 0x00000000000010L
 
     /// Function is marked 'inline' and will be inlined by the runtime.
-    | Inline                        = 0x0000000000100L
+    | Inline                        = 0x00000000000100L
 
     /// Function is marked 'not inline' and will never be inlined by the runtime.
-    | InlineNever                   = 0x0000000000200L
+    | InlineNever                   = 0x00000000000200L
 
-    | InlineAlways                  = 0x0000000000300L
+    | InlineAlways                  = 0x00000000000300L
 
-    | InlineMask                    = 0x0000000000700L
+    | InlineMask                    = 0x00000000000700L
 
-    | Pure                          = 0x0000000001000L
+    | Pure                          = 0x00000000001000L
 
-    | ImplicitDefaultConstructor    = 0x0000000010001L
+    | ImplicitDefaultConstructor    = 0x00000000010001L
 
-    | Extra                         = 0x0000000100000L
+    | Extra                         = 0x00000000100000L
 
-    | EntryPoint                    = 0x0000001000000L
+    | EntryPoint                    = 0x00000001000000L
 
-    | RequiresExplicitTypeArguments = 0x0001000000000L
+    | RequiresExplicitTypeArguments = 0x00001000000000L
 
-    | ParameterLess                 = 0x0010000000000L
+    | RequiresNoExplicitTypeArguments = 0x00010000000000L
 
-    | Blittable                     = 0x0100000000000L
+    | ParameterLess                 = 0x00100000000000L
 
-    | UnmanagedAllocationOnly       = 0x1000000000000L
+    | Blittable                     = 0x01000000000000L
+
+    | UnmanagedAllocationOnly       = 0x10000000000000L
 
 [<System.Flags>]
 type ValueFlags =
@@ -3207,9 +3209,15 @@ type TypeParameterKind =
     | Type
     | Function of index: int
 
+[<Flags>]
+type TypeParameterFlags =
+    | None           = 0x0000
+    | Variadic       = 0x0001
+    | LocallyDefined = 0x0010
+
 [<DebuggerDisplay("{DebugName}")>]
 [<Sealed>]
-type TypeParameterSymbol private (id: int64, name: string, index: int, arity: int, isVariadic: bool, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref, hiddenLinkOpt: TypeParameterSymbol option) as this =
+type TypeParameterSymbol private (id: int64, name: string, index: int, arity: int, flags: TypeParameterFlags, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref, hiddenLinkOpt: TypeParameterSymbol option) as this =
 
     let ty = TypeSymbol.Variable(this)
     let mutable constrs = constrs
@@ -3243,7 +3251,11 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
 
     member _.HasArity = arity > 0
 
-    member _.IsVariadic = isVariadic
+    member _.IsVariadic = flags &&& TypeParameterFlags.Variadic = TypeParameterFlags.Variadic
+
+    member _.IsLocallyDefined = flags &&& TypeParameterFlags.LocallyDefined = TypeParameterFlags.LocallyDefined
+
+    member _.Flags = flags
 
     member _.Kind = kind
 
@@ -3288,11 +3300,11 @@ type TypeParameterSymbol private (id: int64, name: string, index: int, arity: in
 
         member this.Name = this.Name
 
-    new(name: string, index: int, arity: int, isVariadic: bool, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref) =
-        TypeParameterSymbol(newId(), name, index, arity, isVariadic, kind, constrs, None)
+    new(name: string, index: int, arity: int, flags: TypeParameterFlags, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref) =
+        TypeParameterSymbol(newId(), name, index, arity, flags, kind, constrs, None)
 
     new(name: string, index: int, arity: int, kind: TypeParameterKind, constrs: ConstraintSymbol imarray ref) =
-        TypeParameterSymbol(name, index, arity, false, kind, constrs)
+        TypeParameterSymbol(name, index, arity, TypeParameterFlags.None, kind, constrs)
 
 type TypeArgumentSymbol = TypeSymbol
 
@@ -3432,7 +3444,7 @@ type ByRefKind =
 
 let private FormalFunctionTypeParameters =
     let returnTy = TypeParameterSymbol("TReturn", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
-    let argsTy = TypeParameterSymbol("TArguments", 1, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+    let argsTy = TypeParameterSymbol("TArguments", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Type, ref ImArray.empty)
     ImArray.createTwo returnTy argsTy
 
 let private FormalNormalFunctionType =
@@ -3533,7 +3545,7 @@ module private FormalNativeFunctionPtr =
 
     let TypeParameters =
         let returnTy = TypeParameterSymbol("TReturn", 0, 0, TypeParameterKind.Type, ref ImArray.empty)
-        let argsTy = TypeParameterSymbol("TArguments", 1, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+        let argsTy = TypeParameterSymbol("TArguments", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Type, ref ImArray.empty)
         ImArray.createTwo returnTy argsTy
 
     let private lockObj = obj()
@@ -3554,7 +3566,7 @@ module private FormalNativeFunctionPtr =
             )
 
 let private FormalTupleTypeParameters: TypeParameterSymbol imarray =
-    let tyPar = TypeParameterSymbol("TElements", 0, 0, true, TypeParameterKind.Type, ref ImArray.empty)
+    let tyPar = TypeParameterSymbol("TElements", 0, 0, TypeParameterFlags.Variadic, TypeParameterKind.Type, ref ImArray.empty)
     ImArray.createOne tyPar
 
 let private FormalTupleType =
@@ -5317,6 +5329,9 @@ module SymbolExtensions =
 
             member this.RequiresExplicitTypeArguments =
                 this.FunctionFlags &&& FunctionFlags.RequiresExplicitTypeArguments = FunctionFlags.RequiresExplicitTypeArguments
+
+            member this.RequiresNoExplicitTypeArguments =
+                this.FunctionFlags &&& FunctionFlags.RequiresNoExplicitTypeArguments = FunctionFlags.RequiresNoExplicitTypeArguments
 
             member this.IsParameterLessFunction =
                 this.FunctionFlags &&& FunctionFlags.ParameterLess = FunctionFlags.ParameterLess

@@ -2546,6 +2546,15 @@ type ClrMethodDefinitionBuilder internal (asmBuilder: ClrAssemblyBuilder, enclos
         let isVoidReturnTy = asmBuilder.IsVoidType(returnTy)
         let instrs = this.BodyInstructions
 
+#if DEBUG || CHECKED
+        Debug.WriteLine("")
+        Debug.WriteLine($"---- Method: {this.Name} ---- Start")
+        for instr in instrs do
+            Debug.WriteLine(instr.ToString())
+        Debug.WriteLine($"---- Method: {this.Name} ---- End")
+        Debug.WriteLine("")
+#endif
+
         //---------------------------------------------------------
 
 #if DEBUG || CHECKED

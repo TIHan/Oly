@@ -129,7 +129,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
     let ent = entBuilder.Entity
 
     OlyAssert.True(ent.TypeParameters.IsEmpty)
-    let _, tyPars = bindTypeParameters cenv env false syntaxTyPars.Values
+    let _, tyPars = bindTypeParameters cenv env ent.Enclosing false syntaxTyPars.Values
 
     let tyPars =
         if ent.Enclosing.IsLocalEnclosing then
@@ -138,7 +138,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
                 match tyPar.Kind with
                 | TypeParameterKind.Function _ ->
                     // Handles generic local type definitions.
-                    tyPar.CreateHiddenLink(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.IsVariadic, TypeParameterKind.Type)
+                    tyPar.CreateHiddenLink(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.Flags, TypeParameterKind.Type)
                 | _ ->
                     tyPar
             )

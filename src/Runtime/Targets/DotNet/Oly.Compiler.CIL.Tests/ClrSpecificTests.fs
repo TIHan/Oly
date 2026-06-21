@@ -10980,12 +10980,79 @@ main(): () =
         let c = C(y)
         try
             throw NewException(c)
-        catch (e: NewException<_>) =>
+        catch (e: NewException<int32>) =>
+            print("nope")
+            c.GetValue()
+        catch (e: System.Exception) =>
             print("we did it")
-            e.c.GetValue()
+            c.GetValue()
     let _ = f<()>()
         """
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "2"
+    |> shouldRunWithExpectedOutput "2we did itwe did it"
+    |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function for a try catch 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+class NewException<T> =
+    inherits System.Exception
+
+    public field c: C<T>
+
+    new(c: C<T>) = base("lorem ipsum") { c = c }
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    GetValue(): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        try
+            throw NewException(c)
+            c.GetValue()
+        catch (e: NewException<int32>) =>
+            print("nope")
+            c.GetValue()
+        catch (e: System.Exception) =>
+            print("we did it")
+            c.GetValue()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2we did itwe did it"
     |> ignore

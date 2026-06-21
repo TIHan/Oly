@@ -12572,3 +12572,49 @@ main(): () =
     |> Oly
     |> shouldCompile
     |> ignore
+
+[<Fact>]
+let ``Function that returns a tuple should error when not deconstructed``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+ReturnTuple(): (int32, int32) = (0, 0)
+
+M(): int32 =
+    let x = ReturnTuple()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'int32' but is '()'.",
+                """
+    let x = ReturnTuple()
+    ^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Function that returns a tuple should error when deconstructed``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+ReturnTuple(): (int32, int32) = (0, 0)
+
+M(): int32 =
+    let (x, y) = ReturnTuple()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'int32' but is '()'.",
+                """
+    let (x, y) = ReturnTuple()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

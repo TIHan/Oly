@@ -189,10 +189,11 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
                 let entBuilder = EntitySymbolBuilder.CreateModule(env.currentAsm, EnclosingSymbol.Entity(nmsBuilder.Entity), flags, syntaxName.NameText, syntaxRoot.GetLeadingCommentText())
                 nmsBuilder.AddEntity(entBuilder.Entity, entBuilder.Entity.LogicalTypeParameterCount)
                 entBuilder
+        let ent = entBuilder.Entity
 
         // BEGIN - Bind type parameters
         let syntaxTyPars = syntaxName.GetAllTypeArguments()
-        let _, tyPars = bindTypeParameters cenv env false syntaxTyPars
+        let _, tyPars = bindTypeParameters cenv env ent.Enclosing false syntaxTyPars
 
         if OlySyntaxFacts.IsOperator entBuilder.Entity.Name && tyPars.Length <> 1 then
             cenv.diagnostics.Error("Postfix type operators must only have a single type parameter.", 10, syntaxName.LastIdentifier)

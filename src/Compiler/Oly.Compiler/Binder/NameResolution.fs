@@ -1976,26 +1976,32 @@ let bindTypeArgumentsAsTypes (cenv: cenv) (env: BinderEnvironment) (tyArities: I
             (tyArities, syntaxTyArgs)
             ||> ImArray.map2 (fun resTyArity syntaxTyArg -> bindTypeArgumentAsType cenv env resTyArity syntaxTyArg)
 
-let bindTypeParameter (cenv: cenv) (env: BinderEnvironment) tyParIndex tyParKind (syntaxTyPar: OlySyntaxType) =
-    let name, higherArity, isVariadic =
+let bindTypeParameter (cenv: cenv) (env: BinderEnvironment) (enclosing: EnclosingSymbol) tyParIndex tyParKind (syntaxTyPar: OlySyntaxType) =
+    let name, higherArity, flags =
         match syntaxTyPar with
-        | OlySyntaxType.Variadic(syntaxIdent, _) -> syntaxIdent.ValueText, 0, true
-        | OlySyntaxType.Name(OlySyntaxName.Identifier(syntaxIdent)) -> syntaxIdent.ValueText, 0, false
+        | OlySyntaxType.Variadic(syntaxIdent, _) -> syntaxIdent.ValueText, 0, TypeParameterFlags.Variadic
+        | OlySyntaxType.Name(OlySyntaxName.Identifier(syntaxIdent)) -> syntaxIdent.ValueText, 0, TypeParameterFlags.None
         | OlySyntaxType.Name(OlySyntaxName.Generic(OlySyntaxName.Identifier(syntaxIdent), syntaxTyArgsRoot)) ->
             let syntaxTyArgs = syntaxTyArgsRoot.Values
             checkSyntaxHigherTypeArguments cenv syntaxTyArgs
-            syntaxIdent.ValueText, syntaxTyArgs.Length, false
+            syntaxIdent.ValueText, syntaxTyArgs.Length, TypeParameterFlags.None
         | OlySyntaxType.WildCard _ ->
             cenv.diagnostics.Error("Invalid use of wild card in type parameter definition.", 10, syntaxTyPar)
-            "", 0, false
+            "", 0, TypeParameterFlags.None
         | _ -> 
-            "", 0, false
+            "", 0, TypeParameterFlags.None
 
-    let tyPar = TypeParameterSymbol(name, tyParIndex, higherArity, isVariadic, tyParKind, ref ImArray.empty)
+    let flags =
+        if enclosing.IsLocal then
+            flags ||| TypeParameterFlags.LocallyDefined
+        else
+            flags
+
+    let tyPar = TypeParameterSymbol(name, tyParIndex, higherArity, flags, tyParKind, ref ImArray.empty)
     recordTypeParameterDeclaration cenv tyPar syntaxTyPar
     addTypeParameter cenv env syntaxTyPar tyPar
     
-let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPars: OlySyntaxType imarray) =
+let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) (enclosing: EnclosingSymbol) isFunc (syntaxTyPars: OlySyntaxType imarray) =
     let env1, tyPars =
         let env1, tyPars =
             let tyParIndexOffset = env.EnclosingTypeParameters.Length
@@ -2008,7 +2014,7 @@ let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPar
                         TypeParameterKind.Function i
                     else
                         TypeParameterKind.Type
-                let env, tyPar = bindTypeParameter cenv env tyParIndex tyParKind syntaxTyPar
+                let env, tyPar = bindTypeParameter cenv env enclosing tyParIndex tyParKind syntaxTyPar
                 tyParIndex <- tyParIndex + 1
                 i <- i + 1
                 env, tyPars @ [tyPar]

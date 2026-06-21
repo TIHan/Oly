@@ -398,7 +398,10 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
                 OlyAssert.False(tyPars.IsEmpty)
                 funcFlags ||| FunctionFlags.RequiresExplicitTypeArguments
             else
-                funcFlags
+                if enclosing.IsLocalEnclosing && tyPars.IsEmpty then
+                    funcFlags ||| FunctionFlags.RequiresNoExplicitTypeArguments
+                else
+                    funcFlags
 
         let parsWithInstance =
             if isInstance then
@@ -620,7 +623,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
     | OlySyntaxBindingDeclaration.Function(syntaxFuncName, syntaxTyPars, syntaxPars, syntaxReturnTyAnnot, syntaxConstrClauseList) ->
         let syntaxIdent = syntaxFuncName.Identifier
 
-        let env1, tyPars = bindTypeParameters cenv env true syntaxTyPars.Values
+        let env1, tyPars = bindTypeParameters cenv env enclosing true syntaxTyPars.Values
         bindConstraintClauseList cenv env1 syntaxConstrClauseList.ChildrenOfType
         let returnTy = bindReturnTypeAnnotation cenv env1 syntaxReturnTyAnnot
 

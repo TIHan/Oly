@@ -180,7 +180,7 @@ let private solveHigherInferenceVariable (rigidity: TypeVariableRigidity) (tyArg
                         |> ImArray.mapi (fun i tyPar ->
                             let constrs = ref tyPar.Constraints
                             constrsList.Add(constrs)
-                            TypeParameterSymbol(tyPar.Name, i, tyPar.Arity, tyPar.IsVariadic, TypeParameterKind.Type, constrs)
+                            TypeParameterSymbol(tyPar.Name, i, tyPar.Arity, tyPar.Flags, TypeParameterKind.Type, constrs)
                         )
                     let forallTyArgs = ty2.TypeArguments |> Seq.take (ty2.TypeArguments.Length - tyArgs.Length) |> ImArray.ofSeq
                     let forallTyArgs = forallTyArgs.AddRange(forallTyPars |> ImArray.map (fun x -> x.AsType))

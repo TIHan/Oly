@@ -1773,7 +1773,8 @@ let private bindLocalExpressionAux (cenv: cenv) (env: BinderEnvironment) (expect
         bindLet cenv env expectedTyOpt syntaxToCapture syntaxLet (Some syntaxBodyExpr)
 
     | OlySyntaxExpression.Let(syntaxLet) ->
-        bindLet cenv env expectedTyOpt syntaxExpr syntaxLet None
+        let env, expr = bindLet cenv env expectedTyOpt syntaxExpr syntaxLet None
+        env, checkExpression cenv env expectedTyOpt expr
 
     | OlySyntaxExpression.Sequential(leftSyntax, rightSyntax) ->
         bindSequentialExpression cenv env expectedTyOpt syntaxToCapture leftSyntax rightSyntax
