@@ -1,4 +1,6 @@
 # <img src="vscode/icons/oly-dark.png" alt="oly-logo" width="200"/>
+![CI Status](https://github.com/TIHan/Oly/actions/workflows/dotnet.yml/badge.svg)
+
 Oly Language Compiler and Runtime
 
 A side project to understand programming languages and compilers in all stages.
