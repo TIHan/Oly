@@ -335,7 +335,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
 
     let isInstance = memberFlags &&& MemberFlags.Instance = MemberFlags.Instance
     let isMutable =
-        if (enclosing.IsTypeExtensionExtendingStruct || enclosing.IsStruct || enclosing.IsShape) && isInstance then
+        if (enclosing.IsTypeExtensionExtendingStruct || enclosing.IsStruct) && isInstance then
             if valueExplicitness.IsExplicitMutable then
                 true
             else
@@ -539,7 +539,7 @@ let private bindBindingDeclarationCoreAux (cenv: cenv) env (syntaxAttrs: OlySynt
                                 else
                                     pars
                             let isMutable = 
-                                if (enclosing.IsStruct || enclosing.IsShape) && isInstance then
+                                if (enclosing.IsStruct || enclosing.IsTypeExtensionExtendingStruct) && isInstance then
                                     true // Setter functions are always considered mutable.
                                 else
                                     false

@@ -866,6 +866,12 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
 
     let reportWriteOnlyError syntax =
         env.diagnostics.Error("Cannot read from a write-only address.", 10, syntax)
+
+    let doesTypeNeedMutable (ty: TypeSymbol) =
+        ty.IsStruct_ste && not ty.IsAnyVariable_ste && not ty.IsError_ste
+
+    let doesValueNeedMutable (value: IValueSymbol) =
+        ((not value.IsMutable && doesTypeNeedMutable value.Type) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid
     
     let rec checkCall syntaxOfFuncCall (receiverOpt: BoundExpression option) (value: IValueSymbol) =
         match receiverOpt with
@@ -874,31 +880,30 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
                 reportWriteOnlyError receiver.Syntax
             elif (value.Enclosing.IsTypeExtensionExtendingStruct || value.Enclosing.IsStruct || value.Enclosing.IsWitnessShape) then
                 if value.IsMutable then
-                    if check value.Enclosing.IsWitnessShape receiver |> not then
+                    if check receiver |> not then
                         env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntaxOfFuncCall)
         | _ ->
             ()
 
-    and checkAddressOf isWitnessShape (receiver: BoundExpression) =
+    and checkAddressOf (receiver: BoundExpression) =
         match receiver with
         | BoundExpression.Call(value=value;args=args) 
                 when value.IsAddressOf ->
-            check isWitnessShape args.[0]
+            check args.[0]
         | _ ->
             true
 
-    and check (isWitnessShape: bool) (receiver: BoundExpression) : bool =
+    and check (receiver: BoundExpression) : bool =
         match receiver with
         | BoundExpression.Value(value=value) ->
-            // TODO: Revisit this, do we need 'isWitnessShape' anymore?
-            if ((not value.IsMutable && (value.Type.IsStruct_ste || (isWitnessShape && not value.Type.IsReadWriteByRef_ste))) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid && not value.Type.IsError_ste then
+            if doesValueNeedMutable value then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
-            if check false receiver then
-                if field.Type.IsStruct_ste && not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+            if check receiver then
+                if doesValueNeedMutable field then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -915,21 +920,21 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
             true
 
         | BoundExpression.Sequential(expr2=expr2) ->
-            check false expr2
+            check expr2
 
         | _ ->
-            checkAddressOf isWitnessShape receiver
+            checkAddressOf receiver
 
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
         checkExpressionType env CheckExpressionMode.Flexible value.Type rhs
-        if not value.IsMutable && not value.IsInvalid && not value.Type.IsError_ste then
+        if doesValueNeedMutable value then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
         checkExpressionType env CheckExpressionMode.Flexible field.Type rhs
-        if check false receiver then
-            if not field.IsMutable && not field.IsInvalid && not field.Type.IsError_ste then
+        if check receiver then
+            if doesValueNeedMutable field then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->

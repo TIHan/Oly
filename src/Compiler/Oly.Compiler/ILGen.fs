@@ -780,6 +780,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilFuncFlags =
             if func.IsMutable then
+                OlyAssert.True(func.Enclosing.IsStruct || func.Enclosing.IsTypeExtensionExtendingStruct)
                 ilFuncFlags ||| OlyILFunctionFlags.Mutable
             else
                 ilFuncFlags

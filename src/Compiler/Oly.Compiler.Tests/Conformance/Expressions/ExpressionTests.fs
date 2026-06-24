@@ -552,6 +552,26 @@ test(mutable t: __oly_by_ref_read_only<Test>): () =
     ]
 
 [<Fact>]
+let ``Cannot mutate field value on struct 7 - from a function``() =
+    let src =
+        """
+struct Test =
+    public field mutable x: __oly_int32
+    new(x: __oly_int32) = this { x = x }
+
+    mutable Mutate(): () =
+        this.x <- 123
+
+test(mutable t: __oly_by_ref_read_only<Test>): () =
+    t.Mutate()
+        """
+    Oly src
+    |> withErrorDiagnostics [
+        "'t' is not mutable."
+        "Function call 'Mutate' is not read-only and cannot be called on an immutable struct instance."
+    ]
+
+[<Fact>]
 let ``Cannot mutate field value on nested struct``() =
     let src =
         """
@@ -8658,23 +8678,6 @@ extension TestSetItemExtension =
 let ``Use of mutable shape method should not compile as the value is not mutable``() =
     let src =
         """
-module TestModule
-
-#[intrinsic("by_ref")]
-alias byref<T>
-
-#[intrinsic("by_ref_read_only")]
-alias inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): inref<T> 
-
-#[intrinsic("print")]
-print(__oly_base_object): ()
-
 M<T>(x: T): () where T: { mutable GetSomething(): () } =
     x.GetSomething()
         """
@@ -8687,16 +8690,23 @@ M<T>(x: T): () where T: { mutable GetSomething(): () } =
                                   ^^^^^^^^^^^^
 """
             )
-            ("'x' is not mutable.",
-            """
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Use of mutable shape method should not compile as the value is not mutable 2 - with struct constraint``() =
+    let src =
+        """
+M<T>(x: T): () where T: struct, { mutable GetSomething(): () } =
     x.GetSomething()
-    ^
-"""
-            )
-            ("Function call 'GetSomething' is not read-only and cannot be called on an immutable struct instance.",
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GetSomething' marked with 'mutable' must have its enclosing type be a struct.",
             """
-    x.GetSomething()
-      ^^^^^^^^^^^^
+M<T>(x: T): () where T: struct, { mutable GetSomething(): () } =
+                                          ^^^^^^^^^^^^
 """
             )
         ]
@@ -12618,3 +12628,29 @@ M(): int32 =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Parameter whose generic type T with a shape constraint that has a property setter should not need to be mutable``() =
+    """
+#[intrinsic("string16")]
+alias string
+
+Title<T>(view: T): () where T: { Title: string get, set } =
+    let _x = view.Title
+    view.Title <- "test"
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Parameter whose generic type T with a shape constraint that has a property setter should not need to be mutable 2 - with struct constraint``() =
+    """
+#[intrinsic("string16")]
+alias string
+
+Title<T>(view: T): () where T: struct, { Title: string get, set } =
+    let _x = view.Title
+    view.Title <- "test"
+    """
+    |> Oly
+    |> shouldCompile

@@ -908,6 +908,10 @@ let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: 
         |> checkEarlyArgumentsOfCallExpression cenv env true                |> assertIsCallExpression
         |> checkOverloadCallExpression cenv env true None                   |> assertIsCallExpression
         |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
+
+        // We need to check this because an overload may have been solved.
+        |> checkEarlyArgumentsOfCallExpression cenv env true                |> assertIsCallExpression
+
         |> checkCalleeOfCallExpression cenv env tyChecking true             |> assertIsCallExpression
         |> checkAddressOfExpression cenv env tyChecking expectedTyOpt       |> assertIsCallExpression
         |> checkEarlyReturnTypeOfCallExpression cenv env expectedTyOpt      |> assertIsCallExpression

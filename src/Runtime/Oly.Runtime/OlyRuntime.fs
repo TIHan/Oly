@@ -398,6 +398,10 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         else
             flags
 
+    if flags.IsMutable && (not enclosingTy.IsAnyStruct || flags.IsStatic) then
+        // Verification
+        failwith "Invalid function marked as mutable."
+
     let funcState =
         {
             RuntimeFunctionState.Formal = Unchecked.defaultof<_>

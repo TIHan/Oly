@@ -157,7 +157,7 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
 
     member _.IsConstructor = ilFuncFlags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
 
-    member _.IsReadOnly = ilFuncFlags &&& OlyILFunctionFlags.Mutable <> OlyILFunctionFlags.Mutable
+    member _.IsMutable = ilFuncFlags &&& OlyILFunctionFlags.Mutable = OlyILFunctionFlags.Mutable
 
     member _.IsStatic = ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static
 

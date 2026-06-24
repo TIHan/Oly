@@ -11056,3 +11056,66 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2we did itwe did it"
     |> ignore
+
+[<Fact>]
+let ``Should compile enum and be able to use HasFlag``() =
+    """
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[System.Flags]
+enum VulkanRenderPassFlags =
+    | None              = 0b000
+    | ClearColor        = 0b001
+    | ClearDepthStencil = 0b010
+    | ClearAll          = 0b011
+
+main(): () =
+    let flags = VulkanRenderPassFlags.ClearColor
+    print(flags.HasFlag(VulkanRenderPassFlags.ClearColor))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+    |> ignore
+
+[<Fact>]
+let ``Should choose the right overload for animalFunc``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+x_map<A, B>(xs: A[], f: A -> B): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    let stuff = x_map(xs, x -> animalFunc(x))
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore

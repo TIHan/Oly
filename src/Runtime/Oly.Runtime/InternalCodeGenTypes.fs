@@ -1510,6 +1510,8 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
 
     member this.IsExternal = state.Flags.IsExternal
 
+    member this.IsMutable = state.Flags.IsMutable
+
     member this.IsExported =
         if this.Flags.IsConstructor then
             this.EnclosingType.IsExported
@@ -1517,10 +1519,6 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
             ilFuncDef.Attributes
             |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
-
-    member this.IsMutable =
-        let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
-        ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)
 
     member this.IsIntrinsic =
         let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)

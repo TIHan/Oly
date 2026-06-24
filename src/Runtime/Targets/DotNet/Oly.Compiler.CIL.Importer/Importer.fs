@@ -984,7 +984,7 @@ module internal rec Helpers =
 
         OlyILFunctionReference(olyEnclosing, olyFuncSpecHandle)
 
-    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
+    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle olyEntKind tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
         match cenv.methDefToOlyFuncDefCache.TryGetValue methDefHandle with
         | true, res -> ValueSome res
         | _ ->
@@ -1031,10 +1031,13 @@ module internal rec Helpers =
         let attrs = meth.GetCustomAttributes();
 
         let olyFuncFlags =
-            if hasReadOnlyAttribute cenv attrs then
-                olyFuncFlags
+            if olyEntKind = OlyILEntityKind.Struct && not isStatic then
+                if hasReadOnlyAttribute cenv attrs then
+                    olyFuncFlags
+                else
+                    olyFuncFlags ||| OlyILFunctionFlags.Mutable
             else
-                olyFuncFlags ||| OlyILFunctionFlags.Mutable
+                olyFuncFlags
 
         let olyMemberFlags =
             if (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Public) then
@@ -1334,7 +1337,7 @@ module internal rec Helpers =
             let handles = tyDef.GetMethods().ToImmutableArray()
             seq {
                 for i = 0 to handles.Length - 1 do
-                    match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls handles.[i] with
+                    match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls handles.[i] with
                     | ValueNone -> ()
                     | ValueSome x -> yield x
             }
@@ -1393,7 +1396,7 @@ module internal rec Helpers =
                         if getter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls getter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls getter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
@@ -1410,7 +1413,7 @@ module internal rec Helpers =
                         if setter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls setter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls setter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
