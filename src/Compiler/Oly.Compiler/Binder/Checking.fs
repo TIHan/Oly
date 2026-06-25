@@ -9,6 +9,7 @@
 [<AutoOpen>]
 module internal rec Oly.Compiler.Internal.Binder.Checking
 
+open System
 open Oly.Core
 open Oly.Compiler
 open Oly.Compiler.Syntax
@@ -27,6 +28,14 @@ open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.SymbolQuery
 open Oly.Compiler.Internal.SymbolQuery.Extensions
 open Oly.Compiler.Internal
+
+let allFuncsHaveSameParCount (funcs: IFunctionSymbol imarray) =
+    if funcs.IsEmpty then false
+    elif funcs.Length = 1 then true
+    else
+        let count = funcs[0].LogicalParameterCount
+        funcs
+        |> ImArray.forall (fun x -> x.LogicalParameterCount = count)
 
 let checkSyntaxBindingDeclaration (cenv: cenv) (valueExplicitness: ValueExplicitness) (syntaxBindingDecl: OlySyntaxBindingDeclaration) =
     if not valueExplicitness.IsExplicitLet && not syntaxBindingDecl.IsExplicitNew && not syntaxBindingDecl.IsExplicitGet && not syntaxBindingDecl.IsExplicitSet then
@@ -359,8 +368,26 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
     
     let lambdaPars =
-        freshFunc.LogicalParameters
-        |> ROMem.toImArray
+        OlyAssert.True((not freshFunc.IsFunctionGroup) || (allFuncsHaveSameParCount freshFunc.AsFunctionGroup.Functions))
+        if freshFunc.IsFunctionGroup then
+            ImArray.init freshFunc.LogicalParameterCount
+                (fun _ ->
+                    let parTy = mkInferenceVariableType None
+                    createLocalParameterValue(ImArray.empty, String.Empty, parTy, false)          
+                )
+        else
+            if env.isPassedAsArgument then
+                freshFunc.LogicalParameters
+                |> ROMem.mapAsImArray (fun par ->
+                    if par.Type.IsSolved_ste then
+                        let parTy = mkInferenceVariableType None
+                        createLocalParameterValue(ImArray.empty, String.Empty, parTy, false)  
+                    else
+                        createLocalParameterValue(ImArray.empty, String.Empty, par.Type, false)                            
+                )
+            else
+                freshFunc.LogicalParameters
+                |> ROMem.toImArray
     
     let argExprs =
         lambdaPars
@@ -368,7 +395,11 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
 
     let syntaxInfo = BoundSyntaxInfo.User(syntaxNode, env.benv, syntaxNameOpt, None)
 
-    let witnessArgs = createWitnessArguments func
+    let witnessArgs =
+        if func.IsFunctionGroup then
+            ImArray.empty
+        else
+            createWitnessArguments func
     
     let callExpr =
         E.Call(
@@ -379,6 +410,14 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
             freshFunc,
             if func.IsVirtual && not func.IsFinal then CallFlags.Virtual else CallFlags.None
         )
+        
+    let lazyBodyExpr =
+        if func.IsFunctionGroup || env.isPassedAsArgument then
+            LazyExpression(None, fun _ ->
+                checkExpression cenv env None callExpr
+            )
+        else
+            LazyExpression.CreateNonLazy(None, fun _ -> callExpr)
     
     let lambdaExpr =
         E.CreateLambda(
@@ -386,7 +425,7 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
             LambdaFlags.None,
             ImArray.empty,
             lambdaPars,
-            (LazyExpression.CreateNonLazy(None, fun _ -> callExpr))
+            lazyBodyExpr
         )
     
     lambdaExpr
@@ -402,21 +441,26 @@ let tryOverloadPartialCallExpression
         (expectedTyOpt: TypeSymbol option) 
         (syntaxInfo: BoundSyntaxInfo) 
         (syntaxNameOpt: OlySyntaxName option)
-        (funcs: IFunctionSymbol imarray) =
+        (func: IFunctionSymbol) =
 
     let resArgs =
         match expectedTyOpt with
         | Some(expectedTy) when expectedTy.IsAnyFunction_ste ->
-            ResolutionArguments.ByFunctionType(expectedTy)
+            ResolutionArguments.ByType(expectedTy.FunctionArgumentTypes)
         | _ ->
             ResolutionArguments.Any
 
+    let funcs =
+        if func.IsFunctionGroup then
+            func.AsFunctionGroup.Functions
+        else
+            ImArray.createOne func
     match tryOverloadResolution None resArgs funcs with
     | None -> None
     | Some funcs ->
         if funcs.IsEmpty then
             None
-        else
+        elif allFuncsHaveSameParCount funcs then
             let func = FunctionGroupSymbol.CreateIfPossible(funcs)
             match syntaxNameOpt with
             | Some(OlySyntaxName.Generic(_, syntaxTyArgs)) ->
@@ -425,6 +469,8 @@ let tryOverloadPartialCallExpression
             | _ -> 
                 createPartialCallExpression cenv env syntaxInfo.Syntax syntaxNameOpt ImArray.empty func
                 |> Some
+        else
+            None
 
 let inline assertIsCallExpression (expr: E) =
 #if DEBUG || CHECKED
@@ -630,7 +676,7 @@ let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager 
     | _ ->
         unreached()
 
-let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (expectedTyOpt: TypeSymbol option) (expr: E) =
+let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) (expr: E) =
     match expr with
     | E.Value(syntaxInfo, value) when value.IsFunction ->
         let syntaxNameOpt =
@@ -639,35 +685,24 @@ let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (ex
             | _ -> None
 
         let expr =
-            match expectedTyOpt with
-            | Some _ ->
-                match value with
-                | :? FunctionGroupSymbol as funcGroup ->
-                    match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt funcGroup.Functions with
-                    | Some newExpr -> newExpr
-                    | _ -> expr
-                | :? IFunctionSymbol as func ->
-                    match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt (ImArray.createOne func) with
-                    | Some expr -> expr
-                    | _ -> expr
-                | _ ->
-                    expr
+            match value with
+            | :? IFunctionSymbol as func ->
+                match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt func with
+                | Some newExpr -> newExpr
+                | _ -> expr
             | _ ->
-                match value with
-                | :? IFunctionSymbol as func when not func.IsFunctionGroup ->
-                    match tryOverloadPartialCallExpression cenv env None syntaxInfo syntaxNameOpt (ImArray.createOne func) with
-                    | Some newExpr -> newExpr
-                    | _ -> expr
-                | _ ->
-                    expr
+                expr
         match expr with
         | E.Lambda(body=lazyBodyExpr) when lazyBodyExpr.HasExpression ->
             match lazyBodyExpr.Expression with
             | E.Call(value=value) when value.IsFunctionGroup ->
-                let funcGroup = value :> obj :?> FunctionGroupSymbol
+                let funcGroup = value.AsFunctionGroup
                 cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
             | _ ->
                 ()
+        | E.Value(value=value) when value.IsFunctionGroup && not tyChecking.IsEnabledNoTypeErrors ->
+            let funcGroup = value.AsFunctionGroup
+            cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
         | _ ->
             ()
         expr
@@ -938,7 +973,7 @@ let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: 
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Value(value=value) when value.IsFunction ->
-        checkOverloadPartialCallExpression cenv env expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
+        checkOverloadPartialCallExpression cenv env tyChecking expectedTyOpt expr |> assertIsFunctionValueOrLambdaExpression
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
 
     | E.Witness _ ->
@@ -1057,7 +1092,13 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
                             tyChecking
                     checkArgumentsOfCallLikeExpression cenv env tyChecking argExpr
                 checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
-                argExpr            
+                argExpr
+            | E.Value(value=value) when value.IsFunctionGroup -> // partial call that has overloading
+                let argExpr = 
+                    checkOverloadPartialCallExpression cenv env tyChecking expectedTyOpt argExpr
+                    |> assertIsFunctionValueOrLambdaExpression
+                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                argExpr     
             | _ ->
                 if isAddrOf then
                     checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
@@ -1375,7 +1416,8 @@ let checkExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (expr: E
         let tyChecking =
             if env.isPassedAsArgument then
                 match expr with
-                | E.Call(value=value) when value.IsFunctionGroup ->
+                | E.Call(value=value)
+                | E.Value(value=value) when value.IsFunctionGroup ->
                     TypeChecking.EnabledNoTypeErrors(false)
                 | _ ->
                     TypeChecking.Enabled

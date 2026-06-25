@@ -5347,6 +5347,8 @@ module SymbolExtensions =
             member this.AsLocal = this :?> ILocalSymbol
 
             member this.AsFunction = this :?> IFunctionSymbol
+            
+            member this.AsFunctionGroup = this :?> FunctionGroupSymbol
 
             member this.AsField = this :?> IFieldSymbol
 

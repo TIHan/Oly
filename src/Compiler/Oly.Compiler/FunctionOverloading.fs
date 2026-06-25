@@ -103,7 +103,7 @@ let private filterFunctionsForOverloadingByMostGenericArgumentTypes (funcs: IFun
                 score 0 inputTy
             specificScore
     )
-    |> Seq.sortByDescending (fun x -> fst x)
+    |> Seq.sortBy (fun x -> fst x)
     |> Seq.tryHead
     |> Option.map (fun x -> snd x |> ImArray.ofSeq)
     |> Option.defaultValue ImArray.empty

@@ -11119,3 +11119,444 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "Hello World!"
     |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 2 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+x_map<A, B>(xs: A[], f: A -> B): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    let stuff = x_map(xs, animalFunc)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 3``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 4 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 5 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 6 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal, y: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 7``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 8 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 9 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+   
+[<Fact>]
+let ``Should choose the right overload for animalFunc 10 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 11 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal, y: Animal, z: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "zoot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 12 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
