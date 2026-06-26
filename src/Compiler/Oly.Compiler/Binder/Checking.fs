@@ -1278,8 +1278,11 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
                     let expectedArgTyOpt = Some expectedArgTy
 
-                    // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
-                    checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value expectedArgTyOpt argExpr
+                    // REVIEW: This is a little hacky for LoadFunctionPtr.
+                    //         This is necessary so we do not get errors for not solving the wrapped lambda parameter inference types.
+                    if not(value.IsLoadFunctionPtr) && not(value.IsFunctionGroup && value.AsFunctionGroup.Functions |> ImArray.forall (fun x -> x.IsLoadFunctionPtr)) then
+                        // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
+                        checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value expectedArgTyOpt argExpr
 
                     let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf expectedArgTyOpt argExpr
                     checkConstraintsFromCallExpression cenv.diagnostics cenv.pass ConstraintSolverMode.Attempt expr
