@@ -412,12 +412,9 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
         )
         
     let lazyBodyExpr =
-        if func.IsFunctionGroup || env.isPassedAsArgument then
-            LazyExpression(None, fun _ ->
-                checkExpression cenv env None callExpr
-            )
-        else
-            LazyExpression.CreateNonLazy(None, fun _ -> callExpr)
+        LazyExpression(None, fun _ ->
+            checkExpression cenv { env with isPassedAsArgument = false; isInLocalLambda = true } None callExpr
+        )
     
     let lambdaExpr =
         E.CreateLambda(
@@ -427,6 +424,9 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
             lambdaPars,
             lazyBodyExpr
         )
+
+    if not env.isPassedAsArgument then
+        lazyBodyExpr.Run()
     
     lambdaExpr
 
@@ -693,7 +693,7 @@ let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (ty
             | _ ->
                 expr
         match expr with
-        | E.Lambda(body=lazyBodyExpr) when lazyBodyExpr.HasExpression ->
+        | E.Lambda(body=lazyBodyExpr) when env.isPassedAsArgument && lazyBodyExpr.HasExpression ->
             match lazyBodyExpr.Expression with
             | E.Call(value=value) when value.IsFunctionGroup ->
                 let funcGroup = value.AsFunctionGroup
@@ -955,6 +955,9 @@ let checkExpressionWithEager (cenv: cenv) (env: BinderEnvironment) (tyChecking: 
         |> checkImplicitArgumentsOfCallExpression env                       |> assertIsCallExpression
         |> checkCalleeOfCallExpression cenv env tyChecking false            |> assertIsCallExpression
         |> ImplicitRules.ImplicitCallExpression env.benv                    |> assertIsCallExpression
+
+        |> checkEarlyArgumentsOfCallExpression cenv env false               |> assertIsCallExpression
+
         |> checkArgumentsOfCallLikeExpression cenv env tyChecking           |> assertIsCallExpression
         |> lateCheckCalleeOfLoadFunctionPtrOrFromAddressExpression cenv env                                           
         |> checkReturnExpression cenv env tyChecking expectedTyOpt
