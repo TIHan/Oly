@@ -1161,43 +1161,40 @@ let checkExpressionTypeIfPossible cenv env (tyChecking: TypeChecking) (expectedT
 /// reports an error diagnostic telling the user to use explict type annotations to disambiguate the overloaded functions.
 ///
 /// REVIEW: Is it possible to have smarter inference for function overloads where we would not have to report an error?
-let checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda (value: IValueSymbol) expectedTyOpt (argExpr: E) =
-    if skipLambda || not value.IsFunctionGroup then ()
-    else
-        match argExpr with
-        | E.Lambda(pars=pars) ->
-            checkExpressionTypeIfPossible cenv env (TypeChecking.EnabledNoTypeErrors(false)) expectedTyOpt argExpr
-            let requiresExplicitTypeAnnotation =
-                pars
-                |> ImArray.exists (fun par ->
-                    not par.Type.IsAllInnerSolved_ste
-                )
-            if requiresExplicitTypeAnnotation then
-                let rec solveAsTypeError (ty: TypeSymbol) =
-                    if not ty.IsSolved_ste then
-                        UnifyTypes Flexible ty TypeSymbolError |> ignore
-                    else
-                        ty.TypeArguments
-                        |> ImArray.iter solveAsTypeError
+let checkAmbiguousOverloadForLambdaArgumentExpression cenv (argExpr: E) =
+    match argExpr with
+    | E.Lambda(pars=pars) ->
+        let requiresExplicitTypeAnnotation =
+            pars
+            |> ImArray.exists (fun par ->
+                not par.Type.IsAllInnerSolved_ste
+            )
+        if requiresExplicitTypeAnnotation then
+            let rec solveAsTypeError (ty: TypeSymbol) =
+                if not ty.IsSolved_ste then
+                    UnifyTypes Flexible ty TypeSymbolError |> ignore
+                else
+                    ty.TypeArguments
+                    |> ImArray.iter solveAsTypeError
 
-                pars
-                |> ImArray.iter (fun par ->
-                    solveAsTypeError par.Type
-                )
+            pars
+            |> ImArray.iter (fun par ->
+                solveAsTypeError par.Type
+            )
 
-                let syntax =
-                    match argExpr.Syntax with
-                    | :? OlySyntaxExpression as syntax ->
-                        match syntax with
-                        | OlySyntaxExpression.Lambda(_, syntaxLambdaPars, _, _) -> syntaxLambdaPars :> OlySyntaxNode
-                        | _ -> syntax
-                    | syntax -> syntax
+            let syntax =
+                match argExpr.Syntax with
+                | :? OlySyntaxExpression as syntax ->
+                    match syntax with
+                    | OlySyntaxExpression.Lambda(_, syntaxLambdaPars, _, _) -> syntaxLambdaPars :> OlySyntaxNode
+                    | _ -> syntax
+                | syntax -> syntax
 
-                let msg =
-                    $"Unable to solve parameter types for the lambda expression. Use explicit type annotations."
-                cenv.diagnostics.Error(msg, 10, syntax)
-        | _ ->
-            ()
+            let msg =
+                $"Unable to solve parameter types for the lambda expression. Use explicit type annotations."
+            cenv.diagnostics.Error(msg, 10, syntax)
+    | _ ->
+        ()
 
 let intersectInputTypes expectedTy ty (argExprTy: TypeSymbol) =
     if areTypesEqual expectedTy ty then
@@ -1269,20 +1266,17 @@ let checkEarlyArgumentsOfCallExpression cenv (env: BinderEnvironment) skipLambda
             let env = env.SetReturnable(false).SetPassedAsArgument(true)
             argExprs
             |> ImArray.mapi (fun i argExpr ->
-                let expectedArgTy =
+                let expectedArgTyOpt =
                     if i < argTys.Length then
-                        argTys[i]
+                        Some argTys[i]
                     else
-                        TypeSymbolError
+                        Some TypeSymbolError
 
                 argExpr.RewriteReturningTargetExpression(fun argExpr ->
-                    let expectedArgTyOpt = Some expectedArgTy
-
                     // REVIEW: This is a little hacky for LoadFunctionPtr.
                     //         This is necessary so we do not get errors for not solving the wrapped lambda parameter inference types.
-                    if not(value.IsLoadFunctionPtr) && not(value.IsFunctionGroup && value.AsFunctionGroup.Functions |> ImArray.forall (fun x -> x.IsLoadFunctionPtr)) then
-                        // This can technically report a diagnostic, but only when 'skipLambda' is false and 'value' is a function group.
-                        checkAmbiguousOverloadForLambdaArgumentExpression cenv env skipLambda value expectedArgTyOpt argExpr
+                    if (not skipLambda) && value.IsFunctionGroup && not value.IsLoadFunctionPtr then
+                        checkAmbiguousOverloadForLambdaArgumentExpression cenv argExpr
 
                     let newArgExpr = checkArgumentExpression cenv env tyChecking value.IsAddressOf expectedArgTyOpt argExpr
                     checkConstraintsFromCallExpression cenv.diagnostics cenv.pass ConstraintSolverMode.Attempt expr

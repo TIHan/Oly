@@ -2500,6 +2500,22 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
             }
         )
 
+    let wellKnownFunc =
+        // Address-of is special as its use impacts what return type
+        // an expression will have. This is due to automatic dereferencing.
+        if principalFunc.IsAddressOf &&
+            funcs
+            |> ImArray.forall (fun x -> x.IsAddressOf) then
+            WellKnownFunction.AddressOf
+        // LoadFunctionPtr is special as we skip trying to solve lambda parameter types
+        // that is wrappiong a call to LoadFunctionPtr.
+        elif principalFunc.IsLoadFunctionPtr &&
+            funcs
+            |> ImArray.forall (fun x -> x.IsLoadFunctionPtr) then
+            WellKnownFunction.LoadFunctionPtr
+        else
+            WellKnownFunction.None
+
     member this.Name = name
 
     member this.Functions: IFunctionSymbol imarray = funcs
@@ -2554,7 +2570,7 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
             else
                 NormalFunction
 
-        member this.WellKnownFunction = WellKnownFunction.None
+        member this.WellKnownFunction = wellKnownFunc
 
         member this.AssociatedFormalPattern = None
 
@@ -5234,15 +5250,6 @@ module SymbolExtensions =
     
             member this.TryWellKnownFunction =
                 match this with
-                | :? FunctionGroupSymbol as funcGroup ->
-                    // Address-of is special as its use impacts what return type
-                    // an expression will have. This is due to automatic dereferencing.
-                    if 
-                        funcGroup.Functions
-                        |> ImArray.forall (fun x -> x.IsAddressOf) then
-                            ValueSome WellKnownFunction.AddressOf
-                    else
-                            ValueNone
                 | :? IFunctionSymbol as func ->
                     if func.WellKnownFunction <> WellKnownFunction.None then
                         ValueSome func.WellKnownFunction

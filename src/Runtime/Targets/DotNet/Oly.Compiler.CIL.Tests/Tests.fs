@@ -22414,3 +22414,36 @@ main(): () =
     |> withCompile
     |> shouldRunWithExpectedOutput "2"
     |> ignore
+
+[<Fact>]
+let ``Should choose correct overload whose parameter type is a function type with a return type is a subtype``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+abstract default class A
+
+class B =
+    inherits A
+
+M(f: () -> A): () = 
+    let _ = f()
+
+M(f: () -> int32): () = ()
+
+main(): () =
+    M(
+        () ->
+            let b = B()
+            print("yes")
+            b
+    )
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "yes"
+    |> ignore
