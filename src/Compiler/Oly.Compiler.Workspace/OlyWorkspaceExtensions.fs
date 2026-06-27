@@ -715,6 +715,27 @@ type OlyDocument with
                         token
                 )
 
+            let prevTokenOpt =
+                originalTokenOpt 
+                |> Option.bind (fun token -> 
+                    match token.TryPreviousToken((fun _ -> true), skipTrivia = true, ct = ct) with
+                    | ValueNone -> None
+                    | ValueSome x -> Some x)
+
+            let isPrevTokenInType =
+                match prevTokenOpt with
+                | Some prevToken -> prevToken.Node.HasParent && prevToken.Node.Parent.IsType
+                | _ -> false
+
+            match originalTokenOpt with
+            | Some token when 
+                    (token.IsEqual && token.Node.HasParent && token.Node.Parent.IsBinding) ||
+                    (token.IsWhitespaceTrivia && isPrevTokenInType) ||
+                    token.IsLiteral
+                    -> 
+                CompletionContext.None
+            | _ ->
+
             match tokenOpt, originalTokenOpt with
             | Some token, Some originalToken ->
 

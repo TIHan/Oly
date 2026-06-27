@@ -227,6 +227,21 @@ let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
                             )
                         )
                     |> fst
+            elif not(areTypesEqual expectedReturnTy returnTy) && subsumesType expectedReturnTy returnTy then
+                match expr with
+                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
+                    E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
+                        LazyExpression.CreateNonLazy(
+                            lazyLambdaBodyExpr.TrySyntax,
+                            fun _ ->
+                                E.Typed(syntaxInfo,
+                                    lazyLambdaBodyExpr.Expression,
+                                    expectedReturnTy
+                                )
+                        )
+                    )
+                | _ ->
+                    expr
             else
                 expr
         | _ ->

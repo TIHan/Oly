@@ -1947,7 +1947,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
             let options = CompletionRegistrationOptions()
             options.DocumentSelector <- documentSelector
             options.WorkDoneProgress <- false
-            options.TriggerCharacters <- Container([".";",";":";" ";"\""])
+            options.TriggerCharacters <- Container([".";",";":";"\""])
             options.AllCommitCharacters <- null
             options.ResolveProvider <- true
             options

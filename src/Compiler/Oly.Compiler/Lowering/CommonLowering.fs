@@ -153,9 +153,6 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
             expr3
         )
 
-    | E.Typed(body=bodyExpr) ->
-        bodyExpr
-
     // Auto-properties
     | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo None origExpr

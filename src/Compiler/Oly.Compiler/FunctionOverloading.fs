@@ -305,7 +305,11 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
                             TypeSymbol.Function(inputTy, outputTy, FunctionKind.Normal)
                         | parTy ->
                             parTy
-                    subsumesTypeWith rigidity parTy argTy
+                    match parTy, stripTypeEquations argTy with
+                    | TypeSymbol.Function(parInputTy, parOutputTy, _), TypeSymbol.Function(argInputTy, argOutputTy, _) ->
+                        subsumesTypeWith rigidity parOutputTy argOutputTy && UnifyFunctionInputType rigidity parInputTy argInputTy
+                    | _ ->
+                        subsumesTypeWith rigidity parTy argTy
                 )
         )
 

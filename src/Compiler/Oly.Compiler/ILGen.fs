@@ -1585,11 +1585,13 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         OlyILExpression.While(ilConditionExpr, ilBodyExpr)
 
+    | E.Typed(body=bodyExpr) ->
+        GenExpression cenv env bodyExpr
+
     | E.Lambda _
     | E.Match _
     | E.GetProperty _
-    | E.SetProperty _ 
-    | E.Typed _ ->
+    | E.SetProperty _ ->
         failwith "Unexpected expression. Should be removed in lowering."
 
 and GenSetFieldExpression (cenv: cenv) env ilTextRange receiverOpt field rhsExpr =

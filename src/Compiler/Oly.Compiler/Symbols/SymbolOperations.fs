@@ -284,6 +284,36 @@ let private unifyVariadicTypes rigidity (tyArgs1: TypeSymbol imarray) (tyArgs2: 
     else
         false
 
+let UnifyFunctionInputType rigidity (inputTy1: TypeSymbol) (inputTy2: TypeSymbol) : bool =
+    match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
+    | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
+        UnifyTypes rigidity inputTy1 inputTy2
+
+    | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
+    | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
+        let elementTy = elementTys[0]
+        if (not elementTy.IsTuple_ste || elementTy.IsOneItemTuple) && not elementTy.IsUnit_ste then
+            UnifyTypes rigidity elementTy ty
+        else
+            UnifyTypes rigidity tupTy ty
+
+    | TypeSymbol.Tuple _, ty
+    | ty, TypeSymbol.Tuple _ when not ty.IsSolved_ste && not ty.IsVariadicInferenceVariable_ste ->
+        false
+
+    | TypeSymbol.Tuple(_), TypeSymbol.Tuple(_) ->
+        UnifyTypes rigidity inputTy1 inputTy2
+
+    | TypeSymbol.Tuple _, ty
+    | ty, TypeSymbol.Tuple _ ->
+        if ty.IsVariadicVariable_ste || ty.IsVariadicInferenceVariable_ste then
+            UnifyTypes rigidity inputTy1 inputTy2
+        else
+            false
+
+    | _ ->
+        UnifyTypes rigidity inputTy1 inputTy2
+
 let private unifyReturnType rigidity (returnTy1: TypeSymbol) (returnTy2: TypeSymbol) : bool =
     UnifyTypes rigidity returnTy1 returnTy2 && returnTy1.IsRealUnit_ste = returnTy2.IsRealUnit_ste
 
@@ -547,38 +577,7 @@ let UnifyTypes (rigidity: TypeVariableRigidity) (origTy1: TypeSymbol) (origTy2: 
         | TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1), TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2))
         | TypeSymbol.ForAll(_, TypeSymbol.Function(inputTy=inputTy1; returnTy=returnTy1; kind=kind1)), TypeSymbol.Function(inputTy=inputTy2; returnTy=returnTy2; kind=kind2) ->
             if kind1 = kind2 then
-                let result =
-                    (
-                        match stripTypeEquations inputTy1, stripTypeEquations inputTy2 with
-                        | TypeSymbol.Tuple(elementTys1, _), TypeSymbol.Tuple(elementTys2, _) when elementTys1.Length = elementTys2.Length ->
-                            UnifyTypes rigidity inputTy1 inputTy2
-
-                        | (TypeSymbol.Tuple(elementTys, _) as tupTy), ty
-                        | ty, (TypeSymbol.Tuple(elementTys, _) as tupTy) when elementTys.Length = 1 && not ty.IsUnit_ste ->
-                            let elementTy = elementTys[0]
-                            if (not elementTy.IsTuple_ste || elementTy.IsOneItemTuple) && not elementTy.IsUnit_ste then
-                                UnifyTypes rigidity elementTy ty
-                            else
-                                UnifyTypes rigidity tupTy ty
-
-                        | TypeSymbol.Tuple _, ty
-                        | ty, TypeSymbol.Tuple _ when not ty.IsSolved_ste && not ty.IsVariadicInferenceVariable_ste ->
-                            false
-
-                        | TypeSymbol.Tuple(_), TypeSymbol.Tuple(_) ->
-                            UnifyTypes rigidity inputTy1 inputTy2
-
-                        | TypeSymbol.Tuple _, ty
-                        | ty, TypeSymbol.Tuple _ ->
-                            if ty.IsVariadicVariable_ste || ty.IsVariadicInferenceVariable_ste then
-                                UnifyTypes rigidity inputTy1 inputTy2
-                            else
-                                false
-
-                        | _ ->
-                            UnifyTypes rigidity inputTy1 inputTy2
-                    )
-                unifyReturnType rigidity returnTy1 returnTy2 && result
+                unifyReturnType rigidity returnTy1 returnTy2 && UnifyFunctionInputType rigidity inputTy1 inputTy2
             else
                 false
 

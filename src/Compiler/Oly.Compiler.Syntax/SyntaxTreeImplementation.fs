@@ -365,9 +365,39 @@ type OlyToken =
                     | _ ->
                         let tokenOpt = 
                             tokens 
-                            |> Seq.take (index) 
+                            |> Seq.take index
                             |> Seq.filter (fun x -> if skipTrivia && x.IsTrivia then false else predicate x)
                             |> Seq.tryLast
+                        match tokenOpt with
+                        | Some token -> ValueSome token
+                        | _ -> loop(parentNode)
+                | _ ->
+                    ValueNone
+        loop(origNode)
+
+    member this.TryNextToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
+        let predicate = defaultArg predicate (fun _ -> true)
+        let skipTrivia = defaultArg skipTrivia true
+        let ct = defaultArg ct CancellationToken.None
+        let origNode = this.Node
+        let isTrivia = this.IsTrivia
+
+        let rec loop (node: OlySyntaxNode) =
+            match node.Parent with
+            | null -> ValueNone
+            | parentNode ->
+                let tokens = parentNode.GetDescendantTokens(skipTrivia = skipTrivia && not isTrivia, ct = ct)
+                let indexOpt = tokens |> Seq.tryFindIndex (fun x -> obj.ReferenceEquals(x.Node, origNode))
+                match indexOpt with
+                | Some index ->
+                    if index = tokens.Length - 1 then
+                        loop(parentNode)
+                    else
+                        let tokenOpt = 
+                            tokens 
+                            |> Seq.skip (index + 1) 
+                            |> Seq.filter (fun x -> if skipTrivia && x.IsTrivia then false else predicate x)
+                            |> Seq.tryHead
                         match tokenOpt with
                         | Some token -> ValueSome token
                         | _ -> loop(parentNode)
@@ -766,6 +796,22 @@ module OlySyntaxTreeExtensions =
             match this.InternalNode with
             | :? SyntaxBindingDeclaration -> true
             | _ -> false
+
+        member this.IsBinding =
+            match this.InternalNode with
+            | :? SyntaxBinding -> true
+            | _ -> false
+
+        member this.IsAnyNewLine =
+            match this.InternalNode with
+            | :? SyntaxToken as token ->
+                match token.RawToken with
+                | Token.NewLine
+                | Token.CarriageReturn
+                | Token.CarriageReturnNewLine -> true
+                | _ -> false
+            | _ ->
+                false
 
         member this.IsError =
             this.InternalNode.IsError

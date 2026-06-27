@@ -377,6 +377,179 @@ main(): () =
     """
     |> containsCompletionLabelsByCursor ["A";"B"]
 
+[<Fact>]
+let ``By cursor, should not get completions at =`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~=
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 2`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () =~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 3`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~     =
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 4 - but it has no = this time`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should get completions for return type`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): ~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.NotEqual(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 5 - but it has no = this time`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+M(): () ~^~
+
+main(): () =
+    ()
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions for literal`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): () =
+    let _x = ~^~1
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions for literal 2`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): () =
+    let _x = 1~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
 let clearSolution (workspace: OlyWorkspace) =
     workspace.ClearSolution()
 
