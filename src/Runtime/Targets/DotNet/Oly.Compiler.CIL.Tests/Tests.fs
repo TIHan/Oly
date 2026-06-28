@@ -22601,6 +22601,43 @@ class B
 
 F<T>(a: T, f: A<T> -> ()): () = f(unchecked default)
 
+M<T>(a: A<T>): () = print("yes")
+
+M(a: A<int32>): () = print("INT32")
+
+M(b: B): () = print("no")
+
+main(): () =
+    F(1, x -> M(x))
+    F(2, M)
+    F("hello", x -> M(x))
+    F("hello", M)
+    F("hello", M<_>)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "INT32INT32yesyesyes"
+    |> ignore
+
+[<Fact>]
+let ``Should choose correct overload for partial generic call 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+class A<T>
+
+class B
+
+F<T>(a: T, f: A<T> -> ()): () = f(unchecked default)
+
 F<T>(a: T, f: scoped A<T> -> ()): () = ()
 
 M<T>(a: A<T>): () = print("yes")
@@ -22622,7 +22659,47 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Should choose correct overload for partial generic call 2``() =
+let ``Should choose correct overload for partial generic call 3``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+class A<T>
+
+class B
+
+class C =
+
+    M<T>(a: A<T>): () = print("yes")
+
+    M(a: A<int32>): () = print("INT32")
+
+F<T>(a: T, f: A<T> -> ()): () = f(unchecked default)
+
+M(b: B): () = print("no")
+
+main(): () =
+    let c = C()
+    F(1, x -> c.M(x))
+    F(2, c.M)
+    F("hello", x -> c.M(x))
+    F("hello", c.M)
+    F("hello", c.M<_>)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "INT32INT32yesyesyes"
+    |> ignore
+
+[<Fact>]
+let ``Should choose correct overload for partial generic call 4``() =
     let src = 
         """
 #[intrinsic("int32")]

@@ -153,6 +153,15 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
             expr3
         )
 
+    | E.Typed(body=bodyExpr;ty=ty) ->
+        match bodyExpr with
+        | E.Lambda(cachedLambdaTy=lambdaTy) ->
+            OlyAssert.True(areTypesEqual lambdaTy.Type ty)
+            bodyExpr
+        | _ ->
+            origExpr
+            
+
     // Auto-properties
     | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
         lowerAutoProperty syntaxInfo bindingInfo None origExpr

@@ -364,7 +364,14 @@ let tryOverloadCallExpression
                 OlyAssert.True(func.IsFunctionGroup)
                 Some(E.Call(syntaxInfo, receiverExprOpt, ImArray.empty, argExprs, func, flags))
 
-let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (tyArgs: _ imarray) (func: IFunctionSymbol) =
+let createPartialCallExpression 
+        (cenv: cenv) 
+        (env: BinderEnvironment) 
+        syntaxNode 
+        syntaxNameOpt 
+        (tyArgs: _ imarray) 
+        (receiverExprOpt: E option)
+        (func: IFunctionSymbol) =
     let freshFunc = freshenValue env.benv (func.Substitute(tyArgs)) :?> IFunctionSymbol
     
     let lambdaPars =
@@ -404,7 +411,7 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
     let callExpr =
         E.Call(
             syntaxInfo,
-            None,
+            receiverExprOpt,
             witnessArgs,
             argExprs,
             freshFunc,
@@ -430,9 +437,16 @@ let createPartialCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxNode
     
     lambdaExpr
 
-let createPartialCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEnvironment) syntaxNode syntaxNameOpt (syntaxTyArgsRoot, syntaxTyArgs) (func: IFunctionSymbol) =
+let createPartialCallExpressionWithSyntaxTypeArguments 
+        (cenv: cenv) 
+        (env: BinderEnvironment) 
+        syntaxNode 
+        syntaxNameOpt 
+        (syntaxTyArgsRoot, syntaxTyArgs)         
+        (receiverExprOpt: E option)
+        (func: IFunctionSymbol) =
     let tyArgs = bindTypeArguments cenv env 0 func.TypeParametersOrConstructorEnclosingTypeParameters (syntaxTyArgsRoot, syntaxTyArgs)
-    createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs func
+    createPartialCallExpression cenv env syntaxNode syntaxNameOpt tyArgs receiverExprOpt func
 
 /// TODO: There is duplication when it comes to handling overloading for non-partial and partial calls. We should figure out a way to combine them.
 let tryOverloadPartialCallExpression
@@ -441,6 +455,7 @@ let tryOverloadPartialCallExpression
         (expectedTyOpt: TypeSymbol option) 
         (syntaxInfo: BoundSyntaxInfo) 
         (syntaxNameOpt: OlySyntaxName option)
+        (receiverExprOpt: E option)
         (func: IFunctionSymbol) =
 
     let resArgs =
@@ -464,10 +479,10 @@ let tryOverloadPartialCallExpression
             let func = FunctionGroupSymbol.CreateIfPossible(funcs)
             match syntaxNameOpt with
             | Some(OlySyntaxName.Generic(_, syntaxTyArgs)) ->
-                createPartialCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo.Syntax syntaxNameOpt (syntaxTyArgs, syntaxTyArgs.Values) func
+                createPartialCallExpressionWithSyntaxTypeArguments cenv env syntaxInfo.Syntax syntaxNameOpt (syntaxTyArgs, syntaxTyArgs.Values) receiverExprOpt func
                 |> Some
             | _ -> 
-                createPartialCallExpression cenv env syntaxInfo.Syntax syntaxNameOpt ImArray.empty func
+                createPartialCallExpression cenv env syntaxInfo.Syntax syntaxNameOpt ImArray.empty receiverExprOpt func
                 |> Some
         else
             None
@@ -676,36 +691,44 @@ let checkOverloadCallExpression (cenv: cenv) (env: BinderEnvironment) skipEager 
     | _ ->
         unreached()
 
-let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) (expr: E) =
-    match expr with
-    | E.Value(syntaxInfo, value) when value.IsFunction ->
-        let syntaxNameOpt =
-            match syntaxInfo.Syntax with
-            | :? OlySyntaxName as syntaxName -> Some syntaxName
-            | _ -> None
+let handlePartialCall (cenv: cenv) env (tyChecking: TypeChecking) expectedTyOpt (syntaxInfo: BoundSyntaxInfo) receiverExprOpt origExpr (value: IValueSymbol) =
+    let syntaxNameOpt =
+        match syntaxInfo.Syntax with
+        | :? OlySyntaxName as syntaxName -> Some syntaxName
+        | _ -> None
 
-        let expr =
-            match value with
-            | :? IFunctionSymbol as func ->
-                match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt func with
-                | Some newExpr -> newExpr
-                | _ -> expr
-            | _ ->
-                expr
-        match expr with
-        | E.Lambda(body=lazyBodyExpr) when env.isPassedAsArgument && lazyBodyExpr.HasExpression ->
-            match lazyBodyExpr.Expression with
-            | E.Call(value=value) when value.IsFunctionGroup ->
-                let funcGroup = value.AsFunctionGroup
-                cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
-            | _ ->
-                ()
-        | E.Value(value=value) when value.IsFunctionGroup && not tyChecking.IsEnabledNoTypeErrors ->
+    let expr =
+        match value with
+        | :? IFunctionSymbol as func ->
+            match tryOverloadPartialCallExpression cenv env expectedTyOpt syntaxInfo syntaxNameOpt receiverExprOpt func with
+            | Some newExpr -> newExpr
+            | _ -> origExpr
+        | _ ->
+            origExpr
+    match expr with
+    | E.Lambda(body=lazyBodyExpr) when env.isPassedAsArgument && lazyBodyExpr.HasExpression ->
+        match lazyBodyExpr.Expression with
+        | E.Call(value=value) when value.IsFunctionGroup ->
             let funcGroup = value.AsFunctionGroup
             cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
         | _ ->
             ()
-        expr
+    | E.Value(value=value) when value.IsFunctionGroup && not tyChecking.IsEnabledNoTypeErrors ->
+        let funcGroup = value.AsFunctionGroup
+        cenv.diagnostics.Report(Error_AmbiguousFunctions(env.benv, syntaxInfo.SyntaxNameOrDefault, funcGroup))
+    | _ ->
+        ()
+    expr
+
+let checkOverloadPartialCallExpression (cenv: cenv) (env: BinderEnvironment) (tyChecking: TypeChecking) (expectedTyOpt: TypeSymbol option) (expr: E) =
+    match expr with
+    | E.Value(syntaxInfo, value) when value.IsFunction ->
+        handlePartialCall cenv env tyChecking expectedTyOpt syntaxInfo None expr value
+
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) when flags.HasFlag(CallFlags.Partial) && argExprs.IsEmpty ->
+        OlyAssert.True(witnessArgs.IsEmpty)
+        handlePartialCall cenv env tyChecking expectedTyOpt syntaxInfo receiverExprOpt expr value
+
     | _ ->
         unreached()
 
@@ -1081,21 +1104,28 @@ let checkArgumentExpression cenv env (tyChecking: TypeChecking) isAddrOf expecte
             | E.Literal _
             | E.Lambda _  ->
                 checkExpressionAux cenv env tyChecking expectedTyOpt argExpr
-            | E.Call(value=value) when value.IsFunctionGroup ->
-                let argExpr = 
+            | E.Call(value=value;flags=callFlags) when value.IsFunctionGroup ->
+                if callFlags.HasFlag(CallFlags.Partial) then // partial call that has overloading
                     let argExpr = 
-                        checkOverloadCallExpression cenv env false expectedTyOpt argExpr
-                        |> assertIsCallExpression
-                    let tyChecking =
-                        // Enable type checking if the overloaded function was found.
-                        match argExpr with
-                        | E.Call(value=value) when not value.IsFunctionGroup ->
-                            TypeChecking.Enabled
-                        | _ ->
-                            tyChecking
-                    checkArgumentsOfCallLikeExpression cenv env tyChecking argExpr
-                checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
-                argExpr
+                        checkOverloadPartialCallExpression cenv env tyChecking expectedTyOpt argExpr
+                        |> assertIsFunctionValueOrLambdaExpression
+                    checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                    argExpr     
+                else
+                    let argExpr = 
+                        let argExpr = 
+                            checkOverloadCallExpression cenv env false expectedTyOpt argExpr
+                            |> assertIsCallExpression
+                        let tyChecking =
+                            // Enable type checking if the overloaded function was found.
+                            match argExpr with
+                            | E.Call(value=value) when not value.IsFunctionGroup ->
+                                TypeChecking.Enabled
+                            | _ ->
+                                tyChecking
+                        checkArgumentsOfCallLikeExpression cenv env tyChecking argExpr
+                    checkExpressionTypeIfPossible cenv env tyChecking expectedTyOpt argExpr
+                    argExpr
             | E.Value(value=value) when value.IsFunctionGroup -> // partial call that has overloading
                 let argExpr = 
                     checkOverloadPartialCallExpression cenv env tyChecking expectedTyOpt argExpr
