@@ -529,7 +529,7 @@ let checkCalleeOfCallExpression (cenv: cenv) (env: BinderEnvironment) (tyCheckin
             else
                 checkCalleeArgumentExpressions cenv env tyChecking value argExprs
 
-        if value.IsAddressOf then
+        if not(value.IsFunctionGroup) && (value.IsAddressOf || value.IsUnsafeAddressOf) then
             let argExpr = argExprs[0]
             match argExpr with
             | AutoDereferenced _ -> ()

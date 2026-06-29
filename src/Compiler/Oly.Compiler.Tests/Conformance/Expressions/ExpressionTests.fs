@@ -12654,3 +12654,48 @@ Title<T>(view: T): () where T: struct, { Title: string get, set } =
     """
     |> Oly
     |> shouldCompile
+
+[<Fact>]
+let ``Should not get address pointer of as it is invalid to use unsafe address of``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+M(ptr: int32*): int32* = ptr
+
+main(): () =
+    let x = 1
+    let xPtr = &&x
+    let _y = &&M(xPtr)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            // TODO: Duplicate errors, we should try to fix that.
+            ("Invalid address of.",
+                """
+    let _y = &&M(xPtr)
+             ^^^^^^^^^
+"""
+            )
+            ("Invalid address of.",
+                """
+    let _y = &&M(xPtr)
+             ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore

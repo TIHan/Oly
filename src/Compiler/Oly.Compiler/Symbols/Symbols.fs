@@ -5263,6 +5263,11 @@ module SymbolExtensions =
                 | ValueSome(WellKnownFunction.AddressOf) -> true
                 | _ -> false
 
+            member this.IsUnsafeAddressOf =
+                match this.TryWellKnownFunction with
+                | ValueSome(WellKnownFunction.UnsafeAddressOf) -> true
+                | _ -> false
+
             member this.IsFromAddress =
                 match this.TryWellKnownFunction with
                 | ValueSome(WellKnownFunction.FromAddress) -> true
