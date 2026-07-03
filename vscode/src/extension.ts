@@ -69,13 +69,24 @@ export function activate(context: ExtensionContext) {
 
 	const olyExe = path.join(os.homedir(), ".oly_install/", "bin", "oly");
 
+	let lspConfig = vscode.workspace.getConfiguration("oly.lsp");
+
+	var gcServer = "0";
+	if (lspConfig.get("gcServer")) {
+		gcServer = "1";
+	}
+	const env = {
+		"DOTNET_gcServer": gcServer
+	};
+
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
-		run: { command: olyExe, args: ["lsp"] },
-		debug: { command: olyExe, args: ["lsp"] }
+		run: { command: olyExe, args: ["lsp"], options: { env: env } },
+		debug: { command: olyExe, args: ["lsp"], options: { env: env } }
 	};
 
+	// TODO: Handle this in the language server instead.
 	let olyFileWatcher = workspace.createFileSystemWatcher('**/*');
 
 	// Options to control the language client
@@ -84,7 +95,7 @@ export function activate(context: ExtensionContext) {
 		documentSelector: [{ scheme: 'file', language: 'oly' }],
 		synchronize: {
 			fileEvents: [olyFileWatcher]
-		}
+		},
 	};
 
 	// Create the language client and start the client.
@@ -166,11 +177,18 @@ export function activate(context: ExtensionContext) {
 
 		isClientReady = true;
 		registerStatusBarItems();
-		let config = vscode.workspace.getConfiguration("oly.languageServer");
+		var config = vscode.workspace.getConfiguration("oly.languageServer");
 		await client.didChangeWorkspaceConfiguration(config);
-		vscode.workspace.onDidChangeConfiguration(async (_e) => {
-			let config = vscode.workspace.getConfiguration("oly.languageServer");
-			client.didChangeWorkspaceConfiguration(config);
+		vscode.workspace.onDidChangeConfiguration(async (e) => {
+			if (e.affectsConfiguration("oly.languageServer")) {
+				var config = vscode.workspace.getConfiguration("oly.languageServer");
+				client.didChangeWorkspaceConfiguration(config);
+			} else if (e.affectsConfiguration("oly.languageServerProcess")) {
+				var result = await vscode.window.showWarningMessage("Oly language server process configuration changed and requires to reload the window. Reload?", "Yes", "No");
+				if (result == "Yes") {
+					vscode.commands.executeCommand("workbench.action.reloadWindow");
+				}
+			}
 		});
 
 		vscode.workspace.onDidChangeTextDocument(async (e) => {
@@ -197,7 +215,7 @@ export function activate(context: ExtensionContext) {
 					throw new Error("Oly Build Cancelled");
 				} else {
 					ch.append("ERROR:\n" + result.error);
-					throw new Error("Oly Build Failed\nSee output for details");		
+					throw new Error("Oly Build Failed\nSee output for details");
 				}
 			}
 
@@ -260,7 +278,7 @@ export function activate(context: ExtensionContext) {
 			if (olyWorkspaceSettings.activeProject !== undefined &&
 				olyWorkspaceSettings.activeProject !== null &&
 				await client.doesProjectExist(olyWorkspaceSettings.activeProject)) {
-				projText = olyWorkspaceSettings.activeProject;5
+				projText = olyWorkspaceSettings.activeProject; 5
 			}
 			else {
 				isValid = false;

@@ -207,6 +207,12 @@
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
 				},
+				"oly.languageServerProcess.gcServer": {
+					"scope": "application",
+					"type": "boolean",
+					"default": false,
+					"description": "Enable server garbage collection for the language server to improve performance. 24GB of RAM or more is recommended."
+				},
 				"oly.syntaxTree.explorer.enabled": {
 					"scope": "application",
 					"type": "boolean",
