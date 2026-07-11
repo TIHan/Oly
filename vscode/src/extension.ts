@@ -69,7 +69,7 @@ export function activate(context: ExtensionContext) {
 
 	const olyExe = path.join(os.homedir(), ".oly_install/", "bin", "oly");
 
-	let lspConfig = vscode.workspace.getConfiguration("oly.lsp");
+	let lspConfig = vscode.workspace.getConfiguration("oly.languageServer.process");
 
 	var gcServer = "0";
 	if (lspConfig.get("gcServer")) {
