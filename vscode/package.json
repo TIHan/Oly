@@ -207,7 +207,7 @@
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
 				},
-				"oly.languageServerProcess.gcServer": {
+				"oly.languageServer.process.gcServer": {
 					"scope": "application",
 					"type": "boolean",
 					"default": false,

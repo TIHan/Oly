@@ -180,14 +180,14 @@ export function activate(context: ExtensionContext) {
 		var config = vscode.workspace.getConfiguration("oly.languageServer");
 		await client.didChangeWorkspaceConfiguration(config);
 		vscode.workspace.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration("oly.languageServer")) {
-				var config = vscode.workspace.getConfiguration("oly.languageServer");
-				client.didChangeWorkspaceConfiguration(config);
-			} else if (e.affectsConfiguration("oly.languageServerProcess")) {
+			if (e.affectsConfiguration("oly.languageServer.process")) {
 				var result = await vscode.window.showWarningMessage("Oly language server process configuration changed and requires to reload the window. Reload?", "Yes", "No");
 				if (result == "Yes") {
 					vscode.commands.executeCommand("workbench.action.reloadWindow");
 				}
+			} else if (e.affectsConfiguration("oly.languageServer")) {
+				var config = vscode.workspace.getConfiguration("oly.languageServer");
+				client.didChangeWorkspaceConfiguration(config);
 			}
 		});
 
