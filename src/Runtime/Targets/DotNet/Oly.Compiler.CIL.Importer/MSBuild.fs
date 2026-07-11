@@ -146,7 +146,7 @@ type MSBuild() =
                         let build =
                             if isPublish then "publish"
                             else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -v detailed --disable-build-servers -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
+                        use p = new ExternalProcess("dotnet", $"{build} -v quiet --disable-build-servers -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
 
                         try
                             let! _result = p.RunAsync(ct)
