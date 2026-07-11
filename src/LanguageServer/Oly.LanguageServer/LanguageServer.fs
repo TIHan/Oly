@@ -1166,7 +1166,7 @@ type TextDocumentSyncHandler(server: ILanguageServerFacade) =
                         workspace.FileDeleted(path)
                     | _ ->
                         ()
-                    if path.EndsWith(".oly/workspace/state.json") then
+                    if path.EndsWith(".oly_target/workspace/state.json") then
                         do! server.RefreshSemanticTokens(cancellationToken)
                 else
                     match change.Type with

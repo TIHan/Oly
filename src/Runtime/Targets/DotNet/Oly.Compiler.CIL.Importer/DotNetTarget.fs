@@ -71,6 +71,9 @@ module private P =
         [<Literal>]
         let aot = "aot"
 
+    [<Literal>]
+    let icon = "icon"
+
 // this must be public for serialization to work
 [<Sealed;Serializable>]
 type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
@@ -201,9 +204,9 @@ module private DotNet =
         }
 
     let createMSBuildTargetInfo targetName (properties: OlyProjectProperties) =
-        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.JIT }
+        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.JIT; Icon = None }
 
-        match properties.TryGetValue "publish" with
+        match properties.TryGetValue P.publish with
         | Some(propertyValue: string) ->
             let publishKind =
                 match propertyValue with
@@ -216,6 +219,12 @@ module private DotNet =
         | _ ->
             ()
 
+        match properties.TryGetValue P.icon with
+        | Some(iconPath: string) ->
+            msbuildTargetInfo <- { msbuildTargetInfo with Icon = Some iconPath }
+        | _ ->
+            ()
+
         msbuildTargetInfo
 
 type DotNetTarget internal (platformName: string, copyReferences: bool) =
@@ -225,7 +234,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         seq {
             KeyValuePair(P.publish,
                 { 
-                    OlyProjectPropertyDefinition.IsExecutableOnly = true; 
+                    OlyProjectPropertyDefinition.IsExecutableOnly = true
                     OlyProjectPropertyDefinition.Type = 
                         OlyProjectPropertyType.String(Some(
                             seq {
@@ -236,6 +245,11 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                             }
                             |> ImmutableHashSet.CreateRange
                         ))
+                })
+            KeyValuePair(P.icon,
+                { 
+                    OlyProjectPropertyDefinition.IsExecutableOnly = true;
+                    OlyProjectPropertyDefinition.Type = OlyProjectPropertyType.FilePath
                 })
         }
         |> ImmutableDictionary.CreateRange
@@ -384,7 +398,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 | _ ->
                     if ext.Equals(".cs") then
                         let cacheDir = this.GetProjectCacheDirectory(targetInfo, path)
-                        let msbuildTargetInfo = { TargetName = targetInfo.Name; PublishKind = MSBuildPublishKind.JIT }
+                        let msbuildTargetInfo = { TargetName = targetInfo.Name; PublishKind = MSBuildPublishKind.JIT; Icon = None }
                         let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir targetInfo.ProjectConfiguration.Name false msbuildTargetInfo [] [] [] ct
                         let references = 
                             netInfo.References

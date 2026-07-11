@@ -180,6 +180,7 @@ type OlyProjectConfiguration =
 type OlyProjectPropertyType =
     | Bool
     | String of propertyValues: ImmutableHashSet<string> option
+    | FilePath
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyDefinition =

@@ -34,6 +34,7 @@ type MSBuildTargetInfo =
     {
         TargetName: string
         PublishKind: MSBuildPublishKind
+        Icon: string option
     }
 
     member this.IsPublish = match this.PublishKind with MSBuildPublishKind.JIT -> false | _ -> true
@@ -42,14 +43,14 @@ type MSBuildTargetInfo =
 [<Sealed>]
 type MSBuild() =
     
-    let createProjStub isExe targetName (fileReferences: string seq) (dotnetProjectReferences: string seq) (dotnetPackages: string seq) publishKind =
+    let createProjStub isExe (targetInfo: MSBuildTargetInfo) (fileReferences: string seq) (dotnetProjectReferences: string seq) (dotnetPackages: string seq) =
         let outputType =
             if isExe then
                 "<OutputType>Exe</OutputType>"
             else
                 ""
         let publishKind =
-            match publishKind with
+            match targetInfo.PublishKind with
             | MSBuildPublishKind.Standalone -> "<SelfContained>true</SelfContained>"
             | MSBuildPublishKind.ReadyToRun -> "<SelfContained>true</SelfContained><PublishReadyToRun>true</PublishReadyToRun>"
             | MSBuildPublishKind.NativeAOT -> "<SelfContained>true</SelfContained><PublishAot>true</PublishAot>"
@@ -79,15 +80,21 @@ type MSBuild() =
             )
             |> String.concat Environment.NewLine
 
-        let isPublish =
-            publishKind
+        let applicationIcon =
+            match targetInfo.Icon with
+            | Some iconPath ->
+                $"<ApplicationIcon>{iconPath}</ApplicationIcon>"
+            | _ ->
+                ""
+
         $"""
 <Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     {outputType}
     {publishKind}
-    <TargetFramework>{targetName}</TargetFramework>
+    {applicationIcon}
+    <TargetFramework>{targetInfo.TargetName}</TargetFramework>
     <DebugType>none</DebugType>
     <Deterministic>true</Deterministic>
     <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
@@ -118,7 +125,7 @@ type MSBuild() =
                     let dir = Directory.CreateDirectory(dir)
                     dir
 
-                let stub = createProjStub isExe msbuildTargetInfo.TargetName fileReferences dotnetProjectReferences dotnetPackages msbuildTargetInfo.PublishKind
+                let stub = createProjStub isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages
                 ct.ThrowIfCancellationRequested()
 
                 File.WriteAllText(Path.Combine(stubDir.FullName, "Program.cs"), programCs)

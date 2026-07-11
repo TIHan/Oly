@@ -99,10 +99,13 @@ module Helpers =
     let ProjectExtension = ".olyx"
 
     [<Literal>]
-    let CacheDirectoryName = ".oly/cache"
+    let TargetDirectoryName = ".oly_target"
 
     [<Literal>]
-    let BinDirectoryName = ".oly/bin"
+    let CacheDirectoryName = ".oly_target/cache"
+
+    [<Literal>]
+    let BinDirectoryName = ".oly_target/bin"
 
     let inline internal getInlineCache (valueCache: byref<'T voption>) (f: unit -> 'T) =
         match valueCache with
@@ -326,6 +329,7 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
 type OlyProjectPropertyType =
     | Bool
     | String of propertyValues: ImmutableHashSet<string> option
+    | FilePath
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyProjectPropertyDefinition =
@@ -1602,11 +1606,35 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                                 let expectedText = "a string value"
                                 ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
                                 false
+                        | OlyProjectPropertyType.FilePath ->
+                            match propertyValue with
+                            | :? string ->
+                                // TODO: Validate file path
+                                true
+                            | _ ->
+                                let expectedText = "a string value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
                     | _ ->
                         let msg = $"Not a property for target '{targetInfo.Name}'."
                         ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
                         false
             if isValid then
+                let propertyValue =
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.FilePath ->
+                            match propertyValue with
+                            | :? string as filePath ->
+                                let filePath = OlyPath.Create(filePath)
+                                syntaxTree.Path.GetDirectory().Join(filePath).ToString() :> obj
+                            | _ ->
+                                propertyValue
+                        | _ ->
+                            propertyValue
+                    | _ ->
+                        propertyValue
                 builder.Add(propertyName, propertyValue)
         )
         OlyProjectProperties(propertyDefinitions, builder.ToImmutable())

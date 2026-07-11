@@ -248,8 +248,8 @@ private module InstallHelpers =
         )
 
     private DeleteInstallBinDirectoryIfNeeded(installBinPath: string): () =
-        // Sanity check to ensure we only delete files in the '.oly_install' directory.
-        if (!installBinPath.Contains(".oly_install"))
+        // Sanity check to ensure we only delete files in the '.oly' directory.
+        if (!installBinPath.Contains(".oly"))
             fail("Invalid installation directory.")
         if (Directory.Exists(installBinPath))
             AssertBinFilesNotBeingUsed(installBinPath)
@@ -328,11 +328,13 @@ class InstallCommand =
 
         try
             let exePath = Path.GetDirectoryName(Environment.ProcessPath)
-            if (exePath.Contains(".oly_install"))
+            if (false && exePath.Contains(".oly"))
                 let _ = OlyTrace.LogWarning.Invoke("This binary of Oly is already installed.")
             else
                 let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-                let installPath = Path.Combine(userPath, ".oly_install/").Replace('\\', '/')
+                let installPath = Path.Combine(userPath, ".oly/").Replace('\\', '/')
+                if (!Directory.Exists(installPath))
+                    let _ = Directory.CreateDirectory(installPath)
                 let runScriptPath = InstallHelpers.GetRunScriptFilePath(installPath)
 
                 if (File.Exists(runScriptPath))

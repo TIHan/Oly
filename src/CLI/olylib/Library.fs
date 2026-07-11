@@ -27,7 +27,7 @@ module Oly =
         OlyTrace.Log $"[Build] Started building '{projectPath}' with configuration '{configName}'"
         let projectPath = OlyPath.Create(System.Environment.CurrentDirectory).Join(projectPath)
         let rootPath = projectPath.GetDirectory()
-        let activeConfigPath = rootPath.Join(".oly/workspace/state.json")
+        let activeConfigPath = rootPath.Join(".oly_target/workspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
         let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
         let workspace = createWorkspace(rootPath, rs)
@@ -47,8 +47,8 @@ module Oly =
             )
         | _ ->
 
-        let cacheDirectoryName = ".oly/cache"
-        let binDirectoryName = ".oly/bin"
+        let cacheDirectoryName = ".oly_target/cache"
+        let binDirectoryName = ".oly_target/bin"
 
         let syntaxTree = OlySyntaxTree.Parse(projPath, OlySourceText.FromFile(projPath), OlyParsingOptions.Default)
         let config = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)

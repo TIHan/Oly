@@ -67,7 +67,7 @@ export function activate(context: ExtensionContext) {
 
 	const workspaceFolder = workspaceFolders[0];
 
-	const olyExe = path.join(os.homedir(), ".oly_install/", "bin", "oly");
+	const olyExe = path.join(os.homedir(), ".oly/", "bin", "oly");
 
 	let lspConfig = vscode.workspace.getConfiguration("oly.languageServer.process");
 
@@ -250,7 +250,7 @@ export function activate(context: ExtensionContext) {
 		}
 
 		// Oly Workspace State
-		let olyWorkspaceStatePath = '.oly/workspace/state.json';
+		let olyWorkspaceStatePath = '.oly_target/workspace/state.json';
 		let olyWorkspaceStateUri = vscode.Uri.file(path.join(workspaceFolder.uri.path, olyWorkspaceStatePath));
 		async function readOlyWorkspaceState(): Promise<IOlyWorkspaceState> {
 			try {

@@ -244,8 +244,8 @@
 				"**/.git/objects/**": true,
 				"**/.git/subtree-cache/**": true,
 				"**/.hg/store/**": true,
-				"**/.oly/cache/**": true,
-				"**/.oly/bin/**": true
+				"**/.oly_target/cache/**": true,
+				"**/.oly_target/bin/**": true
 			}
 		}
 	}
