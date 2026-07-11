@@ -1,4 +1,4 @@
-# <img src="vscode/icons/oly-dark.png" alt="oly-logo" width="200"/>
+# <img src="vscode/icons/oly-logo-dark.png" alt="oly-logo" width="200"/>
 ![Windows CI Status](https://github.com/TIHan/Oly/actions/workflows/windows.yml/badge.svg)
 ![Ubuntu CI Status](https://github.com/TIHan/Oly/actions/workflows/linux.yml/badge.svg)
 ![macOS CI Status](https://github.com/TIHan/Oly/actions/workflows/macos.yml/badge.svg)
