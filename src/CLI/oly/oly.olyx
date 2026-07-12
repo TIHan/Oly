@@ -6,7 +6,7 @@
 #package "Spectre.Console.Cli,0.55"
 #package "Errata,0.14.0"
 
-#property "icon" "../../../vscode/icons/oly-logo-dark.ico"
+#property "icon" "oly-logo.ico"
 
 #copy "version.txt"
 
