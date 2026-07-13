@@ -679,8 +679,13 @@ type OlySymbolUseInfo with
 type OlySymbolUseInfo with
 
     member x.ToLspDocumentSymbol(lspRange, children, ct) =
+        let name =
+            if String.IsNullOrWhiteSpace(x.Symbol.Name) then
+                "<unknown>"
+            else
+                x.Symbol.Name
         DocumentSymbol(
-            Name = x.Symbol.Name,
+            Name = name,
             Detail = x.SignatureText,
             Range = lspRange,
             SelectionRange = x.Syntax.GetTextRange(ct).ToLspRange(),
