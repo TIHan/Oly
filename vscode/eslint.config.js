@@ -6,7 +6,7 @@ import globals from "globals";
 export default defineConfig([
     // 1. Global ignores (replaces .eslintignore)
     {
-        ignores: ["dist/", "build/", "node_modules/", "coverage/"]
+        ignores: ["node_modules/"]
     },
 
     // 2. Base configuration for all JavaScript files
