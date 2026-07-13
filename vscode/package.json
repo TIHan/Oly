@@ -5,21 +5,28 @@
 	"author": "Will F. Smith",
 	"license": "MIT",
 	"version": "0.0.1",
-	"publisher": "vscode",
+	"publisher": "oly-dev",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/tihan/oly"
 	},
 	"engines": {
-		"vscode": "^1.64.0"
-	},
-	"dependencies": {
-		"typescript": "^4.9.4",
-		"vscode-languageclient": "^7.0.0"
+		"vscode": "^1.128.0"
 	},
 	"devDependencies": {
-		"@types/node": "^18.11.18",
-		"@types/vscode": "1.64.0"
+		"@eslint/js": "^10.0.1",
+		"@types/glob": "^8.1.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^26.1.1",
+		"@types/typescript": "^0.4.29",
+		"@types/vscode": "^1.125.0",
+		"@vscode/test-electron": "^3.0.0",
+		"glob": "^13.0.6",
+		"globals": "^17.7.0",
+		"mocha": "^11.7.6",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.63.0",
+		"vscode-languageclient": "^10.1.0"
 	},
 	"extensionDependencies": [
 		"ms-dotnettools.csdevkit"
@@ -30,13 +37,11 @@
 		"watch": "tsc -p ./",
 		"pretest": "npm run compile && npm run lint",
 		"lint": "eslint src --ext ts",
+		"lint-fix": "eslint src --ext ts --fix",
 		"test": "node ./out/test/runTest.js"
 	},
 	"categories": [
 		"Programming Languages"
-	],
-	"activationEvents": [
-		"onLanguage:oly"
 	],
 	"main": "./out/extension",
 	"contributes": {

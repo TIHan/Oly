@@ -1609,7 +1609,6 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         | OlyProjectPropertyType.FilePath ->
                             match propertyValue with
                             | :? string ->
-                                // TODO: Validate file path
                                 true
                             | _ ->
                                 let expectedText = "a string value"
@@ -1627,8 +1626,12 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                         | OlyProjectPropertyType.FilePath ->
                             match propertyValue with
                             | :? string as filePath ->
+                                // TODO: Validate file path
                                 let filePath = OlyPath.Create(filePath)
-                                syntaxTree.Path.GetDirectory().Join(filePath).ToString() :> obj
+                                if filePath.IsRooted then
+                                    filePath.ToString() :> obj
+                                else
+                                    syntaxTree.Path.GetDirectory().Join(filePath).ToString() :> obj
                             | _ ->
                                 propertyValue
                         | _ ->

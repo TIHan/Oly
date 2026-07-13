@@ -1,4 +1,4 @@
-import path = require('path');
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 export function sleep(ms: number) {
@@ -12,18 +12,21 @@ export function getActiveDocument() {
 }
 
 export function getActiveDocumentAndCursorPosition() {
-	let textEditor = vscode.window.activeTextEditor;
-	let document = textEditor?.document;
-	let cursorPosition = textEditor?.selection.start;
+	const textEditor = vscode.window.activeTextEditor;
+	const document = textEditor?.document;
+	const cursorPosition = textEditor?.selection.start;
 	return { document, cursorPosition };
 }
 
 export async function autoCreateLaunchJson() {
-	let olyLaunchPath = '.vscode/launch.json';
-	let olyLaunchUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyLaunchPath));
+	if (!vscode.workspace.workspaceFolders)
+		throw "No workspace folders found."
 
-	let defaultLaunchJson =
-	`{
+	const olyLaunchPath = '.vscode/launch.json';
+	const olyLaunchUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.path, olyLaunchPath));
+
+	const defaultLaunchJson =
+		`{
 	"version": "0.2.0",
 	"configurations": [
 		{
@@ -44,12 +47,10 @@ export async function autoCreateLaunchJson() {
 	]
 }`
 
-	try
-	{
-		let _ = await vscode.workspace.fs.stat(olyLaunchUri); // test if the file exists
+	try {
+		await vscode.workspace.fs.stat(olyLaunchUri); // test if the file exists
 	}
-	catch
-	{
+	catch {
 		await vscode.workspace.fs.writeFile(olyLaunchUri, new TextEncoder().encode(defaultLaunchJson));
 	}
 }

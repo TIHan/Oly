@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { CancellationToken, CancellationTokenSource } from 'vscode-languageclient';
 import { IOlySyntaxNodeViewModel, IOlySyntaxTreeViewModel, OlyTextPosition, OlyTextRange } from './IOlySyntaxTreeViewModel';
 import { getActiveDocument, getActiveDocumentAndCursorPosition, sleep } from './Helpers';
-import { OlyClientCommands } from './OlyClientCommands';
+import * as OlyClientCommands from './OlyClientCommands';
 import { client, isClientReady } from './extension';
 
 class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNodeViewModel> {
@@ -17,12 +17,14 @@ class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNod
 	}
 
 	getTreeItem(element: IOlySyntaxNodeViewModel): vscode.TreeItem | Thenable<vscode.TreeItem> {
-		let document = getActiveDocument();
-		element.tooltip = new vscode.MarkdownString("```oly\n" + document.getText(OlyTextRange.toVscodeRange(element.range)) + "\n```");
-		if (element.icon != null) {
-			element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
+		const document = getActiveDocument();
+		if (document) {
+			element.tooltip = new vscode.MarkdownString("```oly\n" + document.getText(OlyTextRange.toVscodeRange(element.range)) + "\n```");
+			if (element.icon != null) {
+				element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
+			}
+			element.command = { title: "Navigate to Syntax Node", command: OlyClientCommands.navigateToSyntaxNode };
 		}
-		element.command = { title: "Navigate to Syntax Node", command: OlyClientCommands.navigateToSyntaxNode };
 		return element;
 	}
 
@@ -33,8 +35,8 @@ class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNod
 		}
 
 		else {
-			for (var i = 0; i < element.children.length; i++) {
-				let child = element.children[i];
+			for (let i = 0; i < element.children.length; i++) {
+				const child = element.children[i];
 				child.parent = element;
 			}
 			return element.children;
@@ -51,8 +53,8 @@ class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNod
 			return client.getSyntaxTree(document, token).then(viewModel => {
 				if (!token.isCancellationRequested) {
 					onSucceed();
-					var callback = _viewModel => { };
-					let sub = this.onDidChangeTreeData(() => callback(viewModel));
+					let callback = (_viewModel: any) => { };
+					const sub = this.onDidChangeTreeData(() => callback(viewModel));
 					callback =
 						viewModel => {
 							sub.dispose();
@@ -75,15 +77,15 @@ class OlySyntaxTreeDataProvider implements vscode.TreeDataProvider<IOlySyntaxNod
 	}
 }
 
-function findOlySyntaxNodeTokenViewModelByPosition(pos: OlyTextPosition, viewModel: IOlySyntaxNodeViewModel, ct: CancellationToken): IOlySyntaxNodeViewModel {
+function findOlySyntaxNodeTokenViewModelByPosition(pos: OlyTextPosition, viewModel: IOlySyntaxNodeViewModel, ct: CancellationToken): IOlySyntaxNodeViewModel | undefined {
 	if (ct.isCancellationRequested)
 	{
-		return null;
+		return undefined;
 	}
 
-	let range = viewModel.range;
-	let start = range.start;
-	let end = range.end;
+	const range = viewModel.range;
+	const start = range.start;
+	const end = range.end;
 	if (viewModel.isToken)
 	{
 		if (pos.line >= start.line && pos.line <= end.line && pos.column >= start.column && pos.column <= end.column)
@@ -98,16 +100,16 @@ function findOlySyntaxNodeTokenViewModelByPosition(pos: OlyTextPosition, viewMod
 	}
 	else if (viewModel.children.length > 0)
 	{
-		for(var i = 0; i < viewModel.children.length; i++)
+		for(let i = 0; i < viewModel.children.length; i++)
 		{
 			if (ct.isCancellationRequested)
 			{
-				return null;
+				return undefined;
 			}
 
-			var child = viewModel.children[i];
+			const child = viewModel.children[i];
 			child.parent = viewModel;
-			var result = findOlySyntaxNodeTokenViewModelByPosition(pos, child, ct);
+			const result = findOlySyntaxNodeTokenViewModelByPosition(pos, child, ct);
 			if (result != null)
 			{
 				return result;
@@ -115,7 +117,7 @@ function findOlySyntaxNodeTokenViewModelByPosition(pos: OlyTextPosition, viewMod
 		}
 	}
 
-	return null;
+	return undefined;
 }
 
 export class OlySyntaxTreeView {
@@ -131,14 +133,14 @@ export class OlySyntaxTreeView {
 	}
 
 	public static createFromVscodeWindow(): OlySyntaxTreeView {
-		let dataProvider = new OlySyntaxTreeDataProvider();
-		let view = vscode.window.createTreeView('oly.syntaxTree', {
+		const dataProvider = new OlySyntaxTreeDataProvider();
+		const view = vscode.window.createTreeView('oly.syntaxTree', {
 			treeDataProvider: dataProvider
 		});
 		return new OlySyntaxTreeView(view, dataProvider);
 	}
 
-	public async refresh(document: vscode.TextDocument, pos) {
+	public async refresh(document: vscode.TextDocument, pos: any) {
 		if (this.isRefreshing) {
 			this.isRefreshing = false;
 			this.cts.cancel();
@@ -154,11 +156,11 @@ export class OlySyntaxTreeView {
 			return;
 		}
 
-		let token = this.cts.token;
-		let reveal = viewModel => {
+		const token = this.cts.token;
+		const reveal = (viewModel: any) => {
 			if (viewModel.nodes.length > 0 && !token.isCancellationRequested) {
 				if (pos) {
-					let node = findOlySyntaxNodeTokenViewModelByPosition(pos, viewModel.nodes[0], token);
+					const node = findOlySyntaxNodeTokenViewModelByPosition(pos, viewModel.nodes[0], token);
 					if (node != null) {
 						this.view.reveal(node, { focus: false, select: true });
 					}
@@ -170,7 +172,7 @@ export class OlySyntaxTreeView {
 		await sleep(300);
 		if (!token.isCancellationRequested) {
 			this.view.message = "Loading...";
-			await this.dataProvider.refresh(document, token, () => { this.view.message = null; }, (viewModel) => {
+			await this.dataProvider.refresh(document, token, () => { this.view.message = undefined; }, (viewModel: any) => {
 				reveal(viewModel);
 			});
 		}
@@ -185,16 +187,16 @@ export class OlySyntaxTreeView {
 	}
 
 	public static register(context: vscode.ExtensionContext, syntaxTreeView: OlySyntaxTreeView) {
-		let getSyntaxTreeCommandHandler = async () => {
+		const getSyntaxTreeCommandHandler = async () => {
 			if (syntaxTreeView != null) {
-				let active = getActiveDocumentAndCursorPosition();
-				if (active?.document?.languageId === 'oly') {
-					let ct = CancellationToken.None;
-					let pos = OlyTextPosition.fromVscodePosition(active.cursorPosition);
+				const active = getActiveDocumentAndCursorPosition();
+				if (active?.document?.languageId === 'oly' && active.cursorPosition) {
+					const ct = CancellationToken.None;
+					const pos = OlyTextPosition.fromVscodePosition(active.cursorPosition);
 
-					let find = viewModel => {
+					const find = (viewModel: any) => {
 						if (viewModel.nodes.length > 0) {
-							let node = findOlySyntaxNodeTokenViewModelByPosition(pos, viewModel.nodes[0], ct);
+							const node = findOlySyntaxNodeTokenViewModelByPosition(pos, viewModel.nodes[0], ct);
 							if (node != null) {
 								syntaxTreeView.view.reveal(node, { focus: false, select: true });
 							}
@@ -212,17 +214,21 @@ export class OlySyntaxTreeView {
 			}
 		};
 
-		let navigateToSyntaxNodeCommandHandler = () => {
-			let textEditor = vscode.window.activeTextEditor;
-			let document = textEditor.document;
+		const navigateToSyntaxNodeCommandHandler = () => {
+			const textEditor = vscode.window.activeTextEditor;
+			if (!textEditor) {
+				return;
+			}
+
+			const document = textEditor.document;
 	
 			if (document.languageId === 'oly') {
-				let items = syntaxTreeView.view.selection;
+				const items = syntaxTreeView.view.selection;
 				if (items?.length > 0) {
-					let item = items[0];
-					let range = OlyTextRange.toVscodeRange(item.range);
-					vscode.window.activeTextEditor.revealRange(range);
-					vscode.window.activeTextEditor.selection = new vscode.Selection(range.start, range.end);
+					const item = items[0];
+					const range = OlyTextRange.toVscodeRange(item.range);
+					textEditor.revealRange(range);
+					textEditor.selection = new vscode.Selection(range.start, range.end);
 				}
 			}
 		};

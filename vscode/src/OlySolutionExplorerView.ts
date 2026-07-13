@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { CancellationTokenSource } from 'vscode-languageclient';
 import { sleep } from './Helpers';
 import { client, isClientReady } from './extension';
-import path = require('path');
+import * as path from 'path';
 
 interface IOlySolutionTreeNodeViewModel extends vscode.TreeItem {
     id: string;
@@ -25,20 +25,20 @@ function initializeViewModel(context: vscode.ExtensionContext, element: IOlySolu
     if (element.icon != null) {
         if (element.icon == "symbol-file") {
             element.iconPath = {
-                light: path.join(context.extensionPath, 'icons', 'oly-file-light.png'),
-                dark: path.join(context.extensionPath, 'icons', 'oly-file-dark.png')
+                light: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'oly-file-light.png')),
+                dark: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'oly-file-dark.png'))
             };
         } else if (element.icon == "project") {
             element.iconPath = {
-                light: path.join(context.extensionPath, 'icons', 'oly-project-light.png'),
-                dark: path.join(context.extensionPath, 'icons', 'oly-project-dark.png')
+                light: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'oly-project-light.png')),
+                dark: vscode.Uri.file(path.join(context.extensionPath, 'icons', 'oly-project-dark.png'))
             };
         } else {
             element.iconPath = new vscode.ThemeIcon(element.icon, new vscode.ThemeColor(element.color));
         }
     }
-    for (var i = 0; i < element.children.length; i++) {
-        let child = element.children[i];
+    for (let i = 0; i < element.children.length; i++) {
+        const child = element.children[i];
         child.parent = element;
         initializeViewModel(context, child);
     }
@@ -78,14 +78,14 @@ class OlySolutionExplorerDataProvider implements vscode.TreeDataProvider<IOlySol
     // TODO: This has a dependency on 'extension.ts', we should try to fix this.
     async refresh(token: vscode.CancellationToken, onSucceed: any, onUpdate: any) {
         if (isClientReady) {
-            let context = this.context;
+            const context = this.context;
             return client.getSolutionExplorer(token).then(viewModel => {
                 if (!token.isCancellationRequested) {
                     viewModel.children.forEach(x => initializeViewModel(context, x));
                     
                     onSucceed();
-                    var callback = _viewModel => { };
-                    let sub = this.onDidChangeTreeData(() => callback(viewModel));
+                    let callback = (_viewModel: any) => { };
+                    const sub = this.onDidChangeTreeData(() => callback(viewModel));
                     callback =
                         viewModel => {
                             sub.dispose();
@@ -121,8 +121,8 @@ export class OlySolutionExplorerView {
     }
 
     public static createFromVscodeWindow(context: vscode.ExtensionContext): OlySolutionExplorerView {
-        let dataProvider = new OlySolutionExplorerDataProvider(context);
-        let view = vscode.window.createTreeView('oly.solutionExplorer', {
+        const dataProvider = new OlySolutionExplorerDataProvider(context);
+        const view = vscode.window.createTreeView('oly.solutionExplorer', {
             treeDataProvider: dataProvider
         });
         return new OlySolutionExplorerView(view, dataProvider);
@@ -140,12 +140,12 @@ export class OlySolutionExplorerView {
             this.cts = new CancellationTokenSource();
         }
 
-        let token = this.cts.token;
+        const token = this.cts.token;
         this.isRefreshing = true;
         await sleep(300);
         if (!token.isCancellationRequested) {
             this.view.message = "Loading...";
-            await this.dataProvider.refresh(token, () => { this.view.message = null; }, (_viewModel) => { });
+            await this.dataProvider.refresh(token, () => { this.view.message = undefined; }, (_viewModel: any) => { });
         }
     }
 
@@ -160,13 +160,23 @@ export class OlySolutionExplorerView {
     }
 
     isResourceSelected(resourceUri: vscode.Uri) {
-        return this.view.selection.findIndex(x => OlySolutionExplorerView.areResourcesEqual(x.resourceUri, resourceUri)) != -1;
+        return this.view.selection.findIndex(x => {
+            if (x.resourceUri) {
+                return OlySolutionExplorerView.areResourcesEqual(x.resourceUri, resourceUri);
+            } else {
+                return false;
+            }
+        }) != -1;
     }
 
     async goToChild (resourceUri: vscode.Uri, children: IOlySolutionTreeNodeViewModel[]) {
-        for (var i = 0; i < children.length; i++)
+        for (let i = 0; i < children.length; i++)
         {
-            let x = children[i];
+            const x = children[i];
+            if (!x.resourceUri) {
+                return false;
+            }
+
             if (OlySolutionExplorerView.areResourcesEqual(x.resourceUri, resourceUri) && !this.isResourceSelected(resourceUri)) {
                 await this.view.reveal(x, { focus: true, select: true });
                 return true;
@@ -181,15 +191,15 @@ export class OlySolutionExplorerView {
         if (!this.view.visible)
             return;
 
-        let vm = this.dataProvider.getViewModel();
+        const vm = this.dataProvider.getViewModel();
         await this.goToChild(resourceUri, vm.children);
     }
 
-    public getSelectedFile(): vscode.Uri {
+    public getSelectedFile(): vscode.Uri | undefined {
          if (!this.view.visible || this.view.selection.length == 0)
             return undefined;
 
-        var view = this.view.selection[0];
+        const view = this.view.selection[0];
 
         if (view.icon != "project" && view.icon != "symbol-file")
             return undefined;
@@ -200,11 +210,11 @@ export class OlySolutionExplorerView {
         return view.resourceUri;       
     }
 
-    public getSelectedProject(): vscode.Uri {
+    public getSelectedProject(): vscode.Uri | undefined {
         if (!this.view.visible || this.view.selection.length == 0)
             return undefined;
 
-        var view = this.view.selection[0];
+        let view = this.view.selection[0];
         while (view.icon != "project" && view.parent !== undefined && view.parent !== null)
         {
             view = view.parent;

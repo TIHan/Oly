@@ -35,7 +35,7 @@ export class OlyLanguageClient extends LanguageClient {
 	}
 
 	public async doesActiveProjectConfigurationExist(configName: string): Promise<boolean> {
-		let proj = await this.tryGetActiveProjectInfo();
+		const proj = await this.tryGetActiveProjectInfo();
 		return proj.configurationList.indexOf(configName) != -1;
 	}
 

@@ -29,6 +29,9 @@ jobs:
     - name: Build VSCE
       working-directory: ./vscode
       run: npm run compile
+    - name: Install ESLint
+      working-directory: ./vscode
+      run: npm install eslint
     - name: Test VSCE
       working-directory: ./vscode
       run: npm test
