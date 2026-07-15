@@ -10,8 +10,9 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
+let rootDir = OlyPath.Create(Environment.CurrentDirectory)
 let rs = 
-    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Create(Environment.CurrentDirectory), OlyPath.Empty)
+    let rs = OlyWorkspaceResourceSnapshot.Create(rootDir, OlyPath.Empty)
     let fileInfo = System.IO.FileInfo("prelude.oly")
     let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
     let fileInfo = System.IO.FileInfo("prelude_interpreter.olyx")
@@ -21,7 +22,7 @@ let createWorkspace() =
     OlyWorkspace.Create(([Oly.Targets.Interpreter.InterpreterTarget()]: OlyBuild seq), OlyPath.Empty, rs)
 
 let createProject src (workspace: OlyWorkspace) =
-    let path = OlyPath.Create "olytest.olyx"
+    let path = rootDir.Join("olytest.olyx")
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
 
@@ -159,7 +160,7 @@ module Extra
 Print(): () =
     Test.print("extra")
         """
-    workspace.UpdateDocument((OlyPath.Create("extra.oly")), OlySourceText.Create(srcExtra), CancellationToken.None)
+    workspace.UpdateDocument((rootDir.Join("extra.oly")), OlySourceText.Create(srcExtra), CancellationToken.None)
     let solution = workspace.GetSolutionAsync(CancellationToken.None).Result
     let proj = solution.GetProject(proj.Path)
     shouldCompile proj
@@ -805,8 +806,8 @@ main(): () =
     printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -838,8 +839,8 @@ main(): () =
     Test.printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -872,8 +873,8 @@ main(): () =
     printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -909,8 +910,8 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -963,8 +964,8 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1005,8 +1006,8 @@ main(): () =
     let result = x * x
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1055,9 +1056,9 @@ main(): () =
     print("passed")
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/ui.oly")
-    let path3 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/ui.oly")
+    let path3 = rootDir.Join("main.olyx")
     // We are trying to test to make sure that namespace aggregation works properly.
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
@@ -1092,8 +1093,8 @@ main(): () =
     test((x: __oly_int32, y: __oly_int64) -> true)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1149,8 +1150,8 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1241,9 +1242,9 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1338,9 +1339,9 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -1439,9 +1440,9 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -2162,8 +2163,8 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
     let cursorPosition = src2.IndexOf("~^~")
     let src2 = src2.Replace("~^~", "")
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -2200,8 +2201,8 @@ main(): () =
 
     let src2 = ""
 
-    let path1 = OlyPath.Create("main.olyx")
-    let path2 = OlyPath.Create("testing.oly")
+    let path1 = rootDir.Join("main.olyx")
+    let path2 = rootDir.Join("testing.oly")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -2224,8 +2225,8 @@ main(): () =
 
     let src2 = "namespace NotBlank"
 
-    let path1 = OlyPath.Create("main.olyx")
-    let path2 = OlyPath.Create("testing.oly")
+    let path1 = rootDir.Join("main.olyx")
+    let path2 = rootDir.Join("testing.oly")
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
     workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
@@ -2245,7 +2246,7 @@ print(): () =
     print("Hello World!")
         """
 
-    let path1 = OlyPath.Create("main.olyx")
+    let path1 = rootDir.Join("main.olyx")
     let text1 = OlySourceText.Create(src1)
     let workspace = createWorkspace()
     workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
@@ -2256,8 +2257,8 @@ print(): () =
 
     // TODO: We need a unified way of asserting diagnostics across the board.
     Assert.Equal(1, diags.Length)
-    Assert.Equal("'does_not_exist.oly' does not exist.", diags[0].Message)
+    Assert.True(diags[0].Message.EndsWith("does_not_exist.oly' does not exist."))
 
     let textSpan = diags[0].TextSpan
-    Assert.Equal(40, textSpan.Start)
-    Assert.Equal(60, textSpan.End)
+    Assert.Equal(38, textSpan.Start)
+    Assert.Equal(58, textSpan.End)
