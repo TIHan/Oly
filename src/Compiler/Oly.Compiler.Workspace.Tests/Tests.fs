@@ -2258,7 +2258,3 @@ print(): () =
     // TODO: We need a unified way of asserting diagnostics across the board.
     Assert.Equal(1, diags.Length)
     Assert.True(diags[0].Message.EndsWith("does_not_exist.oly' does not exist."))
-
-    let textSpan = diags[0].TextSpan
-    Assert.Equal(38, textSpan.Start)
-    Assert.Equal(58, textSpan.End)

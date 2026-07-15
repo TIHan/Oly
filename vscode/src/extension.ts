@@ -75,7 +75,7 @@ export async function activate(context: ExtensionContext) {
 	if (lspConfig.get("gcServer")) {
 		gcServer = "1";
 	}
-	let env = process.env;
+	const env = process.env;
 	env["DOTNET_gcServer"] = gcServer;
 
 	// If the extension is launched in debug mode then the debug server options are used
