@@ -337,7 +337,7 @@ type OlyDiagnosticLogger private (prefixOpt: string option) =
 
     static member CreateWithPrefix(prefix: string) = OlyDiagnosticLogger(Some prefix)
 
-[<AllowNullLiteral;AbstractClass;NoComparison>]
+[<AllowNullLiteral;AbstractClass;NoComparison;DebuggerDisplay("{DebugDisplay}")>]
 type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, internalNode: ISyntaxNode) =
     
     let mutable leadingTriviaWidth = -1
@@ -347,6 +347,9 @@ type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, interna
     /// Can be 'null'.
     member _.Parent = parent
     member _.HasParent = isNull(parent) |> not
+    
+    member this.DebugDisplay =
+        tree.GetSourceText(CancellationToken.None).GetSubText(this.FullTextSpan).ToString()
 
     member this.GetDiagnostics(ct: CancellationToken): OlyDiagnostic imarray =
         tree.GetInternal(ct).GetDiagnostics(internalNode) 

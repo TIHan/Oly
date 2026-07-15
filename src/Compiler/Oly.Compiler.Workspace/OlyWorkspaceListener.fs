@@ -11,7 +11,7 @@ open Oly.Compiler.Workspace
 type OlyWorkspaceListener(workspace: OlyWorkspace) =
 
     static let isValidFileToListenFor (filePath: OlyPath) =
-        not (filePath.ToString().Contains(".oly/cache")) && not (filePath.ToString().Contains(".oly/bin"))      
+        not (filePath.ToString().Contains(".oly_target/"))      
 
     let dirWatch = new DirectoryWatcher()
 

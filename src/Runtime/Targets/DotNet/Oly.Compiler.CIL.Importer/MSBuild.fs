@@ -111,112 +111,111 @@ type MSBuild() =
 </Project>
         """
 
-    let createAndBuildCore (programCs: string) (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let createAndBuildCore
+            (programCs: string)
+            (createPath: OlyPath)
+            (outputPath: OlyPath)
+            (configName: string)
+            (isExe: bool)
+            (msbuildTargetInfo: MSBuildTargetInfo)
+            fileReferences
+            dotnetProjectReferences
+            dotnetPackages
+            (projectName: string)
+            (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
 
             let isPublish = msbuildTargetInfo.IsPublish
 
-            let tmpFile = Path.GetTempFileName()
-            try
-                let stubDir =
-                    let dir = tmpFile + "_stub"
-                    try Directory.Delete(dir, true) with | _ -> ()
-                    let dir = Directory.CreateDirectory(dir)
-                    dir
+            let stub = createProjStub isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages
+            ct.ThrowIfCancellationRequested()
 
-                let stub = createProjStub isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages
-                ct.ThrowIfCancellationRequested()
+            File.WriteAllText(createPath.Join("Program.cs").ToString(), programCs)
+            File.WriteAllText(createPath.Join($"{projectName}.csproj").ToString(), stub)
+            ct.ThrowIfCancellationRequested()
 
-                File.WriteAllText(Path.Combine(stubDir.FullName, "Program.cs"), programCs)
-                File.WriteAllText(Path.Combine(stubDir.FullName, $"{projectName}.csproj"), stub)
-                ct.ThrowIfCancellationRequested()
+            let cleanup() =
+                if not isExe then
+                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.deps.json")) with | _ -> ()
+                if not isPublish then
+                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.dll")) with | _ -> ()
+                    try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.pdb")) with | _ -> ()
 
-                let cleanup() =
-                    if not isExe then
-                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.deps.json")) with | _ -> ()
-                    if not isPublish then
-                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.dll")) with | _ -> ()
-                        try File.Delete(Path.Combine(outputPath.ToString(), $"{projectName}.pdb")) with | _ -> ()
+            let projectPath = createPath.Join($"{projectName}.csproj").ToString()
+            
+            let msbuildTask = backgroundTask {
+                let build =
+                    if isPublish then "publish"
+                    else "build"
 
-                let projectPath = Path.Combine(stubDir.FullName, $"{projectName}.csproj")
+                use p = new ExternalProcess("dotnet", $"{build} -v minimal --disable-build-servers -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = createPath.ToString())
 
                 try
-                    let msbuildTask = backgroundTask {
-                        let build =
-                            if isPublish then "publish"
-                            else "build"
-                        use p = new ExternalProcess("dotnet", $"{build} -v minimal --disable-build-servers -c {configName} -o \"{outputPath.ToString()}\" \"{projectName}.csproj\"", workingDirectory = stubDir.FullName)
+                    let! _result = p.RunAsync(ct)
+                    ()
+                with
+                | ex ->
+                    OlyTrace.LogError($"[MSBuild] {ex.ToString()}")
+                    raise ex
+                ()
+            }
 
-                        try
-                            let! _result = p.RunAsync(ct)
-                            ()
-                        with
-                        | ex ->
-                            OlyTrace.LogError($"[MSBuild] {ex.ToString()}")
-                            raise ex
-                        ()
-                    }
+            do! msbuildTask
 
-                    do! msbuildTask
+            let refs =
+                File.ReadAllText(createPath.Join("FrameworkReferences.txt").ToString()).Split("\n")
+                |> ImArray.ofSeq
+                |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
+                |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
+                
 
-                    let refs =
-                        File.ReadAllText(Path.Combine(stubDir.FullName, "FrameworkReferences.txt")).Split("\n")
-                        |> ImArray.ofSeq
-                        |> ImArray.map (fun x -> OlyPath.Create(x.Replace("\r", "")))
-                        |> ImArray.filter (fun x -> String.IsNullOrWhiteSpace(x.ToString()) |> not)
+            let equality = 
+                { new System.Collections.Generic.IEqualityComparer<OlyPath> with
+                    member _.GetHashCode o = o.GetFileName().GetHashCode()
                         
+                    member _.Equals(x, y) =
+                        x.EndsWith(y.GetFileName().ToString())
+                }
+            let hashRefs = System.Collections.Generic.HashSet<OlyPath>(equality)
 
-                    let equality = 
-                        { new System.Collections.Generic.IEqualityComparer<OlyPath> with
-                            member _.GetHashCode o = o.GetFileName().GetHashCode()
-                                
-                            member _.Equals(x, y) =
-                                x.EndsWith(y.GetFileName().ToString())
-                        }
-                    let hashRefs = System.Collections.Generic.HashSet<OlyPath>(equality)
+            let refNames =
+                refs
+                |> Seq.map (fun x -> 
+                    hashRefs.Add(x) |> ignore
+                    hashRefs.Add(x.ChangeExtension(".pdb")) |> ignore
+                    hashRefs.Add(x.ChangeExtension(".xml")) |> ignore
+                    hashRefs.Add(x.ChangeExtension(".deps.json")) |> ignore
+                    x.GetFileName()
+                )
+                |> ImmutableHashSet.CreateRange
 
-                    let refNames =
-                        refs
-                        |> Seq.map (fun x -> 
-                            hashRefs.Add(x) |> ignore
-                            hashRefs.Add(x.ChangeExtension(".pdb")) |> ignore
-                            hashRefs.Add(x.ChangeExtension(".xml")) |> ignore
-                            hashRefs.Add(x.ChangeExtension(".deps.json")) |> ignore
-                            x.GetFileName()
-                        )
-                        |> ImmutableHashSet.CreateRange
+            cleanup()
 
-                    cleanup()
+            let filesToCopy =
+                OlyIO.GetFilesFromDirectory(outputPath.ToString())
+                |> ImArray.choose (fun x ->
+                    let x = OlyPath.Create(x)
+                    if hashRefs.Contains(x) then
+                        None
+                    else
+                        Some(x)
+                )
 
-                    let filesToCopy =
-                        OlyIO.GetFilesFromDirectory(outputPath.ToString())
-                        |> ImArray.choose (fun x ->
-                            let x = OlyPath.Create(x)
-                            if hashRefs.Contains(x) then
-                                None
-                            else
-                                Some(x)
-                        )
-
-                    return 
-                        { 
-                            TargetName = msbuildTargetInfo.TargetName
-                            ProjectPath = OlyPath.Create(projectPath)
-                            OutputPath = outputPath.ToString()
-                            References = refs
-                            ReferenceNames = refNames
-                            FilesToCopy = filesToCopy
-                            DependencyTimeStamp = MSBuild.GetDependencyTimeStamp dotnetProjectReferences |> fst
-                            IsExe = isExe
-                        }
-                finally
-                    try Directory.Delete(stubDir.FullName, true) with | _ -> ()
-            finally
-                try File.Delete(tmpFile) with | _ -> ()
+            return 
+                { 
+                    TargetName = msbuildTargetInfo.TargetName
+                    ProjectPath = OlyPath.Create(projectPath)
+                    OutputPath = outputPath.ToString()
+                    References = refs
+                    ReferenceNames = refNames
+                    FilesToCopy = filesToCopy
+                    DependencyTimeStamp = MSBuild.GetDependencyTimeStamp dotnetProjectReferences |> fst
+                    IsExe = isExe
+                }
         }
     
-    let createAndBuild programCs (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
+    let createAndBuild programCs (createPath: OlyPath) (outputPath: OlyPath) (configName: string) (isExe: bool) (msbuildTargetInfo: MSBuildTargetInfo) fileReferences dotnetProjectReferences dotnetPackages (projectName: string) (ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             OlyTrace.Log $"[MSBuild] Started resolving DotNet references for project: {projectName}"
@@ -228,7 +227,7 @@ type MSBuild() =
                         OlyTrace.Log $"[MSBuild] Finished resolving DotNet references for project: {projectName} - {s.Elapsed.TotalMilliseconds}ms"
                 }
             try
-                let! result = createAndBuildCore programCs outputPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
+                let! result = createAndBuildCore programCs createPath outputPath configName isExe msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages projectName ct
                 return result
             with
             | ex ->
@@ -238,8 +237,8 @@ type MSBuild() =
                 return raise ex
         }
 
-    member this.CreateAndBuildProjectAsync(programCs, projectName: string, outputPath: OlyPath, configName: string, isExe: bool, targetName, fileReferences, dotnetProjectReferences, dotnetPackages, ct) =
-        createAndBuild programCs outputPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
+    member this.CreateAndBuildProjectAsync(programCs, createPath: OlyPath, outputPath: OlyPath, projectName: string, configName: string, isExe: bool, targetName, fileReferences, dotnetProjectReferences, dotnetPackages, ct) =
+        createAndBuild programCs createPath outputPath configName isExe targetName fileReferences dotnetProjectReferences dotnetPackages projectName ct
 
     member this.DeleteProjectObjDirectory(info: ProjectBuildInfo) =
         try Directory.Delete(Path.Combine(info.ProjectPath.ToString(), "obj"), true) with | _ -> ()

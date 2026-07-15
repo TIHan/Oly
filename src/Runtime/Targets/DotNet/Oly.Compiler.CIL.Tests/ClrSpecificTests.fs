@@ -1276,7 +1276,7 @@ main(): () =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
         let x = NonExportedClass(x)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ^
 """
             )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
@@ -9390,7 +9390,7 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
         let xs = NonExportedClass<T>(input)
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ^^
 """
             )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
@@ -9474,7 +9474,7 @@ module Main =
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
                 """
             let xs = NonExportedClass(input)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ^^
 """
             )
             ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",

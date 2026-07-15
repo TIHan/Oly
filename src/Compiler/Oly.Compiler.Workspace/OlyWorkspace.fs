@@ -94,12 +94,18 @@ type OlyProgram(path: OlyPath, run: string[] -> string) =
 
 [<AutoOpen>]
 module Helpers =
+    
+    [<Literal>]
+    let SourceFileExtension = ".oly"
 
     [<Literal>]
-    let ProjectExtension = ".olyx"
+    let ProjectFileExtension = ".olyx"
 
     [<Literal>]
     let TargetDirectoryName = ".oly_target"
+    
+    [<Literal>]
+    let ScratchDirectoryName = ".oly_target/scratch"
 
     [<Literal>]
     let CacheDirectoryName = ".oly_target/cache"
@@ -168,22 +174,36 @@ type OlyImportedReference(compRef: OlyCompilationReference, isTransitive: bool) 
 type OlyBuild(platformName: string) =
 
     member _.PlatformName = platformName
+    
+    member _.GetProjectScratchDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
+            let dir = dir.Join(OlyPath.Create($"{ScratchDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
+        else
+            invalidOp "Expected Oly project file"
 
     member _.GetProjectCacheDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
-        if projectPath.IsFile then
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
             let fileName = projectPath.GetFileNameWithoutExtension()
             let dir = projectPath.GetDirectory()
-            dir.Join(OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            let dir = dir.Join(OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
         else
-            invalidOp "Expected file"
+            invalidOp "Expected Oly project file"
 
     member _.GetProjectBinDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
-        if projectPath.IsFile then
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
             let fileName = projectPath.GetFileNameWithoutExtension()
             let dir = projectPath.GetDirectory()
-            dir.Join(OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            let dir = dir.Join(OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
         else
-            invalidOp "Expected file"
+            invalidOp "Expected Oly project file"
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
@@ -251,7 +271,7 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
         diags1.AddRange(diags2).AddRange(this.ExtraDiagnostics)
 
     member this.IsProjectDocument =
-        documentPath.HasExtension(ProjectExtension)
+        documentPath.HasExtension(ProjectFileExtension)
 
     member this.GetAnalyzerDiagnostics(ct) =
         let project = this.Project
@@ -975,6 +995,7 @@ type OlySolution (state: SolutionState) =
 [<NoEquality;NoComparison>]
 type internal ResourceState =
     {
+        workingDirectory: OlyPath
         mutable files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
         mutable subPaths: ImmutableDictionary<OlyPath, OlyPath imarray>
         inMemorySourceTexts: ImmutableDictionary<OlyPath, IOlySourceText>
@@ -985,6 +1006,12 @@ type internal ResourceState =
 [<Sealed>]
 type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
+    let activeConfigPath =
+        if activeConfigPath.IsRooted then
+            activeConfigPath
+        else
+            state.workingDirectory.Join(activeConfigPath)
+            
     static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
 
     member private this.State = state
@@ -997,54 +1024,84 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
     member _.Version = state.version
 
     member this.SetResourceAsCopy(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         let fileInfo = FileInfo(filePath.ToString())
         let dt = fileInfo.LastWriteTimeUtc
         if this.HasResourceChanged(filePath, dt) then
             use streamToCopy = OlyIO.OpenFileRead(fileInfo.FullName)
-            this.SetResourceAsCopy(filePath, streamToCopy, dt)
+            this.SetResourceAsCopyCore(filePath, streamToCopy, dt)
         else
             this
 
     member this.SetResourceAsCopy(filePath: OlyPath, stream: Stream) =
-        this.SetResourceAsCopy(filePath, stream, DateTime.UtcNow)
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        this.SetResourceAsCopyCore(filePath, stream, DateTime.UtcNow)
 
-    member private this.SetResourceAsCopy(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
+    member private this.SetResourceAsCopyCore(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
         let length = streamToCopy.Length - streamToCopy.Position
         if length > 0 then
             let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
             let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
             try
                 streamToCopy.CopyTo(view)
-                this.SetResource(filePath, length, mmap, dt)
+                this.SetResourceCore(filePath, length, mmap, dt)
             finally
                 view.Dispose()
         else
             let mmap = MemoryMappedFile.CreateNew(null, 1, MemoryMappedFileAccess.ReadWrite)
-            this.SetResource(filePath, length, mmap, dt)
+            this.SetResourceCore(filePath, length, mmap, dt)
 
-    member private _.SetResource(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
+    member private _.SetResourceCore(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
         OlyWorkspaceResourceSnapshot(
             { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = DateTime.UtcNow },
             activeConfigPath
         )
 
     member _.RemoveResource(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = DateTime.UtcNow }, activeConfigPath)
 
 
-    member this.SetInMemorySourceText(filePath, sourceText) =
+    member this.SetInMemorySourceText(filePath: OlyPath, sourceText) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         OlyWorkspaceResourceSnapshot(
             { state with inMemorySourceTexts = state.inMemorySourceTexts.SetItem(filePath, sourceText) },
             activeConfigPath
         )
 
-    member this.RemoveInMemorySourceText(filePath) =
+    member this.RemoveInMemorySourceText(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         OlyWorkspaceResourceSnapshot(
             { state with inMemorySourceTexts = state.inMemorySourceTexts.Remove(filePath) },
             activeConfigPath
         )
 
-    member this.GetSourceText(filePath) =
+    member this.GetSourceText(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         match state.inMemorySourceTexts.TryGetValue(filePath) with
         | true, result -> result
         | _ ->
@@ -1109,7 +1166,12 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
                         view.Dispose()
             )
 
-    member this.GetTimeStamp(filePath) =
+    member this.GetTimeStamp(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
         match state.files.TryGetValue(filePath) with
         | true, (_, _, dt) -> dt
         | _ ->
@@ -1118,6 +1180,11 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
             this.GetTimeStamp(filePath)
 
     member this.FindSubPaths(dirPath: OlyPath) =
+        let dirPath =
+            if dirPath.IsRooted then
+                dirPath
+            else
+                state.workingDirectory.Join(dirPath)
         let set = HashSet(OlyPathEqualityComparer.Instance)
 
         let builder = ImArray.builder()
@@ -1181,8 +1248,9 @@ type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPat
 
     member _.ActiveConfigurationPath = activeConfigPath
 
-    static member Create(activeConfigPath: OlyPath) =
-        OlyWorkspaceResourceSnapshot({ 
+    static member Create(workingDirectory: OlyPath, activeConfigPath: OlyPath) =
+        OlyWorkspaceResourceSnapshot({
+            workingDirectory = workingDirectory
             files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
             subPaths = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
             inMemorySourceTexts = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
@@ -1648,7 +1716,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                 failwith "Unable to load project: Compilation unit configuration must be enabled."
 
             let filePath = syntaxTree.Path
-            if filePath.HasExtension(ProjectExtension) |> not then
+            if filePath.HasExtension(ProjectFileExtension) |> not then
                 failwithf "Invalid project file path '%A'" filePath
 
             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
@@ -1797,7 +1865,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
                     match visited.TryGetValue absolutePath with
                     | true, count -> count
                     | _ ->
-                        if absolutePath.HasExtension(ProjectExtension) then
+                        if absolutePath.HasExtension(ProjectFileExtension) then
                             let (syntaxTree: OlySyntaxTree), _ = OlyWorkspace.ParseProject(rs, absolutePath, rs.GetSourceText(absolutePath))
                             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
                             let absoluteDir = absolutePath.GetDirectory()
@@ -1923,7 +1991,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
             loads
             |> ImArray.iter (fun (textSpan, path) ->
-                if path.HasExtension(ProjectExtension) then
+                if path.HasExtension(ProjectFileExtension) then
                     ERROR.reportProjectFilesCannotBeLoadedOnlyReferenced (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                 else
                     let path = absoluteDir.Join(path.ToString())
@@ -2020,7 +2088,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
 
     static member private ParseProject(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath, sourceText: IOlySourceText) =
         OlyTrace.Log($"[Project] '{projPath}' - Parsing")
-        OlyAssert.True(projPath.HasExtension(ProjectExtension))
+        OlyAssert.True(projPath.HasExtension(ProjectFileExtension))
 
         // Handle project config for syntax tree
         let projConfig = OlyWorkspace.GetProjectConfiguration(rs, projPath)
@@ -2049,7 +2117,7 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
             let docs = solution.GetDocuments(documentPath)
 
             if docs.IsEmpty then
-                if documentPath.HasExtension(ProjectExtension) then
+                if documentPath.HasExtension(ProjectFileExtension) then
                     let syntaxTree, projConfig = OlyWorkspace.ParseProject(rs, documentPath, sourceText)
                     match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, documentPath, projConfig, ct) with
                     | Some solution -> return solution
@@ -2253,9 +2321,9 @@ type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourc
     static member Create(targets, workspaceDirectory: OlyPath) =
         let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
         let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
-        OlyWorkspace.Create(targets, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceStateFileName))
+        OlyWorkspace.Create(targets, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceDirectory, workspaceStateFileName))
 
     static member Create(targets, progress, workspaceDirectory: OlyPath) =
         let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
         let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
-        OlyWorkspace.Create(targets, progress, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceStateFileName))
+        OlyWorkspace.Create(targets, progress, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceDirectory, workspaceStateFileName))

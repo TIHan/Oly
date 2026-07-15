@@ -9,7 +9,7 @@ open Oly.Compiler.Workspace
 open Oly.Targets.DotNet
 
 let rs = 
-    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Empty)
+    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Create(Environment.CurrentDirectory), OlyPath.Empty)
     let fileInfo = System.IO.FileInfo("prelude.oly")
     let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
     let fileInfo = System.IO.FileInfo("prelude_dotnet.olyx")
@@ -18,10 +18,10 @@ let rs =
     rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
 
 let createWorkspace() =
-    OlyWorkspace.Create(([DotNetTarget()]: OlyBuild seq), OlyPath.Empty, rs)
+    OlyWorkspace.Create(([DotNetTarget()]: OlyBuild seq), OlyPath.Create(Environment.CurrentDirectory), rs)
 
 let createProject src (workspace: OlyWorkspace) =
-    let path = OlyPath.Create $"olytest_{Guid.NewGuid().ToString().Replace('-', '_')}.olyx"
+    let path = OlyPath.Create(Environment.CurrentDirectory).Join(OlyPath.Create $"olytest_{Guid.NewGuid().ToString().Replace('-', '_')}.olyx")
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     (workspace, workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project)
 

@@ -106,7 +106,8 @@ module private DotNet =
 }}"""
 
     let getBuildInfo 
-            projectName 
+            projectName
+            (projectDir: OlyPath)
             (cacheDir: OlyPath) 
             (configName: string) 
             (isExe: bool) 
@@ -120,7 +121,7 @@ module private DotNet =
 
             let build() = backgroundTask {
                 let msbuild = MSBuild()
-                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectName, cacheDir, configName, isExe, msbuildTargetInfo, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectDir, cacheDir, projectName, configName, isExe, msbuildTargetInfo, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
                 let resultJsonFriendly =
                     ProjectBuildInfoJsonFriendly(
                         msbuildTargetInfo.TargetName,
@@ -188,7 +189,8 @@ module private DotNet =
 
     let publish
             call
-            projectName 
+            projectName
+            (projectDir: OlyPath)
             (outputPath: OlyPath) 
             (configName: string) 
             (isExe: bool) 
@@ -199,7 +201,7 @@ module private DotNet =
             (ct: CancellationToken) =
         backgroundTask {
             let msbuild = MSBuild()
-            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectName, outputPath, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
+            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectDir, outputPath, projectName, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
             return result
         }
 
@@ -377,29 +379,30 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
         else
             false
 
-    override this.ImportReferenceAsync(projPath, targetInfo, path, ct) =
+    override this.ImportReferenceAsync(projPath, targetInfo, projectFile, ct) =
         backgroundTask {
             let netInfo = netInfos[projPath]
             try
-                let pathStr = path.ToString()
-                let dir = path.GetDirectory()
-                let name = this.GetReferenceAssemblyName(path)
+                let pathStr = projectFile.ToString()
+                let dir = projectFile.GetDirectory()
+                let name = this.GetReferenceAssemblyName(projectFile)
                 let ext = Path.GetExtension(pathStr).ToLower()
 
                 let isTransitive =
                     // This is ok to check because, at this point, 'netInfo' only has framework references.
                     // We do not want to make the framework references transitive for dotnet.
-                    not(netInfo.ReferenceNames.Contains(path.GetFileName()))
+                    not(netInfo.ReferenceNames.Contains(projectFile.GetFileName()))
 
-                match assemblyCache.TryGetValue(path) with
+                match assemblyCache.TryGetValue(projectFile) with
                 | true, (path, version, ilAsm, _) -> 
                     let compRef = OlyCompilationReference.Create(path, version, ilAsm)
                     return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
                 | _ ->
                     if ext.Equals(".cs") then
-                        let cacheDir = this.GetProjectCacheDirectory(targetInfo, path)
+                        let scratchDir = this.GetProjectScratchDirectory(targetInfo, projectFile)
+                        let cacheDir = this.GetProjectCacheDirectory(targetInfo, projectFile)
                         let msbuildTargetInfo = { TargetName = targetInfo.Name; PublishKind = MSBuildPublishKind.JIT; Icon = None }
-                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) cacheDir targetInfo.ProjectConfiguration.Name false msbuildTargetInfo [] [] [] ct
+                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) scratchDir cacheDir targetInfo.ProjectConfiguration.Name false msbuildTargetInfo [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -418,15 +421,15 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                         if result.Success then
                             ms.Position <- 0L
                             let ilAsm = Importer.Import(comp.AssemblyName, ms)
-                            let compRef = addAssemblyReference path ilAsm
+                            let compRef = addAssemblyReference projectFile ilAsm
                             addDirectoryWatcher dir ("*" + ext)
 
                             ms.Position <- 0L
                             lock csOutputsGate (fun () ->
-                                match csOutputs.TryGetValue path with
+                                match csOutputs.TryGetValue projectFile with
                                 | true, ms -> ms.Dispose()
                                 | _ -> ()
-                                csOutputs.[path] <- ms
+                                csOutputs.[projectFile] <- ms
                             )
 
                             return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
@@ -439,7 +442,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     else
                         use fs = File.OpenRead(pathStr)
                         let ilAsm = Importer.Import(name, fs)
-                        let compRef = addAssemblyReference path ilAsm
+                        let compRef = addAssemblyReference projectFile ilAsm
                         addDirectoryWatcher dir ("*" + ext)
                         return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
             with
@@ -462,9 +465,10 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                 let dotnetPackages =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
+                let scratchDir = this.GetProjectScratchDirectory(targetInfo, projPath)
                 let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
                 let msbuildTargetInfo = DotNet.createMSBuildTargetInfo targetInfo.Name properties
-                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages ct
+                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) scratchDir cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
@@ -703,9 +707,12 @@ type DotNetTarget internal (platformName: string, copyReferences: bool) =
                     | _ ->
                         ()
 
+                    let scratchDir = this.GetProjectScratchDirectory(proj.TargetInfo, proj.Path).Join("publish")
+                    Directory.CreateDirectory(scratchDir.ToString()) |> ignore
                     DotNet.publish 
                         call
                         projectName
+                        scratchDir
                         (OlyPath.Create(outputPath))
                         proj.TargetInfo.ProjectConfiguration.Name 
                         proj.TargetInfo.IsExecutable 

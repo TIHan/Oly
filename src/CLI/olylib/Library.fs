@@ -29,46 +29,33 @@ module Oly =
         let rootPath = projectPath.GetDirectory()
         let activeConfigPath = rootPath.Join(".oly_target/workspace/state.json")
         use ms = new MemoryStream(System.Text.Encoding.Default.GetBytes($"""{{ "activeConfiguration": "{configName}" }}"""))
-        let rs = OlyWorkspaceResourceSnapshot.Create(activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
+        let rs = OlyWorkspaceResourceSnapshot.Create(rootPath, activeConfigPath).SetResourceAsCopy(activeConfigPath, ms)
         let workspace = createWorkspace(rootPath, rs)
         workspace.LoadProject(projectPath, ct)
         workspace.BuildProjectAsync(projectPath, ct)
 
     let rec private CleanProject (set: HashSet<OlyPath>) (projPath: OlyPath) =
-        if set.Add(projPath) |> not then ()
-        else
+        if projPath.IsFile && projPath.HasExtension(".olyx") then
+            if set.Add(projPath) |> not then ()
+            else
+                let syntaxTree = OlySyntaxTree.Parse(projPath, OlySourceText.FromFile(projPath), OlyParsingOptions.Default)
+                let config = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
 
-        match projPath.TryGetGlob() with
-        | Some(dir, ext) when ext.Equals(".olyx", StringComparison.OrdinalIgnoreCase) ->
-            Directory.EnumerateFiles(dir.ToString(), "*.olyx", SearchOption.TopDirectoryOnly)
-            |> Seq.iter (fun filePath ->
-                let filePath = OlyPath.CreateAbsolute(filePath)
-                CleanProject set filePath
-            )
-        | _ ->
+                let projDir = projPath.GetDirectory()
+                let projName = projPath.GetFileNameWithoutExtension()
 
-        let cacheDirectoryName = ".oly_target/cache"
-        let binDirectoryName = ".oly_target/bin"
+                config.References
+                |> ImArray.iter (fun (_, refPath) ->
+                    if refPath.EndsWith(".olyx") then
+                        if refPath.IsRooted then
+                            CleanProject set refPath
+                        else
+                            CleanProject set (projDir.Join(refPath))
+                )
 
-        let syntaxTree = OlySyntaxTree.Parse(projPath, OlySourceText.FromFile(projPath), OlyParsingOptions.Default)
-        let config = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
+                try Directory.Delete(projDir.Join(".oly_target/").ToString(), true) with | _ -> ()
 
-        let projDir = projPath.GetDirectory()
-        let projName = projPath.GetFileNameWithoutExtension()
-
-        config.References
-        |> ImArray.iter (fun (_, refPath) ->
-            if refPath.EndsWith(".olyx") then
-                if refPath.IsRooted then
-                    CleanProject set refPath
-                else
-                    CleanProject set (projDir.Join(refPath))
-        )
-
-        try Directory.Delete(projDir.Join(cacheDirectoryName).ToString(), true) with | _ -> ()
-        try Directory.Delete(projDir.Join(binDirectoryName).ToString(), true) with | _ -> ()
-
-        OlyTrace.Log($"[Compilation] - Cleaned '{projName}'")
+                OlyTrace.Log($"[Compilation] - Cleaned '{projName}'")
 
     let Clean (dir: string) =
         let projects = OlyWorkspaceListener.GetProjectsFromDirectory(OlyPath.Create(dir))

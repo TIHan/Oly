@@ -1282,7 +1282,15 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         analyzeExpression acenv aenv e2
 
     | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
-        analyzeBindingInfo acenv aenv syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
+        let sanitizedSyntax =
+            match syntaxInfo.Syntax.TryGetBindingDeclaration() with
+            | ValueSome(syntaxBindingDecl) ->
+                match syntaxBindingDecl with
+                | OlySyntaxBindingDeclaration.Function(syntaxName, _, _, _, _) -> syntaxName.Identifier: OlySyntaxNode
+                | _ -> syntaxBindingDecl
+            | _ ->
+                syntaxInfo.Syntax
+        analyzeBindingInfo acenv aenv sanitizedSyntax (ValueSome rhsExpr) bindingInfo.Value
         analyzeExpression acenv aenv bodyExpr
 
     | E.Literal(_, literal) ->

@@ -18,7 +18,7 @@ let private createWorkspace (target: OlyBuild) isDebug =
             OlyPath.Create(preludeDirName + "/")
 
     let configPath = OlyPath.Create("state.json")
-    let rs = OlyWorkspaceResourceSnapshot.Create(configPath)
+    let rs = OlyWorkspaceResourceSnapshot.Create(OlyPath.Create(Environment.CurrentDirectory), configPath)
     use configMs = 
         if isDebug then
             new IO.MemoryStream(Text.Encoding.Default.GetBytes("""{ "activeConfiguration": "Debug" }"""))

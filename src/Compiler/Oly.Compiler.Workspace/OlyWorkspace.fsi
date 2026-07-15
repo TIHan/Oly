@@ -110,12 +110,16 @@ type OlyBuild =
     new : platformName: string -> OlyBuild
 
     member PlatformName : string
+    
+    /// The given path must be an Oly project file.
+    /// {scratchDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectScratchDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
-    /// The given path can be a directory or a file.
+    /// The given path must be an Oly project file.
     /// {cacheDir}/{fileName}/{platformName}/{targetName}/{configName}/
     member GetProjectCacheDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
-    /// The given path can be a directory or a file.
+    /// The given path must be an Oly project file.
     /// {binDir}/{fileName}/{platformName}/{targetName}/{configName}/
     member GetProjectBinDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
@@ -279,7 +283,7 @@ type OlyWorkspaceResourceSnapshot =
 
     member ActiveConfigurationPath: OlyPath
 
-    static member Create : activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
+    static member Create : workingDirectory: OlyPath * activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
 
 type IOlyWorkspaceProgress =
 
