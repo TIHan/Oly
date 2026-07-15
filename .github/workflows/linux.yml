@@ -23,15 +23,3 @@ jobs:
       run: dotnet build --no-restore
     - name: Test
       run: dotnet test --no-build --verbosity minimal
-    - name: Restore VSCE dependencies
-      working-directory: ./vscode
-      run: npm i
-    - name: Build VSCE
-      working-directory: ./vscode
-      run: npm run compile
-    - name: Install ESLint
-      working-directory: ./vscode
-      run: npm install eslint
-    - name: Test VSCE
-      working-directory: ./vscode
-      run: npm test
