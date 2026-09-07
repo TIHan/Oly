@@ -459,8 +459,7 @@ type RuntimeEntity =
 
     member this.IsExported =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
+        entDef.IsExported
 
     member this.IsObjectType =
         if this.IsIntrinsic then
@@ -1517,8 +1516,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             this.EnclosingType.IsExported
         else
             let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
-            ilFuncDef.Attributes
-            |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
+            ilFuncDef.IsExported
 
     member this.IsIntrinsic =
         let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)

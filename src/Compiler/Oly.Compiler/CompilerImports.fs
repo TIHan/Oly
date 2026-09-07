@@ -929,6 +929,12 @@ let private importEntityFlags (ilEntFlags: OlyILEntityFlags) =
             flags ||| EntityFlags.Anonymous
         else
             flags
+            
+    let flags =
+        if ilEntFlags.HasFlag(OlyILEntityFlags.Exported) then
+            flags ||| EntityFlags.Exported
+        else
+            flags
 
     flags
 
@@ -1249,6 +1255,12 @@ let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
             flags ||| MemberFlags.NewSlot
         else
             flags
+            
+    let flags =
+        if ilMemberFlags &&& OlyILMemberFlags.Exported = OlyILMemberFlags.Exported then
+            flags ||| MemberFlags.Exported
+        else
+            flags
 
     flags
 
@@ -1302,8 +1314,6 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
         let path = path |> ImArray.map cenv.ilAsm.GetStringOrEmpty
         let name = cenv.ilAsm.GetStringOrEmpty(name)
         AttributeSymbol.Import(platform, path, name)
-    | OlyILAttribute.Export ->
-        AttributeSymbol.Export
     | OlyILAttribute.Intrinsic(name) ->
         let name = cenv.ilAsm.GetStringOrEmpty(name)
         AttributeSymbol.Intrinsic(name)
@@ -1373,8 +1383,6 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
             |> ImArray.iter (function
                 | AttributeSymbol.Import _ ->
                     valueFlags <- valueFlags ||| ValueFlags.Imported
-                | AttributeSymbol.Export ->
-                    valueFlags <- valueFlags ||| ValueFlags.Exported
                 | _ ->
                     ()
             )
@@ -1595,8 +1603,6 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
             match ilAttr with
             | OlyILAttribute.Import _ ->
                 valueFlags <- valueFlags ||| ValueFlags.Imported
-            | OlyILAttribute.Export ->
-                valueFlags <- valueFlags ||| ValueFlags.Imported
             | _ ->
                 ()
         )
@@ -1648,8 +1654,6 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
             |> ImArray.iter (function
                 | AttributeSymbol.Import _ ->
                     valueFlags <- valueFlags ||| ValueFlags.Imported
-                | AttributeSymbol.Export ->
-                    valueFlags <- valueFlags ||| ValueFlags.Exported
                 | _ ->
                     ()
             )
@@ -1735,8 +1739,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                 entFlags <- entFlags ||| EntityFlags.Intrinsic
             | OlyILAttribute.Import _ ->
                 entFlags <- entFlags ||| EntityFlags.Imported
-            | OlyILAttribute.Export ->
-                entFlags <- entFlags ||| EntityFlags.Exported
             | _ ->
                 ()
         )

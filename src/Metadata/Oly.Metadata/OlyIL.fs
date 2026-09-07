@@ -157,22 +157,26 @@ type OlyILEntityFlags =
 
     | AttributeImporter = 0x010000000UL // frontend hint
     | Anonymous         = 0x100000000UL // frontend hint
+    
+    | Exported          = 0x1000000000UL
 
 [<Flags>]
 type OlyILMemberFlags =
-    | None =              0x00000000
+    | None =              0x000000000UL
 
-    | Public            = 0x00000000
-    | Internal          = 0x00000001
-    | Private           = 0x00000002
-    | Protected         = 0x00000003
-    | AccessorMask      = 0x00000007
+    | Public            = 0x000000000UL
+    | Internal          = 0x000000001UL
+    | Private           = 0x000000002UL
+    | Protected         = 0x000000003UL
+    | AccessorMask      = 0x000000007UL
 
-    | Abstract =          0x00000110
-    | Virtual =           0x00000100
-    | Static =            0x00001000
-    | Final =             0x00010000
-    | NewSlot =           0x00100000
+    | Abstract =          0x000000110UL
+    | Virtual =           0x000000100UL
+    | Static =            0x000001000UL
+    | Final =             0x000010000UL
+    | NewSlot =           0x000100000UL
+    
+    | Exported =          0x100000000UL
 
 [<Flags>]
 type OlyILFunctionFlags =
@@ -235,7 +239,6 @@ type OlyILAttributeNamedArgument =
 [<RequireQualifiedAccess>]
 type OlyILAttribute =
     | Import of platform: OlyILStringHandle * path: OlyILStringHandle imarray * name: OlyILStringHandle
-    | Export
     | Intrinsic of name: OlyILStringHandle
     | Constructor of OlyILFunctionInstance * args: OlyILConstant imarray * namedArgs: OlyILAttributeNamedArgument imarray
 
@@ -322,13 +325,12 @@ type OlyILEntityDefinition =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
 
-    member this.IsExported =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
-
     member this.IsIntrinsic =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+        
+    member this.IsExported =
+        this.Flags &&& OlyILEntityFlags.Exported = OlyILEntityFlags.Exported
 
 [<NoEquality;NoComparison>]
 type OlyILEntityInstance =
@@ -502,10 +504,6 @@ type OlyILFunctionDefinition =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
 
-    member this.IsExported =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Export -> true | _ -> false)
-
     member this.IsIntrinsic =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
@@ -524,6 +522,9 @@ type OlyILFunctionDefinition =
 
     member this.IsConstructor =
         this.Flags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
+        
+     member this.IsExported =
+        this.MemberFlags &&& OlyILMemberFlags.Exported = OlyILMemberFlags.Exported
 
     static member NilHandle = OlyILTableIndex.CreateFunctionDefinition(-1)
 

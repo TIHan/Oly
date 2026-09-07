@@ -1526,14 +1526,6 @@ type Importer private (name: string, peReader: PEReader) =
             let olyEntDefHandle = olyAsm.NextEntityDefinitionHandle()
             OlyAssert.Equal(0, olyEntDefHandle.Index)
 
-            let olyCtorAttrs =
-                OlyILAttribute.Export
-                |> ImArray.createOne
-
-            let olyEntAttrs =
-                OlyILAttribute.Export
-                |> ImArray.createOne
-
             let olyDefaultCtorHandle =
                 let olyFuncSpec =
                     OlyILFunctionSpecification(
@@ -1549,8 +1541,8 @@ type Importer private (name: string, peReader: PEReader) =
                 let olyFuncDef =
                     OlyILFunctionDefinition(
                         OlyILFunctionFlags.Constructor,
-                        OlyILMemberFlags.Abstract,
-                        olyCtorAttrs,
+                        OlyILMemberFlags.Abstract ||| OlyILMemberFlags.Exported,
+                        ImArray.empty,
                         olyFuncSpecHandle,
                         None,
                         ref None
@@ -1560,8 +1552,8 @@ type Importer private (name: string, peReader: PEReader) =
             let olyEntDef =
                 OlyILEntityDefinition(
                     OlyILEntityKind.Shape,
-                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous,
-                    olyEntAttrs,
+                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous ||| OlyILEntityFlags.Exported,
+                    ImArray.empty,
                     OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
                     OlyILStringHandle.GetNil(OlyILTableKind.String),
                     ImArray.empty,

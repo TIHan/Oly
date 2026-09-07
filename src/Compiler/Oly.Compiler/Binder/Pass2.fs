@@ -49,16 +49,16 @@ let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs 
             newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
         else
             newAttrs
-
-let addExportAttributeIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs =
+            
+let private setExportFlagIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs flags =
     if env.isInExport then
         if attributesContainExport attrs then 
             cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
-            attrs
-        else
-            attrs.Add(AttributeSymbol.Export)
+        flags ||| MemberFlags.Exported
+    elif attributesContainExport attrs then
+        flags ||| MemberFlags.Exported
     else
-        attrs
+        flags
 
 [<Sealed>]
 type private PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness, memberFlags: MemberFlags) =
@@ -1235,7 +1235,10 @@ let private bindTopLevelValueDeclaration
 
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
     let attrs = addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs
-    let attrs = addExportAttributeIfNecessary cenv env syntaxBinding attrs
+    
+    let memberFlags =
+       memberFlags
+       |> setExportFlagIfNecessary cenv env syntaxBinding attrs
 
     bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding
 
@@ -1372,14 +1375,6 @@ let private bindTypeDeclarationCases (cenv: cenv) (env: BinderEnvironment) (entB
 let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody =
     let entBuilder = entities.[cenv.entityDefIndex]
     cenv.entityDefIndex <- 0
-
-    let attrs = bindEarlyAttributes cenv env syntaxAttrs
-
-    // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
-    //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxNode attrs
-    // IMPORTANT: These attributes are temporarily set, they get re-set in Pass3.
-    entBuilder.SetAttributes(cenv.pass, attrs)
 
     let env =
         if entBuilder.Entity.IsExported && not env.isInExport then

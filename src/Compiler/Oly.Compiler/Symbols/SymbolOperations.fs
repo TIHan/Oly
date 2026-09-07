@@ -1628,10 +1628,6 @@ type EntitySymbol with
     member this.IsImported =
         attributesContainImport this.Attributes
 
-    // TODO: Remove this and use the other Extension with IsExported.
-    member this.IsExported =
-        attributesContainExport this.Attributes
-
     member this.IsIntrinsic =
         this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic
 

@@ -149,21 +149,22 @@ let createClosureConstructor cenv (freeLocals: IValueSymbol imarray) (fields: IF
 
     let ctorFlags = FunctionFlags.Constructor
 
-    let attrs =
-        if cenv.inExportContext then
-            ImArray.createOne AttributeSymbol.Export
+    let memberFlags = (MemberFlags.Instance ||| MemberFlags.Public)
+    let memberFlags =
+        if closure.IsExported then
+            memberFlags ||| MemberFlags.Exported
         else
-            ImArray.empty
+            memberFlags
 
     let ctor = 
         createFunctionValue 
             closure.AsEnclosing
-            attrs
+            ImArray.empty
             Oly.Metadata.OlySpecialNames.Constructor
             ImArray.empty
             ctorPars
             (applyType closure.AsType closure.TypeArguments)
-            (MemberFlags.Instance ||| MemberFlags.Public)
+            memberFlags
             ctorFlags
             WellKnownFunction.None
             None
@@ -214,6 +215,12 @@ let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary
             memberFlags
         else
             memberFlags ||| MemberFlags.Instance
+            
+    let memberFlags =
+        if closure.IsExported then
+            memberFlags ||| MemberFlags.Exported
+        else
+            memberFlags
 
     let enclosing =
         if lambdaFlags.HasFlag(LambdaFlags.Static) then
@@ -500,12 +507,6 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 | _ -> ImArray.empty
             | _ ->
                 ImArray.empty
-
-        let invokeAttrs =
-            if cenv.inExportContext then
-                invokeAttrs.Add(AttributeSymbol.Export)
-            else
-                invokeAttrs
 
         let funcTy = origExpr.Type
         let bodyExpr = lazyBodyExpr.Expression

@@ -58,6 +58,16 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
         | _ ->
             flags
     )
+    
+let private setExportFlagIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs flags =
+    if env.isInExport then
+        if attributesContainExport attrs then 
+            cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+        flags ||| EntityFlags.Exported
+    elif attributesContainExport attrs then
+        flags ||| EntityFlags.Exported
+    else
+        flags
 
 (********************************************************************************************************************************************************************************************)
 (********************************************************************************************************************************************************************************************)
@@ -65,7 +75,12 @@ let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
 (********************************************************************************************************************************************************************************************)
 
 /// Pass 0 - Type definition with type parameters.
-let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdentOpt: OlySyntaxToken option) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) (syntaxTyKind: OlySyntaxTypeDeclarationKind) (syntaxIdentOpt: OlySyntaxToken option) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
+    let syntaxNode =
+        match syntaxIdentOpt with
+        | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+        | _ -> syntaxTyKind
+        
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
 
@@ -88,7 +103,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
 
     let enclosing = currentEnclosing env
 
-    let flags = flags ||| (bindAccessorAsEntityFlags cenv enclosing syntaxAccessor)
+    let flags =
+        flags ||| (bindAccessorAsEntityFlags cenv enclosing syntaxAccessor)
+        |> setExportFlagIfNecessary cenv env syntaxNode attrs
 
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
@@ -105,11 +122,6 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         match syntaxIdentOpt with
         | Some syntaxIdent -> syntaxIdent.ValueText
         | _ -> AnonymousEntityName
-
-    let syntaxNode =
-        match syntaxIdentOpt with
-        | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
-        | _ -> syntaxTyKind
 
     let flags =
         if name = AnonymousEntityName then
@@ -191,7 +203,13 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
 
     let ent = entBuilder.Entity
 
-    let env = env.SetAccessorContext(ent)  
+    let env = env.SetAccessorContext(ent)
+    
+    let env =
+        if ent.IsExported && not env.isInExport then
+            { env with isInExport = true }
+        else
+            env
 
     match syntaxEntDefBody with
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->

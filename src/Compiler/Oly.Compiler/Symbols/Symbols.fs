@@ -2021,6 +2021,8 @@ type MemberFlags =
 
     /// This is a helper to indicate that the member was marked explicitly with the 'overrides' keyword.
     | ExplicitOverrides =   0x01000000
+    
+    | Exported          =   0x10000000
 
 [<System.Flags>]
 type FunctionFlags =
@@ -2064,7 +2066,6 @@ type FunctionFlags =
 type ValueFlags =
     | None =      0x0000000
     | Imported =  0x0000001
-    | Exported =  0x0000010
     /// Marks a function, local, or field as 'mutable'.
     /// If a function is marked 'mutable', meaning that the function is an instance member on a (struct or shape) and does mutate the receiver.
     | Mutable =   0x0000100
@@ -2257,15 +2258,9 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         else
             ValueFlags.None
 
-    let valueFlags =
+    let mutable valueFlags =
         if attributesContainImport attrs then
             valueFlags ||| ValueFlags.Imported
-        else
-            valueFlags
-
-    let mutable valueFlags =
-        if attributesContainExport attrs then
-            valueFlags ||| ValueFlags.Exported
         else
             valueFlags
 
@@ -2326,8 +2321,6 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
                 valueFlags <- valueFlags ||| ValueFlags.Imported
             | AttributeSymbol.Import _ ->
                 valueFlags <- valueFlags ||| ValueFlags.Imported
-            | AttributeSymbol.Export ->
-                valueFlags <- valueFlags ||| ValueFlags.Exported
             | _ ->
                 ()
         )
@@ -5279,7 +5272,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsExported =
-                this.ValueFlags &&& ValueFlags.Exported = ValueFlags.Exported
+                this.MemberFlags &&& MemberFlags.Exported = MemberFlags.Exported
     
             member this.IsImported =
                 this.ValueFlags &&& ValueFlags.Imported = ValueFlags.Imported
@@ -5698,7 +5691,7 @@ module SymbolExtensions =
                 this.Flags.HasFlag(EntityFlags.Imported)
 
             member this.IsExported =
-                this.Flags.HasFlag(EntityFlags.Exported)
+                this.Flags &&& EntityFlags.Exported = EntityFlags.Exported
 
             member this.IsPublic =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Public

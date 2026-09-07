@@ -664,6 +664,12 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 memberFlags ||| OlyILMemberFlags.Protected
             else
                 memberFlags
+                
+        let memberFlags =
+            if field.IsExported then
+                memberFlags ||| OlyILMemberFlags.Exported
+            else
+                memberFlags
 
         let flags =
             if field.IsMutable then
@@ -777,6 +783,12 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                     memberFlags ||| OlyILMemberFlags.Virtual
                 else
                     memberFlags
+                    
+        let ilMemberFlags =
+            if func.IsExported then
+                ilMemberFlags ||| OlyILMemberFlags.Exported
+            else
+                ilMemberFlags
 
         let ilFuncFlags =
             if func.IsMutable then
@@ -954,7 +966,8 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Inline _
     | AttributeSymbol.Blittable
     | AttributeSymbol.Pure
-    | AttributeSymbol.Unmanaged _ ->
+    | AttributeSymbol.Unmanaged _
+    | AttributeSymbol.Export ->
         None
     | AttributeSymbol.Import(platform, path, name) ->
         let platform = 
@@ -977,8 +990,6 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
         else
             let name = GenString cenv name
             OlyILAttribute.Intrinsic(name) |> Some
-    | AttributeSymbol.Export ->
-        OlyILAttribute.Export |> Some
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _flags) ->
         if not ctor.IsInstanceConstructor then
             failwith "Expected instance constructor."
@@ -1081,6 +1092,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
     let ilEntFlags = if ent.IsAttributeImporter then ilEntFlags ||| OlyILEntityFlags.AttributeImporter else ilEntFlags
     let ilEntFlags = if ent.IsAnonymous then ilEntFlags ||| OlyILEntityFlags.Anonymous else ilEntFlags
+    let ilEntFlags = if ent.IsExported then ilEntFlags ||| OlyILEntityFlags.Exported else ilEntFlags
     let ilEntFlags = 
         if ent.IsPrivate then
             if ent.Enclosing.IsNamespace then

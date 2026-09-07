@@ -121,10 +121,6 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
     let attrs = bindAttributes cenv envBody syntaxAttrs
-
-    // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
-    //            In this case, it is OK because we always populate the attributes for the parent first before the children.
-    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxNode attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
 
     let envBody =
@@ -316,7 +312,6 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
     let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
         let attrs = bindAttributes cenv env syntaxAttrs
         let attrs = Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
-        let attrs = Pass2.addExportAttributeIfNecessary cenv env syntax attrs
 
         let env =
             if binding.Value.IsExported && not env.isInExport then
