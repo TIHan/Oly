@@ -1,39 +1,28 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net7</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Configurations>Debug;Release;Checked</Configurations>
-	<!--<ServerGarbageCollection>true</ServerGarbageCollection>-->
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Checked|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath>..\..\..\vscode\out\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Program.fs" />
+    <Compile Include="OlySolutionExplorerViewModel.fs" />
+    <Compile Include="LanguageServer.fs" />
+    <Compile Include="OlyLanguageServer.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.6" />
+    <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Runtime.Target.DotNet.fsproj" />
+    <ProjectReference Include="..\..\CLI\olylib\olylib.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Compiler.CIL.Importer\Oly.Targets.DotNet.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Extensions\Oly.Compiler.Extensions.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
     <ProjectReference Include="..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
-    <ProjectReference Include="..\..\Runtime\Targets\DotNet\Oly.Emitter.CIL\Oly.Runtime.Clr.fsproj" />
-    <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Runtime.Target.Interpreter.fsproj" />
+    <ProjectReference Include="..\..\Runtime\Targets\Interpreter\Oly.Runtime.Target.Interpreter\Oly.Targets.Interpreter.fsproj" />
+    <ProjectReference Include="..\..\Targets\Spirv\Oly.Runtime.Target.Spirv\Oly.Targets.Spirv.fsproj" />
   </ItemGroup>
 
 </Project>

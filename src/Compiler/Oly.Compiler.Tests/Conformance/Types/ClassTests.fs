@@ -130,7 +130,7 @@ let ``Class has correct parameter on constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(~^~x: __oly_int32) = { x = x }
+    new(~^~x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "x: __oly_int32"
 
@@ -140,7 +140,7 @@ let ``Class has correct parameter type on constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(x: ~^~__oly_int32) = { x = x }
+    new(x: ~^~__oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "__oly_int32"
 
@@ -197,7 +197,7 @@ class Test<T> =
     Assert.Equal("T", symbols.[1].SignatureText)
     Assert.Equal("field x: __oly_int32", symbols.[2].SignatureText)
     Assert.Equal("__oly_int32", symbols.[3].SignatureText)
-    Assert.Equal("", symbols.[4].SignatureText)
+    Assert.Equal("0: __oly_int32", symbols.[4].SignatureText)
 
 [<Fact>]
 let ``Source with class has the correct symbols 2``() =
@@ -223,7 +223,7 @@ class Test<T> =
 
     field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
 main() : () =
     let x = Test<__oly_int32>(123.0f)
@@ -294,7 +294,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64): ()"
     ]
     |> ignore
 
@@ -310,7 +312,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64): ()"
     ]
     |> ignore
 
@@ -326,7 +330,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(x: __oly_int32): ()
+    static test(x: __oly_float64, y: __oly_float64): ()"
     ]
     |> ignore
 
@@ -342,7 +348,9 @@ main() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'test' has ambiguous functions."
+        "'test' has ambiguous functions. Candidates:
+    static test(): ()
+    static test(x: __oly_float64, y: __oly_float64): ()"
     ]
     |> ignore
 
@@ -355,7 +363,7 @@ f() : () =
 class Test =
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "x: Test"
 
@@ -367,7 +375,7 @@ class Test =
 
     class Test2 =
         field ~^~y: __oly_float32 = 0
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
     """
     |> hasSymbolSignatureTextByCursor "field y: __oly_float32"
 
@@ -379,8 +387,8 @@ class Test =
 
     class Test2 =
         field y: __oly_float32
-        new(y: __oly_float32) = { y = y }
-    new(x: __oly_int32) = { x = x }
+        new(y: __oly_float32) = this { y = y }
+    new(x: __oly_int32) = this { x = x }
 
 test() : () =
     let x = Test.~^~Test2(2.0f)
@@ -468,7 +476,7 @@ let ``Class with no fields with a constructor``() =
         """
 class Test =
 
-    new() = { }
+    new() = this { }
 
 test() : () =
     let t = Test()
@@ -485,7 +493,7 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -507,14 +515,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     new() = 
         let x = 1
-        { }
+        this { }
 
 test() : () =
     let t = Class2()
@@ -531,14 +539,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     field y: __oly_int32
 
-    new() = base() with { y = 1 }
+    new() = base() { y = 1 }
 
 test() : () =
     let t = Class2()
@@ -548,14 +556,14 @@ test() : () =
     |> ignore
 
 [<Fact>]
-let ``Class inherits class - should as forgot to assign field y ``() =
+let ``Class inherits class - should fail as forgot to assign field y ``() =
     let src =
         """
 abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -569,7 +577,7 @@ test() : () =
         """
     Oly src
     |> withErrorDiagnostics [
-        "'y' is not initialized."
+        "Field 'y' is not initialized."
     ]
     |> ignore
 
@@ -581,14 +589,14 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
 
     new() = 
         let x = base()
-        { }
+        this { }
 
 test() : () =
     let t = Class2()
@@ -607,12 +615,12 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
 class Class2 =
     inherits Class1
 
-    new() = { }
+    new() = this { }
 
 test() : () =
     let t = Class2()
@@ -643,7 +651,7 @@ abstract class Class1 =
 
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 test() : () =
     let x = Class1() // should fail
@@ -664,7 +672,7 @@ abstract class Class1 =
 
     abstract default VirtualTest() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -688,7 +696,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -714,7 +722,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -740,7 +748,7 @@ abstract class Class1 =
 
     Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -764,7 +772,7 @@ abstract class Class1 =
 
     abstract default Test() : () = ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 class Class2 =
     inherits Class1
@@ -869,7 +877,7 @@ let ``Abstract class should error with missing override``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract class C1 =
 
@@ -910,7 +918,7 @@ class C =
 
     field x: int32 = 0
 
-    new() = { }
+    new() = this { }
         """
     Oly src
     |> withCompile
@@ -1101,3 +1109,397 @@ class A =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Must implement a body for the non-abstract method in an abstract class``() =
+    let src =
+        """
+abstract class BaseExample =
+
+    GenericExample<T>(T): ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample' must have an implementation.",
+                """
+    GenericExample<T>(T): ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement a body for the non-abstract method in an abstract class - using an export``() =
+    let src =
+        """
+namespace Test
+
+#[export]
+abstract class BaseExample =
+
+    GenericExample<T>(T): ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample' must have an implementation.",
+                """
+    GenericExample<T>(T): ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must specify 'new' on the concrete implementation``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    GenericExample<T>(x: T): () =
+        base.GenericExample(x)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample<T>(x: T): ()' has duplicate member definitions.",
+                """
+    GenericExample<T>(x: T): () =
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+
+[<Fact>]
+let ``'new' should work on the concrete implementation``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        base.GenericExample(x)
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Must implement the interface member even though it is provided in the base class``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must implement the interface member even though it is provided in the base class 2``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract class BaseExample =
+
+    abstract GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'BaseExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Do not need to implement the interface member as it is provided in the base class - this only works because no imported/exported functions are involved``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () = ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Must use the export attribute when overriding an exported function that has its own type parameters``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Must use the export attribute when overriding an exported function that has its own type parameters 2``() =
+    let src =
+        """
+interface IExample =
+
+    #[export]
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Can optionally the export attribute when overriding an exported function that has no type parameters``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    M(): () = ()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Can optionally the export attribute when overriding an exported function that has no type parameters 2``() =
+    let src =
+        """
+#[export]
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    M(): () = ()
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Cannot use the export attribute when overriding an non-exported and non-imported function``() =
+    let src =
+        """
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    GenericExample<T>(x: T): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'GenericExample' cannot be exported because the function its overriding is neither imported or exported.",
+                """
+    GenericExample<T>(x: T): () = ()
+    ^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot use the export attribute when overriding a non-exported and non-imported function 2``() =
+    let src =
+        """
+interface IExample =
+
+    M(): ()
+
+class Example =
+    implements IExample
+
+    #[export]
+    M(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'M' cannot be exported because the function its overriding is neither imported or exported.",
+                """
+    M(): () = ()
+    ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot use _protected_ if the signature has an _internal_``() =
+    let src =
+        """
+internal struct S
+
+abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'S' is less accessible than the member its used in.",
+                """
+    protected abstract M(s: S): ()
+                            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Cannot use _protected_ on an internal type if the signature has an _private_``() =
+    let src =
+        """
+private struct S
+
+internal abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'S' is less accessible than the member its used in.",
+                """
+    protected abstract M(s: S): ()
+                            ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Can use _protected_ on an internal type if the signature has an _internal_ type``() =
+    let src =
+        """
+internal struct S
+
+internal abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Can use _protected_ on a private type if the signature has an _internal_ type``() =
+    let src =
+        """
+internal struct S
+
+private abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Can use _protected_ on a private type if the signature has an _private_ type``() =
+    let src =
+        """
+private struct S
+
+private abstract class C =
+    protected abstract M(s: S): ()
+
+        """
+    Oly src
+    |> shouldCompile

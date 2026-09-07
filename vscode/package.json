@@ -5,51 +5,71 @@
 	"author": "Will F. Smith",
 	"license": "MIT",
 	"version": "0.0.1",
-	"publisher": "vscode",
+	"publisher": "oly-dev",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/tihan/oly"
 	},
 	"engines": {
-		"vscode": "^1.64.0"
-	},
-	"dependencies": {
-		"typescript": "^4.9.4",
-		"vscode-languageclient": "^7.0.0"
+		"vscode": "^1.125.0"
 	},
 	"devDependencies": {
-		"@types/node": "^18.11.18",
-		"@types/vscode": "1.64.0"
+		"@eslint/js": "^10.0.1",
+		"@types/glob": "^8.1.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^26.1.1",
+		"@types/typescript": "^0.4.29",
+		"@types/vscode": "^1.125.0",
+		"@vscode/test-electron": "^3.0.0",
+		"glob": "^13.0.6",
+		"globals": "^17.7.0",
+		"mocha": "^11.7.6",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.63.0",
+		"vscode-languageclient": "^10.1.0"
 	},
+	"extensionDependencies": [
+		"ms-dotnettools.csdevkit"
+	],
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "tsc -p ./",
 		"watch": "tsc -p ./",
 		"pretest": "npm run compile && npm run lint",
 		"lint": "eslint src --ext ts",
+		"lint-fix": "eslint src --ext ts --fix",
 		"test": "node ./out/test/runTest.js"
 	},
 	"categories": [
 		"Programming Languages"
 	],
-	"activationEvents": [
-		"onLanguage:oly"
-	],
 	"main": "./out/extension",
 	"contributes": {
-		"snippets": [
-			{
-				"language": "oly",
-				"path": "./snippets/oly.json"
-			}
-		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "oly-view",
+					"title": "Oly",
+					"icon": "./icons/oly-dark.png"
+				}
+			]
+		},
 		"taskDefinitions": [],
 		"views": {
-			"explorer": [
+			"oly-view": [
+				{
+					"id": "oly.solutionExplorer",
+					"name": "Solution Explorer",
+					"when": "resourceLangId == oly",
+					"icon": "./icons/oly-dark.png",
+					"visibility": "visible"
+				},
 				{
 					"id": "oly.syntaxTree",
-					"name": "Oly Syntax Tree",
-					"when": "resourceLangId == oly"
+					"name": "Syntax Tree",
+					"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled",
+					"icon": "./icons/oly-dark.png",
+					"visibility": "collapsed"
 				}
 			]
 		},
@@ -57,19 +77,85 @@
 			"editor/context": [
 				{
 					"command": "oly.getSyntaxTree",
+					"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "oly.build",
 					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.changeActiveProject",
+					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.changeActiveConfiguration",
+					"when": "resourceLangId == oly"
+				},
+				{
+					"command": "oly.cleanWorkspace",
+					"when": "resourceLangId == oly"
+				}
+			],
+			"view/item/context": [
+				{
+					"submenu": "oly.add.submenu",
+					"group": "oly.solutionExplorer.menu@0",
+					"when": "view == oly.solutionExplorer"
+				},
+				{
+					"command": "oly.deleteFile",
+					"group": "oly.solutionExplorer.menu@1",
+					"when": "view == oly.solutionExplorer"
+				}
+			],
+			"oly.add.submenu": [
+				{
+					"command": "oly.createFile"
 				}
 			]
 		},
+		"submenus": [
+			{
+				"id": "oly.add.submenu",
+				"label": "Add"
+			}
+		],
 		"commands": [
 			{
 				"command": "oly.getSyntaxTree",
 				"title": "Go to Syntax Node",
+				"when": "resourceLangId == oly && config.oly.syntaxTree.explorer.enabled"
+			},
+			{
+				"command": "oly.build",
+				"title": "Compile Active Project",
 				"when": "resourceLangId == oly"
 			},
 			{
-				"command": "oly.compile",
-				"title": "Compile Project",
+				"command": "oly.changeActiveProject",
+				"title": "Change Active Project",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.changeActiveConfiguration",
+				"title": "Change Active Configuration",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.cleanWorkspace",
+				"title": "Clean Workspace",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.createFile",
+				"title": "New '.oly' File",
+				"when": "resourceLangId == oly"
+			},
+			{
+				"command": "oly.deleteFile",
+				"title": "Delete",
 				"when": "resourceLangId == oly"
 			}
 		],
@@ -87,8 +173,8 @@
 				],
 				"configuration": "./language-configuration.json",
 				"icon": {
-					"light": "./icons/oly-light.png",
-					"dark": "./icons/oly-dark.png"
+					"light": "./icons/oly-file-light.png",
+					"dark": "./icons/oly-file-dark.png"
 				}
 			}
 		],
@@ -103,20 +189,20 @@
 			"type": "object",
 			"title": "Oly",
 			"properties": {
-				"olyLanguageServer.editedDocumentDiagnosticMaxDelay": {
-					"scope": "resource",
+				"oly.languageServer.editedDocumentDiagnosticMaxDelay": {
+					"scope": "application",
 					"type": "number",
 					"default": 500,
 					"description": "Controls the maximum delay (ms) to publish document diagnostics when the current document has been edited."
 				},
-				"olyLanguageServer.editedDocumentDependentDiagnosticDelay": {
-					"scope": "resource",
+				"oly.languageServer.editedDocumentDependentDiagnosticDelay": {
+					"scope": "application",
 					"type": "number",
 					"default": 1000,
-					"description": "Controls the delay (ms) to publish document diagnostics after the currently edited documents has its diagnostics published."
+					"description": "Controls the delay (ms) to publish dependent document diagnostics after the currently edited documents has had its diagnostics published."
 				},
-				"olyLanguageServer.trace.server": {
-					"scope": "window",
+				"oly.languageServer.trace.server": {
+					"scope": "application",
 					"type": "string",
 					"enum": [
 						"off",
@@ -125,7 +211,46 @@
 					],
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
+				},
+				"oly.languageServer.process.gcServer": {
+					"scope": "application",
+					"type": "boolean",
+					"default": false,
+					"description": "Enable server garbage collection for the language server to improve performance. 24GB of RAM or more is recommended."
+				},
+				"oly.syntaxTree.explorer.enabled": {
+					"scope": "application",
+					"type": "boolean",
+					"default": false,
+					"description": "Shows the syntax tree of the active document in the explorer and allows navigation to a syntax node."
 				}
+			}
+		},
+		"semanticTokenTypes": [
+			{
+				"id": "conditionalDirectiveBody",
+				"superType": "conditionalDirectiveBody",
+				"description": "A conditional directive body."
+			}
+		],
+		"breakpoints": [
+			{
+				"language": "oly"
+			}
+		],
+		"configurationDefaults": {
+			"editor.semanticTokenColorCustomizations": {
+				"rules": {
+					"conditionalDirectiveBody": "#9B9B9B"
+				}
+			},
+			"editor.wordBasedSuggestions": "off",
+			"files.watcherExclude": {
+				"**/.git/objects/**": true,
+				"**/.git/subtree-cache/**": true,
+				"**/.hg/store/**": true,
+				"**/.oly_target/cache/**": true,
+				"**/.oly_target/bin/**": true
 			}
 		}
 	}

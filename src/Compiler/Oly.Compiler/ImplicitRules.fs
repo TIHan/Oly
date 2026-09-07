@@ -1,6 +1,7 @@
 ﻿module internal Oly.Compiler.Internal.ImplicitRules
 
 open Oly.Core
+open Oly.Compiler
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
@@ -30,13 +31,13 @@ let private isIntrinsicForEnum (func: IFunctionSymbol) =
         false
 
 let private hasAllEnumTypes (tys: TypeSymbol imarray) =
-    tys |> ImArray.forall (fun x -> x.IsEnum)
+    tys |> ImArray.forall (fun x -> x.IsEnum_ste)
 
 let private isFirstExpressionAnEnumType (exprs: E imarray) =
     if exprs.IsEmpty then
         false
     else
-        exprs[0].Type.IsEnum
+        exprs[0].Type.IsEnum_ste
 
 let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol) (ty: TypeSymbol) =
     match func with
@@ -64,7 +65,7 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
             | _ ->
                 ty
 
-        let funcTy = 
+        let funcTy =
             match stripTypeEquations func.Type with
             | TypeSymbol.Function(_, _, kind) ->
                 TypeSymbol.CreateFunction(
@@ -76,45 +77,47 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
                 OlyAssert.Fail("Unsupported type.")
 
         { new IFunctionSymbol with
-    
+
                 member _.Enclosing = func.Enclosing
-    
+
                 member _.Name = func.Name
-    
+
                 member _.Type = funcTy
-    
+
                 member _.Id = id
-    
+
                 member _.TypeParameters = func.TypeParameters
-    
+
                 member _.TypeArguments = func.TypeArguments
-    
+
                 member _.IsFunction = func.IsFunction
-    
+
+                member _.IsFunctionGroup = func.IsFunctionGroup
+
                 member _.IsField = func.IsField
-    
+
                 member _.MemberFlags = func.MemberFlags
-    
+
                 member _.FunctionFlags = func.FunctionFlags
-    
+
                 member _.FunctionOverrides = func.FunctionOverrides
 
                 member _.IsProperty = func.IsProperty
 
                 member _.IsPattern = false
-    
+
                 member this.Formal = func.Formal
-    
+
                 member _.Parameters = newPars
-    
+
                 member _.ReturnType = returnTy
-    
+
                 member _.Attributes = func.Attributes
-    
+
                 member _.ValueFlags = func.ValueFlags
 
                 member _.IsThis = func.IsThis
-                        
+
                 member _.IsBase = func.IsBase
 
                 member _.Semantic = func.Semantic
@@ -123,15 +126,17 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
 
                 member _.AssociatedFormalPattern = func.AssociatedFormalPattern
 
+                member _.AssociatedFormalProperty = func.AssociatedFormalProperty
+
             }
 
 let private tryMorphSimpleImplicit (expectedTy: TypeSymbol) (expr: E) =
-    if expectedTy.IsUnit_t && expr.Type.IsRealUnit then
+    if expectedTy.IsUnit_ste && expr.Type.IsRealUnit_ste then
         Ignore expr
-    elif expectedTy.IsRealUnit && expr.Type.IsUnit_t then
-        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+    elif expectedTy.IsRealUnit_ste && expr.Type.IsUnit_ste then
+        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
             expr,
-            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
             NormalSequential
         )
     else
@@ -160,8 +165,9 @@ let private tryMorphPartialCall (expr: E) =
             )
         let argExprs =
             pars
-            |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
-        E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+            |> ImArray.map (fun x -> E.CreateGeneratedValue(expr.Syntax, x))
+        E.CreateGeneratedLambda(
+            expr.Syntax,
             LambdaFlags.None,
             ImArray.empty,
             pars,
@@ -173,22 +179,22 @@ let private tryMorphPartialCall (expr: E) =
     | _ ->
         expr
 
-let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol) (expr: E) =
+let private tryMorphArgumentImplicit (expectedTy: TypeSymbol) (expr: E) =
     let expr = tryMorphSimpleImplicit expectedTy expr
     let exprTy = expr.Type
-    if expectedTy.IsFunctionNotPtr && exprTy.IsFunctionNotPtr then
-        match expectedTy.TryFunction, exprTy.TryFunction with
-        | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_t ->
-            if (expectedReturnTy.IsRealUnit || (expectedReturnTy.IsTypeVariableZeroArity && not hasStrictInference)) && returnTy.IsUnit_t then
+    if expectedTy.IsFunctionNotPtr_ste && exprTy.IsFunctionNotPtr_ste then
+        match expectedTy.TryAnyFunction, exprTy.TryAnyFunction with
+        | ValueSome(_, expectedReturnTy), ValueSome(_, returnTy) when not expectedReturnTy.IsNativeFunctionPtr_ste ->
+            if (expectedReturnTy.IsRealUnit_ste || expectedReturnTy.IsVariableZeroArity_ste) && returnTy.IsUnit_ste then
                 match expr with
                 | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
                     E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
                         LazyExpression.CreateNonLazy(
                             lazyLambdaBodyExpr.TrySyntax,
                             fun _ ->
-                                E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
                                     lazyLambdaBodyExpr.Expression,
-                                    E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                    E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
                                     BoundSequentialSemantic.NormalSequential
                                 )
                         )
@@ -205,22 +211,37 @@ let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol)
                                 )
                             let argExprs =
                                 pars
-                                |> ImArray.map (fun x -> E.CreateValue(expr.Syntax.Tree, x))
-                            E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                |> ImArray.map (fun x -> E.CreateGeneratedValue(expr.Syntax, x))
+                            E.CreateLambda(BoundSyntaxInfo.Generated(expr.Syntax),
                                 LambdaFlags.None,
                                 ImArray.empty,
                                 pars,
                                 LazyExpression.CreateNonLazy(None, 
                                     fun _ ->
-                                        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                                        E.Sequential(BoundSyntaxInfo.Generated(expr.Syntax),
                                             E.Call(syntaxInfo, None, ImArray.empty, argExprs, local, CallFlags.None),
-                                            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax.Tree)),
+                                            E.Unit(BoundSyntaxInfo.Generated(expr.Syntax)),
                                             BoundSequentialSemantic.NormalSequential
                                         )
                                 )
                             )
                         )
                     |> fst
+            elif not(areTypesEqual expectedReturnTy returnTy) && subsumesType expectedReturnTy returnTy then
+                match expr with
+                | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) ->
+                    E.CreateLambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars,
+                        LazyExpression.CreateNonLazy(
+                            lazyLambdaBodyExpr.TrySyntax,
+                            fun _ ->
+                                E.Typed(syntaxInfo,
+                                    lazyLambdaBodyExpr.Expression,
+                                    expectedReturnTy
+                                )
+                        )
+                    )
+                | _ ->
+                    expr
             else
                 expr
         | _ ->
@@ -228,7 +249,7 @@ let private tryMorphArgumentImplicit hasStrictInference (expectedTy: TypeSymbol)
     else
         expr
 
-let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray) (argExprs: E imarray) =
+let private tryImplicitArguments (parTys: TypeSymbol imarray) (argExprs: E imarray) =
     if (not parTys.IsEmpty) && parTys.Length = argExprs.Length then
 
         // We lazily create a new argument expression array when it is needed.
@@ -244,7 +265,7 @@ let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray)
         for i = 0 to argExprs.Length - 1 do
             let argExpr = argExprs[i]
             let parTy = parTys[i]
-            if parTy.IsScopedFunction then                          
+            if parTy.IsScopedFunction_ste then                          
                 match argExpr with
                 | E.Lambda(syntaxInfo, lambdaFlags, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr, _, _, _) when not(lambdaFlags.HasFlag(LambdaFlags.Scoped)) ->
                     let newArgExpr = E.CreateLambda(syntaxInfo, lambdaFlags ||| LambdaFlags.Scoped, lambdaTyPars, lambdaPars, lazyLambdaBodyExpr)
@@ -252,7 +273,7 @@ let private tryImplicitArguments hasStrictInference (parTys: TypeSymbol imarray)
                 | _ ->
                     ()
             else
-                let newArgExpr = tryMorphArgumentImplicit hasStrictInference parTy argExpr
+                let newArgExpr = tryMorphArgumentImplicit parTy argExpr
                 if newArgExpr <> argExpr then
                     setNewArgExpr i newArgExpr
 
@@ -277,9 +298,9 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
             let argTys =
                 argTys
                 |> ImArray.map (fun x ->
-                    match x.TryEntity with
-                    | ValueSome(ent) when ent.TryEnumUnderlyingType.IsSome ->
-                        ent.TryEnumUnderlyingType.Value
+                    match x.TryEntityNoAlias with
+                    | ValueSome(ent) when ent.IsEnum ->
+                        ent.UnderlyingTypeOfEnumOrNewtype
                     | _ ->
                         x
                 )
@@ -290,8 +311,8 @@ let ImplicitPassingArgumentsForOverloading (funcs: IFunctionSymbol imarray) (arg
         funcs, argTys
 
 let ImplicitArgumentsForFunctionType (funcTy: TypeSymbol) (argExprs: E imarray) =
-    OlyAssert.True(funcTy.IsAnyFunction)
-    match tryImplicitArguments false funcTy.FunctionArgumentTypes argExprs with
+    OlyAssert.True(funcTy.IsAnyFunction_ste)
+    match tryImplicitArguments funcTy.FunctionArgumentTypes argExprs with
     | ValueSome(newArgExprs) -> newArgExprs
     | _ -> argExprs
 
@@ -301,30 +322,41 @@ let ImplicitArgumentsForFunction (benv: BoundEnvironment) (func: IFunctionSymbol
         let argTys = func.Parameters |> ImArray.map (fun x -> x.Type)
         if (not argTys.IsEmpty) && argTys.Length = argExprs.Length then
 
-            let principalTy = argExprs[0].Type
-            let func =
-                alterParameterAndReturnTypesForEnumOperations
-                    func
-                    principalTy
+#if DEBUG || CHECKED
+            match func with
+            | :? FunctionGroupSymbol ->
+                OlyAssert.Fail("Unexpected function group.")
+            | _ ->
+                OlyAssert.True(func.TryWellKnownFunction.IsSome)
+                OlyAssert.True(func.TypeParameters.IsEmpty)
+                OlyAssert.True(func.TypeArguments.IsEmpty)
+                OlyAssert.True(func.IsStatic)
+                OlyAssert.False(func.IsConstructor)
+                OlyAssert.True(isIntrinsicForEnum func)
+#endif
 
-            func, argExprs
+            let alteredFunc =
+                // TODO: An altered func could be altered again. We should prevent this with a flag on the function?
+                alterParameterAndReturnTypesForEnumOperations func argExprs[0].Type
+
+            Some(alteredFunc), argExprs
         else
-            func, argExprs
+            None, argExprs
     else
         if func.IsFunctionGroup then
-            func, argExprs
+            None, argExprs
         else
-            match tryImplicitArguments func.HasStrictInference func.LogicalType.FunctionArgumentTypes argExprs with
-            | ValueSome(newArgExprs) -> func, newArgExprs
-            | _ -> func, argExprs
+            match tryImplicitArguments func.LogicalType.FunctionArgumentTypes argExprs with
+            | ValueSome(newArgExprs) -> None, newArgExprs
+            | _ -> None, argExprs
 
 let ImplicitCallExpression (_benv: BoundEnvironment) (expr: E) =
     match expr with
     | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, flags) 
             when not value.IsFunctionGroup && 
-                 value.Type.IsAnyFunction && 
+                 value.Type.IsAnyFunction_ste && 
                  value.LogicalType.FunctionParameterCount = argExprs.Length ->
-        match tryImplicitArguments value.HasStrictInference value.LogicalType.FunctionArgumentTypes argExprs with
+        match tryImplicitArguments value.LogicalType.FunctionArgumentTypes argExprs with
         | ValueSome(newArgExprs) ->
             E.Call(syntaxInfo, receiverExprOpt, witnessArgs, newArgExprs, value, flags)
         | _ ->

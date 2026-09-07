@@ -3,10 +3,48 @@
 open System
 open System.Threading
 open System.Threading.Tasks
+open System.Collections.Generic
+open System.Collections.Immutable
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Core
+
+type OlyWorkspaceChangedEvent =
+    | DocumentCreated of documentPath: OlyPath
+    | DocumentChanged of documentPath: OlyPath * isInMemory: bool
+    | DocumentDeleted of documentPath: OlyPath
+
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
+[<Sealed>]
+type ActiveConfigurationState =
+    new : activeConfiguration: string -> ActiveConfigurationState
+    member ActiveConfiguration: string
+
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
+[<Sealed>]
+type ProjectConfiguration =
+    new : name: string * defines: string [] * debuggable: bool -> ProjectConfiguration
+    member Name: string
+    member Defines: string []
+    member Debuggable: bool
+
+/// TODO: This shouldn't be public, but it is to make Text.Json work.
+[<Sealed>]
+type ProjectConfigurations =
+    new : configurations: ProjectConfiguration [] -> ProjectConfigurations
+
+    member Configurations: ProjectConfiguration []
+
+    static member Default: ProjectConfigurations
+
+[<Sealed>]
+type OlyProgram =
+
+    new : path: OlyPath * run: (string[] -> string) -> OlyProgram
+
+    member Path: OlyPath
+    member Run: args: string[] -> string
 
 [<Sealed>]
 type OlyReferenceInfo =
@@ -49,9 +87,10 @@ type OlyOutputKind =
 [<Sealed>]
 type OlyTargetInfo =
 
-    new : name: string * outputKind: OlyOutputKind * implicitExtendsForStructOpt: string option * implicitExtendsForEnumOpt: string option -> OlyTargetInfo
+    new : name: string * projConfig: OlyProjectConfiguration * outputKind: OlyOutputKind * implicitExtendsForStructOpt: string option * implicitExtendsForEnumOpt: string option -> OlyTargetInfo
 
     member Name: string
+    member ProjectConfiguration: OlyProjectConfiguration
     member OutputKind: OlyOutputKind
     member IsExecutable: bool
     member ImplicitExtendsForStruct: string option
@@ -71,36 +110,40 @@ type OlyBuild =
     new : platformName: string -> OlyBuild
 
     member PlatformName : string
+    
+    /// The given path must be an Oly project file.
+    /// {scratchDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectScratchDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
-    /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\.olycache\{platformName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\.olycache\{platformName}\CoolProject.project.oly\'
-    member GetAbsoluteCacheDirectory : absolutePath: OlyPath -> OlyPath
+    /// The given path must be an Oly project file.
+    /// {cacheDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectCacheDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
-    /// The given path can be a directory or a file.
-    /// Directory example: 'C:\work\' -> 'C:\work\bin\{platformName}\'
-    /// File example: 'C:\work\CoolProject.project.oly' -> 'C:\work\bin\{platformName}\CoolProject.project.oly\'
-    member GetAbsoluteBinDirectory : absolutePath: OlyPath -> OlyPath
+    /// The given path must be an Oly project file.
+    /// {binDir}/{fileName}/{platformName}/{targetName}/{configName}/
+    member GetProjectBinDirectory : targetInfo: OlyTargetInfo * projectPath: OlyPath -> OlyPath
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
-    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
-
+    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
+     
     abstract CanImportReference : path: OlyPath -> bool
 
     abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
 
-    abstract OnBeforeReferencesImportedAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * ct: CancellationToken -> Task<unit>
-    
-    abstract OnAfterReferencesImported : unit -> unit
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
+    default GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default GetImplicitExtendsForStruct: unit -> string option
 
     abstract GetImplicitExtendsForEnum: unit -> string option
     default GetImplicitExtendsForEnum: unit -> string option
+
+    abstract GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlyProjectReference =
@@ -118,15 +161,16 @@ type OlyDocument =
     member Project : OlyProject
     member SyntaxTree : OlySyntaxTree
     member BoundModel : OlyBoundModel
+    /// TODO: Rename to 'IsProject'.
     member IsProjectDocument : bool
-    member ExtraDiagnostics : OlyDiagnostic imarray
     member GetSourceText : CancellationToken -> IOlySourceText
     member GetDiagnostics : CancellationToken -> OlyDiagnostic imarray
+    member GetAnalyzerDiagnostics : CancellationToken -> OlyDiagnostic imarray
 
 [<Sealed>]
 type OlyProjectConfiguration =
 
-    new : name: string * defines: string imarray * debuggable: bool -> OlyProjectConfiguration
+    new : name: string * defines: string imarray * debuggable: bool * defaultAccessor: OlyDefaultAccessor -> OlyProjectConfiguration
 
     member Name : string
 
@@ -134,12 +178,35 @@ type OlyProjectConfiguration =
 
     member Debuggable : bool
 
+    member DefaultAccessor: OlyDefaultAccessor
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyType =
+    | Bool
+    | String of propertyValues: ImmutableHashSet<string> option
+    | FilePath
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyDefinition =
+    {
+        IsExecutableOnly: bool
+        Type: OlyProjectPropertyType
+    }
+
+[<Sealed>]
+type OlyProjectProperties =
+
+    member TryGetValue<'T>: propertyName: string -> 'T option
+
+    member Definitions: ImmutableDictionary<string, OlyProjectPropertyDefinition>
+
 [<Sealed>]
 type OlyProject =
 
     member Path : OlyPath
     member Name : string
     member Configuration : OlyProjectConfiguration
+    member Properties: OlyProjectProperties
     member Solution : OlySolution
     member Compilation : OlyCompilation
     member Documents : OlyDocument imarray
@@ -150,6 +217,10 @@ type OlyProject =
 
     member TryGetDocument : documentPath: OlyPath -> OlyDocument option
     member GetDocumentsExcept : documentPath: OlyPath -> OlyDocument imarray
+    member GetDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
+    member GetAnalyzerDiagnostics : ct: CancellationToken -> OlyDiagnostic imarray
+
+    member CouldHaveDocument : documentPath: OlyPath -> bool
 
 [<Sealed>]
 type OlySolution =
@@ -168,12 +239,13 @@ type OlySolution =
 
     member TryGetProject : projectPath: OlyPath -> OlyProject option
 
+    member TryGetProjectByName : projectName: string -> OlyProject option
+
     member GetProjects : unit -> OlyProject imarray
 
     member GetProjectsDependentOnReference : referencePath: OlyPath -> OlyProject imarray
 
-    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * ct: CancellationToken -> OlySolution * OlyProject
-    member CreateProject : projectPath: OlyPath * projectConfig: OlyProjectConfiguration * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * ct: CancellationToken -> OlySolution * OlyProject
+    member CreateProject : projectPath: OlyPath * platformName: string * targetInfo: OlyTargetInfo * packages: OlyPackageInfo imarray * copyFileInfos: OlyCopyFileInfo imarray * properties: OlyProjectProperties option * ct: CancellationToken -> OlySolution * OlyProject
 
     member UpdateDocument : projectPath: OlyPath * documentPath: OlyPath * syntaxTree: OlySyntaxTree * extraDiagnostics: OlyDiagnostic imarray -> OlySolution * OlyProject * OlyDocument
 
@@ -183,36 +255,58 @@ type OlySolution =
 
     member GetTransitiveProjectReferencesFromProject: projectPath: OlyPath * ct: CancellationToken -> OlyProject imarray
 
-type IOlyWorkspaceResourceService =
+[<Sealed>]
+type OlyWorkspaceResourceSnapshot =
 
-    abstract LoadSourceText: filePath: OlyPath -> IOlySourceText
+    member Version : DateTime
+
+    member SetResourceAsCopy : OlyPath -> OlyWorkspaceResourceSnapshot
+
+    member SetResourceAsCopy : OlyPath * System.IO.Stream -> OlyWorkspaceResourceSnapshot
+
+    member SetInMemorySourceText : OlyPath * IOlySourceText -> OlyWorkspaceResourceSnapshot
+
+    member RemoveInMemorySourceText : OlyPath -> OlyWorkspaceResourceSnapshot
+
+    member RemoveResource : OlyPath -> OlyWorkspaceResourceSnapshot
+
+    member GetSourceText: filePath: OlyPath -> IOlySourceText
 
     /// Returns UTC time-stamp.
-    abstract GetTimeStamp: filePath: OlyPath -> DateTime
+    member GetTimeStamp: filePath: OlyPath -> DateTime
 
-    abstract FindSubPaths: dirPath: OlyPath -> OlyPath imarray
+    member FindSubPaths: dirPath: OlyPath -> OlyPath imarray
 
-    abstract LoadProjectConfigurationAsync: projectConfigPath: OlyPath * ct: CancellationToken -> Task<OlyProjectConfiguration>
+    member GetProjectConfiguration: projectFilePath: OlyPath -> OlyProjectConfiguration
 
-[<Sealed>]
-type OlyDefaultWorkspaceResourceService =
+    member GetActiveConfigurationName: unit -> string
 
-    new: unit -> OlyDefaultWorkspaceResourceService
+    member ActiveConfigurationPath: OlyPath
 
-    interface IOlyWorkspaceResourceService
+    static member Create : workingDirectory: OlyPath * activeConfigPath: OlyPath -> OlyWorkspaceResourceSnapshot
+
+type IOlyWorkspaceProgress =
+
+    abstract OnBeginWork: unit -> unit
+
+    abstract OnEndWork: unit -> unit
 
 [<Sealed>]
 type OlyWorkspace =
 
+    member StaleSolution : OlySolution
+
+    /// Try to cancel any current long-running work.
+    /// Will not cancel LoadProject, ClearSolution, FileCreated, FileChanged, FileDeleted.
+    member CancelCurrentWork : unit -> unit
+
     member GetSolutionAsync : ct: CancellationToken -> Task<OlySolution>
 
-    /// Updates documents by path with the given source text.
-    member UpdateDocumentAsync : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> Task<OlyDocument imarray>
-
-    /// Updates documents by path with the given source text.
+    /// Update a document by path with the given source text.
     /// Non-blocking.
     member UpdateDocument : documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken -> unit
 
+    /// Non-blocking.
     member RemoveProject : projectPath: OlyPath * ct: CancellationToken -> unit
 
     /// Get documents by path.
@@ -221,10 +315,27 @@ type OlyWorkspace =
     /// Get all the documents in the workspace's solution.
     member GetAllDocumentsAsync : ct: CancellationToken -> Task<OlyDocument imarray>
 
-    /// TODO: We should make this API better.
-    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    /// Builds the given project by absolute path.
+    member BuildProjectAsync : projectPath: OlyPath * ct: CancellationToken -> Task<Option<Result<OlyProgram, OlyDiagnostic imarray>>>
 
     /// Clears the entire solution.
-    member ClearSolutionAsync : ct: CancellationToken -> Task<unit>
+    /// Non-blocking.
+    member ClearSolution : unit -> unit
 
-    static member Create : targets: OlyBuild seq * ?rs: IOlyWorkspaceResourceService -> OlyWorkspace
+    member LoadProject : OlyPath * CancellationToken -> unit
+
+    member FileCreated : OlyPath -> unit
+    member FileChanged : OlyPath -> unit
+    member FileDeleted : OlyPath -> unit
+    member FolderCreated : OlyPath -> unit
+    member FolderDeleted : OlyPath -> unit
+
+    member WorkspaceDirectory : OlyPath
+    member WorkspaceStateDirectory : OlyPath
+    member WorkspaceStateFileName : OlyPath
+    member WorkspaceChanged : IEvent<OlyWorkspaceChangedEvent>
+
+    static member Create : targets: OlyBuild seq * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress * workspaceDirectory: OlyPath * initialRs: OlyWorkspaceResourceSnapshot -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * workspaceDirectory: OlyPath -> OlyWorkspace
+    static member Create : targets: OlyBuild seq * progress: IOlyWorkspaceProgress * workspaceDirectory: OlyPath -> OlyWorkspace

@@ -83,12 +83,12 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
     | E.SetValue(syntaxInfo, value, rhsExpr) ->
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
-            StoreRefCellContents (E.Value(syntaxInfo, newValue)) rhsExpr
+            StoreRefCellContents syntaxInfo (E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), newValue)) rhsExpr
         | _ ->
             origExpr
 
     | E.SetContentsOfAddress(syntaxInfo, lhsExpr, rhsExpr) ->
-        if lhsExpr.Type.IsRefCell_t then
+        if lhsExpr.Type.IsRefCell_ste then
             raise(System.NotImplementedException())
         origExpr
 
@@ -96,7 +96,7 @@ let rewriteLocalExpression (cenv: cenv) (origExpr: E) =
         match cenv.localSubs.TryGetValue value.Id with
         | true, newValue ->
             let bridgeValue = createLocalBridgeValue value.Type
-            let syntaxInfoBridge = BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)
+            let syntaxInfoBridge = BoundSyntaxInfo.Generated(syntaxInfo.Syntax)
             E.Let(
                 syntaxInfoBridge,
                 BindingLocal(bridgeValue),
@@ -155,7 +155,7 @@ type RefCellRewriterCore(cenv: cenv) =
 
     override this.Rewrite(origExpr) =
         match origExpr with
-        | E.MemberDefinition(syntaxInfo1, BoundBinding.Implementation(syntaxInfo2, bindingInfo, rhsExpr)) when not bindingInfo.Value.IsLocal && bindingInfo.Value.IsFunction ->
+        | E.MemberDefinition(syntaxInfo1, BoundBinding.Implementation(syntaxInfo2, bindingInfo, rhsExpr)) when not bindingInfo.Value.HasLocalEnclosing && bindingInfo.Value.IsFunction ->
             let newRhsExpr =
                 match rhsExpr with
                 | E.Lambda _ ->

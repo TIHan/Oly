@@ -98,7 +98,7 @@ let ``Generic new type`` () =
 class Test<T> =
     field value: T
 
-    new(x: T) = { value = x }
+    new(x: T) = this { value = x }
 
 f() : () =
     let x = Test<_>(1)
@@ -114,7 +114,7 @@ open extension Int32AddExtension
 open extension Utf16AddExtension
 
 #[import("PLATFORM", "", "IntrinsicStringConcat")]
-IntrinsicStringConcat(value1: __oly_utf16, value2: __oly_utf16) : __oly_utf16
+IntrinsicStringConcat(value1: __oly_string16, value2: __oly_string16) : __oly_string16
 
 #[import("PLATFORM", "", "IntrinsicPrint")]
 IntrinsicPrint<T>(value: T) : ()
@@ -134,10 +134,10 @@ extension Int32AddExtension =
         __oly_add(value1, value2)
 
 extension Utf16AddExtension =
-    inherits __oly_utf16
-    implements Add<__oly_utf16>
+    inherits __oly_string16
+    implements Add<__oly_string16>
 
-    static overrides add(value1: __oly_utf16, value2: __oly_utf16) : __oly_utf16 =
+    static overrides add(value1: __oly_string16, value2: __oly_string16) : __oly_string16 =
         IntrinsicStringConcat(value1, value2)
 
 f() : () =
@@ -165,7 +165,7 @@ IntrinsicPrint<T>(value: T) : ()
 class Test =
     field value: __oly_int32
 
-    new(value: __oly_int32) = { value = value }
+    new(value: __oly_int32) = this { value = value }
 
 interface Add<T> =
 
@@ -275,7 +275,7 @@ f<T>(x: T, y: T): T where T: trait Add<T> =
        public field x: T
        field y: U
 
-       new(x: T, y: U) = { x = x; y = y }
+       new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
 
@@ -300,7 +300,7 @@ main (): () =
     |> ignore
 
 [<Fact>]
-let ``Example 4``() =
+let ``Example 4 - should error``() =
     let src =
         """
 open extension MaybeMonadExtension<_>
@@ -340,7 +340,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -367,7 +367,7 @@ example(): () =
 class Hoot<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension HootAddExtension<T> where T: trait Add<T> =
     inherits Hoot<T>
@@ -386,12 +386,20 @@ g<T>(x: T, y: T): T where T: trait Add<T> =
     public field x: T
     field y: U
 
-    new(x: T, y: U) = { x = x; y = y }
+    new(x: T, y: U) = this { x = x; y = y }
    let doot = X<__oly_float64>(x, 9.0)
    doot.x + y
         """
     Oly src
-    |> withCompile
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Inside a virtual function, 'T' is not allowed to solve the trait constraint type 'Add<T>'.",
+                """
+        let result = v1 + v2
+                        ^
+"""
+            )
+        ]
     |> ignore
 
 [<Fact>]
@@ -520,7 +528,7 @@ let ``HigherTypeArgument example 1``() =
 class Hoot<T> =
     field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 interface Functor<F<_>> =
 
@@ -580,7 +588,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -688,7 +696,7 @@ let ``Simple type with constructor``() =
 class Test =
     field x: __oly_int32
 
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
         """
     Oly src
     |> withCompile
@@ -703,7 +711,7 @@ test<T>(x: T) : () =
       field x: T
       field y: U
 
-      new(x: T, y: U) = { x = x; y = y }
+      new(x: T, y: U) = this { x = x; y = y }
 
     let y = X<__oly_int32>(x, 1)
         """
@@ -718,7 +726,7 @@ let ``Overloaded functions on type``() =
 class Test =
 
     static M(x: __oly_int32) : __oly_int32 = x
-    static M(x: __oly_utf16) : __oly_utf16 = x
+    static M(x: __oly_string16) : __oly_string16 = x
 
 test() : () =
     let f = Test.M(1i)
@@ -752,3 +760,86 @@ class Test =
     Oly src
     |> withCompile
     |> ignore
+
+[<Fact>]
+let ``Should not crash with an unknown indexer``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+// Immutable array
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+
+// Mutable array
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+main(): () =
+    if (Data[0].Value == Data[0])
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Identifier 'Data' not found in scope.",
+                """
+    if (Data[0].Value == Data[0])
+        ^^^^
+"""
+            )
+            ("'[]' has ambiguous functions. Candidates:
+    ([])<T>(T[], index: int32): T
+    ([])<T>(mutable T[], index: int32): T",
+                """
+    if (Data[0].Value == Data[0])
+        ^^^^^^^^^^^^^
+"""
+            )
+            ("Identifier 'Data' not found in scope.",
+                """
+    if (Data[0].Value == Data[0])
+                         ^^^^
+"""
+            )
+            ("'[]' has ambiguous functions. Candidates:
+    ([])<T>(T[], index: int32): T
+    ([])<T>(mutable T[], index: int32): T",
+                """
+    if (Data[0].Value == Data[0])
+                         ^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should get documentation summary for type``() =
+    let src =
+        """
+// This is a test
+class ~^~Test
+        """
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal("This is a test", symbolInfo.Symbol.AsType.Documentation)
+
+[<Fact>]
+let ``Should not get documentation summary for type``() =
+    let src =
+        """
+// This is a test
+
+class ~^~Test
+        """
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal("", symbolInfo.Symbol.AsType.Documentation)

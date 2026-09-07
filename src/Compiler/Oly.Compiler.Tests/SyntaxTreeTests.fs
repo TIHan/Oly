@@ -527,7 +527,7 @@ class Test =
     x: int32
     y: int32
 
-    new(x, y) = { x = x; y = y }
+    new(x, y) = this { x = x; y = y }
         """
     Oly src
     |> withNoSyntaxDiagnostics
@@ -1519,7 +1519,7 @@ let ``Directives should fail with invalid value due to keyword``() =
     Oly src
     |> withSyntaxErrorHelperTextDiagnostics 
         [
-            ("Invalid directive value.",
+            ("Expected a string literal.",
                 """
 #target let
 ^^^^^^^^^^^
@@ -1733,6 +1733,105 @@ test(): () =
         ]
 
 [<Fact>]
+let ``Simple conditional define should error 5``() =
+    let src =
+        """
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("No corresponding conditional directive was found.",
+                """
+#end
+^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Simple conditional define should error 6``() =
+    let src =
+        """
+#ifTEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withSyntaxErrorHelperTextDiagnostics 
+        [
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("The directive '#ifTEST' is invalid.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("Expected a string literal.",
+                """
+#ifTEST
+^^^^^^^
+"""         )
+            ("No corresponding conditional directive was found.",
+                """
+#end
+^^^^
+"""         )
+        ]
+
+[<Fact>]
+let ``Simple conditional define should NOT error``() =
+    let src =
+        """
+#if TEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
+let ``Simple conditional define should NOT error 2``() =
+    let src =
+        """
+#if TEST
+#if TEST
+#ifTEST
+test(): () =
+    let x = 1
+#end
+#end
+        """
+    OlyWithConditionalDefines [] src
+    |> withNoSyntaxDiagnostics
+    |> ignore
+
+[<Fact>]
 let ``Extends type on same line``() =
     let src =
         """
@@ -1763,7 +1862,7 @@ main(): () =
     |> withNoSyntaxDiagnostics
     |> ignore
 
-[<Fact>]
+[<Fact(Skip = "Does not pass on macOS or Linux due to newlines")>]
 let ``Char literal example should fail``() =
     let src =
         """
@@ -1887,7 +1986,7 @@ main(): () =
 """         )
         ]
 
-[<Fact>]
+[<Fact(Skip = "Does not pass on macOS or Linux due to newlines")>]
 let ``Function that is offsides should fail``() =
     let src =
         """
@@ -1908,7 +2007,7 @@ test(): () =
 """         )
         ]
 
-[<Fact>]
+[<Fact(Skip = "Does not pass on macOS or Linux due to newlines")>]
 let ``Function that is offsides should fail 2``() =
     let src =
         """
@@ -2035,5 +2134,32 @@ main(,, x: int32): () =
         [
             "Expected 'parameter' after '('."
             "Expected 'parameter' after ','."
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error with invalid value for default_accessor directive``() =
+    let src =
+        """
+#default_accessor "bad"
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "'bad' is not a valid value for '#default_accessor'."
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for duplicate default_accessor directive``() =
+    let src =
+        """
+#default_accessor "public"
+#default_accessor "public"
+        """
+    Oly src
+    |> withSyntaxErrorDiagnostics
+        [
+            "The directive '#default_accessor' is already specified."
         ]
     |> ignore

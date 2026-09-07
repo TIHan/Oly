@@ -51,7 +51,7 @@ let rec deterministicEnclosingName (enclosing: EnclosingSymbol) =
 
 and deterministicEntityName (ent: EntitySymbol) =
     let enclosingName = deterministicEnclosingName ent.Enclosing
-    if ent.IsAnonymous then
+    if ent.IsAnonymousShape || ent.IsAnonymousModule then
         let tyNameArgs =
             ent.TypeArguments
             |> ImArray.map (fun x ->
@@ -62,7 +62,7 @@ and deterministicEntityName (ent: EntitySymbol) =
         enclosingName + "_" + ent.Name
 
 and deterministicTypeName (ty: TypeSymbol) =
-    match ty.TryEntity with
+    match ty.TryEntityNoAlias with
     | ValueSome ent -> deterministicEntityName ent
     | _ -> ty.Name
 
@@ -74,7 +74,7 @@ type cenv =
         cachedStrings: Dictionary<string, OlyILStringHandle>
         cachedFuncSpecs: Dictionary<int64, OlyILFunctionSpecificationHandle>
         cachedFuncDefs: Dictionary<int64, OlyILFunctionDefinitionHandle>
-        cachedEntRefs: Dictionary<int64, OlyILEntityReferenceHandle>
+        cachedEntRefs: Dictionary<EntitySymbol, OlyILEntityReferenceHandle>
         cachedEntDefs: Dictionary<int64, OlyILEntityDefinitionHandle>
         cachedFieldDefs: Dictionary<int64, OlyILFieldDefinitionHandle>
         cachedDbgSrcs: Dictionary<OlyPath, OlyILDebugSourceHandle>
@@ -129,11 +129,20 @@ let emitPathAsILDebugSourceCached cenv (path: OlyPath) =
         ilHandle
 
 let emitTextRange cenv (syntaxNode: OlySyntaxNode) =
-    let textRange = syntaxNode.GetTextRange(CancellationToken.None)
-    let syntaxTree = syntaxNode.Tree
-    let s = textRange.Start
-    let e = textRange.End
-    OlyILDebugSourceTextRange(emitPathAsILDebugSourceCached cenv syntaxTree.Path, s.Line, s.Column, e.Line, e.Column)
+    if syntaxNode.IsDummy then
+        OlyILDebugSourceTextRange.Empty
+    else
+        let textRange = syntaxNode.GetTextRange(CancellationToken.None)
+        let syntaxTree = syntaxNode.Tree
+        let s = textRange.Start
+        let e = textRange.End
+        OlyILDebugSourceTextRange.Create(emitPathAsILDebugSourceCached cenv syntaxTree.Path, s.Line, s.Column, e.Line, e.Column)
+
+let emitTextRangeBySyntaxInfo cenv (syntaxInfo: BoundSyntaxInfo) =
+    if syntaxInfo.IsGenerated then
+        OlyILDebugSourceTextRange.Empty
+    else
+        emitTextRange cenv syntaxInfo.Syntax
 
 [<RequireQualifiedAccess>]
 type LocalContext =
@@ -150,7 +159,6 @@ type env =
         context: LocalContext
         isReturnable: bool
         isInInstance: bool
-        isInConstructor: bool
         isInArg: bool
         locals: System.Collections.Immutable.ImmutableHashSet<int64>
     }
@@ -160,7 +168,6 @@ type env =
             context = LocalContext.Namespace Seq.empty
             isReturnable = false
             isInInstance = false
-            isInConstructor = false
             isInArg = false
             locals = System.Collections.Immutable.ImmutableHashSet<_>.Empty
         }
@@ -180,8 +187,11 @@ let rec GenWitnessArguments cenv env (witnessArgs: WitnessSolution imarray) =
                     |> Option.map (fun x -> GenFunctionAsILFunctionReference cenv env x)
                 OlyILWitness.Implementation(index, ilKind, ilTyExt, ilSpecificAbstractFuncInstOpt)
                 |> Some
-            | WitnessSymbol.TypeParameter _
-            | WitnessSymbol.Type _ ->
+            | WitnessSymbol.TypeParameter _ ->
+                None
+            | WitnessSymbol.Type(ty) ->
+                if ty.IsError_ste then
+                    failwith "Unexpected error type in witness solution"
                 None
         | _ ->
             failwith "No witnesses found"
@@ -243,8 +253,8 @@ and GenString cenv (value: string) =
 
 and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
-    OlyAssert.False(ent.IsAnonymous)
-    match cenv.cachedEntRefs.TryGetValue ent.Id with
+    OlyAssert.NotEqual(ent.Name, AnonymousEntityName)
+    match cenv.cachedEntRefs.TryGetValue ent with
     | true, handle -> handle
     | _ ->
         let name =
@@ -253,15 +263,13 @@ and GenEntityAsILEntityReference (cenv: cenv) env (ent: EntitySymbol) =
                 if ent.IsAnonymous then
                     cenv.GenerateName()
                 else
-                    cenv.GenerateName() + "_" + ent.Name
-            elif ent.IsAnonymous then
-                failwith "Entity must have a name if it is not local."                       
+                    cenv.GenerateName() + "_" + ent.Name             
             else
                 ent.Name
 
         let ilEntRef = OlyILEntityReference(emitILEnclosingForEntity cenv env ent, GenString cenv name, ent.LogicalTypeParameterCount)
         let handle = cenv.assembly.AddEntityReference(ilEntRef)
-        cenv.cachedEntRefs.[ent.Id] <- handle
+        cenv.cachedEntRefs.[ent] <- handle
         handle
 
 and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
@@ -271,9 +279,9 @@ and GenEntityAsILEntityInstance cenv env (ent: EntitySymbol) =
 #endif
 
     let asmIdentity =
-        match ent.ContainingAssembly with
-        | Some(asm) -> asm.Identity
-        | _ -> failwith "Expected a containing assembly when emitting a entity instance."
+        let asm = ent.ContainingAssembly
+        OlyAssert.NotEqual("__oly_invalid", asm.Name)
+        asm.Identity
 
     let ilTyInst = emitILTypes cenv env ent.TypeArguments
 
@@ -302,9 +310,9 @@ and GenEntityAsILEntityInstanceOrConstructor cenv env (ent: EntitySymbol) =
         OlyAssert.True(ent.IsFormal)
 
         let asmIdentity =
-            match ent.ContainingAssembly with
-            | Some(asm) -> asm.Identity
-            | _ -> failwith "Expected a containing assembly when emitting a entity instance."
+            let asm = ent.ContainingAssembly
+            OlyAssert.NotEqual("__oly_invalid", asm.Name)
+            asm.Identity
 
         if asmIdentity = cenv.assembly.Identity || ent.IsAnonymousShape then
             OlyILEntityConstructor(GenEntityAsILEntityDefinition cenv env ent)
@@ -344,7 +352,7 @@ and emitILFunctionTypeInfo cenv env (inputTy: TypeSymbol) (returnTy: TypeSymbol)
         |> ImArray.map (emitILType cenv env)
 
     let ilReturnTy =
-        if returnTy.IsAnyFunction then
+        if returnTy.IsAnyFunction_ste then
             emitILType cenv env returnTy
         else
             GenReturnType cenv env returnTy
@@ -367,6 +375,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             OlyILTypeVoid
         else
             OlyILTypeUnit
+    | TypeSymbol.RealUnit ->
+        OlyILTypeUnit
     | TypeSymbol.Void ->
         OlyILTypeVoid
     | TypeSymbol.Int8 ->
@@ -393,8 +403,8 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeBool
     | TypeSymbol.Char16 ->
         OlyILTypeChar16
-    | TypeSymbol.Utf16 ->
-        OlyILTypeUtf16
+    | TypeSymbol.String16 ->
+        OlyILTypeString16
     | TypeSymbol.Entity(ent) ->
         let env = setLocalContextWithEnclosing env ent.Enclosing
         OlyILTypeEntity(GenEntityAsILEntityInstanceOrConstructor cenv env ent)
@@ -430,11 +440,16 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
         OlyILTypeConstantInt32(n)
 
     | TypeSymbol.ByRef(innerTy, kind) ->
-        match kind with
-        | ByRefKind.ReadWrite ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadWrite)
-        | ByRefKind.Read ->
-            OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.Read)
+        OlyAssert.False(ty.IsTypeConstructor_steea)
+        let ilTy =
+            match kind with
+            | ByRefKind.ReadWrite ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadWrite)
+            | ByRefKind.ReadOnly ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.ReadOnly)
+            | ByRefKind.WriteOnly ->
+                OlyILTypeByRef(emitILType cenv env innerTy, OlyILByRefKind.WriteOnly)
+        ilTy
 
     | TypeSymbol.NativeInt -> OlyILTypeNativeInt
     | TypeSymbol.NativeUInt -> OlyILTypeNativeUInt
@@ -449,19 +464,36 @@ and emitILTypeAux cenv env canEmitVoidForUnit canStripBuiltIn (ty: TypeSymbol) =
             | ArrayKind.Immutable -> OlyILArrayKind.Immutable
             | ArrayKind.Mutable -> OlyILArrayKind.Mutable
         OlyILTypeArray(emitILType cenv env elementTy, rank, ilKind)
+    | TypeSymbol.FixedArray(elementTy, lengthTy, kind) -> 
+        let ilKind =
+            match kind with
+            | ArrayKind.Immutable -> OlyILArrayKind.Immutable
+            | ArrayKind.Mutable -> OlyILArrayKind.Mutable
+        OlyILTypeFixedArray(emitILType cenv env elementTy, emitILType cenv env lengthTy, ilKind)
 
     | TypeSymbol.EagerInferenceVariable _ ->
         OlyAssert.Fail("Unable to code-gen an eager inference variable type.")
 
     | TypeSymbol.ForAll(tyPars, innerTy) ->
-        if innerTy.IsBuiltIn then
-            raise(System.NotSupportedException("For all types are not supported in IL."))
-        else
-            let ent = innerTy.TryEntity.Value
+        let innerTy =
+            if canStripBuiltIn then
+                stripTypeEquationsAndBuiltIn innerTy
+            else
+                innerTy
+        match innerTy with
+        | TypeSymbol.ByRef _
+        | TypeSymbol.Tuple _ ->
+            OlyILTypeForAll(
+                emitILTypeParameters cenv env tyPars,
+                emitILType cenv env innerTy
+            )
+        | TypeSymbol.Entity(ent) ->
             OlyILTypeForAll(
                 emitILTypeParameters cenv env tyPars,
                 OlyILTypeEntity(GenEntityAsILEntityInstance cenv env ent)
             )
+        | _ ->
+            raise(System.NotSupportedException("These kinds of ForAll types are not supported in IL."))
 
     | TypeSymbol.Error _ ->
         failwithf "Unable to code-gen an error type. Current context: %A" env.context
@@ -472,23 +504,23 @@ and emitILTypes cenv env (tys: TypeSymbol imarray) =
 
 and GenReturnType (cenv: cenv) env (ty: TypeSymbol) =
 #if DEBUG || CHECKED
-    if not ty.TypeParameters.IsEmpty && ty.IsFormal then
+    if not ty.TypeParameters.IsEmpty && ty.IsFormal_steea then
         failwith "Unexpected formal type."
 #endif
     match stripTypeEquations ty with
     | TypeSymbol.Unit -> OlyILTypeVoid
     | ty -> 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
         emitILType cenv env ty
 
 and getAssemblyIdentity (ent: EntitySymbol) =
     let asmIdentity =
-        match ent.ContainingAssembly with
-        | Some(asm) -> asm.Identity
-        | _ -> failwith "Expected a containing assembly when emitting a entity reference."
+        let asm = ent.ContainingAssembly
+        OlyAssert.NotEqual("__oly_invalid", asm.Name)
+        asm.Identity
     asmIdentity
 
 and emitILEnclosingNamespace cenv env asmIdentity (ent: EntitySymbol) =
@@ -524,7 +556,7 @@ and emitILEnclosingForMember cenv env (func: IValueSymbol) =
     | EnclosingSymbol.Entity(ent) ->
         emitILEnclosingEntityNoNamespace cenv env ent
     | EnclosingSymbol.Witness(concreteTy, tr) ->
-        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal_steea)
         OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
@@ -544,7 +576,7 @@ and emitILEnclosingForEntity cenv env (ent: EntitySymbol) =
     | EnclosingSymbol.RootNamespace ->
         OlyILEnclosing.Namespace(ImArray.empty, getAssemblyIdentity ent)
     | EnclosingSymbol.Witness(concreteTy, tr) ->
-        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal)
+        OlyAssert.True(concreteTy.TypeParameters.IsEmpty || not concreteTy.IsFormal_steea)
         OlyAssert.True(tr.TypeParameters.IsEmpty || not tr.IsFormal)
         OlyILEnclosing.Witness(emitILType cenv env concreteTy, GenEntityAsILEntityInstance cenv env tr)
 
@@ -567,13 +599,14 @@ and GenLocalParameters cenv env (pars: ILocalParameterSymbol romem) =
 
         let parTy = par.Type
 #if DEBUG || CHECKED
-        if not parTy.TypeParameters.IsEmpty && parTy.IsFormal then
+        if not parTy.TypeParameters.IsEmpty && parTy.IsFormal_steea then
             failwith "Unexpected formal type."
-        if parTy.IsTypeConstructor then
+        if parTy.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
 
-        OlyILParameter(nameHandle, emitILType cenv env parTy, canInlineClosure)
+        let attrs = GenAttributes cenv env par.Attributes
+        OlyILParameter(attrs, nameHandle, emitILType cenv env parTy, canInlineClosure)
     )
 
 and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) =
@@ -606,7 +639,7 @@ and emitILTypeParameters cenv env (typeParameters: TypeParameterSymbol imarray) 
     )
 
 and GenFieldAsILFieldReference cenv env (field: IFieldSymbol) =
-    OlyILFieldReference(emitILEnclosingForMember cenv env field, GenString cenv field.Name, emitILType cenv env field.Type)
+    OlyILFieldReference(emitILEnclosingForMember cenv env field, GenString cenv field.Name)
 
 and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
     OlyAssert.True(field.IsFormal)
@@ -638,15 +671,14 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
             else
                 OlyILFieldFlags.None
 
-        let ilAttrs =
-            field.Attributes
-            |> (GenAttributes cenv env)
-
         let ilFieldDef = 
             match field.Constant with
             | ValueSome(constValue) ->
                 OlyILFieldConstant(GenString cenv field.Name, emitILType cenv env field.Type, GenConstant cenv env constValue, memberFlags)
             | _ ->
+                let ilAttrs =
+                    field.Attributes
+                    |> (GenAttributes cenv env)
                 OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 
@@ -662,7 +694,7 @@ and GenFunctionAsILFunctionSpecificationNoCache (cenv: cenv) (env: env) (func: I
     | EnclosingSymbol.Entity(ent) when ent.IsModule && func.IsAbstract -> failwith "invalid"
     | _ -> ()
     let name =
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             cenv.GenerateName() + "_" + func.Name
         else
             func.Name
@@ -721,7 +753,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         if func.Enclosing.IsNamespace then
             failwithf "Function '%s''s enclosing is a namespace; must be a type." func.Name
 
-        if func.IsConstructor && (func.IsVirtual || func.IsAbstract) then
+        if func.IsConstructor && (func.IsVirtual || func.IsAbstract) && not func.Enclosing.IsShape then
             failwith "A constructor cannot be virtual or abstract."
 
         let ilMemberFlags =
@@ -748,6 +780,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilFuncFlags =
             if func.IsMutable then
+                OlyAssert.True(func.Enclosing.IsStruct || func.Enclosing.IsTypeExtensionExtendingStruct)
                 ilFuncFlags ||| OlyILFunctionFlags.Mutable
             else
                 ilFuncFlags
@@ -833,11 +866,11 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         if func.IsStaticLocalFunction then
             OlyAssert.True(enclosingEnt.IsFormal)
             let funcDefs =
-                match cenv.extraFuncDefs.TryGetValue enclosingEnt.Id with
+                match cenv.extraFuncDefs.TryGetValue enclosingEnt.FormalId with
                 | true, funcDefs -> funcDefs
                 | _ ->
                     let funcDefs = ResizeArray()
-                    cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefs.[enclosingEnt.FormalId] <- funcDefs
                     cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
@@ -845,11 +878,11 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         elif (func.FunctionFlags.HasFlag(FunctionFlags.Extra)) then
             OlyAssert.True(enclosingEnt.IsFormal)
             let funcDefs =
-                match cenv.extraFuncDefs.TryGetValue enclosingEnt.Id with
+                match cenv.extraFuncDefs.TryGetValue enclosingEnt.FormalId with
                 | true, funcDefs -> funcDefs
                 | _ ->
                     let funcDefs = ResizeArray()
-                    cenv.extraFuncDefs.[enclosingEnt.Id] <- funcDefs
+                    cenv.extraFuncDefs.[enclosingEnt.FormalId] <- funcDefs
                     cenv.extraFuncDefsEnclosing.[func.Formal.Id] <- enclosingEnt
                     funcDefs
             funcDefs.Add(ilFuncDefHandle)
@@ -906,7 +939,7 @@ and GenConstant cenv env (constant: ConstantSymbol) =
     | ConstantSymbol.Array(elementTy, elements) ->
         OlyILConstant.Array(emitILType cenv env elementTy, elements |> ImArray.map (GenConstant cenv env))
     | ConstantSymbol.Char16(value) -> OlyILConstant.Char16(value)
-    | ConstantSymbol.Utf16(value) -> OlyILConstant.Utf16(value)
+    | ConstantSymbol.String16(value) -> OlyILConstant.String16(value)
     | ConstantSymbol.TypeVariable(tyPar) -> 
         let index, ilKind = GenTypeParameterAsILTypeVariableInfo env tyPar
         OlyILConstant.TypeVariable(index, ilKind)
@@ -924,7 +957,11 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Unmanaged _ ->
         None
     | AttributeSymbol.Import(platform, path, name) ->
-        let platform = GenString cenv platform
+        let platform = 
+            if String.IsNullOrEmpty platform then
+                OlyILTableIndex(OlyILTableKind.String, -1)
+            else
+                GenString cenv platform
         let path = 
             if path.Length = 1 && String.IsNullOrWhiteSpace path[0] then
                 ImArray.empty
@@ -933,8 +970,13 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
         let name = GenString cenv name
         OlyILAttribute.Import(platform, path, name) |> Some
     | AttributeSymbol.Intrinsic(name) ->
-        let name = GenString cenv name
-        OlyILAttribute.Intrinsic(name) |> Some
+        if name = "importer" then
+            // The "importer" intrinsic is specific to the front-end compiler.
+            // Therefore, we should not include this in the IL.
+            None
+        else
+            let name = GenString cenv name
+            OlyILAttribute.Intrinsic(name) |> Some
     | AttributeSymbol.Export ->
         OlyILAttribute.Export |> Some
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _flags) ->
@@ -975,7 +1017,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
     if ent.IsShape then
         OlyAssert.False(ent.Enclosing.IsShape && not ent.IsAnonymous)
-    elif ent.IsAnonymous then
+    elif ent.IsAnonymousShape || ent.IsAnonymousModule then
         match ent.Enclosing with
         | EnclosingSymbol.RootNamespace -> ()
         | _ -> OlyAssert.Fail("Expected RootNamespace for anonymous entity.")
@@ -1037,6 +1079,8 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEntFlags = if ent.IsAutoOpenable then ilEntFlags ||| OlyILEntityFlags.AutoOpen else ilEntFlags
     let ilEntFlags = if ent.IsSealed then ilEntFlags ||| OlyILEntityFlags.Final else ilEntFlags
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
+    let ilEntFlags = if ent.IsAttributeImporter then ilEntFlags ||| OlyILEntityFlags.AttributeImporter else ilEntFlags
+    let ilEntFlags = if ent.IsAnonymous then ilEntFlags ||| OlyILEntityFlags.Anonymous else ilEntFlags
     let ilEntFlags = 
         if ent.IsPrivate then
             if ent.Enclosing.IsNamespace then
@@ -1066,20 +1110,21 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             else
                 cenv.GenerateName() + "_" + ent.Name
         elif ent.IsAnonymous && not ent.IsShape then
-            cenv.GenerateName()                    
+            if ent.Name = AnonymousEntityName then
+                cenv.GenerateName()     
+            else
+                ent.Name
         else
             ent.Name
 
     let ilEnclosing = 
-        if ent.IsAnonymous then
-            OlyILEnclosing.Namespace(ImArray.empty, cenv.assembly.Identity)
-        else
-            emitILEnclosingForEntity cenv env ent
+         emitILEnclosingForEntity cenv env ent
     let ilName = 
-        if ent.IsShape && ent.IsAnonymous then
+        if ent.IsAnonymousShape then
             OlyILTableIndex(OlyILTableKind.String, -1)
         else
             GenString cenv name
+
     let ilTyPars = 
         let enclosingTyParCount =
             match ent.Enclosing with
@@ -1152,17 +1197,13 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                         cenv.assembly.EntryPoint <- Some(ilEnclosingTy, ilFuncDefHandle)
                     ilFuncDefHandle)
 
-            match cenv.extraFuncDefs.TryGetValue ent.Id with
+            match cenv.extraFuncDefs.TryGetValue ent.FormalId with
             | true, extra ->
                 Seq.append ilFuncDefs extra
                 |> ImArray.ofSeq
             | _ ->
                 ilFuncDefs
                 |> ImArray.ofSeq
-
-
-        if ent.IsEnum && ent.TryEnumUnderlyingType.IsNone then
-            failwith "Enum type is invalid to emit."
 
 #if DEBUG || CHECKED
         if ent.IsEnum || ent.IsNewtype then   
@@ -1192,11 +1233,14 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 
 and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefinitionHandle =
     OlyAssert.True(ent.IsFormal)
-    match cenv.cachedEntDefs.TryGetValue ent.Id with
+    OlyAssert.False(if ent.IsShape then false else ent.Flags.HasFlag(EntityFlags.Retargeted))
+    match cenv.cachedEntDefs.TryGetValue ent.FormalId with
     | true, res -> res
     | _ ->
-        let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinition()
-        cenv.cachedEntDefs.Add(ent.Id, ilEntDefHandleFixup)
+        let ilEntDefHandleFixup = cenv.assembly.NextEntityDefinitionHandle()
+        if not(String.IsNullOrWhiteSpace ent.Documentation) then
+            cenv.assembly.SetEntityDefinitionDocumentation(ilEntDefHandleFixup, ent.Documentation)
+        cenv.cachedEntDefs.Add(ent.FormalId, ilEntDefHandleFixup)
         if ent.IsAnonymousShape then
             let result = GenEntityDefinitionNoCache cenv env ent
             OlyAssert.Equal(result, ilEntDefHandleFixup)
@@ -1206,7 +1250,7 @@ and GenEntityAsILEntityDefinition cenv env (ent: EntitySymbol) : OlyILEntityDefi
 
 and DoesILEntityDefinitionExists cenv (ent: EntitySymbol) =
     OlyAssert.True(ent.IsFormal)
-    cenv.cachedEntDefs.ContainsKey(ent.Id)
+    cenv.cachedEntDefs.ContainsKey(ent.FormalId)
 
 and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
     match lit with
@@ -1236,8 +1280,8 @@ and GenValueLiteral cenv env (lit: BoundLiteral) : OlyILValue =
         OlyILValue.Constant(OlyILConstant.False)
     | BoundLiteral.Constant(ConstantSymbol.Char16(value=value)) ->
         OlyILValue.Constant(OlyILConstant.Char16(value))
-    | BoundLiteral.Constant(ConstantSymbol.Utf16(value=value)) ->
-        OlyILValue.Constant(OlyILConstant.Utf16(value))
+    | BoundLiteral.Constant(ConstantSymbol.String16(value=value)) ->
+        OlyILValue.Constant(OlyILConstant.String16(value))
     | BoundLiteral.NullInference ty ->
         OlyILValue.Null(emitILType cenv env ty)
     | BoundLiteral.NumberInference(lazyValue, _) ->
@@ -1274,7 +1318,7 @@ and GenTryExpression (cenv: cenv) (env: env) (bodyExpr: BoundExpression) (catchC
         |> ImArray.map (function
             | BoundCatchCase.CatchCase(_, value, catchBodyExpr) ->
 #if DEBUG || CHECKED
-                if value.Type.IsTypeConstructor then
+                if value.Type.IsTypeConstructor_steea then
                     failwith "Unexpected type constructor."
 #endif
                 let ilTy = emitILType cenv env value.Type
@@ -1309,13 +1353,21 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
         else
             prevEnv
 
-    let syntaxNode =
-        // We try to get the root name for consistent debugging experiences when using
-        // fully-qualified values i.e. 'ModuleA.ModuleB.callingFunction()'
-        expr.Syntax.GetRootNameIfPossible()
-    let ilTextRange = emitTextRange cenv syntaxNode
+    let ilTextRange = 
+        match expr with
+        | E.EntityDefinition _ ->
+            OlyILDebugSourceTextRange.Empty
+        | _ ->
+            if expr.IsGenerated then
+                OlyILDebugSourceTextRange.Empty
+            else
+                emitTextRange cenv expr.Syntax
     match expr with
-    | E.None _ -> OlyILExpressionNone
+    | E.None(syntaxInfo) -> 
+        if syntaxInfo.Syntax.IsDummy then
+            OlyILExpressionNone
+        else
+            OlyILExpression.None(ilTextRange)
 
     | E.Try(_, bodyExpr, catchCases, finallyBodyExprOpt) ->
         GenTryExpression cenv env bodyExpr catchCases finallyBodyExprOpt
@@ -1327,7 +1379,7 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
                 OlyILOperation.Cast(GenExpression cenv env bodyExpr, emitILType cenv env exprTy)
             )
         | Some(witnessArg) ->
-            if not witnessArg.IsTypeExtension && not witnessArg.IsTypeVariable then
+            if not witnessArg.IsTypeExtension_ste && not witnessArg.IsAnyVariable_ste then
                 failwith "Expected type extension or type parameter."
             OlyILExpression.Operation(ilTextRange, 
                 OlyILOperation.Witness(
@@ -1345,45 +1397,26 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
       // TODO: We should throw if we actually encounter this pattern. Should be handled in lowering.
       E.Sequential(syntaxInfo,
         expr1,
-        E.Sequential(BoundSyntaxInfo.Generated(cenv.syntaxTree), expr2, expr3, NormalSequential),
+        E.Sequential(BoundSyntaxInfo.Generated(expr2.Syntax), expr2, expr3, NormalSequential),
         NormalSequential
       )
       |> GenExpression cenv prevEnv
 
-    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
-        let syntaxDebugNode =
-            match syntaxInfo.Syntax with
-            | :? OlySyntaxExpression as syntaxExpr ->
-                match syntaxExpr with
-                | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
-                    match syntaxBinding with
-                    | OlySyntaxBinding.Implementation(_, equalToken, _) ->
-                        equalToken :> OlySyntaxNode
-                    | _ ->
-                        cenv.syntaxTree.DummyNode
-                | _ ->
-                    cenv.syntaxTree.DummyNode
-            | _ ->
-                cenv.syntaxTree.DummyNode
-        GenLetExpression cenv possiblyReturnableEnv syntaxDebugNode bindingInfo rhsExpr (Some bodyExpr)
+    | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
+        GenLetExpression cenv possiblyReturnableEnv bindingInfo rhsExpr (Some bodyExpr)
 
     | E.Sequential(_, expr1, expr2, _) ->
         match expr1, expr2 with
-        | E.None _, E.None _ ->
+        | E.None _, E.None _ when ((expr1.IsGenerated && expr2.IsGenerated) || (not cenv.assembly.IsDebuggable)) ->
             OlyILExpressionNone
-        | E.None _, _ ->
+        | E.None _, _ when (expr1.IsGenerated || (not cenv.assembly.IsDebuggable)) ->
             GenExpression cenv possiblyReturnableEnv expr2
+        | _, E.None _ when (expr2.IsGenerated || (not cenv.assembly.IsDebuggable)) ->
+            GenExpression cenv possiblyReturnableEnv expr1
         | _ ->
             let ilExpr1 = GenExpression cenv env expr1
             let ilExpr2 = GenExpression cenv possiblyReturnableEnv expr2
-
-            match ilExpr1, ilExpr2 with
-            | OlyILExpression.None _, OlyILExpression.None _ ->
-                OlyILExpressionNone
-            | OlyILExpression.None _, _ ->
-                ilExpr2
-            | _ ->
-                OlyILExpression.Sequential(ilExpr1, ilExpr2)
+            OlyILExpression.Sequential(ilExpr1, ilExpr2)
 
     | NewRefCell(expr) ->
         let ilElementTy = emitILType cenv env expr.Type
@@ -1406,26 +1439,27 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.ErrorWithType _ ->
         failwith "Cannot generate an error expression."
 
-    | E.NewTuple(_, exprs, ty) ->
-        if exprs.Length <= 1 then
-            failwith "Cannot generate an invalid tuple expression."
+    | E.NewTuple(_, exprs, exprTy) ->
+        OlyAssert.True(exprTy.IsTuple_ste)
+        OlyAssert.False(exprTy.IsOneItemTuple)
+        OlyAssert.Equal(exprs.Length, exprTy.TypeArguments.Length)
 
-        let ilParTys =
-            exprs
-            |> ImArray.map (fun expr -> emitILType cenv env expr.Type)
+        let ilItemTys =
+            exprTy.TypeArguments
+            |> ImArray.map (emitILType cenv env)
 
         let ilArgExprs =
             exprs
             |> ImArray.map (fun expr -> GenExpression cenv { env with isInArg = true } expr)
 
         let ilNameHandles =
-            match stripTypeEquationsAndBuiltIn ty with
+            match stripTypeEquationsAndBuiltIn exprTy with
             | TypeSymbol.Tuple(_, names) ->
                 GenTupleNames cenv names
             | _ ->
                 ImArray.empty
 
-        let ilOp = OlyILOperation.NewTuple(ilParTys, ilArgExprs, ilNameHandles)
+        let ilOp = OlyILOperation.NewTuple(ilItemTys, ilArgExprs, ilNameHandles)
         OlyILExpression.Operation(ilTextRange, ilOp)
 
     | E.NewArray(_, _, exprs, exprTy) ->
@@ -1437,18 +1471,25 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         let ilKind =
             match stripTypeEquationsAndBuiltIn exprTy with
-            | TypeSymbol.Array(kind=ArrayKind.Immutable) ->
+            | TypeSymbol.Array(kind=ArrayKind.Immutable)
+            | TypeSymbol.FixedArray(kind=ArrayKind.Immutable) ->
                 OlyILArrayKind.Immutable
             | _ ->
                 OlyILArrayKind.Mutable
 
-        let ilOp = OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs)
+        let ilOp = 
+            match stripTypeEquations exprTy with
+            | TypeSymbol.FixedArray(_, lengthTy, _) ->
+                OlyILOperation.NewFixedArray(ilElementTy, emitILType cenv env lengthTy, ilKind, ilArgExprs)
+            | _ ->
+                OlyILOperation.NewArray(ilElementTy, ilKind, ilArgExprs)
+
         OlyILExpression.Operation(ilTextRange, ilOp)
 
     | E.Unit _ ->
         OlyILExpression.Value(ilTextRange, OlyILValue.Unit)
 
-    | E.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, flags) ->
+    | E.Call(_, receiverOpt, witnessArgs, argExprs, value, flags) ->
         OlyAssert.False(value.IsProperty)
         OlyAssert.False(value.IsInvalid)
         OlyAssert.False(flags.HasFlag(CallFlags.Partial))
@@ -1457,17 +1498,17 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         // TODO: Just turn this into an assert since it is technically legal to do it in the Oly runtime.
         match value.Enclosing with
-        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsAnyStruct ->
+        | EnclosingSymbol.Entity(ent) when isVirtualCall && ent.IsStruct ->
             failwith "Virtual call on a struct function."
         | _ ->
             ()
             
-        GenCallExpression cenv possiblyReturnableEnv syntaxInfo receiverOpt witnessArgs argExprs value isVirtualCall
+        GenCallExpression cenv possiblyReturnableEnv ilTextRange receiverOpt witnessArgs argExprs value isVirtualCall
 
     | E.EntityDefinition(_, body, ent) ->
         // It may be possible that several local expressions may contain
         // the same local entity definition. If so, only do it once.
-        if not ent.Enclosing.IsLocalEnclosing || cenv.funEnv.localEntities.Add(ent.Id) then
+        if not ent.Enclosing.IsLocalEnclosing || cenv.funEnv.localEntities.Add(ent.FormalId) then
             GenEntityDefinitionNoCache cenv env ent
             |> ignore
             GenExpression cenv (setLocalContext env ent) body
@@ -1486,22 +1527,12 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
     | E.MemberDefinition(_, binding) ->
 #if DEBUG || CHECKED
-        OlyAssert.False(binding.Info.Value.IsLocal)
+        OlyAssert.False(binding.Info.Value.HasLocalEnclosing)
         OlyAssert.True(binding.Info.Value.IsFormal)
 #endif
         match binding with
-        | BoundBinding.Implementation(syntaxInfo, bindingInfo, rhs) when not bindingInfo.Value.IsField ->
-            let syntaxDebugNode =
-                match syntaxInfo.Syntax with
-                | :? OlySyntaxBinding as syntaxBinding ->
-                    match syntaxBinding with
-                    | OlySyntaxBinding.Implementation(_, equalToken, _) ->
-                        equalToken :> OlySyntaxNode
-                    | _ ->
-                        cenv.syntaxTree.DummyNode
-                | _ ->
-                    cenv.syntaxTree.DummyNode
-            GenMemberDefinitionExpression cenv env syntaxDebugNode bindingInfo rhs None
+        | BoundBinding.Implementation(_, bindingInfo, rhs) when not bindingInfo.Value.IsField ->
+            GenMemberDefinitionExpression cenv env bindingInfo rhs None
 
         | BoundBinding.Signature(bindingInfo=bindingInfo) when bindingInfo.Value.IsFunction ->
             GenFunctionAsILFunctionDefinition cenv env (bindingInfo.Value :?> IFunctionSymbol)
@@ -1523,20 +1554,18 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
     | E.GetField(receiver=receiver;field=field) ->
         GenGetFieldExpression cenv env ilTextRange ValueNone receiver field
 
-    | E.SetField(receiver=receiver;field=field;rhs=rhs) ->
-        if (not env.isInConstructor && not field.IsMutable) ||
-            // TODO: Does not take into account subsumption
-           (env.isInConstructor && not (areEnclosingsEqual env.context.RealEntity.AsEnclosing field.Enclosing)) then
+    | E.SetField(receiver=receiver;field=field;rhs=rhs;isCtorInit=isCtorInit) ->
+        if (not field.IsMutable && not isCtorInit) then
             failwith ($"Field must be mutable. Field: {field.Name}, EnclosingType: {field.Enclosing.AsType.DebugName}")
         GenSetFieldExpression cenv env ilTextRange (Some receiver) field rhs
 
     | E.SetValue(value=value;rhs=rhs) ->
 #if DEBUG || CHECKED
-        if value.IsLocal && not value.IsMutable then
+        if value.HasLocalEnclosing && not value.IsMutable then
             failwith "Value must be mutable."
 
         OlyAssert.False(value.IsFunction)
-        OlyAssert.False(value.Type.IsByRef_t)
+        OlyAssert.False(value.Type.IsAnyByRef_ste)
 #endif
         GenSetValueExpression cenv env ilTextRange value rhs
 
@@ -1556,14 +1585,16 @@ and GenExpressionAux (cenv: cenv) prevEnv (expr: E) : OlyILExpression =
 
         OlyILExpression.While(ilConditionExpr, ilBodyExpr)
 
+    | E.Typed(body=bodyExpr) ->
+        GenExpression cenv env bodyExpr
+
     | E.Lambda _
     | E.Match _
     | E.GetProperty _
-    | E.SetProperty _ 
-    | E.Typed _ ->
+    | E.SetProperty _ ->
         failwith "Unexpected expression. Should be removed in lowering."
 
-and GenSetFieldExpression (cenv: cenv) env _ilTextRange receiverOpt field rhsExpr =
+and GenSetFieldExpression (cenv: cenv) env ilTextRange receiverOpt field rhsExpr =
     let ilReceiverOpt : OlyILExpression option =
         receiverOpt
         |> Option.map (fun receiver ->
@@ -1579,7 +1610,7 @@ and GenSetFieldExpression (cenv: cenv) env _ilTextRange receiverOpt field rhsExp
         | _ ->
             OlyAssert.False(field.IsInstance)
             OlyILOperation.StoreStaticField(ilFieldRef, ilRhsExpr)
-    OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, ilOp)
+    OlyILExpression.Operation(ilTextRange, ilOp)
 
 and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
     match value with
@@ -1601,8 +1632,8 @@ and GenSetValueExpression (cenv: cenv) env ilTextRange value rhsExpr =
 
 and GenSetContentsOfAddressExpression (cenv: cenv) env _ilTextRange lhsExpr rhsExpr =
 #if DEBUG || CHECKED
-    OlyAssert.True(lhsExpr.Type.IsByRef_t || lhsExpr.Type.IsAnyPtr)
-    OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef)
+    OlyAssert.True(lhsExpr.Type.IsAnyByRef_ste || lhsExpr.Type.IsAnyPtr_ste)
+    OlyAssert.False(lhsExpr.Type.IsReadOnlyByRef_ste)
 #endif
     let ilLhsExpr = GenExpression cenv env lhsExpr
     let ilRhsExpr = GenExpression cenv env rhsExpr
@@ -1637,7 +1668,7 @@ and GenLoadFieldExpression cenv env ilTextRange (takeAddress: OlyILByRefKind vop
 and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind voption) (witnessArgs: WitnessSolution imarray) (value: IValueSymbol) (ilArgExprs: OlyILExpression imarray) : OlyILExpression =
     OlyAssert.False(value.IsFunction)
 
-    if value.IsLocal && not(value.IsParameter) && (env.locals.Contains(value.Id) |> not) then
+    if value.HasLocalEnclosing && not(value.IsParameter) && (env.locals.Contains(value.Id) |> not) then
         failwith $"Local '{value.Name}' is missing or is out-of-scope."
 
     let env = { env with isReturnable = false }
@@ -1675,7 +1706,7 @@ and GenValueExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefKind
 and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs: E imarray) =
     let valueTy = value.LogicalType
 #if DEBUG || CHECKED
-    match valueTy.TryFunction with
+    match valueTy.TryAnyFunction with
     | ValueSome _ -> ()
     | _ -> OlyAssert.Fail("Expected function type.")
 #endif
@@ -1707,16 +1738,13 @@ and GenCallArgumentExpressions (cenv: cenv) env (value: IValueSymbol) (argExprs:
                 OlyILExpression.Value(OlyILDebugSourceTextRange.Empty, OlyILValue.Unit)
             )
         else
-            if expectedArgTy.IsAnyFunction && argExprTy.IsClosure then
+            if expectedArgTy.IsAnyFunction_ste && argExprTy.IsClosure_ste then
                 failwith "Should be handled earlier in lowering."
             else
                 ilArgExpr                
     )
 
-and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOpt: E option) (witnessArgs: WitnessSolution imarray) (argExprs: E imarray) (value: IValueSymbol) isVirtualCall =
-    let syntaxNode = syntaxInfo.Syntax
-    let ilTextRange = emitTextRange cenv syntaxNode
-
+and GenCallExpression (cenv: cenv) env (ilTextRange: OlyILDebugSourceTextRange) (receiverOpt: E option) (witnessArgs: WitnessSolution imarray) (argExprs: E imarray) (value: IValueSymbol) isVirtualCall =
     if not value.TypeParameters.IsEmpty && value.Formal = value then
         OlyAssert.Fail "Unexpected formal value."
 
@@ -1730,7 +1758,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     let ilReceiverOpt =
         receiverOpt
         |> Option.map (fun receiver ->
-            if value.IsInstance && value.Enclosing.IsAnyStruct && not receiver.Type.IsByRef_t then
+            if value.IsInstance && value.Enclosing.IsStruct && not receiver.Type.IsAnyByRef_ste then
                 failwith "Expected a by-reference type for function call."
             GenExpression cenv { env with isReturnable = false } receiver
         )
@@ -1775,7 +1803,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     | ValueSome(WellKnownFunction.UnsafeAddressOf)
     | ValueSome(WellKnownFunction.AddressOf) when argExprs.Length = 1 && ilReceiverOpt.IsNone ->
         let argExpr = argExprs.[0]
-        if argExpr.Type.IsByRef_t then GenExpression cenv { env with isReturnable = false; isInArg = true } argExpr
+        if argExpr.Type.IsAnyByRef_ste then GenExpression cenv { env with isReturnable = false; isInArg = true } argExpr
         else
 
         let rec emitAddressOf ilByRefKind argExpr =
@@ -1796,8 +1824,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 let ilElementTy = emitILType cenv env expr.Type.TryGetReferenceCellElement.Value
                 let ilExpr = GenExpression cenv env expr
                 let ilByRefKind =
-                    if argExpr.Type.IsReadOnlyByRef then
-                        OlyILByRefKind.Read
+                    OlyAssert.False(argExpr.Type.IsWriteOnlyByRef_ste)
+                    if argExpr.Type.IsReadOnlyByRef_ste then
+                        OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
                 OlyILExpression.Operation(ilTextRange, OlyILOperation.LoadRefCellContentsAddress(ilElementTy, ilExpr, ilByRefKind))
@@ -1811,8 +1840,9 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             | _ ->
                 match value with
                 | :? IFunctionSymbol as func ->
-                    if func.ReturnType.IsReadOnlyByRef then
-                        OlyILByRefKind.Read
+                    OlyAssert.False(func.ReturnType.IsWriteOnlyByRef_ste)
+                    if func.ReturnType.IsReadOnlyByRef_ste then
+                        OlyILByRefKind.ReadOnly
                     else
                         OlyILByRefKind.ReadWrite
                 | _ ->
@@ -1836,7 +1866,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
             GenExpression cenv env argExprs[0]
         let ilFuncInst =               
             match argExprs[1] with
-            | E.Value(_, value) when value.IsFunction && value.Enclosing.AsType.IsClosure && value.IsInstance && value.Name = "Invoke" ->
+            | E.Value(_, value) when value.IsFunction && value.Enclosing.AsType.IsClosure_ste && value.IsInstance && value.Name = "Invoke" ->
                 GenFunctionAsILFunctionInstance cenv env witnessArgs (value :?> IFunctionSymbol)
             | _ ->
                 failwith "Expected closure instance invoke."
@@ -1859,14 +1889,13 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
     | ValueSome(WellKnownFunction.LoadFunctionPtr) when argExprs.Length = 1 ->
         match argExprs[0] with
         | E.Value(syntaxInfo, value) when value.IsFunction ->
-            let ilTextRange = emitTextRange cenv syntaxInfo.Syntax
+            let ilTextRange = emitTextRangeBySyntaxInfo cenv syntaxInfo
             let ilFuncInst = GenFunctionAsILFunctionInstance cenv env witnessArgs (value :?> IFunctionSymbol)
             OlyILExpression.Value(ilTextRange, OlyILValue.FunctionPtr(ilFuncInst))
         | _ ->
             failwith "Invalid 'LoadFunctionPtr'."
 
     | ValueSome(WellKnownFunction.LoadNullPtr) when argExprs.Length = 0 ->
-        let ilTextRange = emitTextRange cenv syntaxInfo.Syntax
         let func = value.AsFunction
         OlyILExpression.Value(ilTextRange, OlyILValue.Default(emitILType cenv env func.ReturnType))
 
@@ -1993,7 +2022,7 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                     match ilReceiverOpt with
                     | Some ilReceiver -> 
                         if value.IsInstance && value.IsField then
-                            if value.Type.IsAnyStruct && not value.Type.IsNativeFunctionPtr_t then
+                            if value.Type.IsStruct_ste && not value.Type.IsNativeFunctionPtr_ste then
                                 OlyILExpression.Operation(ilTextRange,
                                     OlyILOperation.LoadFieldAddress(
                                         GenFieldAsILFieldReference cenv env (value :?> IFieldSymbol),
@@ -2032,13 +2061,13 @@ and GenCallExpression (cenv: cenv) env (syntaxInfo: BoundSyntaxInfo) (receiverOp
                 OlyAssert.Equal(0, ilTyInst.Length)
                 OlyAssert.Equal(0, ilWitnesses.Length)
 
-                if value.Type.IsScopedFunction then
+                if value.Type.IsScopedFunction_ste then
                     let ilFunArgExpr =
                         match ilFunArgExpr with
                         | OlyILExpression.Value(ilTextRange, OlyILValue.Local n) ->
-                            OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(n, OlyILByRefKind.Read))
+                            OlyILExpression.Value(ilTextRange, OlyILValue.LocalAddress(n, OlyILByRefKind.ReadOnly))
                         | OlyILExpression.Value(ilTextRange, OlyILValue.Argument n) ->
-                            OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.Read))
+                            OlyILExpression.Value(ilTextRange, OlyILValue.ArgumentAddress(n, OlyILByRefKind.ReadOnly))
                         | OlyILExpression.Operation(_, OlyILOperation.LoadFieldAddress _) ->
                             ilFunArgExpr
                         | _ ->
@@ -2059,7 +2088,7 @@ and GenGetFieldExpression (cenv: cenv) env ilTextRange (takeAddress: OlyILByRefK
     let ilReceiver = GenExpression cenv noReturnEnv receiver
     GenLoadFieldExpression cenv env ilTextRange takeAddress field (ImArray.createOne ilReceiver)
 
-and GenMemberDefinitionExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: BindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
+and GenMemberDefinitionExpression cenv env (bindingInfo: BindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
     match bindingInfo with
     | BindingProperty _ ->
         OlyAssert.True(bodyExprOpt.IsNone)
@@ -2067,20 +2096,20 @@ and GenMemberDefinitionExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bin
 
     | BindingFunction(func)
     | BindingPattern(_, func) ->
-        GenFunctionDefinitionExpression cenv env syntaxDebugNode func rhsExpr
-        OlyAssert.False(func.IsLocal)
+        GenFunctionDefinitionExpression cenv env func rhsExpr
+        OlyAssert.False(func.HasLocalEnclosing)
         OlyAssert.True(bodyExprOpt.IsNone)
         OlyILExpressionNone
       
     | BindingField _ ->
         OlyILExpressionNone
 
-and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
+and GenLetExpression cenv env (bindingInfo: LocalBindingInfoSymbol) (rhsExpr: E) (bodyExprOpt: E option) : OlyILExpression =
     match bindingInfo with
     | BindingLocalFunction(func) ->
         OlyAssert.True(bodyExprOpt.IsSome)
-        OlyAssert.True(func.IsLocal)
-        GenFunctionDefinitionExpression cenv env syntaxDebugNode func rhsExpr
+        OlyAssert.True(func.HasLocalEnclosing)
+        GenFunctionDefinitionExpression cenv env func rhsExpr
         GenExpression cenv env bodyExprOpt.Value
       
     | BindingLocal(value) ->
@@ -2088,12 +2117,12 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
         let mustBeRealUnit = 
             match stripTypeEquations value.Type with
             | TypeSymbol.Unit -> true
-            | ty -> ty.IsRealUnit
+            | ty -> ty.IsRealUnit_ste
         let ilRhsExpr = GenExpression cenv { env with isReturnable = false } rhsExpr
         let value = bindingInfo.Value
 
 #if DEBUG || CHECKED
-        if value.Type.IsTypeConstructor then
+        if value.Type.IsTypeConstructor_steea then
             failwith "Unexpected type constructor."
 #endif
 
@@ -2108,8 +2137,7 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
         | Some(E.Call(syntaxInfo=syntaxInfo;receiverOpt=None;witnessArgs=witnessArgs;args=argExprs;value=callValue)) 
                 when callValue.Id = localId && value.IsSingleUse && (value.IsGenerated || not cenv.assembly.IsDebuggable) ->
 
-            let syntaxNode = syntaxInfo.Syntax
-            let ilTextRange = emitTextRange cenv syntaxNode
+            let ilTextRange = emitTextRangeBySyntaxInfo cenv syntaxInfo
             let ilArgExprs = GenCallArgumentExpressions cenv env value argExprs
             let _ilTyInst, _ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env value witnessArgs // TODO: Do we want indirect calls to pass witnessess and type arguments?
 
@@ -2132,7 +2160,7 @@ and GenLetExpression cenv env (syntaxDebugNode: OlySyntaxNode) (bindingInfo: Loc
 
         if mustBeRealUnit then
             match stripTypeEquations rhsExpr.Type with
-            | ty when ty.IsRealUnit ->
+            | ty when ty.IsRealUnit_ste ->
                 OlyILExpression.Let(ilLocal.Index, ilRhsExpr, ilBodyExpr)
             | _ ->
                 let ilNewRhsExpr =
@@ -2149,20 +2177,20 @@ and GenFunctionDefinitionLambdaExpression (cenv: cenv) env (pars: ILocalParamete
     |> ImArray.iter (addLocalArgument cenv.funEnv)
     GenExpression cenv { env with isReturnable = true } body
 
-and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntaxNode) (func: IFunctionSymbol) (rhsExpr: E) : unit =
+and GenFunctionDefinitionExpression (cenv: cenv) env (func: IFunctionSymbol) (rhsExpr: E) : unit =
 #if DEBUG || CHECKED
     OlyAssert.True(func.IsFormal)
     OlyAssert.False(func.Enclosing.IsShape)
     let freeTyVars = rhsExpr.GetLogicalFreeTypeVariables()
     let freeLocals = rhsExpr.GetLogicalFreeAnyLocals()
-    if (freeTyVars.Length > 0 || freeLocals.Length > 0) && func.IsLocal then
+    if (freeTyVars.Length > 0 || freeLocals.Length > 0) && func.HasLocalEnclosing then
         failwith "Expected free local and free variables to be lifted from the expression in lowering."
     else
         let isValid =
             match func.Enclosing.TryEntity with
             | Some(ent) ->
                 OlyAssert.True(env.context.RealEntity.IsFormal)
-                OlyAssert.Equal(ent.Id, env.context.RealEntity.Id)
+                OlyAssert.Equal(ent.FormalId, env.context.RealEntity.FormalId)
                 ent.Functions
                 |> ImArray.exists (fun x -> x.Id = func.Id)
             | _ ->
@@ -2178,7 +2206,6 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
         let env = 
             { env with 
                 isInInstance = func.IsInstance
-                isInConstructor = func.IsConstructor
                 locals = Collections.Immutable.ImmutableHashSet<_>.Empty 
             }
 
@@ -2191,13 +2218,6 @@ and GenFunctionDefinitionExpression (cenv: cenv) env (syntaxDebugNode: OlySyntax
             | _ ->
                 failwith "Expected lambda expression for function definition."
         let ilLocals = cenv.funEnv.ilLocals.ToImmutable() // We need to create the locals after we finished going through the right-hand expr.
-
-        let ilBodyExpr =
-            if cenv.assembly.IsDebuggable then
-                // This allows to place a breakpoint at the start of the function.
-                OlyILExpression.Sequential(OlyILExpression.None(emitTextRange cenv syntaxDebugNode), ilBodyExpr)
-            else
-                ilBodyExpr
 
         ilFuncDef.BodyHandle.contents <- cenv.assembly.AddFunctionBody(OlyILFunctionBody(ilLocals, ilBodyExpr)) |> Some
         cenv.funEnv <- prevFunEnv

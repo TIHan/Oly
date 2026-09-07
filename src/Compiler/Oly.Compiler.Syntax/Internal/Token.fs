@@ -189,8 +189,10 @@ type internal Token =
     | MultiLineComment of startToken: Token * text: string * endToken: Token
     | DirectiveFlag of hashToken: Token * token: Token
     | Directive of hashToken: Token * token: Token * whitespaceToken: Token * valueToken: Token
-    | ConditionalDirective of hashIfToken: Token * bodyText: string * hashEndToken: Token
-    | HashIf of whitespaceToken: Token * identToken: Token
+    | ConditionalDirective of prevToken: Token * bodyText: string * token: Token
+    | PropertyDirective of hashToken: Token * propertyToken: Token * whitespaceToken1: Token * propertyNameToken: Token * whitespaceToken2: Token * propertyValueToken: Token
+    | HashIf of tokens: Token imarray
+    | HashElse
     | HashEnd
 
     // Dummy token used to fill in tokens on syntax nodes that have errors
@@ -325,8 +327,10 @@ type internal Token =
         | Hash -> "#"
         | DirectiveFlag(hashToken, token) -> hashToken.Text + token.Text
         | Directive(hashToken, token, whitespaceToken, valueToken) -> hashToken.Text + token.Text + whitespaceToken.Text + valueToken.Text
-        | ConditionalDirective(hashIfToken, bodyText, hashEndToken) -> hashIfToken.Text + bodyText + hashEndToken.Text
-        | HashIf(whitespaceToken, identToken) -> "#if" + whitespaceToken.Text + identToken.Text
+        | ConditionalDirective(prevToken, bodyText, token) -> prevToken.Text + bodyText + token.Text
+        | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) -> hashToken.Text + propertyToken.Text + whitespaceToken1.Text + propertyNameToken.Text + whitespaceToken2.Text + propertyValueToken.Text
+        | HashIf(tokens) -> "#if" + (tokens |> Seq.map (fun x -> x.Text) |> String.concat "")
+        | HashElse -> "#else"
         | HashEnd -> "#end"
         | Invalid text -> text
         | Equal -> "="
@@ -387,7 +391,9 @@ type internal Token =
         match this with
         | CharLiteral(_, text, _)
         | StringLiteral(_, text, _, _, _)
-        | ExplicitIdentifier(_, text, _) -> text
+        | ExplicitIdentifier(_, text, _) 
+        | SingleLineComment(_, text) 
+        | MultiLineComment(_, text, _) -> text
         | _ -> this.Text
 
     override this.ToString() =
@@ -613,8 +619,10 @@ type internal Token =
         | DirectiveFlag _
         | Directive _ 
         | ConditionalDirective _
+        | PropertyDirective _
         | HashIf _
-        | HashEnd -> true
+        | HashEnd 
+        | Dummy -> true
         | _ -> false
 
     member this.IsTrivia =
@@ -624,6 +632,12 @@ type internal Token =
             match this with
             | EndOfSource -> true
             | _ -> false
+
+    member this.IsComment =
+        match this with
+        | SingleLineComment _
+        | MultiLineComment _ -> true
+        | _ -> false
 
     member this.IsOther =
         match this with

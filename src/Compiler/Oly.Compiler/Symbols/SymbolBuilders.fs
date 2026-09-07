@@ -1,5 +1,6 @@
 ﻿module internal rec Oly.Compiler.Internal.SymbolBuilders
 
+open System
 open System.Diagnostics
 open Oly.Core
 open Oly.Compiler.Internal.Symbols
@@ -33,7 +34,9 @@ type EntitySymbolBuilder private (
     member _.SetAttributes(pass: CompilerPass, attrs) = 
         match pass with
         | Pass0
-        | Pass3 ->
+        | Pass2
+        | Pass3
+        | LambdaLifting ->
             attrsHole.contents <- attrs
         | _ ->
             failwith "Invalid pass."
@@ -41,7 +44,10 @@ type EntitySymbolBuilder private (
     member _.SetExtends(pass: CompilerPass, extends: TypeSymbol imarray) = 
 #if DEBUG || CHECKED
         extends
-        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
+
+        if (not extendsHole.contents.IsEmpty && ent.IsCompilerIntrinsic) then
+            OlyAssert.Fail("Cannot set extends for a built-in type at this point.")
 #endif
         match pass with
         | LambdaLifting
@@ -54,7 +60,7 @@ type EntitySymbolBuilder private (
     member _.SetImplements(pass: CompilerPass, implements: TypeSymbol imarray) = 
 #if DEBUG || CHECKED
         implements
-        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+        |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
         match pass with
         | Pass1 ->
@@ -62,14 +68,14 @@ type EntitySymbolBuilder private (
         | _ ->
             failwith "Invalid pass."
 
-    member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol) =
-        OlyAssert.True(runtimeTy.IsSolved)
-        OlyAssert.True(ent.IsEnum)
+    member _.SetRuntimeType(pass: CompilerPass, runtimeTy: TypeSymbol, memberAccessFlags: MemberFlags, name: string, valueFlags: ValueFlags) =
+        OlyAssert.True(runtimeTy.IsSolved_ste)
+        OlyAssert.True(ent.IsEnum || ent.IsNewtype)
         match pass with
         | Pass1 ->
             let fields = fieldsHole.contents
             if fields.IsEmpty then
-                let field = FieldSymbol(ImArray.empty, ent.AsEnclosing, MemberFlags.Private ||| MemberFlags.Instance, "value", runtimeTy, ValueFlags.Generated, ref None)
+                let field = FieldSymbol(ImArray.empty, ent.AsEnclosing, (memberAccessFlags &&& MemberFlags.AccessorMask) ||| MemberFlags.Instance, name, runtimeTy, valueFlags, ref None)
                 fieldsHole.contents <- ImArray.createOne field
             else
                 failwith "cannot set runtime type as fields are not empty"
@@ -93,13 +99,28 @@ type EntitySymbolBuilder private (
     member this.SetFields(pass: CompilerPass, fields: IFieldSymbol imarray) =
         match pass with
         | Pass2 ->
-            if ent.IsEnum then
-                if ent.Fields.Length = 1 && ent.TryEnumUnderlyingType.IsSome then
+            if ent.IsEnum || ent.IsNewtype then
+                if ent.Fields.Length = 1 then
+#if DEBUG || CHECKED
+                    for i = 0 to fields.Length - 1 do
+                        OlyAssert.True(fields[i].IsStatic)
+                    OlyAssert.Equal(1, fieldsHole.contents.Length)
+#endif
                     fieldsHole.contents <- fieldsHole.contents.AddRange(fields)
                 else
                     failwith "Invalid SetFields."
             else
                 fieldsHole.contents <- fields
+        | _ ->
+            failwith "Invalid pass."
+
+    member this.RemoveField(pass: CompilerPass, field: IFieldSymbol) =
+        match pass with
+        | Pass3 ->
+            let count = fieldsHole.contents.Length
+            fieldsHole.contents <- fieldsHole.contents.Remove(field)
+            if count - 1 <> fieldsHole.contents.Length then
+                failwith "Unable to remove field."
         | _ ->
             failwith "Invalid pass."
 
@@ -151,7 +172,7 @@ type EntitySymbolBuilder private (
         else
             failwith "Expected namespace."
 
-    static member Create(containingAsmOpt, enclosing, name, flags, kind) =
+    static member Create(containingAsm, enclosing, name, flags, kind, docText) =
         // TODO: Change EntitySymbol to allow setting properties instead of using a bunch of ref cells.
         let attrsHole = ref ImArray.empty
         let funcsHole = ref ImArray.empty
@@ -163,28 +184,22 @@ type EntitySymbolBuilder private (
         let implementsHole = ref ImArray.empty
         let entsHole = ResizeArray()
 
-        let ent = EntityDefinitionSymbol(containingAsmOpt, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole)
+        let ent = EntityDefinitionSymbol(containingAsm, enclosing, attrsHole, name, flags, kind, tyParsHole, funcsHole, fieldsHole, propsHole, patsHole, extendsHole, implementsHole, entsHole, docText)
         EntitySymbolBuilder(ent, ImArray.empty, ImArray.empty, attrsHole, funcsHole, fieldsHole, propsHole, patsHole, tyParsHole, extendsHole, implementsHole, entsHole)
 
-    static member CreateModule(containingAsmOpt, enclosing, flags, name) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module)
+    static member CreateModule(containingAsm, enclosing, flags, name, docSummary) =
+        EntitySymbolBuilder.Create(containingAsm, enclosing, name, flags ||| EntityFlags.Abstract ||| EntityFlags.Final, EntityKind.Module, docSummary)
 
-    static member CreateNamespace(enclosing: EnclosingSymbol, name) =
+    static member CreateNamespace(containingAsm, enclosing: EnclosingSymbol, name) =
         if not enclosing.IsNamespace then
             failwith "Expected a namespace entity."
-        EntitySymbolBuilder.Create(None, enclosing, name, EntityFlags.None, EntityKind.Namespace)
+        EntitySymbolBuilder.Create(containingAsm, enclosing, name, EntityFlags.None, EntityKind.Namespace, String.Empty)
 
     static member CreateClosure(containingAsmOpt, enclosing: EnclosingSymbol, name, flags) =
-        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure)
+        EntitySymbolBuilder.Create(containingAsmOpt, enclosing, name, flags, EntityKind.Closure, String.Empty)
 
-    static member CreateAnonymousShape(enclosing, asm) =
-        match enclosing with
-        | EnclosingSymbol.RootNamespace
-        | EnclosingSymbol.Entity _
-        | EnclosingSymbol.Local -> ()
-        | _ -> failwith "Invalid enclosing for anonymous shape."
-
-        EntitySymbolBuilder.Create(Some asm, enclosing, "", EntityFlags.Abstract, EntityKind.Shape)
+    static member CreateAnonymousShape(containingAsm) =
+        EntitySymbolBuilder.Create(containingAsm, EnclosingSymbol.RootNamespace, AnonymousEntityName, EntityFlags.Abstract ||| EntityFlags.Anonymous, EntityKind.Shape, String.Empty)
 
 [<Sealed>]
 type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
@@ -202,6 +217,6 @@ type NamespaceBuilder private (entBuilder: EntitySymbolBuilder) =
             entBuilder.NamespaceAddEntity(ent)
             set.[(ent.Name, tyParCount)] <- ()
 
-    static member Create(enclosing, name) =
-        let entBuilder = EntitySymbolBuilder.CreateNamespace(enclosing, name)
+    static member Create(containingAsm, enclosing, name) =
+        let entBuilder = EntitySymbolBuilder.CreateNamespace(containingAsm, enclosing, name)
         NamespaceBuilder(entBuilder)

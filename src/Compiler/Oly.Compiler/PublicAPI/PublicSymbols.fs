@@ -15,54 +15,154 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.CompilerImports
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
-let private stripRetargetedEntitySymbol (symbol: EntitySymbol) : EntitySymbol =
-    match symbol with
-    | :? RetargetedEntitySymbol as symbol ->
-        symbol.Original
-    | _ ->
-        symbol
+type ISymbolCollector =
 
-let private stripRetargetedValueSymbol (symbol: IValueSymbol) : IValueSymbol =
-    match symbol with
-    | :? RetargetedFieldSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedFunctionSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedPatternSymbol as symbol ->
-        symbol.Original
-    | :? RetargetedPropertySymbol as symbol ->
-        symbol.Original
+    abstract CompareSyntax : syntaxNode1: OlySyntaxNode * syntaxNode2: OlySyntaxNode -> bool
+
+    abstract FilterSyntax : syntaxNode: OlySyntaxNode -> bool
+
+    abstract CollectSymbol : symbolUseInfo: OlySymbolUseInfo -> unit
+
+// Cross-assembly functions have relaxed equality and is meant for tooling scenarios.
+
+/// Relaxed equality.
+let private crossAssemblyAreEntitiesEqual (ent1: EntitySymbol) (ent2: EntitySymbol) =
+    match ent1.TryCompilerIntrinsic, ent2.TryCompilerIntrinsic with
+    | Some(name1), Some(name2) -> name1 = name2
+    | Some _, None -> false
+    | None, Some _ -> false
     | _ ->
-        symbol
+
+    if ent1.Name <> ent2.Name then false
+    else
+
+    if ent1.TypeParameters.Length <> ent2.TypeParameters.Length then false
+    else
+    
+    crossAssemblyAreEnclosingsEqual ent1.Enclosing ent2.Enclosing
+
+/// Relaxed equality.
+let private crossAssemblySubsumesEntity (superEnt: EntitySymbol) (ent: EntitySymbol) =
+    ent.HierarchyExists (fun ent ->
+        match ent.TryEntityNoAlias with
+        | ValueSome(ent) ->
+            crossAssemblyAreEntitiesEqual superEnt ent
+        | _ ->
+            false
+    )
+
+/// Relaxed equality.
+let private crossAssemblySubsumesType (superTy: TypeSymbol) (ty: TypeSymbol) =
+    match stripTypeEquationsAndBuiltIn superTy, stripTypeEquationsAndBuiltIn ty with
+    | TypeSymbol.Entity(superEnt), TypeSymbol.Entity(ent) ->
+        crossAssemblySubsumesEntity superEnt ent
+    | _ ->
+        subsumesType superTy ty
+
+/// Relaxed equality.
+let private crossAssemblyAreEnclosingsEqual (enclosing1: EnclosingSymbol) (enclosing2: EnclosingSymbol) =
+    if areEnclosingsEqual enclosing1 enclosing2 then true
+    else
+        match enclosing1.TryEntity, enclosing2.TryEntity with
+        | Some(ent1), Some(ent2) ->
+            crossAssemblyAreEntitiesEqual ent1 ent2
+        | _ ->
+            false
+
+/// Relaxed equality.
+let private crossAssemblyAreTypesEqual (ty1: TypeSymbol) (ty2: TypeSymbol) =
+    if areTypesEqual ty1 ty2 then true
+    else
+        match ty1.TryEntityNoAlias, ty2.TryEntityNoAlias with
+        | ValueSome(ent1), ValueSome(ent2) -> crossAssemblyAreEntitiesEqual ent1 ent2
+        | _ -> false
+
+/// Relaxed equality.
+let private crossAssemblyAreValueSignaturesEqual (value1: IValueSymbol) (value2: IValueSymbol) =
+    if value1.IsFunctionGroup || value2.IsFunctionGroup then
+        false
+    elif value1.Name <> value2.Name then false
+    else
+        match value1, value2 with
+        | (:? IFunctionSymbol as func1), (:? IFunctionSymbol as func2) ->
+            func1.IsStatic = func2.IsStatic &&
+            func1.Parameters.Length = func2.Parameters.Length &&
+            func1.TypeParameters.Length = func2.TypeParameters.Length &&
+            (
+                (func1.LogicalParameters, func2.LogicalParameters)
+                ||> ROMem.forall2 (fun par1 par2 ->
+                    crossAssemblyAreTypesEqual par1.Type par2.Type
+                )  
+            )
+
+        | (:? IFieldSymbol as field1), (:? IFieldSymbol as field2) ->
+            crossAssemblyAreTypesEqual field1.Type field2.Type
+
+        | (:? IPropertySymbol as prop1), (:? IPropertySymbol as prop2) ->
+            crossAssemblyAreTypesEqual prop1.Type prop2.Type
+
+        | (:? IPatternSymbol as pat1), (:? IPatternSymbol as pat2) ->
+            crossAssemblyAreValueSignaturesEqual pat1.PatternFunction pat2.PatternFunction &&
+            (
+                match pat1.PatternGuardFunction, pat2.PatternGuardFunction with
+                | None, None -> true
+                | Some(func1), Some(func2) -> crossAssemblyAreValueSignaturesEqual func1 func2
+                | _ -> false
+            )
+
+        | _ ->
+            false
 
 [<AbstractClass>]
-type OlySymbol internal (syntax: OlySyntaxNode) =
-
-    abstract SignatureText : string
+type OlySymbol internal () =
 
     abstract Name : string
 
-    abstract TryGetDefinitionLocation: ct: CancellationToken -> OlySourceLocation option
+    abstract TryGetDefinitionLocation: OlyBoundModel * ct: CancellationToken -> OlySourceLocation option
 
     abstract IsSimilarTo: OlySymbol -> bool
 
+    abstract IsEqualTo: OlySymbol -> bool
+
+    abstract IsFormalEqualTo: OlySymbol -> bool
+
+    abstract IsExported: bool
+
+    abstract IsImported: bool
+
     abstract IsInLocalScope: bool
 
-    member _.UseSyntax = syntax
-
-    member this.UseSyntaxTree = this.UseSyntax.Tree
-
-    member this.IsDefinition(ct: CancellationToken) =
-        match this.TryGetDefinitionLocation(ct) with
-        | Some location ->
-            location.TextSpan.IsEqualTo(syntax.TextSpan)
-        | _ ->
-            false
+    member this.IsType =
+        match this with
+        | :? OlyTypeSymbol -> true
+        | _ -> false
 
     member this.IsFunction =
         match this with
         | :? OlyValueSymbol as symbol -> symbol.IsFunction
+        | _ -> false
+
+    member this.IsConstructor =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsConstructor
+        | _ -> false
+
+    member this.IsProperty =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsProperty
+        | _ -> false
+
+    member this.IsField =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsField
+        | _ -> false
+
+    member this.IsFieldOrAutoProperty =
+        match this with
+        | :? OlyValueSymbol as symbol -> symbol.IsField || symbol.Internal.IsAutoProperty
         | _ -> false
 
     member this.IsFunctionGroup =
@@ -83,29 +183,17 @@ type OlySymbol internal (syntax: OlySyntaxNode) =
         this :?> OlyConstantSymbol
 
 [<Sealed>][<DebuggerDisplay("{SignatureText}")>] 
-type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol) =
-    inherit OlySymbol(location)
+type OlyNamespaceSymbol internal (ent: EntitySymbol) =
+    inherit OlySymbol()
 
     let mutable tys = ValueNone
     let mutable namespaces = ValueNone
 
     member internal _.Internal = ent
 
-    override _.SignatureText =
-        let names = ResizeArray()
-        let rec loop (enclosing: EnclosingSymbol) =
-            match enclosing with
-            | EnclosingSymbol.Entity(ent) ->
-                names.Add(ent.Name)
-                loop enclosing.Enclosing
-            | _ ->
-                ()
-        loop ent.AsEnclosing
-        names |> Seq.rev |> String.concat "."
-
     override _.Name = ent.Name
 
-    override _.TryGetDefinitionLocation(ct) = 
+    override _.TryGetDefinitionLocation(_, ct) = 
         ct.ThrowIfCancellationRequested()
         None
 
@@ -116,7 +204,21 @@ type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol)
         | _ ->
             false
 
+    override this.IsEqualTo(symbol) =
+        this.IsSimilarTo(symbol)
+
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
+    override this.IsExported = false
+
+    override this.IsImported = false
+
     override this.IsInLocalScope = false
+
+    member this.FullyQualifiedName =
+        ent.FullNamespacePath
+        |> String.concat "."
 
     member _.Types =
         match tys with
@@ -124,7 +226,7 @@ type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol)
             tys <-
                 ent.Entities
                 |> ImArray.filter (fun x -> not x.IsNamespace)
-                |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x.AsType))
+                |> ImArray.map (fun x -> OlyTypeSymbol(x.AsType))
                 |> ValueSome
         | _ ->
             ()
@@ -136,15 +238,15 @@ type OlyNamespaceSymbol internal (boundModel, benv, location, ent: EntitySymbol)
             namespaces <-
                 ent.Entities
                 |> ImArray.filter (fun x -> x.IsNamespace)
-                |> ImArray.map (fun x -> OlyNamespaceSymbol(boundModel, benv, location, x))
+                |> ImArray.map (fun x -> OlyNamespaceSymbol(x))
                 |> ValueSome
         | _ ->
             ()
         namespaces.Value
 
 [<Sealed>][<DebuggerDisplay("{SignatureText}")>] 
-type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location: OlySyntaxNode, ty: TypeSymbol) =
-    inherit OlySymbol(location)
+type OlyTypeSymbol internal (ty: TypeSymbol) =
+    inherit OlySymbol()
 
     member internal _.Internal = ty
 
@@ -157,26 +259,21 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
     override _.Name = ty.Name
 
     member _.FullyQualifiedName =
-        match ty with
+        match stripTypeEquationsExceptAlias ty with
         | TypeSymbol.Entity(ent) ->
             // TODO: Fix this. This doesn't give correct syntax.
             ent.QualifiedName
         | _ ->
             ty.Name
 
-    override _.SignatureText = printTypeDefinition benv ty
-
-    override _.TryGetDefinitionLocation(ct) =
+    override _.TryGetDefinitionLocation(boundModel, ct) =
         match stripTypeEquationsExceptAlias ty with
         | TypeSymbol.Entity(ent) ->
             match boundModel.TryFindDefinition(ent, ct) with
             | res when res.IsSome -> res
             | _ ->
-                match ent.ContainingAssembly with
-                | Some asm ->
-                    boundModel.TryFindExternalDefinition(asm.Identity, ent, ct)
-                | _ ->
-                    None
+                let asm = ent.ContainingAssembly
+                boundModel.TryFindExternalDefinition(asm.Identity, ent, ct)
         | TypeSymbol.Variable(tyPar)
         | TypeSymbol.HigherVariable(tyPar, _) ->
             boundModel.TryFindDefinition(tyPar, ct)
@@ -186,19 +283,27 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
     override this.IsSimilarTo(symbol) =
         match symbol with
         | :? OlyTypeSymbol as symbol ->
-            match this.Internal, symbol.Internal with
-            | TypeSymbol.Entity(ent1), TypeSymbol.Entity(ent2) ->
-                areEntitiesEqual ent1.Formal ent2.Formal
-            | _ ->
-                areTypesEqual this.Internal symbol.Internal
-        | :? OlyValueSymbol as symbol when symbol.IsConstructor ->
-            match symbol.Enclosing.TryType with
-            | Some tySymbol ->
-                this.IsSimilarTo(tySymbol)
-            | _ ->
-                false
+            crossAssemblyAreTypesEqual this.Internal symbol.Internal
         | _ ->
             false
+
+    override this.IsEqualTo(symbol) =
+        match symbol with
+        | :? OlyTypeSymbol as symbol ->
+            crossAssemblyAreTypesEqual this.Internal symbol.Internal
+        | _ ->
+            false
+
+    override this.IsFormalEqualTo(symbol) =
+        match symbol with
+        | :? OlyTypeSymbol as symbol ->
+            crossAssemblyAreTypesEqual this.Internal.Formal symbol.Internal.Formal
+        | _ ->
+            false
+
+    override this.IsExported = ty.IsExported
+
+    override this.IsImported = ty.IsImported
 
     override this.IsInLocalScope =
         match ty with
@@ -206,56 +311,74 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | _ -> true
 
     member _.Fields =
-        ty.FindFields(benv, QueryMemberFlags.StaticOrInstance)
+        ty.FindFields(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance)
         |> Seq.map (fun x -> 
-            OlyValueSymbol(boundModel, benv, location, x)
+            OlyValueSymbol(x)
         )
 
     member _.Functions =
-        ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+        ty.FindMostSpecificFunctions(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.Intrinsic)
         |> ImArray.map (fun x ->
-            OlyValueSymbol(boundModel, benv, location, x)
+            OlyValueSymbol(x)
+        )
+
+    member _.ImmediateFunctions =
+        ty.Functions
+        |> ImArray.map (fun x ->
+            OlyValueSymbol(x)
         )
 
     member _.Properties =
-        ty.FindProperties(benv, QueryMemberFlags.StaticOrInstance, QueryProperty.IntrinsicAndExtrinsic)
+        ty.FindMostSpecificProperties(BoundEnvironment.Empty, QueryMemberFlags.StaticOrInstance, QueryProperty.Intrinsic)
         |> Seq.map (fun x ->
-            OlyValueSymbol(boundModel, benv, location, x)
+            OlyValueSymbol(x)
         )
 
     member _.Types =
-        ty.FindNestedEntities(benv, None, ResolutionTypeArity.Any)
-        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x.AsType))
+        ty.FindNestedEntities(BoundEnvironment.Empty, None, ResolutionTypeArity.Any)
+        |> ImArray.map (fun x -> OlyTypeSymbol(x.AsType))
 
-    member _.IsInterface = ty.IsInterface
+    member _.IsInterface = ty.IsInterface_ste
 
-    member _.IsTypeExtension = ty.IsTypeExtension
+    member _.IsTypeExtension = ty.IsTypeExtension_ste
 
-    member _.IsEnum = ty.IsEnum
+    member _.IsEnum = ty.IsEnum_ste
 
-    member _.IsClass = ty.IsClass
+    member _.IsClass = ty.IsClass_ste
 
-    member _.IsShape = ty.IsShape
+    member _.IsShape = ty.IsShape_ste
 
-    member _.IsTuple = ty.IsAnyTuple
+    member _.IsTuple = ty.IsTuple_ste
 
-    member _.IsStruct = ty.IsAnyStruct
+    /// Is the type symbol a struct?
+    member _.IsStruct = ty.IsStruct_ste
 
-    member _.IsModule = ty.IsModule
+    member _.IsBuiltIn = ty.IsBuiltIn_ste
 
-    member _.IsAlias = ty.IsAlias
+    member _.IsModule = ty.IsModule_ste
 
-    member _.IsUnit = ty.IsUnit_t
+    member _.IsAlias = ty.IsAlias_steea
+
+    member _.IsUnit = ty.IsUnit_ste
+
+    member _.IsArray = ty.IsAnyArray_ste
+
+    member _.IsFixedArray = ty.IsAnyFixedArray_ste
+
+    /// Is it a mutable array?
+    member _.IsMutableArray = ty.IsAnyMutableArray_ste
+
+    member _.IsByRef = ty.IsAnyByRef_ste
 
     member _.GetTupleItemSignatureTexts() =
         match stripTypeEquations ty with
         | TypeSymbol.Tuple(elementTys, elementNames) ->
             if elementTys.Length = elementNames.Length then
                 (elementNames, elementTys)
-                ||> ImArray.map2 (fun name ty -> $"{name}: {printTypeDefinition benv ty}")
+                ||> ImArray.map2 (fun name ty -> $"{name}: {printTypeDefinition BoundEnvironment.Empty ty}")
             else
                 elementTys
-                |> ImArray.map (fun ty -> printTypeDefinition benv ty)
+                |> ImArray.map (fun ty -> printTypeDefinition BoundEnvironment.Empty ty)
         | _ ->
             ImArray.empty       
 
@@ -266,52 +389,81 @@ type OlyTypeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, 
         | _ ->
             ty.LogicalTypeParameterCount
 
-    member this.TryGetAliasedType() =
-        if this.IsAlias then
-            match ty with
-            | TypeSymbol.Entity(ent) ->
-                if ent.Extends.IsEmpty then
-                    None
-                else
-                    let ty = ent.Extends[0]
-                    match benv.TryFindEntityByIntrinsicType(ty) with
-                    | ValueSome(ent) ->
-                        Some(OlyTypeSymbol(boundModel, benv, location, ent.AsType))
-                    | _ ->
-                        Some(OlyTypeSymbol(boundModel, benv, location, ty))
-            | _ ->
-                match ty.TryIntrinsicType with
-                | Some ty ->
-                    match benv.TryFindEntityByIntrinsicType(ty) with
-                    | ValueSome(ent) ->
-                        Some(OlyTypeSymbol(boundModel, benv, location, ent.AsType))
-                    | _ ->
-                        Some(OlyTypeSymbol(boundModel, benv, location, ty))
-                | _ ->
-                    None
-        else
-            None
-
     member this.StripByRef() =
         match ty.TryByReferenceElementType with
-        | ValueSome ty -> OlyTypeSymbol(boundModel, benv, location, ty)
+        | ValueSome ty -> OlyTypeSymbol(ty)
         | _ -> this
 
     member _.Extends =
         ty.Inherits
-        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x))
+        |> ImArray.map (fun x -> OlyTypeSymbol(x))
 
     member _.Implements =
         ty.Implements
-        |> ImArray.map (fun x -> OlyTypeSymbol(boundModel, benv, location, x))
+        |> ImArray.map (fun x -> OlyTypeSymbol(x))
 
-    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(boundModel, benv, location, ty.Enclosing)
-
-    member this.IsSimilarTo(ty: OlyTypeSymbol) =
-        areGeneralizedTypesEqual ty.Internal this.Internal
+    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol((stripTypeEquationsExceptAlias ty).Enclosing)
 
     member this.IsSubTypeOf(superTy: OlyTypeSymbol) =
-        subsumesTypeInEnvironment benv superTy.Internal this.Internal
+        crossAssemblySubsumesType superTy.Internal this.Internal
+
+    member this.Documentation =
+        match ty with
+        | TypeSymbol.Entity(ent) -> ent.Documentation.Trim()
+        | _ -> String.Empty
+
+    member this.TypeArguments =
+        ty.TypeArguments
+        |> ImArray.map (fun x -> OlyTypeSymbol(x))
+
+    /// This only returns if all the types are structs with primitives.
+    member this.TryGetPackedSizeInBytes() =
+        let visited = System.Collections.Generic.Dictionary(TypeSymbolComparer());
+        let rec tryGetSizeInBytes ty =
+            let ty = stripTypeEquationsAndBuiltIn ty
+            match visited.TryGetValue(ty) with
+            | true, v -> v
+            | _ ->
+                let v =
+                    match ty with
+                    | TypeSymbol.UInt8
+                    | TypeSymbol.Int8 -> 1
+                    | TypeSymbol.UInt16
+                    | TypeSymbol.Int16 
+                    | TypeSymbol.Char16 -> 2
+                    | TypeSymbol.ConstantInt32 _ 
+                    | TypeSymbol.UInt32
+                    | TypeSymbol.Int32 
+                    | TypeSymbol.Float32 -> 4
+                    | TypeSymbol.UInt64
+                    | TypeSymbol.Int64 
+                    | TypeSymbol.Float64 -> 8
+                    | ty ->
+                        if ty.IsStruct_ste then
+                            let mutable isValid = true
+                            let fieldBytes =
+                                ty.GetInstanceFields()
+                                |> ImArray.map (fun x -> 
+                                    match tryGetSizeInBytes x.Type with
+                                    | -1 ->
+                                        isValid <- false
+                                        -1
+                                    | v ->
+                                        v)
+                            if fieldBytes.IsEmpty || not isValid then
+                                -1
+                            elif fieldBytes.Length > 1 then
+                                fieldBytes
+                                |> ImArray.reduce (+)
+                            else
+                                fieldBytes[0]
+                        else
+                            -1
+                visited[ty] <- v
+                v
+        match tryGetSizeInBytes ty with
+        | -1 -> ValueNone
+        | v -> ValueSome v
 
 and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | UInt8 of value: uint8
@@ -325,7 +477,7 @@ and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
     | Float32 of value: float32
     | Float64 of value: float
     | Char16 of value: char
-    | Utf16 of value: string
+    | String16 of value: string
     | Array of elementTy: OlyTypeSymbol * values: OlyConstant imarray
     | Variable of OlyTypeSymbol
     | External of OlyValueSymbol
@@ -341,8 +493,8 @@ and [<NoComparison;NoEquality;RequireQualifiedAccess>] OlyConstant =
         | _ -> failwith "Expected Int32"
 
 [<Sealed>] 
-type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: BoundLiteral) =
-    inherit OlySymbol(location)
+type OlyConstantSymbol internal (internalLiteral: BoundLiteral) =
+    inherit OlySymbol()
 
     let rec constantToConstant (constant: ConstantSymbol) =
         match constant with
@@ -359,10 +511,10 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
         | ConstantSymbol.True -> OlyConstant.True
         | ConstantSymbol.False -> OlyConstant.False
         | ConstantSymbol.Char16(value) -> OlyConstant.Char16(value)
-        | ConstantSymbol.Utf16(value) -> OlyConstant.Utf16(value)
+        | ConstantSymbol.String16(value) -> OlyConstant.String16(value)
         | ConstantSymbol.Array(elementTy, values) ->
             OlyConstant.Array(
-                OlyTypeSymbol(boundModel, benv, location, elementTy), 
+                OlyTypeSymbol(elementTy), 
                 (
                     values
                     |> ImArray.map (fun x ->
@@ -371,10 +523,10 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
                 )
             )
         | ConstantSymbol.TypeVariable(tyPar) ->
-            OlyConstant.Variable(OlyTypeSymbol(boundModel, benv, location, tyPar.AsType))
+            OlyConstant.Variable(OlyTypeSymbol(tyPar.AsType))
         | ConstantSymbol.External(func) ->
             OlyConstant.External(
-                OlyValueSymbol(boundModel, benv, location, func)
+                OlyValueSymbol(func)
             )
         | ConstantSymbol.Error -> OlyConstant.Error
 
@@ -388,7 +540,7 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
             | BoundLiteral.NumberInference(lazyInternalLiteral, _) when lazyInternalLiteral.IsValueCreated -> 
                 match lazyInternalLiteral.Value with
                 | Ok(literal) ->
-                    OlyConstantSymbol(boundModel, benv, location, literal).Value
+                    OlyConstantSymbol(literal).Value
                 | _ ->
                     OlyConstant.Error
             | BoundLiteral.DefaultInference _ -> OlyConstant.Default
@@ -398,13 +550,11 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
         f internalLiteral
 
     member this.Type =
-        OlyTypeSymbol(boundModel, benv, location, internalLiteral.Type)
+        OlyTypeSymbol(internalLiteral.Type)
 
     override _.Name = ""
 
-    override _.SignatureText = ""
-
-    override _.TryGetDefinitionLocation(ct) = 
+    override _.TryGetDefinitionLocation(_, ct) = 
         ct.ThrowIfCancellationRequested()
         None
 
@@ -415,17 +565,33 @@ type OlyConstantSymbol internal (boundModel, benv, location, internalLiteral: Bo
         | _ ->
             false
 
+    override this.IsEqualTo(symbol) =
+        this.IsSimilarTo(symbol)
+
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
+    override this.IsExported =
+        match this.Value with
+        | OlyConstant.Variable(ty) -> ty.IsExported
+        | OlyConstant.External(func) -> func.IsExported
+        | _ -> false
+
+    override this.IsImported =
+        match this.Value with
+        | OlyConstant.Variable(ty) -> ty.IsImported
+        | OlyConstant.External(func) -> func.IsImported
+        | _ -> false
+
     override this.IsInLocalScope = false
 
 [<Sealed>][<DebuggerDisplay("{SignatureText}")>] 
-type OlyFunctionGroupSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location, funcGroup: FunctionGroupSymbol) =
-    inherit OlyValueSymbol(boundModel, benv, location, funcGroup)
+type OlyFunctionGroupSymbol internal (funcGroup: FunctionGroupSymbol) =
+    inherit OlyValueSymbol(funcGroup)
 
     member internal _.Internal: FunctionGroupSymbol = funcGroup
 
-    override _.SignatureText = funcGroup.Name
-
-    override _.TryGetDefinitionLocation(ct) = 
+    override _.TryGetDefinitionLocation(_, ct) = 
         ct.ThrowIfCancellationRequested()
         None
 
@@ -443,33 +609,42 @@ type OlyFunctionGroupSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvi
         | _ ->
             false
 
+    override this.IsEqualTo _ =
+        false
+
+    override this.IsExported = false
+
+    override this.IsImported = false
+
     override this.IsInLocalScope =
-        funcGroup.IsLocal
+        funcGroup.HasLocalEnclosing
 
     member _.Functions =
         funcGroup.Functions
-        |> Seq.map (fun x -> OlyValueSymbol(boundModel, benv, location, x))
+        |> Seq.map (fun x -> OlyValueSymbol(x))
         |> ImmutableArray.CreateRange
 
-    // TODO: Consider creating an OlyFunctionSymbol
+/// TODO: Consider creating an OlyFunctionSymbol
 [<DebuggerDisplay("{SignatureText}")>] 
-type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location, value: IValueSymbol) =
-    inherit OlySymbol(location)
+type OlyValueSymbol internal (value: IValueSymbol) =
+    inherit OlySymbol()
 
     member internal _.Internal: IValueSymbol = value
 
-    override _.Name = value.Name
+    override _.Name =
+        if value.IsConstructor then
+            value.Enclosing.AsType.Name
+        else
+            value.Name
 
-    override _.SignatureText = printValue benv value
-
-    override _.TryGetDefinitionLocation(ct) =
-        if value.IsLocal then
+    override _.TryGetDefinitionLocation(boundModel, ct) =
+        if value.HasLocalEnclosing then
             boundModel.TryFindDefinition(value, ct)
         else
             match boundModel.TryFindDefinition(value, ct) with
             | res when res.IsSome -> res
             | _ ->
-                match value.Enclosing.TryEntity |> Option.bind (fun x -> x.ContainingAssembly) with
+                match value.Enclosing.TryEntity |> Option.map (fun x -> x.ContainingAssembly) with
                 | Some asm ->
                     boundModel.TryFindExternalDefinition(asm.Identity, value, ct)
                 | _ ->
@@ -482,33 +657,47 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
             | true, true ->
                 this.Internal.Formal.Id = symbol.Internal.Formal.Id
             | false, false ->
-                let formal1 = stripRetargetedValueSymbol this.Internal.Formal
-                let formal2 = stripRetargetedValueSymbol symbol.Internal.Formal
-                if areValueSignaturesEqual formal1 formal2 then
-                    true
-                else
-                    if formal1.IsProperty && formal2.IsField then
-                        match formal2 with
-                        | :? IFieldSymbol as field ->
-                            match field.AssociatedFormalPropertyId with
-                            | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = formal1.Id
-                            | _ ->
-                                false
-                        | _ ->
-                            false
-                    elif formal1.IsField && formal2.IsProperty then
-                        match formal1 with
-                        | :? IFieldSymbol as field ->
-                            match field.AssociatedFormalPropertyId with
-                            | Some(associatedFormalPropId) ->
-                                associatedFormalPropId = formal2.Id
-                            | _ ->
-                                false
+                let formal1 = this.Internal.Formal
+                let formal2 = symbol.Internal.Formal
+                let areEnclosingsSimilar =
+                    if crossAssemblyAreEnclosingsEqual formal1.Enclosing formal2.Enclosing then
+                        true
+                    elif formal1.IsVirtual && formal2.IsVirtual then
+                        match formal1.Enclosing.TryEntity, formal2.Enclosing.TryEntity with
+                        | Some(ent1), Some(ent2) ->
+                            crossAssemblySubsumesEntity ent1 ent2 || crossAssemblySubsumesEntity ent2 ent1
                         | _ ->
                             false
                     else
                         false
+
+                if not areEnclosingsSimilar then false
+                else
+                    if crossAssemblyAreValueSignaturesEqual formal1 formal2 then true
+                    else
+                        // TODO: This isn't quite right as we cannot rely on Id equality due to cross assemblies.
+                        if formal1.IsProperty && formal2.IsField then
+                            match formal2 with
+                            | :? IFieldSymbol as field ->
+                                match field.AssociatedFormalPropertyId with
+                                | Some(associatedFormalPropId) ->
+                                    associatedFormalPropId = formal1.Id
+                                | _ ->
+                                    false
+                            | _ ->
+                                false
+                        elif formal1.IsField && formal2.IsProperty then
+                            match formal1 with
+                            | :? IFieldSymbol as field ->
+                                match field.AssociatedFormalPropertyId with
+                                | Some(associatedFormalPropId) ->
+                                    associatedFormalPropId = formal2.Id
+                                | _ ->
+                                    false
+                            | _ ->
+                                false
+                        else
+                            false
             | _ ->
                 false
         | :? OlyTypeSymbol when this.IsConstructor ->
@@ -520,45 +709,41 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             false
 
-    override _.IsInLocalScope = value.IsLocal
-    
-    member this.IsUnqualified =
-        if this.IsPatternFunction then
-            match benv.senv.unqualifiedPatterns.TryGetValue(value.Name) with
-            | true, unqualifiedSymbol ->
-                match unqualifiedSymbol with
-                | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
-                | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
-                | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
-            | _ ->
-                false
-        else
-            match benv.senv.unqualifiedSymbols.TryGetValue(value.Name) with
-            | true, unqualifiedSymbol ->
-                match unqualifiedSymbol with
-                | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
-                | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
-                | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
-                | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
-            | _ ->
-                false
+    override this.IsEqualTo symbol =
+        match symbol with
+        | :? OlyValueSymbol as symbol -> 
+            this.Internal.Name = symbol.Internal.Name &&
+            areValueSignaturesEqual this.Internal symbol.Internal &&
+            areEnclosingsEqual this.Internal.Enclosing symbol.Internal.Enclosing
+        | _ -> 
+            false   
+
+    override this.IsFormalEqualTo symbol =
+        match symbol with
+        | :? OlyValueSymbol as symbol -> 
+            this.Internal.Formal.Name = symbol.Internal.Formal.Name &&
+            areValueSignaturesEqual this.Internal.Formal symbol.Internal.Formal &&
+            areEnclosingsEqual this.Internal.Formal.Enclosing symbol.Internal.Formal.Enclosing
+        | _ -> 
+            false        
+
+    override this.IsExported = value.IsExported
+
+    override this.IsImported = value.IsImported
+
+    override _.IsInLocalScope = value.HasLocalEnclosing
 
     member _.ReturnType = 
         match value with
         | :? IFunctionSymbol as func ->
-            OlyTypeSymbol(boundModel, benv, location, func.ReturnType)
+            OlyTypeSymbol(func.ReturnType)
             |> Some
         | _ ->
             None
 
-    member _.Type = OlyTypeSymbol(boundModel, benv, location, value.Type)
+    member _.Type = OlyTypeSymbol(value.Type)
 
-    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(boundModel, benv, location, value.Enclosing)
+    member _.Enclosing: OlyEnclosingSymbol = OlyEnclosingSymbol(value.Enclosing)
 
     member this.IsExternal =
         match value.Enclosing with
@@ -587,7 +772,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | :? IFieldSymbol as field ->
             match field.Constant with
             | ValueSome(constant) ->
-                OlyConstantSymbol(boundModel, benv, location, constant.ToLiteral())
+                OlyConstantSymbol(constant.ToLiteral())
                 |> ValueSome
             | _ ->
                 ValueNone
@@ -598,7 +783,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
 
     member this.IsMutable = value.IsMutable
 
-    member this.IsStatic = not value.IsInstance && not value.IsLocal
+    member this.IsStatic = not value.IsInstance && not value.HasLocalEnclosing
 
     member this.IsAbstract = value.IsAbstract
 
@@ -615,7 +800,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         match value with
         | :? IFunctionSymbol as func ->
             func.Parameters
-            |> ImArray.map (fun x -> OlyValueSymbol(boundModel, benv, location, x))
+            |> ImArray.map (fun x -> OlyValueSymbol(x))
         | _ ->
             ImArray.empty
 
@@ -623,7 +808,7 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         match value with
         | :? IFunctionSymbol as func ->
             func.LogicalParameters
-            |> ROMem.mapAsImArray (fun x -> OlyValueSymbol(boundModel, benv, location, x))
+            |> ROMem.mapAsImArray (fun x -> OlyValueSymbol(x))
         | _ ->
             ImArray.empty
 
@@ -631,6 +816,13 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         match value with
         | :? IFunctionSymbol as func ->
             func.LogicalParameterCount
+        | _ ->
+            0
+
+    member this.TypeParameterCount =
+        match value with
+        | :? IFunctionSymbol as func ->
+            func.TypeParameters.Length
         | _ ->
             0
 
@@ -643,12 +835,12 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
             let getterOpt =
                 prop.Getter
                 |> Option.map (fun x ->
-                    OlyValueSymbol(boundModel, benv, location, x)
+                    OlyValueSymbol(x)
                 )
             let setterOpt =
                 prop.Setter
                 |> Option.map (fun x ->
-                    OlyValueSymbol(boundModel, benv, location, x)
+                    OlyValueSymbol(x)
                 )
             Some(getterOpt, setterOpt)
         | _ ->
@@ -689,6 +881,17 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
         | _ ->
             false
 
+    member this.ForEachAttribute f =
+        let attrs =
+            match value with
+            | :? IFunctionSymbol as func -> func.Attributes
+            | :? IPatternSymbol as pat -> pat.Attributes
+            | :? IFieldSymbol as field -> field.Attributes
+            | :? ILocalParameterSymbol as par -> par.Attributes
+            | _ -> ImArray.empty
+        attrs
+        |> ImArray.iter (fun attr -> f(OlyAttributeSymbol(attr)))
+
     override this.GetHashCode() = value.Formal.Id.GetHashCode()
 
     override this.Equals(o) =
@@ -699,10 +902,10 @@ type OlyValueSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment,
             false
 
 [<Sealed>] 
-type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, location, attr: AttributeSymbol) =
-    inherit OlySymbol(location)
+type OlyAttributeSymbol internal (attr: AttributeSymbol) =
+    inherit OlySymbol()
 
-    member private _.Internal = attr
+    member internal _.Internal = attr
 
     override _.Name =
         match attr with
@@ -715,43 +918,30 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
         | AttributeSymbol.Unmanaged _ -> "unmanaged"
         | AttributeSymbol.Blittable -> "blittable"
         | AttributeSymbol.Pure -> "pure"
-        | AttributeSymbol.Constructor(ctor, _, _, _) -> ctor.Name
+        | AttributeSymbol.Constructor(ctor, _, _, _) -> ctor.Enclosing.AsType.Name
 
-    override _.SignatureText =
+    override this.IsExported =
         match attr with
-        | AttributeSymbol.Open -> "open"
-        | AttributeSymbol.Null -> "null"
-        | AttributeSymbol.Blittable -> "blittable"
-        | AttributeSymbol.Pure -> "pure"
-        | AttributeSymbol.Import(platform, path, name) -> 
-            $"import(\"{platform}\", \"{path}\", \"{name}\")"
-        | AttributeSymbol.Export -> 
-            "export"
-        | AttributeSymbol.Intrinsic name -> 
-            $"intrinsic(\"{name}\")"
-        | AttributeSymbol.Inline(inlineArg) -> 
-            match inlineArg with
-            | InlineArgumentSymbol.None -> "inline"
-            | InlineArgumentSymbol.Never -> "inline(never)"
-            | InlineArgumentSymbol.Always -> "inline(always)"
-        | AttributeSymbol.Unmanaged(unmanagedArg) -> 
-            match unmanagedArg with
-            | UnmanagedArgumentSymbol.AllocationOnly -> "unmanaged(allocation_only)"
-        | AttributeSymbol.Constructor(ctor, _, _, _) -> 
-            OlyValueSymbol(boundModel, benv, location, ctor).SignatureText
+        | AttributeSymbol.Constructor(ctor=ctor) -> ctor.IsExported
+        | _ -> false
+
+    override this.IsImported =
+        match attr with
+        | AttributeSymbol.Constructor(ctor=ctor) -> ctor.IsImported
+        | _ -> false
 
     override _.IsInLocalScope = false
 
-    override this.TryGetDefinitionLocation(ct: CancellationToken) =
+    override this.TryGetDefinitionLocation(boundModel, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         match attr with
-        | AttributeSymbol.Constructor(ctor, _, _, _) -> OlyValueSymbol(boundModel, benv, location, ctor).TryGetDefinitionLocation(ct)
+        | AttributeSymbol.Constructor(ctor, _, _, _) -> OlyValueSymbol(ctor).TryGetDefinitionLocation(boundModel, ct)
         | _ -> None
 
     override this.IsSimilarTo(symbol) =
         match attr with
         | AttributeSymbol.Constructor(ctor, _, _, _) ->
-            OlyValueSymbol(boundModel, benv, location, ctor).IsSimilarTo(symbol)
+            OlyValueSymbol(ctor).IsSimilarTo(symbol)
         | _ ->
             match symbol with
             | :? OlyAttributeSymbol as symbol ->
@@ -767,35 +957,45 @@ type OlyAttributeSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironm
             | _ ->
                 false
 
+    override this.IsEqualTo(symbol) =
+        // TODO: Implement
+        false
+
+    override this.IsFormalEqualTo(symbol) =
+        // TODO: Implement
+        false
+
 [<Sealed>] 
-type OlyEnclosingSymbol internal (boundModel: OlyBoundModel, benv: BoundEnvironment, syntax, enclosing: EnclosingSymbol) =
+type OlyEnclosingSymbol internal (enclosing: EnclosingSymbol) =
 
     member _.TryType: OlyTypeSymbol option =
         match enclosing with
-        | EnclosingSymbol.Entity(ent) when not ent.IsNamespace -> OlyTypeSymbol(boundModel, benv, syntax, ent.AsType) |> Some
-        | EnclosingSymbol.Witness(concreteTy, _) -> OlyTypeSymbol(boundModel, benv, syntax, concreteTy) |> Some
+        | EnclosingSymbol.Entity(ent) when not ent.IsNamespace -> OlyTypeSymbol(ent.AsType) |> Some
+        | EnclosingSymbol.Witness(concreteTy, _) -> OlyTypeSymbol(concreteTy) |> Some
         | _ -> None
 
     member _.TryNamespace =
         match enclosing with
-        | EnclosingSymbol.Entity(ent) when ent.IsNamespace -> OlyNamespaceSymbol(boundModel, benv, syntax, ent) |> Some
+        | EnclosingSymbol.Entity(ent) when ent.IsNamespace -> OlyNamespaceSymbol(ent) |> Some
         | _ -> None
 
     member this.IsStruct =
         match enclosing with
-        | EnclosingSymbol.Entity(ent) -> ent.IsAnyStruct
+        | EnclosingSymbol.Entity(ent) -> ent.IsStruct
+        | _ -> false
+
+    member this.IsTypeExtension =
+        match enclosing with
+        | EnclosingSymbol.Entity(ent) -> ent.IsTypeExtension
         | _ -> false
 
 [<Sealed>] 
-type OlyDirectiveSymbol internal (syntaxNode: OlySyntaxNode, name: string, value: string) =
-    inherit OlySymbol(syntaxNode)
-
-    override _.SignatureText =
-        $"#{name} \"{value}\""
+type OlyDirectiveSymbol internal (name: string, value: string) =
+    inherit OlySymbol()
 
     override _.Name = name
 
-    override _.TryGetDefinitionLocation(_) = None
+    override _.TryGetDefinitionLocation(_, _) = None
 
     override this.IsSimilarTo(symbol) =
         match symbol with
@@ -804,52 +1004,288 @@ type OlyDirectiveSymbol internal (syntaxNode: OlySyntaxNode, name: string, value
         | _ ->
             false
 
+    override this.IsEqualTo(symbol) =
+        this.IsSimilarTo(symbol)
+
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
+    override this.IsExported = false
+
+    override this.IsImported = false
+
     override _.IsInLocalScope = false
 
     member _.Value = value
 
 [<Sealed>] 
-type OlyConditionalDirectiveSymbol internal (syntaxNode: OlySyntaxNode) =
-    inherit OlySymbol(syntaxNode)
-
-    override _.SignatureText = String.Empty
+type OlyConditionalDirectiveSymbol internal () =
+    inherit OlySymbol()
 
     override _.Name = String.Empty
 
-    override _.TryGetDefinitionLocation(_) = None
+    override _.TryGetDefinitionLocation(_, _) = None
 
     override this.IsSimilarTo(_) = false
 
+    override this.IsEqualTo(_) = false
+
+    override this.IsFormalEqualTo(symbol) =
+        this.IsEqualTo(symbol)
+
+    override this.IsExported = false
+
+    override this.IsImported = false
+
     override _.IsInLocalScope = false
+
+[<Sealed>]
+type OlySymbolUseInfo internal (symbol: OlySymbol, subModel: OlyBoundSubModel) =
+
+    member internal _.InternalEnvironment: BoundEnvironment = subModel.InternalEnvironment
+
+    member _.SubModel: OlyBoundSubModel = subModel
+
+    member _.Symbol: OlySymbol = symbol
+
+    member _.Syntax: OlySyntaxNode = subModel.SyntaxNode
+
+    member this.Container: Choice<OlyEnclosingSymbol, OlyValueSymbol> =
+        if symbol.IsInLocalScope then
+            match this.InternalEnvironment.senv.enclosingValue with
+            | Some(value) -> Choice2Of2(OlyValueSymbol(value))
+            | _ -> Choice1Of2(OlyEnclosingSymbol(this.InternalEnvironment.senv.enclosing))
+        else
+            Choice1Of2(OlyEnclosingSymbol(this.InternalEnvironment.senv.enclosing))
+
+    member _.IsCallee =
+        if obj.ReferenceEquals(subModel.Node, null) then
+            false
+        else
+            let mutable node: IBoundNode = subModel.Node
+            if node.IsExpression then
+                match System.Runtime.CompilerServices.Unsafe.As<_, BoundExpression>(&node) with
+                | BoundExpression.Call(value=value) ->
+                    match symbol with
+                    | :? OlyValueSymbol as valueToCheck ->
+                        obj.ReferenceEquals(valueToCheck.Internal, value)
+                    | _ ->
+                        false
+                | _ ->
+                    false
+            else
+                false
+
+    member this.TryGetAliasedType() =
+        let benv = this.InternalEnvironment
+        if symbol.IsType then
+            let ty = symbol.AsType.Internal
+            if ty.IsAlias_steea then
+                match ty with
+                | TypeSymbol.Entity(ent) ->
+                    if ent.Extends.IsEmpty then
+                        None
+                    else
+                        let ty = ent.Extends[0]
+                        match benv.TryFindEntityByIntrinsicType(ty) with
+                        | ValueSome(ent) ->
+                            Some(OlyTypeSymbol(ent.AsType))
+                        | _ ->
+                            Some(OlyTypeSymbol(ty))
+                | _ ->
+                    match ty.TryGetIntrinsicType() with
+                    | true, ty ->
+                        match benv.TryFindEntityByIntrinsicType(ty) with
+                        | ValueSome(ent) ->
+                            Some(OlyTypeSymbol(ent.AsType))
+                        | _ ->
+                            Some(OlyTypeSymbol(ty))
+                    | _ ->
+                        None
+            else
+                None
+        else
+            None
+
+    member this.SignatureText =
+        let benv = this.InternalEnvironment
+        let syntax = this.Syntax
+        match symbol with
+        | :? OlyTypeSymbol as tySymbol ->
+            if syntax.IsDefinition then
+                printTypeDefinition benv tySymbol.Internal
+            else
+                printType benv tySymbol.Internal
+        | :? OlyFunctionGroupSymbol as funcGroupSymbol ->
+            funcGroupSymbol.Name
+        | :? OlyValueSymbol as valueSymbol ->
+            printValue benv valueSymbol.Internal
+        | :? OlyConstantSymbol as constantSymbol ->
+            let valueText =
+                let rec f (c: OlyConstant) =
+                    match c with
+                    | OlyConstant.UInt8(value) -> string value
+                    | OlyConstant.Int8(value) -> string value
+                    | OlyConstant.UInt16(value) -> string value
+                    | OlyConstant.Int16(value) -> string value
+                    | OlyConstant.UInt32(value) -> string value
+                    | OlyConstant.Int32(value) -> string value
+                    | OlyConstant.UInt64(value) -> string value
+                    | OlyConstant.Int64(value) -> string value
+                    | OlyConstant.Float32(value) -> string value
+                    | OlyConstant.Float64(value) -> string value
+                    | OlyConstant.True -> "true"
+                    | OlyConstant.False -> "false"
+                    | OlyConstant.Char16(value) -> $"'{value}'"
+                    | OlyConstant.String16(value) -> $"\"{value}\""
+                    | OlyConstant.Null -> "null"
+                    | OlyConstant.Default -> "default"
+                    | OlyConstant.Array(_, values) ->
+                        let innerText =
+                            values
+                            |> ImArray.map f
+                            |> String.concat ";"
+                        $"[{innerText}]"
+                    | OlyConstant.Variable(ty) -> OlySymbolUseInfo(ty, OlyBoundSubModel(subModel.Root, syntax, subModel.Node)).SignatureText
+                    | OlyConstant.External(func) -> OlySymbolUseInfo(func, OlyBoundSubModel(subModel.Root, syntax, subModel.Node)).SignatureText
+                    | OlyConstant.Error -> "?"
+                f constantSymbol.Value
+            $"{valueText}: {OlySymbolUseInfo(constantSymbol.Type, OlyBoundSubModel(subModel.Root, syntax, subModel.Node)).SignatureText}"
+
+
+        | :? OlyNamespaceSymbol as symbol ->
+            let names = ResizeArray()
+            let rec loop (enclosing: EnclosingSymbol) =
+                match enclosing with
+                | EnclosingSymbol.Entity(ent) ->
+                    names.Add(ent.Name)
+                    loop enclosing.Enclosing
+                | _ ->
+                    ()
+            loop symbol.Internal.AsEnclosing
+            names |> Seq.rev |> String.concat "."
+
+        | :? OlyAttributeSymbol as symbol ->
+                match symbol.Internal with
+                | AttributeSymbol.Open -> "open"
+                | AttributeSymbol.Null -> "null"
+                | AttributeSymbol.Blittable -> "blittable"
+                | AttributeSymbol.Pure -> "pure"
+                | AttributeSymbol.Import(platform, path, name) -> 
+                    $"import(\"{platform}\", \"{path}\", \"{name}\")"
+                | AttributeSymbol.Export -> 
+                    "export"
+                | AttributeSymbol.Intrinsic name -> 
+                    $"intrinsic(\"{name}\")"
+                | AttributeSymbol.Inline(inlineArg) -> 
+                    match inlineArg with
+                    | InlineArgumentSymbol.None -> "inline"
+                    | InlineArgumentSymbol.Never -> "inline(never)"
+                    | InlineArgumentSymbol.Always -> "inline(always)"
+                | AttributeSymbol.Unmanaged(unmanagedArg) -> 
+                    match unmanagedArg with
+                    | UnmanagedArgumentSymbol.AllocationOnly -> "unmanaged(allocation_only)"
+                | AttributeSymbol.Constructor(ctor, _, _, _) -> 
+                    OlySymbolUseInfo(OlyValueSymbol(ctor), OlyBoundSubModel(subModel.Root, syntax, subModel.Node)).SignatureText
+
+        | :? OlyDirectiveSymbol as symbol ->
+            $"#{symbol.Name} \"{symbol.Value}\""
+
+        | _ ->
+            String.Empty
+
+[<Sealed>]
+type OlySymbolUseInfo<'T when 'T :> OlySymbol> internal (symbol: 'T, subModel: OlyBoundSubModel) =
+    let untypedInfo = OlySymbolUseInfo(symbol, subModel)
+
+    member _.Symbol = symbol
+
+    member _.UntypedInfo = untypedInfo   
 
 // TODO: Weird name.
 [<Sealed>] 
-type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode, benv: BoundEnvironment) =
-
-    let syntax = boundModel.SyntaxTree.DummyNode
+type OlyBoundSubModel internal (boundModel: OlyBoundModel, syntax: OlySyntaxNode, boundNode: IBoundNode) =
 
     member _.Root: OlyBoundModel = boundModel
 
-    member internal _.InternalBoundNode = boundNode
+    member internal _.Node = boundNode
 
-    member internal _.InternalEnvironment = benv
+    member internal _.InternalEnvironment =
+        if obj.ReferenceEquals(boundNode, null) then
+            boundModel.GetBoundTree(CancellationToken.None).RootEnvironment
+        else
+            match boundNode.TryGetEnvironment() with
+            | Some(benv) -> benv
+            | _ -> boundModel.GetBoundTree(CancellationToken.None).RootEnvironment
 
-    member _.GetUnqualifiedValueSymbols() =
-        benv.senv.unqualifiedSymbols.Values
+    member this.GetSignatureText(symbol: OlySymbol) =
+        let symbolInfo = OlySymbolUseInfo(symbol, OlyBoundSubModel(boundModel, syntax, boundNode))
+        symbolInfo.SignatureText
+
+    member this.TryGetAliasType(symbol: OlySymbol) =
+        let symbolInfo = OlySymbolUseInfo(symbol, OlyBoundSubModel(boundModel, syntax, boundNode))
+        symbolInfo.TryGetAliasedType()
+
+    member this.GetFunctions(symbol: OlyTypeSymbol) =
+        symbol.Internal.FindMostSpecificFunctions(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+        |> ImArray.map (fun x ->
+            OlyValueSymbol(x)
+        )
+
+    member this.GetProperties(symbol: OlyTypeSymbol) =
+        symbol.Internal.FindMostSpecificProperties(this.InternalEnvironment, QueryMemberFlags.StaticOrInstance, QueryProperty.IntrinsicAndExtrinsic)
+        |> Seq.map (fun x ->
+            OlyValueSymbol(x)
+        )
+
+    member this.IsUnqualified(symbol: OlySymbol) =
+        match symbol with
+        | :? OlyValueSymbol as valueSymbol ->
+            let value = valueSymbol.Internal
+            if valueSymbol.IsPatternFunction then
+                match this.InternalEnvironment.senv.unqualifiedPatterns.TryGetValue(value.Name) with
+                | true, unqualifiedSymbol ->
+                    match unqualifiedSymbol with
+                    | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
+                    | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
+                    | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
+                | _ ->
+                    false
+            else
+                match this.InternalEnvironment.senv.unqualifiedSymbols.TryGetValue(value.Name) with
+                | true, unqualifiedSymbol ->
+                    match unqualifiedSymbol with
+                    | UnqualifiedSymbol.Local(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.AmbiguousValues(xs) -> xs |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id)
+                    | UnqualifiedSymbol.Field(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.Function(x) -> x.Formal.Id = value.Formal.Id
+                    | UnqualifiedSymbol.FunctionGroup(x) -> (x.Functions |> ImArray.exists (fun x -> x.Formal.Id = value.Formal.Id))
+                    | UnqualifiedSymbol.Property(x) -> x.Formal.Id = value.Formal.Id
+                | _ ->
+                    false
+        | _ ->
+            // TODO:
+            false
+
+    member this.GetUnqualifiedValueSymbols() =
+        this.InternalEnvironment.senv.unqualifiedSymbols.Values
         |> Seq.map (fun x -> 
             match x with
             | UnqualifiedSymbol.Local value ->
-                seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                seq { OlyValueSymbol(value) }
             | UnqualifiedSymbol.Field value ->
-                seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                seq { OlyValueSymbol(value) }
             | UnqualifiedSymbol.Property value ->
-                seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                seq { OlyValueSymbol(value) }
             | UnqualifiedSymbol.Function value ->
-                seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                seq { OlyValueSymbol(value) }
             | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
-                seq { OlyFunctionGroupSymbol(boundModel, benv, syntax, funcGroup) :> OlyValueSymbol }
+                seq { OlyFunctionGroupSymbol(funcGroup) :> OlyValueSymbol }
             | UnqualifiedSymbol.AmbiguousValues(values) when not values.IsEmpty ->
-                seq { OlyValueSymbol(boundModel, benv, syntax, values[0]) }
+                seq { OlyValueSymbol(values[0]) }
             | _ ->
                 Seq.empty
         )
@@ -857,31 +1293,31 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
 
     /// Gets unqualified pattern functions.
     /// Gets qualified pattern functions by one level.
-    member _.GetPatternFunctionSymbols() =
+    member this.GetPatternFunctionSymbols() =
         let symbols1 =
-            benv.senv.unqualifiedPatterns.Values
+            this.InternalEnvironment.senv.unqualifiedPatterns.Values
             |> Seq.map (fun x -> 
                 match x with
                 | UnqualifiedSymbol.Function value when value.IsPatternFunction ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                    seq { OlyValueSymbol(value) }
                 | UnqualifiedSymbol.FunctionGroup(funcGroup) when funcGroup.IsPatternFunction ->
-                    seq { OlyFunctionGroupSymbol(boundModel, benv, syntax, funcGroup) :> OlyValueSymbol }
+                    seq { OlyFunctionGroupSymbol(funcGroup) :> OlyValueSymbol }
                 | _ ->
                     Seq.empty
             )
             |> Seq.concat
 
         let symbols2 =
-            benv.senv.unqualifiedTypes.Values
+            this.InternalEnvironment.senv.unqualifiedTypes.Values
             |> Seq.collect (fun tys ->
                 tys.Values
                 |> Seq.collect (fun tys ->
                     tys
                     |> ImArray.collect (fun ty ->
-                        ty.FindFunctions(benv, QueryMemberFlags.PatternFunction, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
+                        ty.FindMostSpecificFunctions(this.InternalEnvironment, QueryMemberFlags.PatternFunction, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic)
                         |> ImArray.filter (fun x -> x.IsPatternFunction)
                         |> ImArray.map (fun x ->
-                            OlyValueSymbol(boundModel, benv, syntax, x)
+                            OlyValueSymbol(x)
                         )
                     )
                 )
@@ -890,7 +1326,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
         Seq.append symbols1 symbols2
 
     /// Tries to return the type that a pattern expects to be matching on.
-    member this.TryGetMatchType(syntaxNode: OlySyntaxNode, ct: CancellationToken): OlyTypeSymbol option =
+    member this.TryGetMatchType(syntaxNode: OlySyntaxNode, ct: CancellationToken): OlySymbolUseInfo<OlyTypeSymbol> option =
 
         let matchIndexOpt =
             let position = syntaxNode.TextSpan.End
@@ -963,8 +1399,8 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                                 match matchExpr.TryEnvironment with
                                 | Some benv ->
                                     let ty = matchExpr.Type 
-                                    if ty.IsSolved then
-                                        matchTyOpt <- Some(matchExpr.Syntax, benv, ty)
+                                    if ty.IsSolved_ste then
+                                        matchTyOpt <- Some(matchExpr.Syntax, ty, boundNode)
                                 | _ ->
                                     ()
                         | _ ->
@@ -973,18 +1409,14 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                     | :? BoundCasePattern as casePat ->
                         match casePat with
                         | BoundCasePattern.Function(syntaxInfo, pat, _, _) when obj.ReferenceEquals(syntaxInfo.Syntax, syntaxNode) ->
-                            match syntaxInfo.TryEnvironment with
-                            | Some benv ->
-                                let returnTy = pat.PatternFunction.ReturnType
-                                match stripTypeEquations returnTy with
-                                | TypeSymbol.Tuple(itemTys, _) when matchIndex < itemTys.Length ->
-                                    let ty = itemTys[matchIndex]
-                                    if ty.IsSolved then
-                                        matchTyOpt <- Some(syntaxInfo.Syntax, benv, ty)
-                                | ty when ty.IsSolved ->
-                                    matchTyOpt <- Some(syntaxInfo.Syntax, benv, ty)
-                                | _ ->
-                                    ()
+                            let returnTy = pat.PatternFunction.ReturnType
+                            match stripTypeEquations returnTy with
+                            | TypeSymbol.Tuple(itemTys, _) when matchIndex < itemTys.Length ->
+                                let ty = itemTys[matchIndex]
+                                if ty.IsSolved_ste then
+                                    matchTyOpt <- Some(syntaxInfo.Syntax, ty, boundNode)
+                            | ty when ty.IsSolved_ste ->
+                                matchTyOpt <- Some(syntaxInfo.Syntax, ty, boundNode)
                             | _ ->
                                 ()
                         | _ ->
@@ -995,47 +1427,50 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
             )
 
             matchTyOpt
-            |> Option.map (fun (syntax, benv, ty) ->
-                OlyTypeSymbol(boundModel, benv, syntax, ty)
+            |> Option.map (fun (syntax, ty, boundNode) ->
+                OlySymbolUseInfo<OlyTypeSymbol>(
+                    OlyTypeSymbol(ty),
+                    OlyBoundSubModel(boundModel, syntax, boundNode)
+                )
             )
 
     member this.GetUnqualifiedValueSymbols(containsText: string) =
         if String.IsNullOrWhiteSpace containsText then
             this.GetUnqualifiedValueSymbols()
         else
-            benv.senv.unqualifiedSymbols
+            this.InternalEnvironment.senv.unqualifiedSymbols
             |> Seq.filter (fun x -> x.Key.Contains(containsText))
             |> Seq.map (fun x -> 
                 match x.Value with
                 | UnqualifiedSymbol.Local value ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                    seq { OlyValueSymbol(value) }
                 | UnqualifiedSymbol.Field value ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                    seq { OlyValueSymbol(value) }
                 | UnqualifiedSymbol.Property value ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                    seq { OlyValueSymbol(value) }
                 | UnqualifiedSymbol.Function value ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, value) }
+                    seq { OlyValueSymbol(value) }
                 | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
-                    seq { OlyFunctionGroupSymbol(boundModel, benv, syntax, funcGroup) :> OlyValueSymbol }
+                    seq { OlyFunctionGroupSymbol(funcGroup) :> OlyValueSymbol }
                 | UnqualifiedSymbol.AmbiguousValues(values) when not values.IsEmpty ->
-                    seq { OlyValueSymbol(boundModel, benv, syntax, values[0]) }
+                    seq { OlyValueSymbol(values[0]) }
                 | _ ->
                     Seq.empty
             )
             |> Seq.concat
 
-    member _.GetUnqualifiedTypeSymbols() =
-        benv.senv.unqualifiedTypes.Values
+    member this.GetUnqualifiedTypeSymbols() =
+        this.InternalEnvironment.senv.unqualifiedTypes.Values
         |> Seq.concat
         |> Seq.map (fun pair -> pair.Value)
         |> Seq.choose (fun tys ->
             if tys.IsEmpty then
                 None
             elif tys.Length = 1 then
-                OlyTypeSymbol(boundModel, benv, syntax, tys[0])
+                OlyTypeSymbol(tys[0])
                 |> Some
             else
-                OlyTypeSymbol(boundModel, benv, syntax, TypeSymbolError)
+                OlyTypeSymbol(TypeSymbolError)
                 |> Some
         )
 
@@ -1043,7 +1478,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
         if String.IsNullOrWhiteSpace containsText then
             this.GetUnqualifiedTypeSymbols()
         else
-            benv.senv.unqualifiedTypes
+            this.InternalEnvironment.senv.unqualifiedTypes
             |> Seq.map (fun x -> x.Value |> Seq.filter (fun x -> x.Key.Contains(containsText)))
             |> Seq.concat
             |> Seq.map (fun pair -> pair.Value)
@@ -1051,19 +1486,19 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
                 if tys.IsEmpty then
                     None
                 elif tys.Length = 1 then
-                    OlyTypeSymbol(boundModel, benv, syntax, tys[0])
+                    OlyTypeSymbol(tys[0])
                     |> Some
                 else
-                    OlyTypeSymbol(boundModel, benv, syntax, TypeSymbolError)
+                    OlyTypeSymbol(TypeSymbolError)
                     |> Some
             )
 
-    member _.GetUnqualifiedNamespaceSymbols() =
-        benv.senv.namespaces.Values
+    member this.GetUnqualifiedNamespaceSymbols() =
+        this.InternalEnvironment.senv.namespaces.Values
         |> Seq.choose (fun group ->
             match (group :> INamespaceSymbol).Enclosing with
             | EnclosingSymbol.RootNamespace ->
-                OlyNamespaceSymbol(boundModel, benv, syntax, group)
+                OlyNamespaceSymbol(group)
                 |> Some
             | _ ->
                 None
@@ -1073,11 +1508,11 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
         if String.IsNullOrWhiteSpace containsText then
             this.GetUnqualifiedNamespaceSymbols()
         else
-            benv.senv.namespaces.Values
+            this.InternalEnvironment.senv.namespaces.Values
             |> Seq.choose (fun group ->
                 match (group :> INamespaceSymbol).Enclosing with
                 | EnclosingSymbol.RootNamespace when (group :> EntitySymbol).Name.Contains(containsText) ->
-                    OlyNamespaceSymbol(boundModel, benv, syntax, group)
+                    OlyNamespaceSymbol(group)
                     |> Some
                 | _ ->
                     None
@@ -1098,7 +1533,7 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
             |> Seq.append (this.GetUnqualifiedTypeSymbols(containsText) |> Seq.map (fun x -> x :> OlySymbol))
             |> Seq.append (this.GetUnqualifiedNamespaceSymbols(containsText) |> Seq.map (fun x -> x :> OlySymbol))
 
-    member _.SyntaxNode = boundNode.Syntax
+    member _.SyntaxNode = syntax
 
 //*****************************************************************************************************************************************************
 //*****************************************************************************************************************************************************
@@ -1107,39 +1542,38 @@ type OlyBoundSubModel internal (boundModel: OlyBoundModel, boundNode: IBoundNode
 //*****************************************************************************************************************************************************
 //*****************************************************************************************************************************************************
 
-let private getTypeSymbolByIdentifier (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxIdent: OlySyntaxToken) (ty: TypeSymbol) =
-    if predicate syntaxIdent then
-        match ty.TryEntity with
+let private getTypeSymbolByIdentifier (bm: OlyBoundModel) (collector: ISymbolCollector) (syntaxIdent: OlySyntaxToken) (boundNode: IBoundNode) (ty: TypeSymbol) =
+    if collector.FilterSyntax syntaxIdent then
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) when ent.IsNamespace ->
-            addSymbol(OlyNamespaceSymbol(bm, benv, syntaxIdent, ent))
+            collector.CollectSymbol(OlySymbolUseInfo(OlyNamespaceSymbol(ent), OlyBoundSubModel(bm, syntaxIdent, boundNode)))
         | _ ->
-            addSymbol(OlyTypeSymbol(bm, benv, syntaxIdent, ty))
+            collector.CollectSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(bm, syntaxIdent, boundNode)))
 
-let private getTypeSymbolByName bm (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxName: OlySyntaxName) (ty: TypeSymbol) =
+let private getTypeSymbolByName bm (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (ty: TypeSymbol) =
     match syntaxName with
     | OlySyntaxName.Identifier(syntaxIdent) ->
-        getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdent ty
+        getTypeSymbolByIdentifier bm collector syntaxIdent boundNode ty
 
     | OlySyntaxName.Parenthesis(_, syntaxIdentOrOperator, _) ->
-        getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdentOrOperator ty
+        getTypeSymbolByIdentifier bm collector syntaxIdentOrOperator boundNode ty
 
     | OlySyntaxName.Generic(syntaxName, syntaxTyArgs) ->
-        getTypeSymbolByName bm addSymbol benv predicate syntaxName ty
-        getTypeArgumentSymbolsWithTypes bm addSymbol benv predicate syntaxTyArgs ty.TypeArguments
+        getTypeSymbolByName bm collector syntaxName boundNode ty
+        getTypeArgumentSymbolsWithTypes bm collector syntaxTyArgs boundNode ty.TypeArguments
 
     | OlySyntaxName.Qualified _ ->
-
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome(ent) ->
-            (ent.AsEnclosing, syntaxName.AllNames |> List.rev)
-            ||> List.fold (fun enclosing syntaxName ->
+            (ent.AsEnclosing, syntaxName.AllNames)
+            ||> ImArray.foldBack (fun enclosing syntaxName ->
                 match enclosing.TryEntity with
                 | Some ent ->
                     if ent.IsNamespace then 
-                        getTypeSymbolByName bm addSymbol benv predicate syntaxName ent.AsNamespaceType
+                        getTypeSymbolByName bm collector syntaxName boundNode ent.AsNamespaceType
                         ent.Enclosing
                     else
-                        getTypeSymbolByName bm addSymbol benv predicate syntaxName ent.AsType
+                        getTypeSymbolByName bm collector syntaxName boundNode ent.AsType
                         ent.Enclosing
                 | _ ->
                     enclosing
@@ -1151,14 +1585,46 @@ let private getTypeSymbolByName bm (addSymbol: OlySymbol -> unit) benv (predicat
     | _ ->
         raise(InternalCompilerException())
 
-let private getTypeArgumentSymbolsWithTypes bm (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTyArgs: OlySyntaxTypeArguments) (tys: ImmutableArray<TypeSymbol>) =
+let private getTypeArgumentSymbolsWithTypes bm (collector: ISymbolCollector) (syntaxTyArgs: OlySyntaxTypeArguments) (boundNode: IBoundNode) (tys: ImmutableArray<TypeSymbol>) =
     let values = syntaxTyArgs.Values
     (values, tys)
     ||> Seq.iter2 (fun syntaxTyArg ty ->
-        getTypeSymbol bm addSymbol benv predicate syntaxTyArg ty
+        getTypeSymbol bm collector syntaxTyArg boundNode ty
     )
 
-let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTy: OlySyntaxType) (ty: TypeSymbol) =
+let private getTypeSymbolByExpression bm (collector: ISymbolCollector) (syntaxExpr: OlySyntaxExpression) (boundNode: IBoundNode) (ty: TypeSymbol) : unit =
+    match syntaxExpr with
+    | OlySyntaxExpression.Literal(syntaxLiteral) ->
+        match syntaxLiteral with
+        | OlySyntaxLiteral.Default(syntaxToken)
+        | OlySyntaxLiteral.UInt8(syntaxToken)
+        | OlySyntaxLiteral.Int8(syntaxToken)
+        | OlySyntaxLiteral.UInt16(syntaxToken)
+        | OlySyntaxLiteral.Int16(syntaxToken)
+        | OlySyntaxLiteral.UInt32(syntaxToken)
+        | OlySyntaxLiteral.Int32(syntaxToken)
+        | OlySyntaxLiteral.UInt64(syntaxToken)
+        | OlySyntaxLiteral.Int64(syntaxToken)
+        | OlySyntaxLiteral.Float32(syntaxToken)
+        | OlySyntaxLiteral.Float64(syntaxToken)
+        | OlySyntaxLiteral.Bool(syntaxToken)
+        | OlySyntaxLiteral.Null(syntaxToken)
+        | OlySyntaxLiteral.Integer(syntaxToken)
+        | OlySyntaxLiteral.Real(syntaxToken)
+        | OlySyntaxLiteral.Char16(syntaxToken)
+        | OlySyntaxLiteral.String16(syntaxToken) ->
+            if collector.FilterSyntax syntaxToken then
+                collector.CollectSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(bm, syntaxToken, boundNode)))
+        | _ ->
+            ()
+
+    | OlySyntaxExpression.Name(syntaxName) ->
+        getTypeSymbolByName bm collector syntaxName boundNode ty
+
+    | _ ->
+        ()
+
+let private getTypeSymbol (bm: OlyBoundModel) (collector: ISymbolCollector) (syntaxTy: OlySyntaxType) (boundNode: IBoundNode) (ty: TypeSymbol) =
 
     let handleTupleElementList (syntaxElementList: OlySyntaxSeparatorList<OlySyntaxTupleElement>) =
         let tyArgs = ty.TypeArguments
@@ -1166,7 +1632,7 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
         if tyArgs.IsEmpty && syntaxElements.Length = 1 then
             match syntaxElements[0] with
             | OlySyntaxTupleElement.Type(syntaxTy) ->
-                getTypeSymbol bm addSymbol benv predicate syntaxTy ty
+                getTypeSymbol bm collector syntaxTy boundNode ty
             | _ ->
                 ()
         else
@@ -1174,11 +1640,11 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
             ||> ImArray.tryIter2 (fun syntaxElement ty ->
                 match syntaxElement with
                 | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(syntaxIdent, _, syntaxTy) ->
-                    if predicate syntaxIdent then
+                    if collector.FilterSyntax syntaxIdent then
                         () // TODO: Capture ident for tuple element name
-                    getTypeSymbol bm addSymbol benv predicate syntaxTy ty
+                    getTypeSymbol bm collector syntaxTy boundNode ty
                 | OlySyntaxTupleElement.Type(syntaxTy) ->
-                    getTypeSymbol bm addSymbol benv predicate syntaxTy ty
+                    getTypeSymbol bm collector syntaxTy boundNode ty
                 | _ ->
                     ()
             )
@@ -1197,8 +1663,8 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
                 else
                     TypeSymbol.Tuple(argTys, ImArray.empty)
 
-            getTypeSymbol bm addSymbol benv predicate syntaxInputTy inputTy
-            getTypeSymbol bm addSymbol benv predicate syntaxOutputTy returnTy
+            getTypeSymbol bm collector syntaxInputTy boundNode inputTy
+            getTypeSymbol bm collector syntaxOutputTy boundNode returnTy
         | _ ->
             ()
 
@@ -1214,35 +1680,53 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
                 else
                     TypeSymbol.Tuple(argTys, ImArray.empty)
 
-            getTypeSymbol bm addSymbol benv predicate syntaxInputTy inputTy
-            getTypeSymbol bm addSymbol benv predicate syntaxOutputTy returnTy
+            getTypeSymbol bm collector syntaxInputTy boundNode inputTy
+            getTypeSymbol bm collector syntaxOutputTy boundNode returnTy
         | _ ->
             ()
 
     | OlySyntaxType.Name(syntaxName) ->
-        getTypeSymbolByName bm addSymbol benv predicate syntaxName ty
+        getTypeSymbolByName bm collector syntaxName boundNode ty
 
     | OlySyntaxType.Tuple(_, syntaxTupleElementList, _) ->
         handleTupleElementList syntaxTupleElementList
 
     | OlySyntaxType.Variadic(syntaxIdent, _) ->
-        getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdent ty
+        getTypeSymbolByIdentifier bm collector syntaxIdent boundNode ty
 
     | OlySyntaxType.VariadicIndexer(syntaxIdent, _, _, syntaxConstExpr, _) ->
-        getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdent ty
+        getTypeSymbolByIdentifier bm collector syntaxIdent boundNode ty
         match stripTypeEquationsExceptAlias ty, syntaxConstExpr with
         | TypeSymbol.DependentIndexer(inputValueTy, _), OlySyntaxExpression.Name(OlySyntaxName.Identifier(syntaxIdentForConst)) ->
-            getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdentForConst inputValueTy
+            getTypeSymbolByIdentifier bm collector syntaxIdentForConst boundNode inputValueTy
         | _ ->
             ()             
 
     | OlySyntaxType.Array(syntaxElementTy, _) ->
         if ty.TypeArguments.Length > 0 then
-            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
+            getTypeSymbol bm collector syntaxElementTy boundNode ty.TypeArguments[0]
 
     | OlySyntaxType.MutableArray(_, syntaxElementTy, _) ->
         if ty.TypeArguments.Length > 0 then
-            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
+            getTypeSymbol bm collector syntaxElementTy boundNode ty.TypeArguments[0]
+
+    | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRankBrackets) ->
+        if ty.TypeArguments.Length >= 3 then
+            getTypeSymbol bm collector syntaxElementTy boundNode ty.TypeArguments[0]
+            match syntaxRankBrackets.Element with
+            | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
+                getTypeSymbolByExpression bm collector syntaxExpr boundNode ty.TypeArguments[1]
+            | _ ->
+                ()
+
+    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRankBrackets) ->
+        if ty.TypeArguments.Length >= 3 then
+            getTypeSymbol bm collector syntaxElementTy boundNode ty.TypeArguments[0]
+            match syntaxRankBrackets.Element with
+            | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
+                getTypeSymbolByExpression bm collector syntaxExpr boundNode ty.TypeArguments[1]
+            | _ ->
+                ()
 
     | OlySyntaxType.Shape(syntaxCurlyBrackets) ->
         // TODO: Finish the rest of this for fields and properties.
@@ -1270,7 +1754,7 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
                 match syntaxFuncName with
                 | OlySyntaxFunctionName.Identifier(syntaxToken) 
                 | OlySyntaxFunctionName.Parenthesis(_, syntaxToken, _)->
-                    getValueSymbolByIdentifier bm addSymbol benv predicate syntaxToken func
+                    getValueSymbolByIdentifier bm collector syntaxToken boundNode func
                 | _ ->
                     ()
             | _ ->
@@ -1283,8 +1767,8 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
 
     | OlySyntaxType.Postfix(syntaxElementTy, syntaxIdent) ->
         if ty.TypeArguments.Length >= 1 then
-            getTypeSymbol bm addSymbol benv predicate syntaxElementTy ty.TypeArguments.[0]
-        getTypeSymbolByIdentifier bm addSymbol benv predicate syntaxIdent ty
+            getTypeSymbol bm collector syntaxElementTy boundNode ty.TypeArguments.[0]
+        getTypeSymbolByIdentifier bm collector syntaxIdent boundNode ty
 
     | OlySyntaxType.WildCard _
     | OlySyntaxType.Error _ -> ()
@@ -1292,13 +1776,13 @@ let private getTypeSymbol (bm: OlyBoundModel) (addSymbol: OlySymbol -> unit) ben
     | _ ->
         raise(InternalCompilerUnreachedException())
 
-let private getValueSymbolByIdentifier bm (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxIdent: OlySyntaxToken) (value: IValueSymbol) =
-    if predicate syntaxIdent then
+let private getValueSymbolByIdentifier bm (collector: ISymbolCollector) (syntaxIdent: OlySyntaxToken) (boundNode: IBoundNode) (value: IValueSymbol) =
+    if collector.FilterSyntax syntaxIdent then
         match value with
         | :? FunctionGroupSymbol as funcGroup ->
-            addSymbol(OlyFunctionGroupSymbol(bm, benv, syntaxIdent, funcGroup))
+            collector.CollectSymbol(OlySymbolUseInfo(OlyFunctionGroupSymbol(funcGroup), OlyBoundSubModel(bm, syntaxIdent, boundNode)))
         | _ ->
-            addSymbol(OlyValueSymbol(bm, benv, syntaxIdent, value))
+            collector.CollectSymbol(OlySymbolUseInfo(OlyValueSymbol(value), OlyBoundSubModel(bm, syntaxIdent, boundNode)))
 
 let private nodeContains (boundNode: IBoundNode) (syntaxTarget: OlySyntaxNode) =
     let span = boundNode.Syntax.FullTextSpan
@@ -1328,49 +1812,49 @@ type OlyBoundModel internal (
         getPartialDeclTable: (CancellationToken -> BoundDeclarationTable), 
         getBoundTree: (CancellationToken -> BoundTree)) as this =
 
-    let rec getParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (logicalPars: ILocalParameterSymbol romem) =
+    let rec getParameterSymbols (collector: ISymbolCollector) (syntaxPars: OlySyntaxParameters) (boundNode: IBoundNode) (logicalPars: ILocalParameterSymbol romem) =
         (syntaxPars.Values.AsMemory(), logicalPars)
         ||> ROMem.tryIter2 (fun syntaxPar par ->
-            getParameterSymbol addSymbol benv predicate syntaxPar par
+            getParameterSymbol collector syntaxPar boundNode par
         )
 
-    and getParameterSymbol (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPar: OlySyntaxParameter) (par: ILocalParameterSymbol) =
+    and getParameterSymbol (collector: ISymbolCollector) (syntaxPar: OlySyntaxParameter) (boundNode: IBoundNode) (par: ILocalParameterSymbol) =
         match syntaxPar with
         | OlySyntaxParameter.Pattern(syntaxAttrs, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, syntaxTy) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            if predicate syntaxIdent then
-                addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
-            getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
+            getAttributeSymbols collector syntaxAttrs.Values boundNode par.Attributes
+            if collector.FilterSyntax syntaxIdent then
+                collector.CollectSymbol(OlySymbolUseInfo(OlyValueSymbol(par), OlyBoundSubModel(this, syntaxIdent, boundNode)))
+            getTypeSymbol this collector syntaxTy boundNode par.Type
 
         | OlySyntaxParameter.Type(syntaxAttrs, syntaxTy) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
+            getAttributeSymbols collector syntaxAttrs.Values boundNode par.Attributes
+            getTypeSymbol this collector syntaxTy boundNode par.Type
 
         | _ ->
             ()
 
-    and getParameterSymbolsByValues (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPars: OlySyntaxParameters) (pars: ImmutableArray<ILocalParameterSymbol>) =
+    and getParameterSymbolsByValues (collector: ISymbolCollector) (syntaxPars: OlySyntaxParameters) (boundNode: IBoundNode) (pars: ImmutableArray<ILocalParameterSymbol>) =
         (syntaxPars.Values, pars)
         ||> Seq.iter2 (fun syntaxPar par ->
-            getParameterSymbolByValue addSymbol benv predicate syntaxPar par
+            getParameterSymbolByValue collector syntaxPar boundNode par
         )
 
-    and getParameterSymbolByValue (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxPar: OlySyntaxParameter) (par: ILocalParameterSymbol) =
+    and getParameterSymbolByValue (collector: ISymbolCollector) (syntaxPar: OlySyntaxParameter) (boundNode: IBoundNode) (par: ILocalParameterSymbol) =
         match syntaxPar with
         | OlySyntaxParameter.Pattern(syntaxAttrs, _, OlySyntaxPattern.Name(OlySyntaxName.Identifier(syntaxIdent)), _, syntaxTy) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            if predicate syntaxIdent then
-                addSymbol(OlyValueSymbol(this, benv, syntaxIdent, par))
-            getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
+            getAttributeSymbols collector syntaxAttrs.Values boundNode par.Attributes
+            if collector.FilterSyntax syntaxIdent then
+                collector.CollectSymbol(OlySymbolUseInfo(OlyValueSymbol(par), OlyBoundSubModel(this, syntaxIdent, boundNode)))
+            getTypeSymbol this collector syntaxTy boundNode par.Type
 
         | OlySyntaxParameter.Type(syntaxAttrs, syntaxTy) ->
-            getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values par.Attributes
-            getTypeSymbol this addSymbol benv predicate syntaxTy par.Type
+            getAttributeSymbols collector syntaxAttrs.Values boundNode par.Attributes
+            getTypeSymbol this collector syntaxTy boundNode par.Type
 
         | _ ->
             ()
 
-    and getTypeParameterSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTyPars: OlySyntaxTypeParameters) (tyPars: TypeParameterSymbol imarray) =
+    and getTypeParameterSymbols (collector: ISymbolCollector) (syntaxTyPars: OlySyntaxTypeParameters) (boundNode: IBoundNode) (tyPars: TypeParameterSymbol imarray) =
         let syntaxTyPars = syntaxTyPars.Values
         let skipAmount = tyPars.Length - syntaxTyPars.Length
 
@@ -1378,19 +1862,53 @@ type OlyBoundModel internal (
         if skipAmount >= 0 then
             (syntaxTyPars.AsMemory(), tyPars.AsMemory().Slice(skipAmount))
             ||> ROMem.iter2 (fun syntaxTyPar tyPar -> 
-                getTypeSymbol this addSymbol benv predicate syntaxTyPar tyPar.AsType
+                getTypeSymbol this collector syntaxTyPar boundNode tyPar.AsType
             )
 
-    and getTypeSymbolsByTypes (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTys: OlySyntaxType seq) (tys: ImmutableArray<TypeSymbol>) =
+    and getTypeSymbolsByTypes (collector: ISymbolCollector) (syntaxTys: OlySyntaxType seq) (boundNode: IBoundNode) (tys: ImmutableArray<TypeSymbol>) =
         (syntaxTys, tys)
         ||> Seq.iter2 (fun syntaxTy ty ->
-            getTypeSymbol this addSymbol benv predicate syntaxTy ty
+            getTypeSymbol this collector syntaxTy boundNode ty
         )
 
-    and getAttributeSymbol (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxAttr: OlySyntaxAttribute) (attr: AttributeSymbol) : unit =
+    and getTypeSymbolByExpression bm (collector: ISymbolCollector) (syntaxExpr: OlySyntaxExpression) (boundNode: IBoundNode) (ty: TypeSymbol) : unit =
+        match syntaxExpr with
+        | OlySyntaxExpression.Literal(syntaxLiteral) ->
+            match syntaxLiteral with
+            | OlySyntaxLiteral.Default(syntaxToken)
+            | OlySyntaxLiteral.UInt8(syntaxToken)
+            | OlySyntaxLiteral.Int8(syntaxToken)
+            | OlySyntaxLiteral.UInt16(syntaxToken)
+            | OlySyntaxLiteral.Int16(syntaxToken)
+            | OlySyntaxLiteral.UInt32(syntaxToken)
+            | OlySyntaxLiteral.Int32(syntaxToken)
+            | OlySyntaxLiteral.UInt64(syntaxToken)
+            | OlySyntaxLiteral.Int64(syntaxToken)
+            | OlySyntaxLiteral.Float32(syntaxToken)
+            | OlySyntaxLiteral.Float64(syntaxToken)
+            | OlySyntaxLiteral.Bool(syntaxToken)
+            | OlySyntaxLiteral.Null(syntaxToken)
+            | OlySyntaxLiteral.Integer(syntaxToken)
+            | OlySyntaxLiteral.Real(syntaxToken)
+            | OlySyntaxLiteral.Char16(syntaxToken)
+            | OlySyntaxLiteral.String16(syntaxToken) ->
+                if collector.FilterSyntax syntaxToken then
+                    collector.CollectSymbol(OlySymbolUseInfo(OlyTypeSymbol(ty), OlyBoundSubModel(this, syntaxToken, boundNode)))
+            | _ ->
+                ()
+
+        | OlySyntaxExpression.Name(syntaxName) ->
+            getTypeSymbolByName bm collector syntaxName boundNode ty
+
+        | _ ->
+            ()
+
+    and getAttributeSymbol (collector: ISymbolCollector) (syntaxAttr: OlySyntaxAttribute) (boundNode: IBoundNode) (attr: AttributeSymbol) : unit =
         match syntaxAttr with
         | OlySyntaxAttribute.Expression(syntaxExpr) ->
             match syntaxExpr, attr with
+            | OlySyntaxExpression.Name(syntaxName), AttributeSymbol.Constructor(ctor, _, _, _) ->
+                getSymbolsByNameAndValue collector syntaxName boundNode ctor None
             // TODO: namedArgs
             | OlySyntaxExpression.Call(syntaxReceiverExpr, syntaxArgs), AttributeSymbol.Constructor(ctor, args, namedArgs, _) ->
                 match syntaxArgs with
@@ -1418,9 +1936,9 @@ type OlyBoundModel internal (
                             | OlySyntaxLiteral.Integer(syntaxToken)
                             | OlySyntaxLiteral.Real(syntaxToken)
                             | OlySyntaxLiteral.Char16(syntaxToken)
-                            | OlySyntaxLiteral.Utf16(syntaxToken) ->
-                                if predicate syntaxToken then
-                                    addSymbol(OlyConstantSymbol(this, benv, syntaxToken, arg.ToLiteral()))
+                            | OlySyntaxLiteral.String16(syntaxToken) ->
+                                if collector.FilterSyntax syntaxToken then
+                                    collector.CollectSymbol(OlySymbolUseInfo(OlyConstantSymbol(arg.ToLiteral()), OlyBoundSubModel(this, syntaxToken, boundNode)))
                             | _ ->
                                 ()
                         | OlySyntaxExpression.Call(syntaxExpr, _) ->
@@ -1428,7 +1946,7 @@ type OlyBoundModel internal (
                             | OlySyntaxExpression.Name(syntaxName) ->
                                 match arg with
                                 | ConstantSymbol.External(func) ->
-                                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName func None
+                                    getSymbolsByNameAndValue collector syntaxName boundNode func None
                                 | _ ->
                                     ()
                             | _ ->
@@ -1441,7 +1959,7 @@ type OlyBoundModel internal (
 
                 match syntaxReceiverExpr with
                 | OlySyntaxExpression.Name(syntaxName) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName ctor None
+                    getSymbolsByNameAndValue collector syntaxName boundNode ctor None
                 | _ ->
                     ()
             | _ ->
@@ -1449,63 +1967,62 @@ type OlyBoundModel internal (
         | _ ->
             ()
 
-    and getAttributeSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxAttrs: OlySyntaxAttribute imarray) (attrs: AttributeSymbol imarray) =
+    and getAttributeSymbols (collector: ISymbolCollector) (syntaxAttrs: OlySyntaxAttribute imarray) (boundNode: IBoundNode) (attrs: AttributeSymbol imarray) =
         (syntaxAttrs, attrs)
         ||> ImArray.tryIter2 (fun syntaxAttr attr ->
-            getAttributeSymbol addSymbol benv predicate syntaxAttr attr
+            getAttributeSymbol collector syntaxAttr boundNode attr
         )
 
-    and getSymbolsByConstraint (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxConstr: OlySyntaxConstraint) (constr: ConstraintSymbol) =
+    and getSymbolsByConstraint (collector: ISymbolCollector) (syntaxConstr: OlySyntaxConstraint) (boundNode: IBoundNode) (constr: ConstraintSymbol) =
         match syntaxConstr with
         | OlySyntaxConstraint.Type(syntaxTy) ->
             match constr.TryGetAnySubtypeOf() with
             | ValueSome constrTy ->
-                getTypeSymbol this addSymbol benv predicate syntaxTy constrTy
+                getTypeSymbol this collector syntaxTy boundNode constrTy
             | _ ->
                 ()
         | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
             match constr with
             | ConstraintSymbol.ConstantType(ty) ->
-                getTypeSymbol this addSymbol benv predicate syntaxTy ty.Value
+                getTypeSymbol this collector syntaxTy boundNode ty.Value
             | _ ->
                 ()
         | OlySyntaxConstraint.TraitType(_, syntaxTy) ->
             match constr with
             | ConstraintSymbol.TraitType(ty) ->
-                getTypeSymbol this addSymbol benv predicate syntaxTy ty.Value
+                getTypeSymbol this collector syntaxTy boundNode ty.Value
             | _ ->
                 ()
         | _ ->
             ()
 
-    and getSymbolsByConstraintClauseList (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxConstrClauseList: OlySyntaxSeparatorList<OlySyntaxConstraintClause>) (tyPars: TypeParameterSymbol imarray) =
+    and getSymbolsByConstraintClauseList (collector: ISymbolCollector) (syntaxConstrClauseList: OlySyntaxSeparatorList<OlySyntaxConstraintClause>) (boundNode: IBoundNode) (tyPars: TypeParameterSymbol imarray) =
         forEachConstraintBySyntaxConstraintClause syntaxConstrClauseList.ChildrenOfType tyPars (fun syntaxConstrClause tyPar constrs ->
             match syntaxConstrClause with
             | OlySyntaxConstraintClause.ConstraintClause(_, syntaxTy, _, syntaxConstrList) ->
-                getTypeSymbol this addSymbol benv predicate syntaxTy tyPar.AsType
+                getTypeSymbol this collector syntaxTy boundNode tyPar.AsType
                 (syntaxConstrList.ChildrenOfType, constrs)
                 ||> ImArray.tryIter2 (fun syntaxConstr constr ->
-                    getSymbolsByConstraint addSymbol benv predicate syntaxConstr constr
+                    getSymbolsByConstraint collector syntaxConstr boundNode constr
                 )
             | _ ->
                 ()
         )
 
-    and getTypeSymbolByNameAndEnclosing (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxName: OlySyntaxName) (enclosing: EnclosingSymbol) =
+    and getTypeSymbolByNameAndEnclosing (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (enclosing: EnclosingSymbol) =
         match enclosing with
         | EnclosingSymbol.Entity(ent) ->
             if ent.IsNamespace then
-                getTypeSymbolByName this addSymbol benv predicate syntaxName ent.AsNamespaceType
+                getTypeSymbolByName this collector syntaxName boundNode ent.AsNamespaceType
             else
-                getTypeSymbolByName this addSymbol benv predicate syntaxName ent.AsType
+                getTypeSymbolByName this collector syntaxName boundNode ent.AsType
         | EnclosingSymbol.Witness(concreteTy, _) ->
-            getTypeSymbolByName this addSymbol benv predicate syntaxName concreteTy
+            getTypeSymbolByName this collector syntaxName boundNode concreteTy
         | _ ->
             ()
 
-    and getSymbolsByNameAndValue (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxName: OlySyntaxName) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
-        // TODO: What is 'value.IsBridge' doing again?
-        if value.IsSingleUse then ()
+    and getEnclosingSymbolsByNameAndValue (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
+        if value.IsInstanceNotConstructor then ()
         else
 
         let syntaxNames = 
@@ -1526,37 +2043,41 @@ type OlyBoundModel internal (
                     value.Enclosing.Enclosing
                 else
                     value.Enclosing
+
         syntaxNames
         |> ImArray.iter (fun syntaxName ->
-            getTypeSymbolByNameAndEnclosing addSymbol benv predicate syntaxName enclosing
+            getTypeSymbolByNameAndEnclosing collector syntaxName boundNode enclosing
             enclosing <- enclosing.Enclosing
         )
 
-        if syntaxNames.IsEmpty && value.IsInvalid && not value.IsFunctionGroup then
-            getTypeSymbolByNameAndEnclosing addSymbol benv predicate syntaxName enclosing
+    and getSymbolsByNameAndValue (collector: ISymbolCollector) (syntaxName: OlySyntaxName) (boundNode: IBoundNode) (value: IValueSymbol) (enclosingTyOpt: TypeSymbol option) : unit =
+        if value.IsSingleUse then ()
         else
-            let syntaxName = syntaxName.LastName
-            match syntaxName with
-            | OlySyntaxName.Identifier(syntaxIdent) ->
-                getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent value.Formal
 
-                let tyArgs = value.AllTypeArguments
-                if not tyArgs.IsEmpty then
-                    match syntaxName.Parent with
-                    | :? OlySyntaxName as syntaxName ->
-                        match syntaxName with
-                        | OlySyntaxName.Generic(_, syntaxTyArgs) ->
-                            let syntaxTyArgs = syntaxTyArgs.Values
-                            let skipAmount = max 0 (tyArgs.Length - syntaxTyArgs.Length)
-                            getTypeArgumentSymbols addSymbol benv predicate syntaxTyArgs (tyArgs |> Seq.skip skipAmount |> ImArray.ofSeq)
-                        | _ ->
-                            ()
+        getEnclosingSymbolsByNameAndValue collector syntaxName boundNode value enclosingTyOpt
+
+        let syntaxName = syntaxName.LastName
+        match syntaxName with
+        | OlySyntaxName.Identifier(syntaxIdent) ->
+            getValueSymbolByIdentifier this collector syntaxIdent boundNode value.Formal
+
+            let tyArgs = value.AllTypeArguments
+            if not tyArgs.IsEmpty then
+                match syntaxName.Parent with
+                | :? OlySyntaxName as syntaxName ->
+                    match syntaxName with
+                    | OlySyntaxName.Generic(_, syntaxTyArgs) ->
+                        let syntaxTyArgs = syntaxTyArgs.Values
+                        let skipAmount = max 0 (tyArgs.Length - syntaxTyArgs.Length)
+                        getTypeArgumentSymbols collector syntaxTyArgs boundNode (tyArgs |> Seq.skip skipAmount |> ImArray.ofSeq)
                     | _ ->
                         ()
-            | _ ->
-                ()
+                | _ ->
+                    ()
+        | _ ->
+            ()
 
-    and getTypeArgumentSymbols (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxTyArgs: OlySyntaxType imarray) (tyArgs: ImmutableArray<TypeArgumentSymbol>) =
+    and getTypeArgumentSymbols (collector: ISymbolCollector) (syntaxTyArgs: OlySyntaxType imarray) (boundNode: IBoundNode) (tyArgs: ImmutableArray<TypeArgumentSymbol>) =
         let tyArgs =
             // This handles variadic type arguments.
             if syntaxTyArgs.Length > tyArgs.Length && not tyArgs.IsEmpty then
@@ -1569,25 +2090,17 @@ type OlyBoundModel internal (
                 tyArgs
         (syntaxTyArgs, tyArgs)
         ||> ImArray.tryIter2 (fun syntaxTyArg tyArg ->
-            getTypeSymbol this addSymbol benv predicate syntaxTyArg tyArg
+            getTypeSymbol this collector syntaxTyArg boundNode tyArg
         )
 
-    and getTypeSymbolFromTypeAnnotation (addSymbol: OlySymbol -> unit) benv (predicate: OlySyntaxToken -> bool) (syntaxReturnTyAnnot: OlySyntaxReturnTypeAnnotation) (ty: TypeSymbol) =
+    and getTypeSymbolFromTypeAnnotation (collector: ISymbolCollector) (syntaxReturnTyAnnot: OlySyntaxReturnTypeAnnotation) (boundNode: IBoundNode) (ty: TypeSymbol) =
         match syntaxReturnTyAnnot with
         | OlySyntaxReturnTypeAnnotation.TypeAnnotation(_, syntaxTy) ->
-            getTypeSymbol this addSymbol benv predicate syntaxTy ty
+            getTypeSymbol this collector syntaxTy boundNode ty
         | _ ->
             ()
 
-    let getSymbols (syntaxNode: OlySyntaxNode) (filterSymbol: OlySymbol -> bool) (compare: OlySyntaxNode -> OlySyntaxNode -> bool) canFindMultipleSymbols (ct: CancellationToken) =
-
-        let predicate = fun node -> if canFindMultipleSymbols then true else nodeEquals syntaxNode node
-
-        let symbols = ImmutableArray.CreateBuilder<OlySymbol>()
-        let addSymbol = 
-            fun symbol -> 
-                if filterSymbol symbol then
-                    symbols.Add(symbol)
+    let collectSymbols (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (collector: ISymbolCollector) (ct: CancellationToken) =
 
         let boundTree = this.GetBoundTree(ct)
 
@@ -1595,21 +2108,29 @@ type OlyBoundModel internal (
         //       It's hacky because we assume the directives are always at the top, but it wont be the case for #if, #when, #else.
         let directiveSymbols = 
             let chooser (x: OlyToken) =
-                if x.IsAnyDirective && predicate x.Node then
+                if x.IsAnyDirective && collector.FilterSyntax x.Node then
                     match x.TryDirectiveText with
                     | ValueSome(name, value) ->
-                        OlyDirectiveSymbol(x.Node, name, value) :> OlySymbol |> Some
+                        OlySymbolUseInfo(
+                            OlyDirectiveSymbol(name, value),
+                            OlyBoundSubModel(this, x.Node, boundNode)
+                        )
+                        |> Some
                     | _ ->
                         match x.TryConditionalDirectiveText with
                         | ValueSome(_hashIfText, _bodyText, _hashEndText) ->
-                            OlyConditionalDirectiveSymbol(x.Node) :> OlySymbol |> Some
+                            OlySymbolUseInfo(
+                                OlyConditionalDirectiveSymbol(),
+                                OlyBoundSubModel(this, x.Node, boundNode)
+                            )
+                            |> Some
                         | _ ->
                             None
                 else
                     None
             match boundTree.SyntaxTree.GetRoot(ct).TryGetFirstToken(true) with
             | Some(firstNonTriviaToken) when not firstNonTriviaToken.IsEndOfSource ->                
-                if compare syntaxNode firstNonTriviaToken.Node || syntaxNode.TextSpan.End < firstNonTriviaToken.TextSpan.Start then
+                if collector.CompareSyntax(syntaxNode, firstNonTriviaToken.Node) || (syntaxNode.TextSpan.End < firstNonTriviaToken.TextSpan.Start) then
                     firstNonTriviaToken.GetLeadingTrivia()
                     |> ImArray.choose chooser
                 else
@@ -1618,44 +2139,42 @@ type OlyBoundModel internal (
                 boundTree.SyntaxTree.GetRoot(ct).FindTokens(syntaxNode.TextSpan.Start, skipTrivia = false, ct = ct)
                 |> ImArray.choose chooser
         directiveSymbols
-        |> ImArray.iter addSymbol
+        |> ImArray.iter collector.CollectSymbol
 
         let openDecls = boundTree.RootEnvironment.openDecls
 
         (openDecls, boundTree.SyntaxTree.GetOpenDeclarationNames(ct))
         ||> ImArray.tryIter2 (fun ent syntaxName ->
             ct.ThrowIfCancellationRequested()
-            if compare syntaxNode syntaxName then
+            if collector.CompareSyntax(syntaxNode, syntaxName) then
                 if ent.IsNamespace then
-                    getTypeSymbolByName this addSymbol boundTree.RootEnvironment predicate syntaxName ent.AsNamespaceType
+                    getTypeSymbolByName this collector syntaxName boundNode ent.AsNamespaceType
                 else
-                    getTypeSymbolByName this addSymbol boundTree.RootEnvironment predicate syntaxName ent.AsType
+                    getTypeSymbolByName this collector syntaxName boundNode ent.AsType
         )
 
-        boundTree.ForEachForTooling((fun boundNode -> ct.ThrowIfCancellationRequested(); compare syntaxNode boundNode.Syntax), 
+        boundTree.ForEachForTooling((fun boundNode -> ct.ThrowIfCancellationRequested(); collector.CompareSyntax(syntaxNode, boundNode.Syntax)), 
             fun boundNode ->
                 ct.ThrowIfCancellationRequested()
-                this.GetImmediateSymbols(boundNode, addSymbol, predicate)
+                this.GetImmediateSymbols(boundNode, collector)
         )
 
-        symbols.ToImmutable()
-
-    let getLocalBindingSymbols addSymbol benv predicate (syntax: OlySyntaxNode) (bindingInfo: LocalBindingInfoSymbol) =
+    let getLocalBindingSymbols collector (syntax: OlySyntaxNode) (boundNode: IBoundNode) (bindingInfo: LocalBindingInfoSymbol) =
         match bindingInfo with
         | BindingLocalFunction(func) ->
             match syntax with
             | :? OlySyntaxBindingDeclaration as syntax ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Function(syntaxFuncName, syntaxTyPars, syntaxPars, syntaxReturnTyAnnot, syntaxConstrClauseList) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxFuncName.Identifier func
-                    getTypeParameterSymbols addSymbol benv predicate syntaxTyPars func.TypeParameters
-                    getParameterSymbols addSymbol benv predicate syntaxPars func.LogicalParameters
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxReturnTyAnnot func.ReturnType
-                    getSymbolsByConstraintClauseList addSymbol benv predicate syntaxConstrClauseList func.TypeParameters
+                    getValueSymbolByIdentifier this collector syntaxFuncName.Identifier boundNode func
+                    getTypeParameterSymbols collector syntaxTyPars boundNode func.TypeParameters
+                    getParameterSymbols collector syntaxPars boundNode func.LogicalParameters
+                    getTypeSymbolFromTypeAnnotation collector syntaxReturnTyAnnot boundNode func.ReturnType
+                    getSymbolsByConstraintClauseList collector syntaxConstrClauseList boundNode func.TypeParameters
 
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent func
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot func.Type
+                    getValueSymbolByIdentifier this collector syntaxIdent boundNode func
+                    getTypeSymbolFromTypeAnnotation collector syntaxTyAnnot boundNode func.Type
 
                 | _ ->
                     ()
@@ -1667,22 +2186,23 @@ type OlyBoundModel internal (
             | :? OlySyntaxBindingDeclaration as syntax ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent value
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot value.Type                
+                    getValueSymbolByIdentifier this collector syntaxIdent boundNode value
+                    getTypeSymbolFromTypeAnnotation collector syntaxTyAnnot boundNode value.Type                
                 | _ ->
                     ()
             | _ ->
                 ()
 
-    let getBindingSymbols addSymbol benv predicate (syntax: OlySyntaxNode) (bindingInfo: BindingInfoSymbol) =
+    let rec getBindingSymbols collector (syntaxNode: OlySyntaxNode) (boundNode: IBoundNode) (bindingInfo: BindingInfoSymbol) =
+
         match bindingInfo with
         | BindingProperty(_, prop) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent prop
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot prop.Type
+                    getValueSymbolByIdentifier this collector syntaxIdent boundNode prop
+                    getTypeSymbolFromTypeAnnotation collector syntaxTyAnnot boundNode prop.Type
                 | _ ->
                     ()
             | _ ->
@@ -1690,23 +2210,48 @@ type OlyBoundModel internal (
 
         | BindingFunction(func)
         | BindingPattern(_, func) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
+
+            match syntaxNode with
+            | :? OlySyntaxPropertyBinding as syntaxPropBinding ->
+                match syntaxPropBinding with
+                | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, _) ->
+                    getAttributeSymbols collector syntaxAttrs.Values boundNode func.Attributes
+                | _ ->
+                    unreached()
+            | _ ->
+                ()
+
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
                 match syntax with
                 | OlySyntaxBindingDeclaration.Function(syntaxFuncName, syntaxTyPars, syntaxPars, syntaxReturnTyAnnot, syntaxConstrClauseList) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxFuncName.Identifier func
-                    getTypeParameterSymbols addSymbol benv predicate syntaxTyPars func.TypeParameters
-                    getParameterSymbols addSymbol benv predicate syntaxPars func.LogicalParameters
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxReturnTyAnnot func.ReturnType
-                    getSymbolsByConstraintClauseList addSymbol benv predicate syntaxConstrClauseList func.TypeParameters
+                    getValueSymbolByIdentifier this collector syntaxFuncName.Identifier boundNode func
+                    getTypeParameterSymbols collector syntaxTyPars boundNode func.TypeParameters
+                    getParameterSymbols collector syntaxPars boundNode func.LogicalParameters
+                    getTypeSymbolFromTypeAnnotation collector syntaxReturnTyAnnot boundNode func.ReturnType
+                    getSymbolsByConstraintClauseList collector syntaxConstrClauseList boundNode func.TypeParameters
 
                 | OlySyntaxBindingDeclaration.New(syntaxNewToken, syntaxPars) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxNewToken func
-                    getParameterSymbols addSymbol benv predicate syntaxPars func.LogicalParameters
+                    getValueSymbolByIdentifier this collector syntaxNewToken boundNode func
+                    getParameterSymbols collector syntaxPars boundNode func.LogicalParameters
 
                 | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent func
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot func.Type
+                    getValueSymbolByIdentifier this collector syntaxIdent boundNode func
+                    getTypeSymbolFromTypeAnnotation collector syntaxTyAnnot boundNode func.Type
+
+                | OlySyntaxBindingDeclaration.Get(syntaxGetToken) ->
+                    getValueSymbolByIdentifier this collector syntaxGetToken boundNode func
+
+                | OlySyntaxBindingDeclaration.Set(syntaxSetToken) ->
+                    getValueSymbolByIdentifier this collector syntaxSetToken boundNode func
+
+                | OlySyntaxBindingDeclaration.Getter(syntaxGetToken, syntaxPars) ->
+                    getValueSymbolByIdentifier this collector syntaxGetToken boundNode func
+                    getParameterSymbols collector syntaxPars boundNode func.LogicalParameters
+
+                | OlySyntaxBindingDeclaration.Setter(syntaxSetToken, syntaxPars) ->
+                    getValueSymbolByIdentifier this collector syntaxSetToken boundNode func
+                    getParameterSymbols collector syntaxPars boundNode func.LogicalParameters
 
                 | _ ->
                     ()
@@ -1715,29 +2260,39 @@ type OlyBoundModel internal (
                 ()
 
         | BindingField(field) ->
-            match syntax with
-            | :? OlySyntaxBindingDeclaration as syntax ->
-                match syntax with
-                | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent field
-                    getTypeSymbolFromTypeAnnotation addSymbol benv predicate syntaxTyAnnot field.Type                
+            match syntaxNode with
+            | :? OlySyntaxExpression as syntaxExpr ->
+                match syntaxExpr with
+                | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, _) ->
+                    getAttributeSymbols collector syntaxAttrs.Values boundNode (field: IFieldSymbol).Attributes
                 | _ ->
                     ()
             | _ ->
                 ()
 
-    let getSymbolsByLiteral addSymbol benv predicate (syntax: OlySyntaxNode) (literal: BoundLiteral) =
-        if predicate syntax then
-            addSymbol(OlyConstantSymbol(this, benv, syntax, literal))
+            match syntaxNode.TryGetBindingDeclaration() with
+            | ValueSome(syntax) ->
+                match syntax with
+                | OlySyntaxBindingDeclaration.Value(syntaxIdent, syntaxTyAnnot) ->
+                    getValueSymbolByIdentifier this collector syntaxIdent boundNode field
+                    getTypeSymbolFromTypeAnnotation collector syntaxTyAnnot boundNode field.Type                
+                | _ ->
+                    ()
+            | _ ->
+                ()
 
-    member internal _.GetImmediateSymbols(boundNode: IBoundNode, addSymbol: OlySymbol -> unit, predicate: OlySyntaxNode -> bool) =
+    let getSymbolsByLiteral (collector: ISymbolCollector) (syntax: OlySyntaxNode) (boundNode: IBoundNode) (literal: BoundLiteral) =
+        if collector.FilterSyntax syntax then
+            collector.CollectSymbol(OlySymbolUseInfo(OlyConstantSymbol(literal), OlyBoundSubModel(this, syntax, boundNode)))
+
+    member internal _.GetImmediateSymbols(boundNode: IBoundNode, collector) =
         match boundNode with
         | :? BoundRoot as root ->
             match root with
             | BoundRoot.Namespace(syntax, benv, namespac, _) ->
                 match syntax with
                 | OlySyntaxCompilationUnit.Namespace(_, syntaxName, _, _) ->
-                    getTypeSymbolByName this addSymbol benv predicate syntaxName namespac.AsNamespaceType
+                    getTypeSymbolByName this collector syntaxName boundNode namespac.AsNamespaceType
                 | _ ->
                     ()
 
@@ -1749,36 +2304,36 @@ type OlyBoundModel internal (
             | BoundExpression.Call(syntaxInfo, _, _witnessArgs (* will need this for explicit witnesses *), _, value, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode value syntaxInfo.TryType
                 | _ ->
                     ()
 
             | BoundExpression.Value(syntaxInfo, value) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName.LastName value syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName.LastName boundNode value syntaxInfo.TryType
                 | _ ->
                     ()
 
             | BoundExpression.Literal(syntaxInfo, literal) ->
                 match syntaxInfo.TryEnvironment with
                 | Some benv ->
-                    getSymbolsByLiteral addSymbol benv predicate syntaxInfo.Syntax literal
+                    getSymbolsByLiteral collector syntaxInfo.Syntax boundNode literal
                 | _ ->
                     ()
 
             | BoundExpression.GetField(syntaxInfo, _, field)
-            | BoundExpression.SetField(syntaxInfo, _, field, _) ->
+            | BoundExpression.SetField(syntaxInfo, _, field, _, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxName.LastIdentifier field
+                    getValueSymbolByIdentifier this collector syntaxName.LastIdentifier boundNode field
                 | _ ->
                     ()
 
             | BoundExpression.SetValue(syntaxInfo, value, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode value syntaxInfo.TryType
                 | _ ->
                     ()
 
@@ -1786,7 +2341,7 @@ type OlyBoundModel internal (
             | BoundExpression.SetProperty(syntaxInfo, _, prop, _, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName prop syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode prop syntaxInfo.TryType
                 | _ ->
                     ()
 
@@ -1797,7 +2352,7 @@ type OlyBoundModel internal (
                         match syntaxInfo.Syntax.TryGetBindingDeclaration() with
                         | ValueSome syntax -> syntax :> OlySyntaxNode
                         | _ -> syntaxInfo.Syntax
-                    getLocalBindingSymbols addSymbol benv predicate syntax bindingInfo
+                    getLocalBindingSymbols collector syntax boundNode bindingInfo
                 | _ ->
                     ()
 
@@ -1816,7 +2371,7 @@ type OlyBoundModel internal (
                         | :? OlySyntaxExpression as syntaxExpr ->
                             match syntaxExpr with
                             | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
-                                getAttributeSymbols addSymbol benv predicate syntaxAttrs.Values attrs
+                                getAttributeSymbols collector syntaxAttrs.Values boundNode attrs
                             | _ ->
                                 ()
                         | _ ->
@@ -1824,14 +2379,9 @@ type OlyBoundModel internal (
                     | _ ->
                         ()
 
-                let syntaxInfo = binding.SyntaxInfo
                 match syntaxInfo.TryEnvironment with
                 | Some benv ->
-                    let syntax =
-                        match syntaxInfo.Syntax.TryGetBindingDeclaration() with
-                        | ValueSome syntax -> syntax :> OlySyntaxNode
-                        | _ -> syntaxInfo.Syntax
-                    getBindingSymbols addSymbol benv predicate syntax binding.Info
+                    getBindingSymbols collector syntaxInfo.Syntax boundNode binding.Info
                 | _ ->
                     ()
 
@@ -1841,9 +2391,9 @@ type OlyBoundModel internal (
                     match syntax with
                     | OlySyntaxCompilationUnit.Module(syntaxAttrs, syntaxAccessor, _, syntaxName, syntaxConstrClauseList, _, _) ->
                         let syntaxAttrs = syntaxAttrs.Values
-                        getAttributeSymbols addSymbol benv predicate syntaxAttrs ent.Attributes
-                        getTypeSymbolByName this addSymbol benv predicate syntaxName ent.AsType
-                        getSymbolsByConstraintClauseList addSymbol benv predicate syntaxConstrClauseList ent.TypeParameters
+                        getAttributeSymbols collector syntaxAttrs boundNode ent.Attributes
+                        getTypeSymbolByName this collector syntaxName boundNode ent.AsType
+                        getSymbolsByConstraintClauseList collector syntaxConstrClauseList boundNode ent.TypeParameters
                     | _ ->
                         ()
 
@@ -1851,30 +2401,33 @@ type OlyBoundModel internal (
                     match syntax with
                     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, syntaxTyPars, syntaxConstrClauseList, _, syntaxBodyExpr) ->
                         let syntaxAttrs = syntaxAttrs.Values
-                        getAttributeSymbols addSymbol benv predicate syntaxAttrs ent.Attributes
-                        getTypeSymbolByIdentifier this addSymbol benv predicate syntaxTyDefName.Identifier (TypeSymbol.Entity(ent))
-                        getTypeParameterSymbols addSymbol benv predicate syntaxTyPars ent.LogicalTypeParameters
-                        getSymbolsByConstraintClauseList addSymbol benv predicate syntaxConstrClauseList ent.TypeParameters
+                        getAttributeSymbols collector syntaxAttrs boundNode ent.Attributes
+                        match syntaxTyDefName.Identifier with
+                        | Some syntaxIdent ->
+                            getTypeSymbolByIdentifier this collector syntaxIdent boundNode (TypeSymbol.Entity(ent))
+                        | _ ->
+                            ()
+                        getTypeParameterSymbols collector syntaxTyPars boundNode ent.LogicalTypeParameters
+                        getSymbolsByConstraintClauseList collector syntaxConstrClauseList boundNode ent.TypeParameters
 
                         match syntaxBodyExpr with
                         | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, _) ->  
                             if ent.IsEnum then
-                                if (ent :> EntitySymbol).TryEnumUnderlyingType.IsSome then
-                                    let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
-                                    let ty = ent.AsType
-                                    let mutable i = 0
-                                    ent.Fields
-                                    |> ImArray.iter (fun x -> 
-                                        if x.IsFieldConstant && areTypesEqual x.Type ty then
-                                            if i < syntaxTyDeclCases.Length then
-                                                match syntaxTyDeclCases[i] with
-                                                | OlySyntaxTypeDeclarationCase.Case(_, syntaxIdent)
-                                                | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, _) ->
-                                                    getValueSymbolByIdentifier this addSymbol benv predicate syntaxIdent x
-                                                | _ ->
-                                                    ()
-                                                i <- i + 1
-                                    )
+                                let syntaxTyDeclCases = syntaxCaseList.ChildrenOfType
+                                let ty = ent.AsType
+                                let mutable i = 0
+                                ent.Fields
+                                |> ImArray.iter (fun x -> 
+                                    if x.IsFieldConstant && areTypesEqual x.Type ty then
+                                        if i < syntaxTyDeclCases.Length then
+                                            match syntaxTyDeclCases[i] with
+                                            | OlySyntaxTypeDeclarationCase.Case(_, syntaxIdent)
+                                            | OlySyntaxTypeDeclarationCase.EnumCase(_, syntaxIdent, _, _) ->
+                                                getValueSymbolByIdentifier this collector syntaxIdent boundNode x
+                                            | _ ->
+                                                ()
+                                            i <- i + 1
+                                )
                             let syntaxExtends =
                                 match syntaxExtends with
                                 | OlySyntaxExtends.Inherits(_, syntaxTys) ->
@@ -1891,8 +2444,8 @@ type OlyBoundModel internal (
                                 | _ ->
                                     ImArray.empty
 
-                            getTypeSymbolsByTypes addSymbol benv predicate syntaxExtends ent.Extends
-                            getTypeSymbolsByTypes addSymbol benv predicate syntaxImplements ent.Implements
+                            getTypeSymbolsByTypes collector syntaxExtends boundNode ent.Extends
+                            getTypeSymbolsByTypes collector syntaxImplements boundNode ent.Implements
                         | _ ->
                             ()
                     | _ ->
@@ -1907,7 +2460,7 @@ type OlyBoundModel internal (
                     | :? OlySyntaxExpression as syntax ->
                         match syntax with
                         | OlySyntaxExpression.Typed(_, _, syntaxTy) ->
-                            getTypeSymbol this addSymbol benv predicate syntaxTy ty
+                            getTypeSymbol this collector syntaxTy boundNode ty
                         | _ ->
                             ()
                     | _ ->
@@ -1922,7 +2475,7 @@ type OlyBoundModel internal (
                     | :? OlySyntaxExpression as syntax ->
                         match syntax with
                         | OlySyntaxExpression.Lambda(_, syntaxPars, _, _) ->
-                            getParameterSymbolsByValues addSymbol benv predicate syntaxPars parValues
+                            getParameterSymbolsByValues collector syntaxPars boundNode parValues
                         | _ ->
                             ()
                     | _ ->
@@ -1944,7 +2497,7 @@ type OlyBoundModel internal (
                             | :? OlySyntaxCatchOrFinallyExpression as syntax ->
                                 match syntax with
                                 | OlySyntaxCatchOrFinallyExpression.Catch(_, _, syntaxPar, _, _, _, _) ->
-                                    getParameterSymbol addSymbol benv predicate syntaxPar par
+                                    getParameterSymbol collector syntaxPar boundNode par
                                 | _ ->
                                     ()
                             | _ ->
@@ -1962,7 +2515,7 @@ type OlyBoundModel internal (
                         | OlySyntaxExpression.Call(syntaxReceiverExpr, _) ->
                             match syntaxReceiverExpr with
                             | OlySyntaxExpression.Name(syntaxName) ->
-                                getSymbolsByNameAndValue addSymbol benv predicate syntaxName castFunc None
+                                getSymbolsByNameAndValue collector syntaxName boundNode castFunc None
                             | _ ->
                                 ()
                         | _ ->
@@ -1978,10 +2531,10 @@ type OlyBoundModel internal (
                         namespaceEnt.AsNamespaceType
                     else
                         namespaceEnt.AsType
-                getTypeSymbolByName this addSymbol benv predicate syntaxName ent
+                getTypeSymbolByName this collector syntaxName boundNode ent
 
             | BoundExpression.ErrorWithType(syntaxName, benv, ty) ->
-                getTypeSymbolByName this addSymbol benv predicate syntaxName ty
+                getTypeSymbolByName this collector syntaxName boundNode ty
 
             | _ ->
                 ()
@@ -1991,28 +2544,28 @@ type OlyBoundModel internal (
             | BoundCasePattern.FieldConstant(syntaxInfo, field) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName field syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode field syntaxInfo.TryType
                 | _ ->
                     ()
 
             | BoundCasePattern.Literal(syntaxInfo, literal) ->
                 match syntaxInfo.TrySyntaxAndEnvironment with
                 | Some(syntaxNode, benv) ->
-                    getSymbolsByLiteral addSymbol benv predicate syntaxNode literal
+                    getSymbolsByLiteral collector syntaxNode boundNode literal
                 | _ ->
                     ()
                 
             | BoundCasePattern.Local(syntaxInfo, value) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName value syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode value syntaxInfo.TryType
                 | _ ->
                     ()
 
             | BoundCasePattern.Function(syntaxInfo, pat, _, _) ->
                 match syntaxInfo.TrySyntaxNameAndEnvironment with
                 | Some(syntaxName, benv) ->
-                    getSymbolsByNameAndValue addSymbol benv predicate syntaxName pat.PatternFunction syntaxInfo.TryType
+                    getSymbolsByNameAndValue collector syntaxName boundNode pat.PatternFunction syntaxInfo.TryType
                 | _ ->
                     ()
 
@@ -2026,7 +2579,7 @@ type OlyBoundModel internal (
     member this.TryGetSubModel(syntaxToken: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
 
-        let data = ResizeArray<IBoundNode * BoundEnvironment>()
+        let data = ResizeArray<IBoundNode>()
         
         let syntaxNode = syntaxToken.Node
 
@@ -2040,22 +2593,19 @@ type OlyBoundModel internal (
                     match expr with
                     | BoundExpression.Sequential _ -> ()
                     | _ ->
-                        match expr.TryEnvironment with
-                        | Some benv ->
-                            data.Add(boundNode, benv)
-                        | _ ->
-                            ()
+                        data.Add(boundNode)
                 | _ ->
                     ()
             )
         )
 
         data
-        |> Seq.sortBy (fun (boundNode, _) ->
+        |> Seq.sortBy (fun boundNode ->
             boundNode.Syntax.TextSpan.Width
         )
+        |> Seq.filter (fun boundNode -> boundNode.TryGetEnvironment().IsSome)
         |> Seq.tryHead
-        |> Option.map (fun (boundNode, benv) -> OlyBoundSubModel(this, boundNode, benv))
+        |> Option.map (fun boundNode -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
 
     member this.TryGetWhitespaceSubModel(offside: int, syntaxToken: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -2067,7 +2617,7 @@ type OlyBoundModel internal (
         | ValueNone -> None
         | ValueSome syntaxToken ->
 
-        let data = ResizeArray<IBoundNode * BoundEnvironment>()
+        let data = ResizeArray<IBoundNode>()
         
         let syntaxNode = syntaxToken.Node
 
@@ -2079,14 +2629,10 @@ type OlyBoundModel internal (
                 match boundNode with
                 | :? BoundExpression as expr ->
                     match expr with
-                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _) as noneExpr)) when not syntaxInfo.IsGenerated ->
+                    | BoundExpression.Let(syntaxInfo, _, _, ((BoundExpression.None _) as rhsExpr)) when not syntaxInfo.IsGenerated ->
                         let column = expr.Syntax.GetTextRange(ct).Start.Column
                         if offside >= column then
-                            match noneExpr.TryEnvironment with
-                            | Some benv ->
-                                data.Add(boundNode, benv)
-                            | _ ->
-                                ()
+                            data.Add(rhsExpr)
                     | _ ->
                         ()
                 | _ ->
@@ -2095,30 +2641,88 @@ type OlyBoundModel internal (
         )
 
         data
-        |> Seq.sortBy (fun (boundNode, _) ->
+        |> Seq.sortBy (fun boundNode ->
             boundNode.Syntax.TextSpan.Width
         )
+        |> Seq.filter (fun boundNode -> boundNode.TryGetEnvironment().IsSome)
         |> Seq.tryHead
-        |> Option.map (fun (boundNode, benv) -> OlyBoundSubModel(this, boundNode, benv))
+        |> Option.map (fun boundNode -> OlyBoundSubModel(this, boundNode.Syntax, boundNode))
 
     member internal this.GetBoundTree(ct: CancellationToken): BoundTree =
         getBoundTree ct
 
     member this.GetSymbols(node: OlySyntaxNode, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        // TODO: This code '(fun x -> nodeHas node x.UseSyntax)' is fine, 
-        //       but 'x' is an OlySymbol that was allocated and could be prevented if we 
-        //       only checked the symbol's use syntax before the symbol gets created/allocated.
-        //       Similar thing for 'GetSymbolsByPossibleName'.
-        getSymbols node (fun x -> nodeHas node x.UseSyntax) nodeIntersects true ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols node Unchecked.defaultof<_> collector ct
+        symbols.ToImmutable()
+
+    member this.ForEachSymbol(node: OlySyntaxNode, action, ct: CancellationToken) =
+        ct.ThrowIfCancellationRequested()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = action symbolUseInfo
+            }
+
+        collectSymbols node Unchecked.defaultof<_> collector ct
+
+    member this.TryGetAnonymousModuleSymbol(ct: CancellationToken) : OlySymbolUseInfo<OlyTypeSymbol> option =
+        ct.ThrowIfCancellationRequested()
+        let syntax = this.SyntaxTree.GetRoot(ct) :?> OlySyntaxCompilationUnit
+        match syntax with
+        | OlySyntaxCompilationUnit.AnonymousModule _ ->
+            let boundTree = this.GetBoundTree(ct)
+            let rootSymbol = boundTree.RootSymbol
+            OlySymbolUseInfo<OlyTypeSymbol>(OlyTypeSymbol(rootSymbol.AsType), OlyBoundSubModel(this, syntax, Unchecked.defaultof<_>))
+            |> Some
+        | _ ->
+            None
 
     member this.GetSymbolsByPossibleName(node: OlySyntaxNode, possibleName: string, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        getSymbols node (fun x -> nodeHas node x.UseSyntax && x.Name.Contains(possibleName)) nodeIntersects true ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeIntersects syntaxNode1 syntaxNode2
+                member _.FilterSyntax(syntaxNode) = nodeHas node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = 
+                    // REVIEW: There a way to do this without having to allocate a public symbol?
+                    //         We could simply add a new interface method to check the internal symbol's name.
+                    if symbolUseInfo.Symbol.Name.Contains(possibleName) then
+                        symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols node Unchecked.defaultof<_> collector ct
+        symbols.ToImmutableArray()
 
     member this.TryFindSymbol(token: OlyToken, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        let symbols = getSymbols token.Node (fun _ -> true) (fun x y -> nodeHas y x) false ct
+
+        let symbols = ImmutableArray.CreateBuilder<OlySymbolUseInfo>()
+
+        let collector =
+            { new ISymbolCollector with
+                member _.CompareSyntax(syntaxNode1, syntaxNode2) = nodeHas syntaxNode2 syntaxNode1
+                member _.FilterSyntax(syntaxNode) = nodeEquals token.Node syntaxNode
+                member _.CollectSymbol(symbolUseInfo) = symbols.Add(symbolUseInfo)
+            }
+
+        collectSymbols token.Node Unchecked.defaultof<_> collector ct
+
         symbols
         |> Seq.tryExactlyOne
 
@@ -2126,6 +2730,11 @@ type OlyBoundModel internal (
     member this.GetDiagnostics(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         this.GetBoundTree(ct).Diagnostics
+
+    member this.HasErrors(ct: CancellationToken) =
+        ct.ThrowIfCancellationRequested()
+        this.GetDiagnostics(ct)
+        |> ImArray.exists (fun x -> x.IsError)
 
     member _.SyntaxTree: OlySyntaxTree = syntaxTree
 
@@ -2147,7 +2756,16 @@ type OlyBoundModel internal (
                 location
                 |> Some
             | _ ->
-                None
+                // If we cannot find the constructor, go to the type definition.
+                // This can happen for implicit default ctors.
+                if value.IsInstanceConstructor then
+                    match value.Enclosing with
+                    | EnclosingSymbol.Entity(ent) ->
+                        this.TryFindDefinition(ent, ct)
+                    | _ ->
+                        None
+                else
+                    None
 
     member internal _.TryFindDefinition(ent: EntitySymbol, ct) : OlySourceLocation option =
         let declTable = getPartialDeclTable ct

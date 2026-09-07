@@ -48,12 +48,12 @@ type OlyClassificationKind =
     | Module
     | Keyword
     | KeywordControl
-    | ConstantNumber
-    | ConstantBool
-    | ConstantChar
-    | ConstantUtf
-    | ConstantNull
-    | ConstantDefault
+    | NumberLiteral
+    | BoolLiteral
+    | CharLiteral
+    | StringLiteral
+    | NullLiteral
+    | DefaultLiteral
     | Directive
     | ConditionalDirective
     | Pattern
@@ -171,13 +171,13 @@ let private classifyConstantKind (constantSymbol: OlyConstantSymbol) =
     | OlyConstant.UInt64 _
     | OlyConstant.Int64 _
     | OlyConstant.Float32 _
-    | OlyConstant.Float64 _ -> OlyClassificationKind.ConstantNumber
-    | OlyConstant.Char16 _ -> OlyClassificationKind.ConstantChar
-    | OlyConstant.Utf16 _ -> OlyClassificationKind.ConstantUtf
+    | OlyConstant.Float64 _ -> OlyClassificationKind.NumberLiteral
+    | OlyConstant.Char16 _ -> OlyClassificationKind.CharLiteral
+    | OlyConstant.String16 _ -> OlyClassificationKind.StringLiteral
     | OlyConstant.True
-    | OlyConstant.False _ -> OlyClassificationKind.ConstantBool
-    | OlyConstant.Default -> OlyClassificationKind.ConstantDefault
-    | OlyConstant.Null -> OlyClassificationKind.ConstantNull
+    | OlyConstant.False -> OlyClassificationKind.BoolLiteral
+    | OlyConstant.Default -> OlyClassificationKind.DefaultLiteral
+    | OlyConstant.Null -> OlyClassificationKind.NullLiteral
     | OlyConstant.Array _ -> OlyClassificationKind.None // TODO: Maybe OlyClassificationKind.ConstantArray?
     | OlyConstant.External value -> classifyValueKind value 
     | OlyConstant.Variable _ -> OlyClassificationKind.TypeParameter
@@ -229,6 +229,10 @@ type OlySymbol with
 
 type OlyDocument with
 
+    member this.GetSemanticClassifications(ct: CancellationToken) : OlyClassificationItem imarray =
+        let range = this.SyntaxTree.GetRoot(ct).GetFullTextRange(ct)
+        this.GetSemanticClassifications(range, ct)
+
     member this.GetSemanticClassifications(range: OlyTextRange, ct: CancellationToken) : OlyClassificationItem imarray =
         ct.ThrowIfCancellationRequested()
 
@@ -239,14 +243,14 @@ type OlyDocument with
             let symbols = boundModel.GetSymbols(syntaxNode, ct)
 
             symbols
-            |> ImArray.choose (fun symbol ->
+            |> ImArray.choose (fun symbolInfo ->
                 ct.ThrowIfCancellationRequested()
-                match symbol.UseSyntax.TryFindFirstIdentifierOrLiteral() with
+                match symbolInfo.Syntax.TryFindFirstIdentifierOrLiteral() with
                 | Some(identToken) ->
                     let r = identToken.GetTextRange(ct)
                     let span = identToken.TextSpan
                     let flags = OlyClassificationModifierFlags.None
-                    match symbol with
+                    match symbolInfo.Symbol with
                     | :? OlyTypeSymbol as tySymbol ->
                         Some(classifyType r span tySymbol flags)
                     | :? OlyFunctionGroupSymbol as funcGroupSymbol ->
@@ -266,16 +270,22 @@ type OlyDocument with
             ImArray.empty
 
 [<RequireQualifiedAccess;NoComparison;NoEquality>]
-type OlyCompletionContext =
+type private CompletionContext =
     | None
     | Unqualified of OlyBoundSubModel
     | UnqualifiedType of OlyBoundSubModel
     | Patterns of OlyBoundSubModel
     | OpenDeclaration of OlyBoundSubModel
-    | Symbol of OlySymbol * inStaticContext: bool
+    | Symbol of OlySymbol * OlyBoundSubModel * inStaticContext: bool
 
-[<Struct;DebuggerDisplay("{Label}")>]
-type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind, detail: string, insertText: string) =
+[<RequireQualifiedAccess;NoComparison;NoEquality>]
+type private DirectiveCompletionContext =
+    | None
+    | PropertyName of insertRange: OlyTextRange
+    | PropertyValue of propertyName: string * insertRange: OlyTextRange
+
+[<DebuggerDisplay("{Label}")>]
+type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind, detail: string, insertText: string, insertRange: OlyTextRange) =
 
     member _.Label = label
 
@@ -285,11 +295,10 @@ type OlyCompletionItem(label: string, classificationKind: OlyClassificationKind,
 
     member _.InsertText = insertText
 
-    member internal this.WithLabelAndInsertText(label: string, insertText: string) =
-        OlyCompletionItem(label, classificationKind, detail, insertText)
+    member _.InsertRange = insertRange
 
-    new(label, kind, detail) =
-        OlyCompletionItem(label, kind, detail, "")
+    member internal this.WithLabelAndInsert(label: string, insertText: string, insertRange: OlyTextRange) =
+        OlyCompletionItem(label, classificationKind, detail, insertText, insertRange)
 
 let private allGreekSymbols =
     let greekSymbols =
@@ -406,10 +415,11 @@ let private keywords =
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyDocumentFunctionCallInfo =
     {
-        Function: OlyValueSymbol
+        Function: OlySymbol
         ActiveParameterIndex: int32
         ActiveFunctionIndex: int32
         IsPattern: bool
+        SubModel: OlyBoundSubModel
     }
 
 type OlyDocument with
@@ -502,8 +512,9 @@ type OlyDocument with
             match loop node with
             | Some(token, activeParameterIndex, activeParameterCount, isPattern) ->
                 boundModel.TryFindSymbol(token, ct)
-                |> Option.filter (fun x -> x.IsFunction)
-                |> Option.map (fun x ->
+                |> Option.filter (fun x -> x.Symbol.IsFunction)
+                |> Option.map (fun symbolInfo ->
+                    let x = symbolInfo.Symbol
                     let activeFunctionIndex =
                         if x.IsFunctionGroup then
                             let funcIndices =
@@ -582,10 +593,11 @@ type OlyDocument with
                                 else
                                     -1                      
                     {
-                        Function = x.AsValue
+                        Function = symbolInfo.Symbol
                         ActiveParameterIndex = activeParameterIndex
                         ActiveFunctionIndex = activeFunctionIndex
                         IsPattern = isPattern
+                        SubModel = symbolInfo.SubModel
                     } : OlyDocumentFunctionCallInfo
                 )
             | _ ->
@@ -596,7 +608,7 @@ type OlyDocument with
     member this.FindSimilarSymbols(symbol: OlySymbol, ct) =
         let boundModel = this.BoundModel       
         let symbols = boundModel.GetSymbolsByPossibleName(this.SyntaxTree.GetRoot(ct), symbol.Name, ct)    
-        symbols |> ImArray.filter (fun x -> x.IsSimilarTo(symbol))
+        symbols |> ImArray.filter (fun x -> x.Symbol.IsSimilarTo(symbol))
 
     member this.GetAllSymbols(ct) : _ imarray =
         let boundModel = this.BoundModel
@@ -614,7 +626,6 @@ type OlyDocument with
 
     member this.GetCompletions(position: int, ct) =
         let syntaxTree = this.SyntaxTree
-        let boundModel = this.BoundModel
 
         let filterLabel (label: string) =
             ct.ThrowIfCancellationRequested()
@@ -625,6 +636,7 @@ type OlyDocument with
 
         let context =
             let tokenOpt = syntaxTree.GetRoot(ct).TryFindToken(position, ct=ct, skipTrivia = false)
+            let originalTokenOpt = tokenOpt
 
             let hasDotOnLeft, tokenOpt =
                 match tokenOpt with
@@ -703,8 +715,36 @@ type OlyDocument with
                         token
                 )
 
-            match tokenOpt with
-            | Some token ->
+            let prevTokenOpt =
+                originalTokenOpt 
+                |> Option.bind (fun token -> 
+                    match token.TryPreviousToken((fun _ -> true), skipTrivia = true, ct = ct) with
+                    | ValueNone -> None
+                    | ValueSome x -> Some x)
+
+            let isPrevTokenInType =
+                match prevTokenOpt with
+                | Some prevToken -> prevToken.Node.HasParent && prevToken.Node.Parent.IsType
+                | _ -> false
+
+            match originalTokenOpt with
+            | Some token when 
+                    (token.IsEqual && token.Node.HasParent && token.Node.Parent.IsBinding) ||
+                    (token.IsWhitespaceTrivia && isPrevTokenInType) ||
+                    token.IsLiteral
+                    -> 
+                CompletionContext.None
+            | _ ->
+
+            match tokenOpt, originalTokenOpt with
+            | Some token, Some originalToken ->
+
+                let insertRange =
+                    match originalTokenOpt with
+                    | Some originalToken when originalToken.IsDot ->
+                        syntaxTree.GetSourceText(ct).GetTextRange(OlyTextSpan.Create(position, 0))
+                    | _ ->
+                        originalToken.GetTextRange(ct)
 
                 let rec isInOpenDeclaration(parentOpt: OlySyntaxNode) =
                     match parentOpt with
@@ -723,49 +763,51 @@ type OlyDocument with
 
                 let context =
                     if token.IsTrivia && not token.IsWhitespaceTrivia then
-                        OlyCompletionContext.None
+                        CompletionContext.None
                     elif hasDotOnLeft then
+                        let boundModel = this.BoundModel
                         match boundModel.TryFindSymbol(token, ct) with
-                        | Some symbol ->
-                            match symbol with
+                        | Some symbolInfo ->
+                            match symbolInfo.Symbol with
                             | :? OlyValueSymbol as symbol ->
                                 match symbol.ReturnType with
                                 | Some(returnTySymbol) ->
-                                    OlyCompletionContext.Symbol(returnTySymbol, false)
+                                    CompletionContext.Symbol(returnTySymbol, symbolInfo.SubModel, false)
                                 | _ ->
-                                    OlyCompletionContext.Symbol(symbol, false)
-                            | _ -> 
-                                OlyCompletionContext.Symbol(symbol, isPossiblyInStaticContext)
+                                    CompletionContext.Symbol(symbol, symbolInfo.SubModel, false)
+                            | symbol -> 
+                                CompletionContext.Symbol(symbol, symbolInfo.SubModel, isPossiblyInStaticContext)
                         | _ ->
-                            OlyCompletionContext.None
+                            CompletionContext.None
                     else
+                        let boundModel = this.BoundModel
                         match boundModel.TryGetSubModel(token, ct) with
                         | Some subModel ->
                             if token.Node.IsInMatchClause then
-                                OlyCompletionContext.Patterns subModel
+                                CompletionContext.Patterns subModel
                             else
                                 let isInOpenDecl = isInOpenDeclaration token.Node.Parent
 
                                 if isInOpenDecl then
-                                    OlyCompletionContext.OpenDeclaration subModel
+                                    CompletionContext.OpenDeclaration subModel
                                 // TODO: This only checks return type annotations, we need to look at others.
                                 elif 
                                     subModel.SyntaxNode.IsInReturnTypeAnnotation || 
                                     subModel.SyntaxNode.IsParameterMissingTypeAnnotation || 
                                     subModel.SyntaxNode.IsType ||
                                     subModel.SyntaxNode.IsTypeDeclarationExpression then
-                                    OlyCompletionContext.UnqualifiedType subModel
+                                    CompletionContext.UnqualifiedType subModel
                                 else
                                     if token.IsWhitespaceTrivia then
                                         match boundModel.TryGetWhitespaceSubModel(token.Text.Length, token, ct) with
                                         | Some subModel ->
-                                            OlyCompletionContext.Unqualified subModel
+                                            CompletionContext.Unqualified subModel
                                         | _ ->
-                                            OlyCompletionContext.Unqualified subModel
+                                            CompletionContext.Unqualified subModel
                                     else
-                                        OlyCompletionContext.Unqualified subModel
+                                        CompletionContext.Unqualified subModel
                         | _ ->
-                            OlyCompletionContext.None
+                            CompletionContext.None
 
                 ct.ThrowIfCancellationRequested()
                 let containsText =
@@ -774,21 +816,21 @@ type OlyDocument with
                     else
                         ""
                 match context with
-                | OlyCompletionContext.None ->
+                | CompletionContext.None ->
                     ()
 
-                | OlyCompletionContext.Patterns subModel ->
+                | CompletionContext.Patterns subModel ->
                     let matchTyOpt = subModel.TryGetMatchType(token.Node, ct)
                     subModel.GetPatternFunctionSymbols()
                     |> Seq.iter (fun valueSymbol ->
                         ct.ThrowIfCancellationRequested()
                         if not valueSymbol.Parameters.IsEmpty then
                             match matchTyOpt with
-                            | Some(matchTy) when matchTy.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()
+                            | Some(matchTy) when matchTy.Symbol.IsSubTypeOf(valueSymbol.Parameters[0].Type) |> not -> ()
                             | _ ->
                                 let kind = classifyValueKind valueSymbol
                                 let label =
-                                    if valueSymbol.IsUnqualified then
+                                    if subModel.IsUnqualified(valueSymbol) then
                                         valueSymbol.Name
                                     else
                                         match valueSymbol.Enclosing.TryType with
@@ -796,23 +838,26 @@ type OlyDocument with
                                             ty.Name + "." + valueSymbol.Name
                                         | _ ->
                                             valueSymbol.Name
-                                completions.Add(OlyCompletionItem(label, kind, valueSymbol.SignatureText))
+                                let insertText = label
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(valueSymbol), insertText, insertRange))
                     )
 
-                | OlyCompletionContext.OpenDeclaration subModel ->
+                | CompletionContext.OpenDeclaration subModel ->
                     subModel.GetUnqualifiedNamespaceSymbols(containsText)
                     |> Seq.iter (fun namespaceSymbol ->
                         ct.ThrowIfCancellationRequested()
                         let kind = classifyNamespaceKind namespaceSymbol
-                        completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, namespaceSymbol.SignatureText))
+                        let insertText = namespaceSymbol.Name
+                        completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, subModel.GetSignatureText(namespaceSymbol), insertText, insertRange))
                     )
                     subModel.GetUnqualifiedTypeSymbols(containsText)
                     |> Seq.iter (fun ty ->
                         ct.ThrowIfCancellationRequested()
                         let kind = classifyTypeKind ty
-                        completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                        let insertText = ty.Name
+                        completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty), insertText, insertRange))
                     )
-                | OlyCompletionContext.UnqualifiedType subModel ->
+                | CompletionContext.UnqualifiedType subModel ->
                     let tyDeclNameOpt =
                         match subModel.SyntaxNode with
                         | :? OlySyntaxExpression as syntaxExpr ->
@@ -839,7 +884,8 @@ type OlyDocument with
                             | Some(tyDeclName) when tyDeclName = label -> ()
                             | _ ->
                                 let kind = classifyNamespaceKind namespaceSymbol
-                                completions.Add(OlyCompletionItem(label, kind, namespaceSymbol.SignatureText))
+                                let insertText = label
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(namespaceSymbol), insertText, insertRange))
                     )
                     subModel.GetUnqualifiedTypeSymbols(containsText)
                     |> Seq.iter (fun ty ->
@@ -850,32 +896,37 @@ type OlyDocument with
                             | Some(tyDeclName) when tyDeclName = label -> ()
                             | _ ->
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(label, kind, ty.SignatureText))
+                                let insertText = label
+                                completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(ty), insertText, insertRange))
                     )
-                | OlyCompletionContext.Unqualified subModel ->                   
+                | CompletionContext.Unqualified subModel ->                   
                     subModel.GetUnqualifiedSymbols(containsText)
                     |> Seq.iter (fun x ->
                         ct.ThrowIfCancellationRequested()
                         match x with
                         | :? OlyFunctionGroupSymbol as funcGroup ->
                             let kind = classifyFunctionGroupKind funcGroup
-                            completions.Add(OlyCompletionItem(funcGroup.Name, kind, funcGroup.SignatureText))
+                            let insertText = funcGroup.Name
+                            completions.Add(OlyCompletionItem(funcGroup.Name, kind, subModel.GetSignatureText(funcGroup), insertText, insertRange))
                         | :? OlyValueSymbol as value ->
                             // Do not include fields that are used to back properties
                             if (not value.IsBackingFieldForProperty) then
                                 let kind = classifyValueKind value
-                                completions.Add(OlyCompletionItem(value.Name, kind, value.SignatureText))
+                                let insertText = value.Name
+                                completions.Add(OlyCompletionItem(value.Name, kind, subModel.GetSignatureText(value), insertText, insertRange))
                         | :? OlyTypeSymbol as ty ->
                             let kind = classifyTypeKind ty
-                            completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                            let insertText = ty.Name
+                            completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty), insertText, insertRange))
                         | :? OlyNamespaceSymbol as namespaceSymbol ->
                             let kind = classifyNamespaceKind namespaceSymbol
-                            completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, namespaceSymbol.SignatureText))
+                            let insertText = namespaceSymbol.Name
+                            completions.Add(OlyCompletionItem(namespaceSymbol.Name, kind, subModel.GetSignatureText(namespaceSymbol), insertText, insertRange))
                         | _ ->
                             ()
                     )
 
-                | OlyCompletionContext.Symbol(symbol, inStaticContext) ->
+                | CompletionContext.Symbol(symbol, subModel, inStaticContext) ->
                     match symbol with
                     | :? OlyNamespaceSymbol as symbol ->
                         if inStaticContext then
@@ -883,13 +934,15 @@ type OlyDocument with
                             |> ImArray.iter (fun ty -> 
                                 ct.ThrowIfCancellationRequested()
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                                let insertText = ty.Name
+                                completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty), insertText, insertRange))
                             )
 
                             symbol.Namespaces
                             |> ImArray.iter (fun nmspace ->
                                 ct.ThrowIfCancellationRequested()
-                                completions.Add(OlyCompletionItem(nmspace.Name, OlyClassificationKind.Namespace, nmspace.SignatureText))
+                                let insertText = nmspace.Name
+                                completions.Add(OlyCompletionItem(nmspace.Name, OlyClassificationKind.Namespace, subModel.GetSignatureText(nmspace), insertText, insertRange))
                             )
                     | :? OlyTypeSymbol as symbol ->
                         if inStaticContext then
@@ -897,26 +950,30 @@ type OlyDocument with
                             |> ImArray.iter (fun ty -> 
                                 ct.ThrowIfCancellationRequested()
                                 let kind = classifyTypeKind ty
-                                completions.Add(OlyCompletionItem(ty.Name, kind, ty.SignatureText))
+                                let insertText = ty.Name
+                                completions.Add(OlyCompletionItem(ty.Name, kind, subModel.GetSignatureText(ty), insertText, insertRange))
                             )
 
                         symbol.Fields
                         |> Seq.iter (fun field ->
                             ct.ThrowIfCancellationRequested()
-                            if field.IsStatic = inStaticContext then
+                            // Do not include fields that are used to back properties
+                            if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
-                                completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
+                                let insertText = field.Name
+                                completions.Add(OlyCompletionItem(field.Name, kind, subModel.GetSignatureText(field), insertText, insertRange))
                         )
 
-                        symbol.Properties
+                        subModel.GetProperties(symbol)
                         |> Seq.iter (fun prop ->
                             ct.ThrowIfCancellationRequested()
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
-                                completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
+                                let insertText = prop.Name
+                                completions.Add(OlyCompletionItem(prop.Name, kind, subModel.GetSignatureText(prop), insertText, insertRange))
                         )
 
-                        symbol.Functions
+                        subModel.GetFunctions(symbol)
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
                             if func.IsNormalFunction then
@@ -927,7 +984,8 @@ type OlyDocument with
                                             "(" + func.Name + ")"
                                         else
                                             func.Name
-                                    completions.Add(OlyCompletionItem(label, kind, func.SignatureText))
+                                    let insertText = label
+                                    completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(func), insertText, insertRange))
                         )
 
                     | :? OlyValueSymbol as symbol ->
@@ -936,20 +994,23 @@ type OlyDocument with
                         ty.Fields
                         |> Seq.iter (fun field ->
                             ct.ThrowIfCancellationRequested()
-                            if field.IsStatic = inStaticContext then
+                            // Do not include fields that are used to back properties
+                            if field.IsStatic = inStaticContext && not field.IsBackingFieldForProperty then
                                 let kind = classifyValueKind field
-                                completions.Add(OlyCompletionItem(field.Name, kind, field.SignatureText))
+                                let insertText = field.Name
+                                completions.Add(OlyCompletionItem(field.Name, kind, subModel.GetSignatureText(field), insertText, insertRange))
                         )
 
-                        ty.Properties
+                        subModel.GetProperties(ty)
                         |> Seq.iter (fun prop ->
                             ct.ThrowIfCancellationRequested()
                             if prop.IsStatic = inStaticContext then
                                 let kind = classifyValueKind prop
-                                completions.Add(OlyCompletionItem(prop.Name, kind, prop.SignatureText))
+                                let insertText = prop.Name
+                                completions.Add(OlyCompletionItem(prop.Name, kind, subModel.GetSignatureText(prop), insertText, insertRange))
                         )
 
-                        ty.Functions
+                        subModel.GetFunctions(ty)
                         |> ImArray.iter (fun func ->
                             ct.ThrowIfCancellationRequested()
                             if func.IsNormalFunction then
@@ -960,16 +1021,19 @@ type OlyDocument with
                                             "(" + func.Name + ")"
                                         else
                                             func.Name
-                                    completions.Add(OlyCompletionItem(label, kind, func.SignatureText))
+                                    let insertText = label
+                                    completions.Add(OlyCompletionItem(label, kind, subModel.GetSignatureText(func), insertText, insertRange))
                         )
 
                     | _ ->
                         ()
 
                 context
-            | _ ->
-                OlyCompletionContext.None
 
+            | _ ->
+                CompletionContext.None
+
+        let insertRange = syntaxTree.GetSourceText(ct).GetTextRange(OlyTextSpan.Create(position, 0))
         let completions =
             completions
             |> Seq.filter (fun x -> 
@@ -981,7 +1045,7 @@ type OlyDocument with
                     let label = x.Label.[0]
                     match allGreekSymbols.TryGetValue label with
                     | true, text ->
-                        x.WithLabelAndInsertText(sprintf "%s (%s)" x.Label text, x.Label)
+                        x.WithLabelAndInsert(sprintf "%s (%s)" x.Label text, x.Label, insertRange)
                     | _ ->
                         x
                 else
@@ -990,21 +1054,21 @@ type OlyDocument with
             |> Array.ofSeq
 
         match context with
-        | OlyCompletionContext.None ->
+        | CompletionContext.None ->
             Seq.empty
-        | OlyCompletionContext.Unqualified _ ->
+        | CompletionContext.Unqualified _ ->
             let controlKeywordCompletions =
                 controlKeywords
                 |> Seq.map (fun x ->
                     ct.ThrowIfCancellationRequested()
-                    OlyCompletionItem(x, OlyClassificationKind.KeywordControl, String.Empty)
+                    OlyCompletionItem(x, OlyClassificationKind.KeywordControl, String.Empty, x, insertRange)
                 )
         
             let keywordCompletions =
                 keywords
                 |> Seq.map (fun x ->
                     ct.ThrowIfCancellationRequested()
-                    OlyCompletionItem(x, OlyClassificationKind.Keyword, String.Empty)
+                    OlyCompletionItem(x, OlyClassificationKind.Keyword, String.Empty, x, insertRange)
                 )
             
             seq { yield! completions; yield! controlKeywordCompletions; yield! keywordCompletions }
@@ -1014,6 +1078,154 @@ type OlyDocument with
             ct.ThrowIfCancellationRequested()
             x.Label
         )
+
+    member this.GetDirectiveCompletions(line, column, ct) =
+        let syntaxTree = this.SyntaxTree
+        match syntaxTree.GetSourceText(ct).TryGetPosition(OlyTextPosition(line, column)) with
+        | Some position -> this.GetDirectiveCompletions(position, ct)
+        | _ -> Seq.empty
+
+    member this.GetDirectiveCompletions(position: int, ct: CancellationToken) =
+        let syntaxTree = this.SyntaxTree
+
+        let tokenOpt = syntaxTree.GetRoot(ct).TryFindToken(position, ct=ct, skipTrivia = false)
+
+        match tokenOpt with
+        | None -> Seq.empty
+        | Some(token) ->
+
+        if token.IsTrivia && not token.IsWhitespaceTrivia then
+            match token.TryPropertyDirectiveText with
+            | ValueSome(propertyName, _propertyValue) ->
+                let context = 
+                    match token.TryGetSubToken(position, skipTrivia = false) with
+                    | Some(subToken) -> 
+                        if subToken.IsStringLiteral || subToken.IsWhitespaceTrivia || subToken.IsNewLineTrivia || subToken.IsCarriageReturnTrivia || subToken.IsCarriageReturnNewLineTrivia then
+                            match subToken.TryPreviousTokenBySubToken((fun x -> not x.IsWhitespaceTrivia), skipTrivia = false, ct = ct) with
+                            | ValueSome(previousToken) when previousToken.IsStringLiteral ->
+                                match previousToken.TryPreviousTokenBySubToken((fun x -> not x.IsWhitespaceTrivia), skipTrivia = false, ct = ct) with
+                                | ValueSome(previousToken) when previousToken.Text = "property" ->
+                                    let insertRange = 
+                                        if subToken.IsStringLiteral then
+                                            subToken.GetTextRange(ct)
+                                        else
+                                            syntaxTree.GetSourceText(ct).GetTextRange(OlyTextSpan.Create(position, 0))
+                                    DirectiveCompletionContext.PropertyValue(propertyName, insertRange)
+                                | _ ->
+                                    DirectiveCompletionContext.None
+                            | _ ->
+                                match subToken.TryPreviousTokenBySubToken((fun x -> not x.IsWhitespaceTrivia), skipTrivia = false, ct = ct) with
+                                | ValueSome(previousToken) when previousToken.Text = "property" ->
+                                    let insertRange = 
+                                        if subToken.IsStringLiteral then
+                                            subToken.GetTextRange(ct)
+                                        else
+                                            syntaxTree.GetSourceText(ct).GetTextRange(OlyTextSpan.Create(position, 0))
+                                    DirectiveCompletionContext.PropertyName(insertRange)
+                                | _ ->
+                                    DirectiveCompletionContext.None
+                        else
+                            DirectiveCompletionContext.None
+                    | _ -> 
+                        DirectiveCompletionContext.None
+
+                match context with
+                | DirectiveCompletionContext.None ->
+                    Seq.empty
+
+                | DirectiveCompletionContext.PropertyName(insertRange) ->
+                    let completions = ResizeArray<OlyCompletionItem>()
+
+                    let propertyDefinitions = this.Project.Properties.Definitions
+                    propertyDefinitions.Keys
+                    |> Seq.iter (fun propertyName ->
+                        let propertyName = "\"" + propertyName + "\""
+                        completions.Add(OlyCompletionItem(propertyName, OlyClassificationKind.StringLiteral, "", propertyName, insertRange))
+                    )
+
+                    completions
+
+                | DirectiveCompletionContext.PropertyValue(propertyName, insertRange) ->
+                    let completions = ResizeArray<OlyCompletionItem>()
+
+                    let propertyDefinitions = this.Project.Properties.Definitions
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.String(Some(propertyValues)) ->
+                            propertyValues
+                            |> Seq.sort
+                            |> Seq.iter (fun propertyValue ->
+                                let propertyValue = "\"" + propertyValue + "\""
+                                completions.Add(OlyCompletionItem(propertyValue, OlyClassificationKind.StringLiteral, "", propertyValue, insertRange))
+                            )
+                        | OlyProjectPropertyType.Bool ->
+                            completions.Add(OlyCompletionItem("true", OlyClassificationKind.BoolLiteral, "", "true", insertRange))
+                            completions.Add(OlyCompletionItem("false", OlyClassificationKind.BoolLiteral, "", "false", insertRange))
+                        | _ ->
+                            ()
+                    | _ ->
+                        ()
+
+                    completions
+            | _ ->
+                match token.TryDirectiveText with
+                | ValueSome("reference", currentReference) ->
+                    match token.TryGetSubToken(position, skipTrivia = false) with
+                    | Some(subToken) when subToken.IsStringLiteral -> 
+                        let currentReference = OlyPath.Create(currentReference)
+                        let rootDir = this.Path.GetDirectory()
+                        let dir = rootDir.Join(currentReference.GetDirectory())
+
+                        let insertRange = subToken.GetTextRange(ct)
+
+                        let completions = ResizeArray<OlyCompletionItem>()
+
+                        Oly.Core.IO.OlyIO.GetFilesFromDirectory(dir.ToString())
+                        |> ImArray.append (Oly.Core.IO.OlyIO.GetDirectoriesFromDirectory(dir.ToString()))
+                        |> ImArray.iter (fun file ->
+                            let file = OlyPath.Create(file).GetRelative(rootDir)
+                            if file.IsDirectory || (not(file.HasExtension(".oly")) && file.ToString().StartsWith(currentReference.ToString())) then
+                                let label = file.ToString()
+                                let label = "\"" + label + "\""
+                                let detail = if file.IsDirectory then "Directory" else "File"
+                                completions.Add(OlyCompletionItem(label, OlyClassificationKind.StringLiteral, detail, label, insertRange))
+                        )
+
+                        completions
+                    | _ ->
+                        Seq.empty
+
+                | ValueSome("load", currentReference) ->
+                    match token.TryGetSubToken(position, skipTrivia = false) with
+                    | Some(subToken) when subToken.IsStringLiteral -> 
+                        let currentReference = OlyPath.Create(currentReference)
+                        let rootDir = this.Path.GetDirectory()
+                        let dir = rootDir.Join(currentReference.GetDirectory())
+
+                        let insertRange = subToken.GetTextRange(ct)
+
+                        let completions = ResizeArray<OlyCompletionItem>()
+
+                        Oly.Core.IO.OlyIO.GetFilesFromDirectory(dir.ToString())
+                        |> ImArray.append (Oly.Core.IO.OlyIO.GetDirectoriesFromDirectory(dir.ToString()))
+                        |> ImArray.iter (fun file ->
+                            let file = OlyPath.Create(file).GetRelative(rootDir)
+                            if file.IsDirectory || (file.HasExtension(".oly") && file.ToString().StartsWith(currentReference.ToString())) then
+                                let label = file.ToString()
+                                let label = "\"" + label + "\""
+                                let detail = if file.IsDirectory then "Directory" else "File"
+                                completions.Add(OlyCompletionItem(label, OlyClassificationKind.StringLiteral, detail, label, insertRange))
+                        )
+
+                        completions
+                    | _ ->
+                        Seq.empty
+
+                | _ ->
+                    Seq.empty
+        else
+            Seq.empty
 
     // TODO: Better API name.
     member this.IsTarget(value, ?ct) =

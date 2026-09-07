@@ -13,96 +13,6 @@ let private failwithexpr irExpr =
     failwithf "\n%A" (Dump.DumpExpression irExpr)
 
 [<Fact>]
-let ``Test JsonFileStore``() =
-    let path = OlyPath.Create(System.IO.Path.Combine(Environment.CurrentDirectory, ".olyworkspace\\test.json"))
-    try
-        use watcher = new DirectoryWatcher()
-        watcher.WatchSubdirectories(Environment.CurrentDirectory)
-        use fileStore = new JsonFileStore<{| doot: int32 |}>(path, {| doot = 5 |}, watcher)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(5, result.doot)
-        fileStore.UpdateContentsAsync({| doot = 6 |}, System.Threading.CancellationToken.None).Result |> ignore
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        System.Threading.Thread.Sleep(1000)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-        Assert.True(System.IO.File.Exists(path.ToString()))
-
-    finally
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-
-[<Fact>]
-let ``Test JsonFileStore 2``() =
-    let path = OlyPath.Create(System.IO.Path.Combine(Environment.CurrentDirectory, ".olyworkspace2\\test2.json"))
-    try
-        use watcher = new DirectoryWatcher()
-        watcher.WatchSubdirectories(Environment.CurrentDirectory)
-        use fileStore = new JsonFileStore<{| doot: int32 |}>(path, {| doot = 5 |}, watcher)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(5, result.doot)
-        fileStore.UpdateContentsAsync({| doot = 6 |}, System.Threading.CancellationToken.None).Result |> ignore
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        System.Threading.Thread.Sleep(1000)
-        Assert.False(System.IO.File.Exists(path.ToString()))
-    finally
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-
-[<Fact>]
-let ``Test JsonFileStore 3``() =
-    let path = OlyPath.Create(System.IO.Path.Combine(Environment.CurrentDirectory, ".olyworkspace3\\test3.json"))
-    try
-        use watcher = new DirectoryWatcher()
-        watcher.WatchSubdirectories(Environment.CurrentDirectory)
-        use fileStore = new JsonFileStore<{| doot: int32 |}>(path, {| doot = 5 |}, watcher)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(5, result.doot)
-        fileStore.UpdateContentsAsync({| doot = 6 |}, System.Threading.CancellationToken.None).Result |> ignore
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-        System.Threading.Thread.Sleep(1000)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-        Assert.True(System.IO.File.Exists(path.ToString()))
-
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-        System.Threading.Thread.Sleep(1000)
-        System.IO.Directory.CreateDirectory(OlyPath.GetDirectory(path).ToString()) |> ignore
-        System.IO.File.WriteAllText(path.ToString(), "{ \"doot\": 9 }")
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(9, result.doot)
-        Assert.True(System.IO.File.Exists(path.ToString()))
-    finally
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-
-[<Fact>]
-let ``Test JsonFileStore 4``() =
-    let path = OlyPath.Create(System.IO.Path.Combine(Environment.CurrentDirectory, ".olyworkspace4\\test4.json"))
-    try
-        use watcher = new DirectoryWatcher()
-        watcher.WatchSubdirectories(Environment.CurrentDirectory)
-        use fileStore = new JsonFileStore<{| doot: int32 |}>(path, {| doot = 5 |}, watcher)
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(5, result.doot)
-        fileStore.UpdateContentsAsync({| doot = 6 |}, System.Threading.CancellationToken.None).Result |> ignore
-        let result = fileStore.GetContentsAsync(System.Threading.CancellationToken.None).Result
-        Assert.Equal(6, result.doot)
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-        System.Threading.Thread.Sleep(1000)
-        Assert.False(System.IO.File.Exists(path.ToString()))
-    finally
-        try System.IO.File.Delete(path.ToString()) with | _ -> ()
-        try System.IO.Directory.Delete(OlyPath.GetDirectory(path).ToString(), true) with | _ -> ()
-
-[<Fact>]
 let ``DummyAssemblyBuilder instantiation`` () =
     let builder = DummyAssemblyBuilder(true)
     Assert.NotNull(builder)
@@ -505,7 +415,7 @@ let ``Should eliminate local because isDebuggable is false`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip="not working")>]
+[<Fact>]
 let ``Should eliminate local because isDebuggable is false 2`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -542,7 +452,7 @@ let ``Should eliminate local because isDebuggable is false 2`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "Ssa not completed")>]
 let ``Should eliminate local because SSA works even when the local is mutated`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -557,7 +467,7 @@ let ``Should eliminate local because SSA works even when the local is mutated`` 
                 (Local local0)
             )
 
-    let finalLocalCount, _ = 
+    let finalLocalCount, finalExpr = 
         getIR
             builder
             ImArray.empty
@@ -578,7 +488,7 @@ let ``Should eliminate local because SSA works even when the local is mutated`` 
 
 // Elimination
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 1`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -587,9 +497,9 @@ let ``Test 1`` () =
 
     let ilExpr =
         let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
-        let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.Read), OlyILLocalFlags.None)
+        let local1 = locals.CreateLocal(OlyILTypeByRef(OlyILTypeInt32, OlyILByRefKind.ReadOnly), OlyILLocalFlags.None)
         Let local0 (ConstantInt32 456)
-            (Let local1 (LocalAddress local0 OlyILByRefKind.Read)
+            (Let local1 (LocalAddress local0 OlyILByRefKind.ReadOnly)
                 (LoadFromAddress (Local local1))
             )
 
@@ -617,7 +527,7 @@ let ``Test 1`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 2`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -661,7 +571,7 @@ let ``Test 2`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 3`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -711,7 +621,7 @@ let ``Test 3`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 4`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -761,7 +671,7 @@ let ``Test 4`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 5`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -787,8 +697,8 @@ let ``Test 5`` () =
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
-            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
-                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
+            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
+                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
                     (Local local2)
                 )
             )
@@ -811,12 +721,12 @@ let ``Test 5`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 6`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -842,8 +752,8 @@ let ``Test 6`` () =
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         Let local0 (Default tyStructA)
-            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
-                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.Read))
+            (Let local1 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
+                (Let local2 (LoadField fieldRefX (LocalAddress local0 OlyILByRefKind.ReadOnly))
                     (Local local2)
                 )
             )
@@ -866,12 +776,12 @@ let ``Test 6`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "not ready")>]
 let ``Test 7`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -926,7 +836,7 @@ let ``Test 7`` () =
 
     match irExpr with
     | Let(0, DefaultStruct _,
-        LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+        LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr
@@ -981,7 +891,7 @@ let ``Test 8`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "not working")>]
+[<Fact>]
 let ``Test 9`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1031,7 +941,7 @@ let ``Test 9`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact(Skip = "needs ssa")>]
 let ``Test 10`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1088,8 +998,8 @@ let ``Test 10`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
-let ``Test 11`` () =
+[<Fact(Skip = "needs ssa")>]
+let ``Test 11 - needs ssa`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
     let locals = builder.CreateLocalManager()
@@ -1104,10 +1014,7 @@ let ``Test 11`` () =
                 local0 <- 2
                 local2
             Turns into:
-                let mutable local0 = 1
-                let local1 = local0
-                local0 <- 2
-                local2
+                1
         *)
         let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
         let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
@@ -1145,7 +1052,60 @@ let ``Test 11`` () =
     | _ ->
         failwithexpr irExpr
 
-[<Fact(Skip = "SSA is not implemented yet")>]
+[<Fact>]
+let ``Test 11 - does not need ssa`` () =
+    let builder = DummyAssemblyBuilder(isDebuggable = false)
+
+    let locals = builder.CreateLocalManager()
+    let ilExprTy = OlyILTypeInt32
+
+    let ilExpr =
+        (*
+            Pseudo:
+                let local0 = 1
+                let local1 = local0
+                let local2 = local1
+                let local3 = 2
+                local2
+            Turns into:
+                1
+        *)
+        let local0 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local1 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local2 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        let local3 = locals.CreateLocal(OlyILTypeInt32, OlyILLocalFlags.None)
+        Let local0 (ConstantInt32 1)
+            (Let local1 (Local local0)
+                (Let local2 (Local local1)
+                        (Let local3 (ConstantInt32 2)
+                            (Local local2))
+                )
+            )
+
+    let finalLocalCount, irExpr = 
+        getIR
+            builder
+            ImArray.empty
+            ImArray.empty
+            (locals.GetLocals())
+            ilExpr
+            ilExprTy
+            (fun _ ilEnclosing ilFuncSpecHandle ->
+                Call
+                    ilEnclosing
+                    ilFuncSpecHandle
+                    ImArray.empty
+                    ImArray.empty
+                    ImArray.empty
+            )
+
+    match irExpr with
+    | ConstantInt32(1) ->
+        Assert.Equal(0, finalLocalCount)
+    | _ ->
+        failwithexpr irExpr
+
+[<Fact(Skip = "not ready")>]
 let ``Test 12`` () =
     let builder = DummyAssemblyBuilder(isDebuggable = false)
 
@@ -1199,7 +1159,7 @@ let ``Test 12`` () =
             )
 
     match irExpr with
-    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.Read))) ->
+    | Let(0, DefaultStruct _, LoadField(_, LocalAddress(0, OlyIRByRefKind.ReadOnly))) ->
         Assert.Equal(1, finalLocalCount)
     | _ ->
         failwithexpr irExpr

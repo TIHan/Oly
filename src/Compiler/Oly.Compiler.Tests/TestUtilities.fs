@@ -39,6 +39,11 @@ type TestCompilation =
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
         TestCompilation.Create(c)
 
+    static member CreatePrivateByDefault(src: string) =
+        let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct; DefaultAccessor = OlyDefaultAccessor.Private }
+        let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences, options = options)
+        TestCompilation.Create(c)
+
     static member CreateWithConditionalDefines(src: string, conditionalDefines) =
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true; ConditionalDefines = conditionalDefines })], defaultReferences, options = options)
@@ -47,17 +52,17 @@ type TestCompilation =
     static member CreateWithReference(src: string, refSrc: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let refc = OlyCompilation.Create("olytestref", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
-        let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", (fun () -> refc))
+        let refcRef = OlyCompilationReference.Create(OlyPath.Create "olytestref", refc)
         TestCompilation.CreateWithCRef(src, refcRef)
 
     static member CreateWithTwoReferences(src: string, refSrc1: string, refSrc2: string) =
         let options = { OlyCompilationOptions.Default with Parallel = false; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
 
         let refc2 = OlyCompilation.Create("olytestref2", [OlySyntaxTree.Parse(OlyPath.Create("olytestref2"), refSrc2, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences, options = options)
-        let refcRef2 = OlyCompilationReference.Create(OlyPath.Create "olytestref2", (fun () -> refc2))
+        let refcRef2 = OlyCompilationReference.Create(OlyPath.Create "olytestref2", refc2)
 
         let refc1 = OlyCompilation.Create("olytestref1", [OlySyntaxTree.Parse(OlyPath.Create("olytestref1"), refSrc1, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = false })], defaultReferences.Add(refcRef2), options = options)
-        let refcRef1 = OlyCompilationReference.Create(OlyPath.Create "olytestref1", (fun () -> refc1))
+        let refcRef1 = OlyCompilationReference.Create(OlyPath.Create "olytestref1", refc1)
 
         let options = { OlyCompilationOptions.Default with Parallel = false; Executable = true; ImplicitExtendsForEnum = implicitExtendsForEnum; ImplicitExtendsForStruct = implicitExtendsForStruct }
         let c = OlyCompilation.Create("olytest", [OlySyntaxTree.Parse(OlyPath.Create("olytest1"), src, parsingOptions = { OlyParsingOptions.Default with AnonymousModuleDefinitionAllowed = true; CompilationUnitConfigurationEnabled = true })], defaultReferences.Add(refcRef1).Add(refcRef2), options = options)
@@ -238,15 +243,25 @@ let withNoSyntaxDiagnostics (c: TestCompilation) =
 
 let withSyntaxErrorDiagnostics (expected: string list) (c: TestCompilation) =
     let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message)
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+        |> Array.ofSeq
+
     Assert.Equal(expected, errorMsgs)
     c
 
 let withSyntaxErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetSyntaxTree(OlyPath.Create("olytest1")).GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\n" + x.GetHelperText() + "\n")) |> Array.ofSeq
     (expected, errorMsgs)
     ||> Seq.iter2 (fun (expectedMsg, expectedText) (msg, text) ->
-        Assert.Equal(expectedMsg, msg)
-        Assert.Equal(expectedText.Replace("\r", ""), text.Replace("\r", ""))
+        Assert.Equal(expectedMsg.ReplaceLineEndings("\n"), msg.ReplaceLineEndings("\n"))
+        Assert.Equal(expectedText.ReplaceLineEndings("\n"), text.ReplaceLineEndings("\n"))
     )
     Assert.Equal(expected.Length, errorMsgs.Length)
     c
@@ -257,6 +272,16 @@ let withNoDiagnostics (c: TestCompilation) =
 
 let withErrorDiagnostics (expected: string list) (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun x -> x.ReplaceLineEndings("\n"))
+        |> Array.ofSeq
+
     Assert.Equal(expected, errorMsgs)
     c
 
@@ -264,10 +289,49 @@ let hasErrorDiagnostics (c: TestCompilation) =
     let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> x.Message) |> Array.ofSeq
     Assert.NotEmpty(errorMsgs)
 
-[<DebuggerHidden>]
 let withErrorHelperTextDiagnosticsAux (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
-    Assert.Equal(expected, errorMsgs)
+    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, Environment.NewLine + x.GetHelperText() + Environment.NewLine)) |> Array.ofSeq
+
+    let expected =
+        expected
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
+    let builder = Text.StringBuilder()
+    (expected, errorMsgs)
+    ||> ImArray.tryIter2 (fun expected actual ->
+        try
+            Assert.Equal(expected, actual)
+        with
+        | _ ->
+            builder.Append($"=========================================\nExpected:\n{expected}\n\nActual:\n{actual}\n\n")
+            |> ignore
+    )
+
+    if expected.Length > errorMsgs.Length then
+        expected
+        |> ImArray.ofSeq
+        |> ImArray.skip errorMsgs.Length
+        |> ImArray.iter (fun expected ->
+            builder.Append($"=========================================\nExpected:\n{expected}\n\nActual:\n\n\n")
+            |> ignore
+        )
+    elif expected.Length < errorMsgs.Length then
+        errorMsgs
+        |> ImArray.ofSeq
+        |> ImArray.skip expected.Length
+        |> ImArray.iter (fun actual ->
+            builder.Append($"=========================================\nExpected:\n\n\nActual:\n{actual}\n\n")
+            |> ignore
+        )
+
+    if builder.Length > 0 then
+        Assert.Fail(builder.ToString())
     c
 
 [<DebuggerHidden>]
@@ -278,12 +342,23 @@ let withErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAu
 let hasErrorHelperTextDiagnostics expected c = withErrorHelperTextDiagnosticsAux expected c |> ignore
 
 let containsErrorHelperTextDiagnostics (expected: (string * string) list) (c: TestCompilation) =
-    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\r\n" + x.GetHelperText() + "\r\n")) |> Array.ofSeq
+    let errorMsgs = c.c.GetDiagnostics(CancellationToken.None) |> Seq.filter (fun x -> x.IsError) |> Seq.map (fun x -> (x.Message, "\n" + x.GetHelperText() + "\n"))
+
+    let expected =
+        expected
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
+    let errorMsgs =
+        errorMsgs
+        |> Seq.map (fun (x, y) -> (x.ReplaceLineEndings("\n"), y.ReplaceLineEndings("\n")))
+        |> ImArray.ofSeq
+
     let result =
         expected
-        |> Seq.forall (fun (expectedMsg, expectedText) ->
+        |> ImArray.forall (fun (expectedMsg, expectedText) ->
             errorMsgs
-            |> Array.exists (fun (msg, text) ->
+            |> ImArray.exists (fun (msg, text) ->
                 expectedMsg = msg && expectedText = text
             )
         )
@@ -325,6 +400,14 @@ let shouldCompile c = withCompileAux c |> ignore
 /// Will also assert that the syntax tree produced will equal the source.
 let Oly (src: string) =
     TestCompilation.Create(src)
+    |> stressTest src
+
+/// Will also assert that the syntax tree produced will equal the source.
+/// TODO: This is weird because the syntax tree should tell the compilation
+///        to be private by default as it does in the workspace. 
+///        We should normalize all of this.
+let OlyPrivateByDefault (src: string) =
+    TestCompilation.CreatePrivateByDefault(src)
     |> stressTest src
 
 /// Will also assert that the syntax tree produced will equal the source.
@@ -390,8 +473,8 @@ let getSymbolByCursorIgnoreDiagnostics (src: string) =
     symbolOpt.Value
 
 let hasSymbolSignatureTextByCursorIgnoreDiagnostics expectedText (src: string) =
-    let symbol = getSymbolByCursorIgnoreDiagnostics src
-    Assert.Equal(expectedText, symbol.SignatureText)
+    let symbolInfo = getSymbolByCursorIgnoreDiagnostics src
+    Assert.Equal(expectedText, symbolInfo.SignatureText)
 
 let getSymbolByCursor (src: string) =
     let cursor = src.IndexOf("~^~")
@@ -414,8 +497,8 @@ let getSymbolByCursor (src: string) =
     symbolOpt.Value
 
 let hasSymbolSignatureTextByCursor expectedText (src: string) =
-    let symbol = getSymbolByCursor src
-    Assert.Equal(expectedText, symbol.SignatureText)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal(expectedText, symbolInfo.SignatureText)
 
 let getSymbolByCursor2 (src2: string) (src1: string) =
     let cursor = src1.IndexOf("~^~")

@@ -20,11 +20,15 @@ type OlyFunctionKind =
 
 type IOlyVirtualMachine<'Type, 'Function, 'Field> =
 
+    abstract GetTypeVoid : unit -> 'Type
+    abstract GetTypeInt32 : unit -> 'Type
+    abstract GetTypeFloat32 : unit -> 'Type
     abstract TryFindType : fullyQualifiedTypeName: string -> 'Type option
     abstract TryFindType : fullyQualifiedTypeName: string * tyParCount: int32 -> 'Type option
     abstract TryFindField : fullyQualifiedTypeName: string * tyParCount: int32 * fieldName: string -> 'Field option
     abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterCount: int32 * kind: OlyFunctionKind -> 'Function option
     abstract TryFindFunction : enclosingType: (string * int32) * name: string * typeParameterCount: int32 * parameterTypes: (string * int32) imarray * returnType: (string * int32) * kind: OlyFunctionKind -> 'Function option
+    abstract TryGetEntryPoint : unit -> 'Function option
 
 type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
 
@@ -35,6 +39,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeNativePtr      : elementTy: 'Type -> 'Type
     abstract EmitTypeNativeFunctionPtr    : OlyILCallingConvention * argTys: 'Type imarray * returnTy: 'Type -> 'Type
     abstract EmitTypeArray          : elementTy: 'Type * rank: int * kind: OlyIRArrayKind -> 'Type
+    abstract EmitTypeFixedArray     : elementTy: 'Type * length: int * kind: OlyIRArrayKind -> 'Type
     abstract EmitTypeByRef          : elementTy: 'Type * kind: OlyIRByRefKind -> 'Type
     abstract EmitTypeBaseObject     : unit -> 'Type
     abstract EmitTypeVoid           : unit -> 'Type
@@ -52,7 +57,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
     abstract EmitTypeBool           : unit -> 'Type
 
     abstract EmitTypeChar16         : unit -> 'Type
-    abstract EmitTypeUtf16          : unit -> 'Type
+    abstract EmitTypeString16       : unit -> 'Type
     abstract EmitTypeVariable       : index: int32 * kind: OlyIRTypeVariableKind -> 'Type
 
     abstract EmitTypeHigherVariable : index: int32 * tyInst: 'Type imarray * kind: OlyIRTypeVariableKind -> 'Type
@@ -96,6 +101,8 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         runtimeTyOpt: 'Type option
             -> unit
 
+    abstract OnTypeDefinitionEmitted : ty: 'Type -> unit
+
     abstract EmitTypeGenericInstance : ty: 'Type * tyArgs: 'Type imarray -> 'Type
 
     abstract EmitFunctionDefinition : 
@@ -103,7 +110,7 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         enclosingTy: 'Type * flags: OlyIRFunctionFlags * 
         name: string * 
         tyPars: OlyIRTypeParameter<'Type> imarray * 
-        pars: OlyIRParameter<'Type> imarray * 
+        pars: OlyIRParameter<'Type, 'Function> imarray * 
         returnTy: 'Type * 
         overrides: 'Function option * 
         sigKey: OlyIRFunctionSignatureKey * 
@@ -127,17 +134,17 @@ type IOlyRuntimeEmitter<'Type, 'Function, 'Field> =
         func: 'Function 
             -> unit
     
-    /// Can be a definition or instance.
-    abstract EmitField : 
+    abstract EmitFieldDefinition : 
         enclosingTy: 'Type * 
         flags: OlyIRFieldFlags * 
         name: string * 
         ty: 'Type * 
+        index: int32 *
         attrs: OlyIRAttribute<'Type, 'Function> imarray * 
         constValueOpt: OlyIRConstant<'Type, 'Function> option 
             -> 'Field
 
-    abstract EmitFieldInstance : 
+    abstract EmitFieldReference : 
         enclosingTy: 'Type * 
         formalField: 'Field
             -> 'Field

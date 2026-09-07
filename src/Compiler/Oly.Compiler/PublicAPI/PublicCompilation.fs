@@ -20,7 +20,30 @@ open Oly.Compiler.Internal.ILGen
 open Oly.Compiler.Internal.Lowering
 open Oly.Compiler.Internal.CompilerImports
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SemanticDiagnostics
+open System.Diagnostics.Tracing
+open Oly.Compiler.Internal.SymbolOperations
 
+[<EventSource(Name = "OlyCompilation")>]
+type private OlyCompilationEventSource() =
+    inherit EventSource()
+
+    static member val Log = new OlyCompilationEventSource()
+
+    [<Event(1)>]
+    member this.BeginPass3(message: string) =
+        this.WriteEvent(1, message)
+
+    [<Event(2)>]
+    member this.EndPass3(message: string) =
+        this.WriteEvent(2, message)
+
+[<NoComparison;RequireQualifiedAccess>]
+type OlyDefaultAccessor =
+    | Public
+    | Private
+
+[<NoComparison;NoEquality>]
 type OlyCompilationOptions =
     {
         Debuggable: bool
@@ -28,6 +51,7 @@ type OlyCompilationOptions =
         Parallel: bool
         ImplicitExtendsForStruct: string option
         ImplicitExtendsForEnum: string option
+        DefaultAccessor: OlyDefaultAccessor
     }
 
     static member Default =
@@ -37,6 +61,17 @@ type OlyCompilationOptions =
             Parallel = true
             ImplicitExtendsForStruct = None
             ImplicitExtendsForEnum = None
+            DefaultAccessor = OlyDefaultAccessor.Public
+        }
+
+    member internal this.CreateBinderConfiguration(): BinderConfiguration =
+        {
+            AccessorBehavior =
+                match this.DefaultAccessor with
+                | OlyDefaultAccessor.Private ->
+                    AccessorBehavior.PrivateByDefault
+                | _ ->
+                    AccessorBehavior.PublicByDefault
         }
 
 type private CompilationSignature = (BinderPass4 * OlyDiagnostic imarray) imarray
@@ -62,7 +97,10 @@ type private CompilationUnitImplementationState =
         let boundTree =
             CacheValue(fun ct -> 
                 let binder, diags = lazyImplPass.GetValue(ct)
+                let s = System.Diagnostics.Stopwatch.StartNew()
                 let boundTree = binder.Bind(ct)
+                s.Stop()
+                OlyTrace.Log("[Compilation] Implementation Pass: " + syntaxTree.Path.ToString() + $" - {s.Elapsed.TotalMilliseconds} ms")
                 boundTree.PrependDiagnostics(diags)
             )
 
@@ -90,9 +128,8 @@ type private CompilationUnitState =
     {
         syntaxTree: OlySyntaxTree
         lazyInitialState: CacheValue<InitialState>
-        initialPass: CacheValue<BinderPass0>
+        initialPass: CacheValue<BinderPrePass>
         implState: CompilationUnitImplementationState
-        extraDiags: OlyDiagnostic imarray
     }
 
 [<Sealed>]
@@ -104,19 +141,12 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
         unitState.implState.syntaxDiagnostics.GetValue(ct)
 
     member _.GetSemanticDiagnostics(ct) =
-        unitState.extraDiags.AddRange(unitState.implState.semanticDiagnostics.GetValue(ct))
+        unitState.implState.semanticDiagnostics.GetValue(ct)
 
     member _.BoundModel: OlyBoundModel = unitState.implState.boundModel
 
     member this.GetBoundTree(ct) =
         this.BoundModel.GetBoundTree(ct)
-
-    member this.SetExtraDiagnostics(extraDiags) =
-        let newUnitState = { unitState with extraDiags = extraDiags }
-        CompilationUnit(newUnitState)
-
-    member this.GetExtraDiagnostics() =
-        unitState.extraDiags
 
     member this.Update(asm, compRef: OlyCompilation ref, syntaxTree: OlySyntaxTree) =
         let implPass =
@@ -152,12 +182,14 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                     let prePassEnv = oldInitialPass.PrePassEnvironment
                     CacheValue(fun ct ->
                         ct.ThrowIfCancellationRequested()
-                        bindSyntaxTreeFast asm prePassEnv syntaxTree
+                        let config = compRef.contents.Options.CreateBinderConfiguration()
+                        bindSyntaxTreeFast asm prePassEnv config syntaxTree
                     )
                 else
                     CacheValue(fun ct ->
                         let initial = initial.GetValue(ct)
-                        bindSyntaxTree asm initial.env syntaxTree
+                        let config = compRef.contents.Options.CreateBinderConfiguration()
+                        bindSyntaxTree asm initial.env config syntaxTree
                     )
             { unitState with
                 initialPass = initialPass
@@ -169,8 +201,9 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
     static member internal Create(asm, initial: CacheValue<InitialState>, compRef: OlyCompilation ref, tryGetLocation, syntaxTree: OlySyntaxTree) =
         let initialPass = 
             CacheValue(fun ct ->
+                let config = compRef.contents.Options.CreateBinderConfiguration()
                 let initial = initial.GetValue(ct)
-                bindSyntaxTree asm initial.env syntaxTree
+                bindSyntaxTree asm initial.env config syntaxTree
             )
 
         let implPass =
@@ -188,7 +221,6 @@ type internal CompilationUnit private (unitState: CompilationUnitState) =
                 lazyInitialState = initial
                 initialPass = initialPass
                 implState = implState
-                extraDiags = ImArray.empty
             }
         CompilationUnit(unitState)
 
@@ -208,39 +240,46 @@ type internal CompilationState =
         let mutable newState = this
         newState <-
             { this with
-                lazySig = CacheValue(fun ct -> CompilationPhases.signature newState ct)
+                lazySig = 
+                    CacheValue(fun ct -> 
+                        let s = System.Diagnostics.Stopwatch.StartNew()
+                        let result = CompilationPhases.signature newState ct
+                        s.Stop()
+                        OlyTrace.Log($"[Compilation] Signature Pass: {newState.assembly.Name} {newState.version} - {s.Elapsed.TotalMilliseconds}ms")
+                        result
+                    )
             }
         newState
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>] 
 type OlyCompilationReference =
     private 
-    | CompilationReference of refId: OlyPath * (unit -> OlyCompilation)
+    | CompilationReference of refId: OlyPath * CacheValue<OlyCompilation>
     | AssemblyReference of refId: OlyPath * version: uint64 * Lazy<Result<OlyILAssembly, OlyDiagnostic>>
 
     member this.IsCompilation =
         match this with
         | CompilationReference _ -> true
-        | _ -> false    
+        | _ -> false
         
-    member this.TryGetCompilation() =
+    member this.TryGetCompilation(ct) =
         match this with
-        | CompilationReference(_, compf) -> compf() |> Some
+        | CompilationReference(_, compf) -> compf.GetValue(ct) |> Some
         | _ -> None
 
     member this.GetILAssembly(ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
         match this with
         | CompilationReference(_, compilation) -> 
-            compilation().GetILAssembly(ct)
+            compilation.GetValue(ct).GetILAssembly(ct)
         | AssemblyReference(_, _, ilAsmLazy) -> 
             match ilAsmLazy.Value with
             | Result.Ok(ilAsm) -> Result.Ok(ilAsm)
             | Result.Error(diag) -> Result.Error(ImArray.createOne diag)
 
-    member this.Version =
+    member this.GetVersion(ct) =
         match this with
-        | CompilationReference(_, compf) -> compf().Version
+        | CompilationReference(_, compf) -> compf.GetValue(ct).Version
         | AssemblyReference(_, version, _) -> version
 
     member this.Path =
@@ -249,9 +288,9 @@ type OlyCompilationReference =
         | AssemblyReference(refId=refId) -> refId
 
     static member Create(referenceId, version, ilAsm: OlyILAssembly) = AssemblyReference(referenceId, version, Lazy<_>.CreateFromValue(Result.Ok ilAsm))
-    static member Create(referenceId, comp: OlyCompilation) = CompilationReference(referenceId, (fun () -> comp))
+    static member Create(referenceId, comp: OlyCompilation) = CompilationReference(referenceId, CacheValue.FromValue(comp))
     static member Create(referenceId, version, ilAsmLazy: Lazy<_>) = AssemblyReference(referenceId, version, ilAsmLazy)
-    static member Create(referenceId, compf: unit -> OlyCompilation) = CompilationReference(referenceId, compf)
+    static member Create(referenceId, compf: CacheValue<OlyCompilation>) = CompilationReference(referenceId, compf)
 
 type private BoundEnv = Oly.Compiler.Internal.Binder.Environment.BinderEnvironment
 
@@ -273,7 +312,7 @@ let private importCompilations (ilAsmIdent: OlyILAssemblyIdentity) (importer: Im
 
 let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: OlyILAssemblyIdentity) (compRefs: OlyCompilationReference imarray, ct) =
     let sharedImportCache = SharedImportCache.Create()
-    let imports = CompilerImports(sharedImportCache)
+    let imports = CompilerImports(ilAsmIdent, sharedImportCache)
     let importer = imports.Importer
     let importDiags = ImArray.builder()
 
@@ -287,7 +326,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
             | Result.Error diag ->
                 importDiags.Add(diag)
         | OlyCompilationReference.CompilationReference(_, getComp) ->
-            let comp = getComp()          
+            let comp = getComp.GetValue(ct)          
             let isCyclic =
                 comp.GetTransitiveReferenceCompilations(ct)
                 |> ImArray.exists (fun x -> x.AssemblyIdentity = ilAsmIdent)
@@ -361,13 +400,28 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let checkDuplicate (b: BinderPass4) (ent: EntitySymbol) =
+        let checkDuplicate (diagnostics: OlyDiagnosticLogger) (b: BinderPass4) (ent: EntitySymbol) =
             match b.PartialDeclarationTable.EntityDeclarations.TryGetValue ent with
             | true, srcLoc ->
-                OlyDiagnostic.CreateSyntacticError($"'{ent.Name}' already exists across compilation units.", 10, srcLoc)
-                |> Some
+                if ent.IsAnonymous then
+                    diagnostics.ErrorWithSourceLocation($"Another anonymous module already exists.", 10, srcLoc)
+                else
+                    diagnostics.ErrorWithSourceLocation($"'{ent.Name}' already exists across compilation units.", 10, srcLoc)
             | _ ->
-                None
+                ()
+
+        let checkDuplicateAnonymousTypeExtension (diagnostics: OlyDiagnosticLogger) (b: BinderPass4) (ent: EntitySymbol) =
+            if ent.IsAnonymousTypeExtension && ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+                match b.PartialDeclarationTable.TryGetAnonymousTypeExtensionDeclaration ent with
+                | Some(benv, existingEnts, intersectedImplTys, srcLoc) ->
+                    existingEnts
+                    |> Seq.iter (fun existingEnt ->
+                        if existingEnt.Extends.Length = 1 && ent.Extends.Length = 1 then
+                            if areGeneralizedTypesEqual existingEnt.Extends[0] ent.Extends[0] then
+                                diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(benv, srcLoc,existingEnt.Extends[0], ent.Extends[0], intersectedImplTys))
+                    )
+                | _ ->
+                    ()
 
         // This checks for ambiguity of types with the same signature declared across multiple compilation units.
         // TODO: This is quadratic, but not super bad since we are able to look at a dictionary to determine if a similar entity exists in
@@ -376,23 +430,26 @@ module private CompilationPhases =
         //       We should find another way to do this without being quadratic.
         binders4
         |> map (fun (b1, diags) ->
-            let newDiags = ImArray.builder()
+            let newDiags = OlyDiagnosticLogger.Create()
             binders4
             |> ImArray.iter (fun (b2, _) ->
                 if obj.ReferenceEquals(b1, b2) |> not then
                     if b1.Entity.IsNamespace then
                         b1.Entity.Entities
                         |> ImArray.iter (fun ent ->
-                            match checkDuplicate b2 ent with
-                            | Some(diag) -> newDiags.Add(diag)
-                            | _ -> ()
+                            checkDuplicate newDiags b2 ent
                         )
                     else
-                        match checkDuplicate b2 b1.Entity with
-                        | Some(diag) -> newDiags.Add(diag)
-                        | _ -> ()
+                        checkDuplicate newDiags b2 b1.Entity
+                    b1.PartialDeclarationTable.AnonymousTypeExtensionDeclarations.Values
+                    |> Seq.iter (fun (_, _, ents, _) ->
+                        ents
+                        |> Seq.iter (fun ent ->
+                            checkDuplicateAnonymousTypeExtension newDiags b2 ent
+                        )
+                    )
             )
-            (b1, diags.AddRange(newDiags))
+            (b1, diags.AddRange(newDiags.GetDiagnostics()))
         )
 
     let signature (state: CompilationState) (ct: CancellationToken) =
@@ -404,21 +461,29 @@ module private CompilationPhases =
             else
                 ImArray.map f
 
-        let imports = CompilerImports(SharedImportCache.Create())
+        let imports = CompilerImports(state.assembly.Identity, SharedImportCache.Create())
         let importer = imports.Importer
+
+        let s = System.Diagnostics.Stopwatch.StartNew()
 
         let binders1 =
             let passes =
                 seq {
                     for pair in state.cunits do
-                        pair.Value.LazyInitialPass
+                        pair.Value.LazyInitialPass.GetValue(ct).Bind(ct)
                 }
                 |> ImArray.ofSeq
+            OlyTrace.Log($"[Compilation] PrePass: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
 
-            passes
-            |> map (fun pass ->
-                pass.GetValue(ct).Bind(ct)
-            )
+            let result =
+                passes
+                |> map (fun pass ->
+                    pass.Bind(ct)
+                )
+            OlyTrace.Log($"[Compilation] Pass0: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
+            result
 
         binders1
         |> ImArray.iter (fun x ->
@@ -431,15 +496,29 @@ module private CompilationPhases =
                 x.Bind(imports, ct)
             )
 
+        OlyTrace.Log($"[Compilation] Pass1: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+        s.Restart()
+
         let binders3 =
             binders2
             |> map (fun x -> x.Bind(ct))
 
+        OlyTrace.Log($"[Compilation] Pass2: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+        s.Restart()
+
+        OlyCompilationEventSource.Log.BeginPass3(state.assembly.Name)
         let binders4 =
             binders3
             |> map (fun x -> x.Bind(ct))
+        OlyCompilationEventSource.Log.EndPass3(state.assembly.Name)
 
-        checkDuplications state binders4
+        OlyTrace.Log($"[Compilation] Pass3: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+        s.Restart()
+
+        let result = checkDuplications state binders4
+        OlyTrace.Log($"[Compilation] Check Duplications: {state.assembly.Name} - {s.Elapsed.TotalMilliseconds}ms")
+        s.Stop()
+        result
 
     let implementation (state: CompilationState) (binders4: (BinderPass4 * OlyDiagnostic imarray) imarray) (ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
@@ -482,7 +561,7 @@ module private CompilationPhases =
                 ImArray.map f
 
         let outputTree (tree: BoundTree) =
-            System.IO.File.WriteAllText(OlyPath.ChangeExtension(tree.SyntaxTree.Path, ".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
+            System.IO.File.WriteAllText(tree.SyntaxTree.Path.ChangeExtension(".txt").ToString(), Oly.Compiler.Internal.Dump.dumpTree tree)
             tree
 
         // Lowering is REQUIRED before codegen, 
@@ -501,9 +580,9 @@ module private CompilationPhases =
                     |> Optimizer.Lower ct { LocalValueElimination = not state.options.Debuggable; BranchElimination = true }
                   //  |> outputTree
                     |> RefCellLowering.Lower
-                   // |> outputTree
+                   //|> outputTree
                     |> LambdaLifting.Lower g
-                    //|> outputTree
+                   // |> outputTree
                 loweredBoundTree, diags
             )
 
@@ -560,7 +639,7 @@ type OlyCompilation private (state: CompilationState) =
         |> ImArray.choose (function
             | OlyCompilationReference.CompilationReference(_, compf) -> 
                 ct.ThrowIfCancellationRequested()
-                compf() |> Some
+                compf.GetValue(ct) |> Some
             | _ -> 
                 ct.ThrowIfCancellationRequested()
                 None
@@ -584,24 +663,11 @@ type OlyCompilation private (state: CompilationState) =
         comps.ToImmutable()
 
     member this.RemoveSyntaxTree(path: OlyPath) =
+#if DEBUG || CHECKED
+        OlyTrace.Log($"Refresh - Removing Syntax Tree - {this.AssemblyName} {this.Version} - {path.ToString()}")
+#endif
         let cunits = state.cunits.Remove(path)
         this.InitialSetSyntaxTreeBatch(cunits.Values |> Seq.map (fun x -> x.BoundModel.SyntaxTree) |> ImArray.ofSeq)
-
-    member this.SetExtraDiagnostics(path: OlyPath, extraDiags) =
-        // !! DO NOT REFRESH THE SIGNATURE HERE !!
-        // It doesn't provide any benefit and it would cause other places
-        // that reference the signature to be stale.
-        // Such as GoToDefinition on an external symbol would not work.
-        let cunit = state.cunits[path]
-        let newCUnit = cunit.SetExtraDiagnostics(extraDiags)
-        { state with
-            cunits = state.cunits.SetItem(path, newCUnit)
-        }
-        |> OlyCompilation
-
-    member this.GetExtraDiagnostics(path: OlyPath) =
-        let cunit = state.cunits[path]
-        cunit.GetExtraDiagnostics()
 
     /// Adds a syntax tree to the compilation.
     /// Will overwrite existing syntax trees.
@@ -640,6 +706,9 @@ type OlyCompilation private (state: CompilationState) =
                 )
                 |> ImmutableDictionary.CreateRange
 
+#if DEBUG || CHECKED
+            OlyTrace.Log($"Refresh - Setting Same Syntax Tree - {this.AssemblyName} {this.Version} - {syntaxTree.Path.ToString()}")
+#endif
             let state =
                 { state with
                     cunits = cunits
@@ -648,14 +717,15 @@ type OlyCompilation private (state: CompilationState) =
             compRef.contents <- OlyCompilation state
             compRef.contents
         else
+#if DEBUG || CHECKED
+            OlyTrace.Log($"Refresh - Setting Syntax Tree - {this.AssemblyName} {this.Version} - {syntaxTree.Path.ToString()}")
+#endif
             this.InitialSetSyntaxTreeBatch(syntaxTrees)
 
     /// Adds a syntax tree to the compilation.
     /// Will overwrite existing syntax trees.
     member internal this.InitialSetSyntaxTreeBatch(syntaxTrees: OlySyntaxTree imarray) =
         let compRef = ref Unchecked.defaultof<_>
-
-        let prevCUnits = state.cunits
 
         let tryGetLocation = OlyCompilation.tryGetLocation compRef
               
@@ -666,12 +736,6 @@ type OlyCompilation private (state: CompilationState) =
             (ImmutableDictionary.Empty, syntaxTrees)
             ||> ImArray.fold (fun cunits syntaxTree ->
                 let cunit = CompilationUnit.Create(asm, lazyInitialState, compRef, tryGetLocation, syntaxTree)
-                let cunit =
-                    match prevCUnits.TryGetValue(syntaxTree.Path) with
-                    | true, prevCUnit ->
-                        cunit.SetExtraDiagnostics(prevCUnit.GetExtraDiagnostics())
-                    | _ ->
-                        cunit
                 cunits.Add(syntaxTree.Path, cunit)
             )
 
@@ -701,6 +765,9 @@ type OlyCompilation private (state: CompilationState) =
                     // Initial state must be re-computed which is expensive, but it is lazy (will not happen immediately here).
                     setup state.options this.AssemblyIdentity references
                 
+#if DEBUG || CHECKED
+            OlyTrace.Log($"Refresh - Updating - {this.AssemblyName} {this.Version}")
+#endif
             let state =
                 { state with
                     options = options
@@ -756,6 +823,11 @@ type OlyCompilation private (state: CompilationState) =
             )
 
         ImArray.append diags refDiags
+        |> ImArray.sortBy (fun x ->
+            match x.SyntaxTree with
+            | Some syntaxTree -> syntaxTree.Path.ToString()
+            | _ -> String.Empty
+        )
 
     member private this.Bind(ct) =
         ct.ThrowIfCancellationRequested()
@@ -770,15 +842,22 @@ type OlyCompilation private (state: CompilationState) =
             Result.Error(diags)
         else
             let boundTrees = this.Bind(ct)
+            let s = System.Diagnostics.Stopwatch.StartNew()
+
             let loweredBoundTrees = CompilationPhases.lowering state boundTrees ct
-            CompilationPhases.generateAssembly state loweredBoundTrees ct
-            |> Result.Ok      
+            OlyTrace.Log($"[Compilation] Lowering Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+            s.Restart()
+
+            let ilAsm = CompilationPhases.generateAssembly state loweredBoundTrees ct
+            OlyTrace.Log($"[Compilation] Assembly Generation Pass - {state.assembly.Name} {state.version} - {s.Elapsed.TotalMilliseconds}ms")
+
+            Result.Ok(ilAsm)  
 
     member _.AssemblyName = state.assembly.Name
     member _.AssemblyIdentity = state.assembly.Identity
 
     member _.References = state.references
-    member _.Options = state.options
+    member _.Options: OlyCompilationOptions = state.options
 
     static member Create(assemblyName: string, syntaxTrees: OlySyntaxTree seq, ?references: OlyCompilationReference seq, ?options: OlyCompilationOptions) =
         let references = defaultArg (references |> Option.map ImArray.ofSeq) ImArray.empty
@@ -799,6 +878,10 @@ type OlyCompilation private (state: CompilationState) =
                 version = 0UL
             }
 
+        let syntaxTrees = syntaxTrees |> ImArray.ofSeq
+#if DEBUG || CHECKED
+        OlyTrace.Log($"Creating - {assemblyName} - Syntax Tree Count: {syntaxTrees.Length}")
+#endif
         let c = OlyCompilation state
-        c.InitialSetSyntaxTreeBatch(syntaxTrees |> ImArray.ofSeq)
+        c.InitialSetSyntaxTreeBatch(syntaxTrees)
 

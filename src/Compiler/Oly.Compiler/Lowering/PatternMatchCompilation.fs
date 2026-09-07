@@ -53,7 +53,7 @@ let substituteLocals
             ),
             (fun origExpr ->
                 match origExpr with
-                | BoundExpression.Value(syntaxInfo, value) when value.IsLocal && not value.IsFunction ->
+                | BoundExpression.Value(syntaxInfo, value) when value.HasLocalEnclosing && not value.IsFunction ->
                     match localLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->          
                         BoundExpression.Value(syntaxInfo, newValue)
@@ -61,7 +61,7 @@ let substituteLocals
                         origExpr
 
                 | BoundExpression.Call(syntaxInfo, None, witnessArgs, argExprs, value, isVirtualCall) 
-                        when value.IsLocal && not value.IsFunction ->
+                        when value.HasLocalEnclosing && not value.IsFunction ->
 
                     match localLookup.TryGetValue value.Formal.Id with
                     | true, newValue ->
@@ -84,7 +84,7 @@ let substituteLocals
     newExpr
 
 let toTargetJump(expr: E) =
-    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
 
     let local =
         createFunctionValue
@@ -143,7 +143,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     (freeLocals, pars)
     ||> ImArray.iter2 (fun local par -> localLookup[local.Id] <- par :> ILocalSymbol)
 
-    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
 
     let local =
         createFunctionValue
@@ -164,7 +164,7 @@ let toTargetJumpWithFreeLocals (freeLocals: ILocalSymbol imarray) (expr: E) =
     let lambdaExpr =
         BoundExpression.CreateLambda(
             syntaxInfo,
-            LambdaFlags.Continuation ||| LambdaFlags.Static,
+            LambdaFlags.Continuation,
             local.TypeParameters,
             local.Parameters,
             LazyExpression.CreateNonLazy(
@@ -242,7 +242,7 @@ let isSimpleMatchClause (matchClause: BoundMatchClause) =
 let isReallySimpleExpression (expr: E) =
     match expr with
     | E.Literal _ -> true
-    | E.Value(value=value) -> value.IsLocal || value.IsFieldConstant
+    | E.Value(value=value) -> value.HasLocalEnclosing || value.IsFieldConstant
     | _ -> false
 
 let isSimpleExpression (expr: E) =
@@ -414,7 +414,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             match casePatArgs.Length with
             | 0 ->
-                OlyAssert.True(callExpr.Type.IsUnit_t)
+                OlyAssert.True(callExpr.Type.IsUnit_ste)
                 createInfo (Some matchValueLetExpr) callGuardExpr (Ignore callExpr)
 
             | 1 ->
@@ -499,7 +499,7 @@ let transformPattern cenv (valueLookup: MatchPatternLookup) matchPatternIndex ma
 
             match casePatArgs.Length with
             | 0 ->
-                OlyAssert.True(callExpr.Type.IsUnit_t)
+                OlyAssert.True(callExpr.Type.IsUnit_ste)
                 createInfo None trueLiteralExpr (Ignore callExpr)
             | 1 ->
                 transformPattern cenv valueLookup matchPatternIndex callExpr casePatArgs[0] contExprOpt
@@ -749,6 +749,19 @@ let replaceTargetExpressionByValue (valueLookup: MatchPatternLookup) i (expr: E)
                     E.Value(syntaxInfo, tmpValues.[flipIndex index])
                 | _ ->
                     expr
+
+            | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, callFlags) ->
+                // Try to get the largest index from 'patternValues' that has our value; this is why we use 'Array.rev' and 'flipIndex'.
+                // This is the way to get the latest generated value.
+                // Think of it like 'Array.tryBackFindIndex' would be.
+                match patternValues |> Array.rev |> Array.tryFindIndex (fun value2 -> value2.Id = value.Id) with
+                | Some index ->
+                    let flipIndex index =
+                        patternValues.Length - 1 - index
+                    E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, tmpValues.[flipIndex index], callFlags)
+                | _ ->
+                    expr
+
             | _ ->
                 expr
         )
@@ -766,11 +779,11 @@ let tryTransformTargetExpression (cenv: cenv) (valueLookup: MatchPatternLookup) 
         let valueDeclExprs =
             tmpValues
             |> Seq.map (fun tmpValue ->
-                let syntaxInfo = BoundSyntaxInfo.Generated(cenv.Syntax.Tree)
+                let syntaxInfo = BoundSyntaxInfo.Generated(cenv.Syntax)
                 E.Let(
                     syntaxInfo,
                     BindingLocal(tmpValue),
-                    (E.CreateValue(cenv.Syntax.Tree, matchValueInfos.[i].value)),
+                    (E.CreateGeneratedValue(cenv.Syntax, matchValueInfos.[i].value)),
                     cenv.NoneExpression
                 )
             )
@@ -833,7 +846,7 @@ let insertExpressionIntoExpression (expr: E) (exprToInsert: E) : E =
                 expr
             | Ignore _ ->
                 E.Sequential(
-                    BoundSyntaxInfo.Generated(expr.Syntax.Tree),
+                    BoundSyntaxInfo.Generated(expr.Syntax),
                     foldingExpr,
                     expr,
                     NormalSequential
@@ -891,7 +904,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                 | innerConditionExpr ->
                     let newTargetExpr =              
                         E.IfElse(
-                            BoundSyntaxInfo.Generated(syntax.Tree),
+                            BoundSyntaxInfo.Generated(syntax),
                             innerConditionExpr,
                             finalTrueTargetExpr,
                             falseTargetExpr,
@@ -914,7 +927,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                             falseTargetExpr
                         | _ ->
                             E.IfElse(
-                                BoundSyntaxInfo.Generated(syntax.Tree),
+                                BoundSyntaxInfo.Generated(syntax),
                                 conditionExpr3,
                                 finalTrueTargetExpr,
                                 falseTargetExpr,
@@ -930,7 +943,7 @@ let transformTargetAndGuardExpression (cenv: cenv) matchPatternLookup i (decisio
                         falseTargetExpr
                     | _ ->
                         E.IfElse(
-                            BoundSyntaxInfo.Generated(syntax.Tree),
+                            BoundSyntaxInfo.Generated(syntax),
                             conditionExpr2,
                             trueTargetExpr,
                             falseTargetExpr,
@@ -1279,11 +1292,11 @@ let lowerMatchExpression (matchExpr: E) =
             matchValueExprs
             |> ImArray.mapi (fun i expr ->
                 match expr with
-                | E.Value(syntaxInfo, value) when value.IsLocal ->
+                | E.Value(syntaxInfo, value) when value.HasLocalEnclosing ->
                     {| syntaxInfo = syntaxInfo; value = value :?> ILocalSymbol; isTmp = false; index = i |}
                 | _ ->
                     let tmpValue = createLocalGeneratedValue "tmp" expr.Type
-                    let syntaxInfo = BoundSyntaxInfo.Generated(syntax.Tree)
+                    let syntaxInfo = BoundSyntaxInfo.Generated(syntax)
                     {| syntaxInfo = syntaxInfo; value = tmpValue; isTmp = true; index = i |}
             )
 
@@ -1293,10 +1306,10 @@ let lowerMatchExpression (matchExpr: E) =
             {
                 BoundEnvironment = benv
                 Syntax = syntax
-                GeneratedSyntaxInfo = BoundSyntaxInfo.Generated(syntax.Tree)
+                GeneratedSyntaxInfo = BoundSyntaxInfo.Generated(syntax)
                 BeforeMatchExpressions = beforeMatchExprs
-                TrueLiteralExpression = E.Literal(BoundSyntaxInfo.Generated(syntax.Tree), BoundLiteralTrue)
-                NoneExpression = E.None(BoundSyntaxInfo.Generated(syntax.Tree))
+                TrueLiteralExpression = E.Literal(BoundSyntaxInfo.Generated(syntax), BoundLiteralTrue)
+                NoneExpression = E.None(BoundSyntaxInfo.Generated(syntax))
                 CachedExpressionType = cachedExprTy
                 MatchValueInfos = matchValueInfos
             }
@@ -1358,7 +1371,7 @@ let Lower (ct: CancellationToken) (boundTree: BoundTree) =
         match origExpr with
 #if DEBUG || CHECKED
         | E.MemberDefinition(binding=binding) ->
-            Assert.ThrowIf(binding.Info.Value.IsLocal)
+            Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
             origExpr
 #endif
 

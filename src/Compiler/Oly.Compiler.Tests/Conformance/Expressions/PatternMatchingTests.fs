@@ -183,21 +183,21 @@ let ``Use of pattern should error due to type arguments``() =
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern Some<T>(option: Option<T>): T when (option !== null) =>
     option.Value
 
 test(x: Option<__oly_int32>): () =
     match (x)
-    | Some<__oly_utf16>(_) => ()
+    | Some<__oly_string16>(_) => ()
     | _ => ()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Option<__oly_utf16>' but is 'Option<__oly_int32>'.", """
-    | Some<__oly_utf16>(_) => ()
+            ("Expected type 'Option<__oly_string16>' but is 'Option<__oly_int32>'.", """
+    | Some<__oly_string16>(_) => ()
       ^^^^
 """)
         ]
@@ -213,7 +213,7 @@ let ``Use of pattern should error due to type arguments 2``() =
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern Some<T>(option: Option<T>): T when (option !== null) =>
     option.Value
@@ -223,15 +223,15 @@ pattern Some<T>(option: Option<T>): (T, T) when SomeGuardTuple(option !== null) 
 
 test(x: Option<__oly_int32>): () =
     match (x)
-    | Some<__oly_utf16>(_) => ()
+    | Some<__oly_string16>(_) => ()
     | _ => ()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'Option<__oly_utf16>' but is 'Option<__oly_int32>'.", """
-    | Some<__oly_utf16>(_) => ()
-      ^^^^^^^^^^^^^^^^^^^^
+            ("Expected type 'Option<__oly_string16>' but is 'Option<__oly_int32>'.", """
+    | Some<__oly_string16>(_) => ()
+      ^^^^^^^^^^^^^^^^^^^^^^^
 """)
         ]
     |> ignore
@@ -252,7 +252,7 @@ alias bool
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 pattern Some<T>(value: Option<T>): T when (value !== null) => value.Value
 
@@ -262,7 +262,7 @@ pattern Some<T>(value: Option<T>): (T, T) when (value !== null) =>
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("'static guard_Some<T>(value: Option<T>): bool' has duplicate member definitions.", """
+            ("'static pattern_guard_Some<T>(value: Option<T>): bool' has duplicate member definitions.", """
 pattern Some<T>(value: Option<T>): (T, T) when (value !== null) =>
         ^^^^
 """)
@@ -278,8 +278,8 @@ test(t: __oly_int32): () =
     | ~^~1 => ()
     | _ => ()
         """
-    let symbol = getSymbolByCursor src
-    Assert.Equal(1, symbol.AsConstant.Value.AsInt32)
+    let symbolInfo = getSymbolByCursor src
+    Assert.Equal(1, symbolInfo.Symbol.AsConstant.Value.AsInt32)
 
 [<Fact>]
 let ``Enum pattern match should give the correct symbol``() =
@@ -326,6 +326,38 @@ test(t: Test): () =
     | _ => ()
         """
     src |> hasSymbolSignatureTextByCursor "Test"
+
+[<Fact>]
+let ``Enum pattern match should give the correct symbol 4``() =
+    let src =
+        """
+module Test =
+    enum TestEnum =
+        | ABC
+        | DEF
+
+test(t: Test.TestEnum): () =
+    match (t)
+    | ~^~Test.TestEnum.ABC => ()
+    | _ => ()
+        """
+    src |> hasSymbolSignatureTextByCursor "Test"
+
+[<Fact>]
+let ``Enum pattern match should give the correct symbol 5``() =
+    let src =
+        """
+module Test =
+    enum TestEnum =
+        | ABC
+        | DEF
+
+test(t: Test.TestEnum): () =
+    match (t)
+    | Test.~^~TestEnum.ABC => ()
+    | _ => ()
+        """
+    src |> hasSymbolSignatureTextByCursor "TestEnum"
 
 [<Fact>]
 let ``A non-pattern function definition with the use of 'when' should error``() =
@@ -521,7 +553,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -575,7 +607,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]
@@ -630,7 +662,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("add")]

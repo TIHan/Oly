@@ -2,6 +2,7 @@
 module internal Oly.Compiler.Internal.Binder.PostInferenceAnalysis
 
 open System
+
 open Oly.Core
 open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.BoundTree
@@ -41,6 +42,7 @@ type acenv =
         cenv: cenv 
         scopes: System.Collections.Generic.Dictionary<int64, ScopeValues>
         checkedTypeParameters: System.Collections.Generic.HashSet<int64> 
+        errorTyMsgDeDup: System.Collections.Generic.HashSet<TypeSymbol>
     }
 
 type Limits =
@@ -58,6 +60,7 @@ type aenv =
         isMemberSig: bool
         memberFlags: MemberFlags
         limits: Limits
+        currentNonLocalFunctionOpt: IFunctionSymbol option
         currentFunctionOpt: IFunctionSymbol option
     }
 
@@ -92,10 +95,66 @@ let reportExpressionOutOfScope acenv (syntaxNode: OlySyntaxNode) =
     acenv.cenv.diagnostics.Error($"Expression is scoped and might escape its scope at this point.", 10, syntaxNode)
 
 let reportAddressValueCannotBeCaptured acenv (syntaxNode: OlySyntaxNode) (value: IValueSymbol) =
-    OlyAssert.True(value.Type.IsScoped)
+    OlyAssert.True(value.Type.IsScoped_ste)
     acenv.cenv.diagnostics.Error($"'{value.Name}' is an address and cannot be captured.", 10, syntaxNode)
 
-let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+let reportRestrictedTypeParameter acenv (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    acenv.cenv.diagnostics.Error($"Type parameter '{tyPar.Name}' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:", 10, syntaxNode)
+
+[<Flags>]
+type TypeAnalysisFlags =
+    | None                        = 0b0000000
+    | PermitByRef                 = 0b0000001
+    | RestrictTypeParameterUse    = 0b0000010
+
+let canPermitByRef (flags: TypeAnalysisFlags) =
+    flags.HasFlag(TypeAnalysisFlags.PermitByRef)
+
+let hasRestrictedTypeParameterUse (flags: TypeAnalysisFlags) =
+    flags.HasFlag(TypeAnalysisFlags.RestrictTypeParameterUse)
+
+let analyzeTypeParameterUse (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
+    if hasRestrictedTypeParameterUse flags then
+        match aenv.currentNonLocalFunctionOpt with
+        | Some(func) when 
+                func.IsExported || 
+                func.Enclosing.IsExported ->
+            match tyPar.Kind with
+            | TypeParameterKind.Type when func.Enclosing.IsExported ->
+                reportRestrictedTypeParameter acenv syntaxNode tyPar
+            | TypeParameterKind.Function _ when func.IsExported ->
+                reportRestrictedTypeParameter acenv syntaxNode tyPar
+            | _ ->
+                ()
+        | _ ->
+            ()
+
+let isInVirtualImplementation aenv =
+    match aenv.currentFunctionOpt with
+    | Some(currentFunction) -> currentFunction.IsVirtual
+    | _ -> false
+
+let isTypeParameterIllegalForTrait aenv (tyPar: TypeParameterSymbol) (traitTy: TypeSymbol) =
+    match aenv.currentFunctionOpt with
+    | Some currentFunction when currentFunction.IsVirtual && currentFunction.TypeParameters |> ImArray.exists (fun x -> x.Id = tyPar.Id) |> not ->
+        if  tyPar.Constraints 
+            |> ImArray.exists (fun constr ->
+                match constr with
+                | ConstraintSymbol.TraitType(constrTraitTy) ->
+                    // TODO: This is very conservative and could be loosened; not taking into account the type arguments
+                    if areTypesEqual traitTy.Formal constrTraitTy.Value.Formal then
+                        true
+                    else
+                        false
+                | _ ->
+                    false
+            ) then true
+        else
+            false
+    | _ ->
+        false
+
+let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (flags: TypeAnalysisFlags) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     let benv = aenv.envRoot.benv
     let diagnostics = acenv.cenv.diagnostics
 
@@ -141,30 +200,35 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
     | TypeSymbol.ForAll(tyPars, innerTy) ->
         tyPars 
         |> ImArray.iter (fun tyPar -> analyzeType acenv aenv syntaxNode tyPar.AsType)
-        analyzeType acenv aenv syntaxNode innerTy
+        analyzeTypeAux acenv aenv flags syntaxNode innerTy
 
     | TypeSymbol.Tuple(tyArgs, _) ->
         analyzeTypeTuple acenv aenv syntaxNode tyArgs
 
-    | TypeSymbol.Variable(_) ->
-        ()
+    | TypeSymbol.Variable(tyPar) ->
+        analyzeTypeParameterUse acenv aenv flags syntaxNode tyPar
 
-    | TypeSymbol.HigherVariable(_, tyArgs) ->
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+    | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
+        analyzeTypeParameterUse acenv aenv flags syntaxNode tyPar
+        tyArgs
+        |> ImArray.iter (fun tyArg ->
+            analyzeType acenv aenv syntaxNode tyArg
+        )
 
     | TypeSymbol.NativePtr(elementTy) ->
-        if not elementTy.IsVoid_t then
+        if not elementTy.IsVoid_ste then
             analyzeType acenv aenv syntaxNode elementTy
 
     | TypeSymbol.Void ->
         diagnostics.Error($"'{printType benv ty}' can only be used as a type argument of a native pointer.", 10, syntaxNode)
 
     | TypeSymbol.Error(_, Some msg) ->
-        diagnostics.Error(msg, 10, syntaxNode)
+        if acenv.errorTyMsgDeDup.Add(partiallyStrippedTy) then
+            diagnostics.Error(msg, 10, syntaxNode)
     
     | strippedTy ->
         match strippedTy with
-        | TypeSymbol.ByRef _ when not permitByRef ->
+        | TypeSymbol.ByRef _ when not(canPermitByRef flags) ->
             match ty with
             | TypeSymbol.InferenceVariable(Some tyPar, _)
             | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) when tyPar.Constraints |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false) ->
@@ -173,13 +237,19 @@ let rec analyzeTypeAux (acenv: acenv) (aenv: aenv) (permitByRef: bool) (syntaxNo
                 diagnostics.Error($"'{printType benv ty}' not permitted in this context.", 10, syntaxNode)
         | _ ->
             ()
-        analyzeTypeArguments acenv aenv syntaxNode ty.TypeArguments
+        ty.TypeArguments |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
 and analyzeType (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
-    analyzeTypeAux acenv aenv false syntaxNode ty
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.None syntaxNode ty
 
 and analyzeTypePermitByRef (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
-    analyzeTypeAux acenv aenv true syntaxNode ty
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.PermitByRef syntaxNode ty
+
+and analyzeTypeRestrictTypeParameterUse (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv TypeAnalysisFlags.RestrictTypeParameterUse syntaxNode ty
+
+and analyzeTypePermitByRefAndRestrictTypeParameterUse (acenv: acenv) (aenv: aenv) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
+    analyzeTypeAux acenv aenv (TypeAnalysisFlags.PermitByRef ||| TypeAnalysisFlags.RestrictTypeParameterUse) syntaxNode ty
 
 and analyzeTypeParameterDefinition acenv aenv (syntaxConstrClause: OlySyntaxConstraintClause) (tyPar: TypeParameterSymbol) (constrs: ConstraintSymbol imarray) =
     if not constrs.IsEmpty && acenv.checkedTypeParameters.Add(tyPar.Id) then
@@ -210,13 +280,9 @@ and analyzeTypeForParameter acenv aenv (syntaxNode: OlySyntaxNode) (ty: TypeSymb
     | _ ->
         analyzeTypePermitByRef acenv aenv syntaxNode ty
 
-and analyzeTypeArguments acenv aenv syntaxNode (tyArgs: TypeSymbol imarray) =
-    tyArgs
-    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
-
 and analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode (syntaxTyArgs: OlySyntaxType imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTyArgs.Length <> tyArgs.Length then
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+        tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
     else
         (syntaxTyArgs, tyArgs)
         ||> ImArray.iter2 (fun syntaxTy tyArg ->
@@ -225,7 +291,7 @@ and analyzeTypeArgumentsWithSyntax acenv aenv syntaxNode (syntaxTyArgs: OlySynta
 
 and analyzeTypeArgumentsWithSyntaxTuple acenv aenv syntaxNode (syntaxTupleElements: OlySyntaxTupleElement imarray) (tyArgs: TypeSymbol imarray) =
     if syntaxTupleElements.Length <> tyArgs.Length then
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+         tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
     else
         (syntaxTupleElements, tyArgs)
         ||> ImArray.iter2 (fun syntaxTupleElement tyArg ->
@@ -279,7 +345,11 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol)
     analyzeTypeEntityAccessibility acenv aenv syntaxNode ent
 
     let cont() =
-        analyzeTypeArguments acenv aenv syntaxNode ent.TypeArguments
+        if not ent.IsFormal then
+            if not ent.IsExported && not ent.IsImported then
+                ent.TypeArguments |> ImArray.iter (analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode)
+            else
+                ent.TypeArguments |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
     let rec check (syntaxName: OlySyntaxName) =
         match syntaxName with
@@ -306,7 +376,7 @@ and analyzeTypeEntity acenv aenv (syntaxNode: OlySyntaxNode) (ent: EntitySymbol)
 
 and analyzeTypeTuple acenv aenv (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol imarray) =
     let cont() =
-        analyzeTypeArguments acenv aenv syntaxNode tyArgs
+         tyArgs |> ImArray.iter (analyzeType acenv aenv syntaxNode)
 
     match syntaxNode with
     | :? OlySyntaxType as syntaxTy ->
@@ -321,7 +391,7 @@ and analyzeTypeTuple acenv aenv (syntaxNode: OlySyntaxNode) (tyArgs: TypeSymbol 
 and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol) =
     match witness with
     | WitnessSymbol.TypeExtension(tyExt, specificAbstractFuncOpt) ->
-        checkEntity acenv aenv syntaxNode tyExt
+        analyzeTypeEntity acenv aenv syntaxNode tyExt
         specificAbstractFuncOpt
         |> Option.iter (fun x -> checkValue acenv aenv syntaxNode x)
 
@@ -331,28 +401,28 @@ and checkWitness acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSymbol)
         ()
 
 and checkWitnessSolution acenv aenv (syntaxNode: OlySyntaxNode) (witness: WitnessSolution) =
-  //  OlyAssert.True(witness.HasSolution)
-    checkEntity acenv aenv syntaxNode witness.Entity
+    OlyAssert.True(witness.HasSolution)
+    analyzeType acenv aenv syntaxNode witness.Type
     match witness.Solution with
     | Some witness -> checkWitness acenv aenv syntaxNode witness
     | _ -> ()
 
-and checkEntity acenv aenv syntaxNode (ent: EntitySymbol) =
-    match acenv.scopes.TryGetValue ent.Id with
-    | true, scope ->
-        ()
-    | _ ->
-        ()
-    ent.TypeArguments
-    |> ImArray.iter (analyzeType acenv aenv syntaxNode)
+    if isInVirtualImplementation aenv then
+        if witness.HasSolution then
+            match witness.Solution with
+            | Some(WitnessSymbol.TypeParameter(tyPar)) ->
+                if isTypeParameterIllegalForTrait aenv tyPar witness.Type then
+                    acenv.cenv.diagnostics.Error($"Inside a virtual function, '{printType aenv.benv tyPar.AsType}' is not allowed to solve the trait constraint type '{printType aenv.benv witness.Type}'.", 10, syntaxNode)
+            | _ ->
+                ()
 
 and checkEnclosing acenv aenv syntaxNode (enclosing: EnclosingSymbol) =
     match enclosing with
     | EnclosingSymbol.Entity(ent) ->
-        checkEntity acenv aenv syntaxNode ent
+        analyzeTypeEntity acenv aenv syntaxNode ent
     | EnclosingSymbol.Witness(concreteTy, abstractEnt) ->
         analyzeType acenv aenv syntaxNode concreteTy
-        checkEntity acenv aenv syntaxNode abstractEnt
+        analyzeTypeEntity acenv aenv syntaxNode abstractEnt
     | EnclosingSymbol.Local
     | EnclosingSymbol.RootNamespace ->
         ()
@@ -371,6 +441,8 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
     else
         checkEnclosing acenv aenv syntaxNode value.Enclosing
 
+        let isVanilla = value.IsVanilla
+
         // TODO: We need to use the syntaxNode to get access to the type arguments if they exists, parameters, and return type.
         if value.IsFunction then
             let func = value.AsFunction
@@ -382,14 +454,14 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                 | ValueSome(WellKnownFunction.LoadNullPtr) ->
                     func.TypeArguments
                     |> ImArray.iter (fun tyArg ->
-                        if not tyArg.IsVoid_t then
+                        if not tyArg.IsVoid_ste then
                             analyzeType acenv aenv syntaxNode tyArg
                     )
 
                 | ValueSome(WellKnownFunction.UnsafeCast) ->
                     func.TypeArguments
                     |> ImArray.iter (fun tyArg ->
-                        if not tyArg.IsVoid_t then
+                        if not tyArg.IsVoid_ste then
                             analyzeTypePermitByRef acenv aenv syntaxNode tyArg
                     )
 
@@ -397,30 +469,45 @@ and checkValue acenv aenv syntaxNode (value: IValueSymbol) =
                     ()
 
                 match stripTypeEquations func.ReturnType with
-                | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_t -> ()
+                | TypeSymbol.NativePtr(elementTy) when elementTy.IsVoid_ste -> ()
                 | _ ->
                     analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
             | _ ->
+                let tyPars = func.TypeParameters
                 func.TypeArguments
-                |> ImArray.iter (fun tyArg -> 
-                    analyzeType acenv aenv syntaxNode tyArg
+                |> ImArray.iteri (fun i tyArg -> 
+                    let isScoped =
+                        if i < tyPars.Length then
+                            tyPars[i].Constraints
+                            |> ImArray.exists (function ConstraintSymbol.Scoped -> true | _ -> false)
+                        else
+                            false
+                    if isScoped then
+                        if isVanilla then
+                            analyzeTypePermitByRefAndRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                        else
+                            analyzeTypePermitByRef acenv aenv syntaxNode tyArg
+                    else
+                        if isVanilla then
+                            analyzeTypeRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                        else
+                            analyzeType acenv aenv syntaxNode tyArg
                 )
                 func.Parameters
                 |> ImArray.iter (fun par ->
                     analyzeTypeForParameter acenv aenv syntaxNode par.Type
                 )
                 analyzeTypeForParameter acenv aenv syntaxNode func.ReturnType
-                match func with
-                | :? FunctionGroupSymbol as funcGroup ->
-                    acenv.cenv.diagnostics.Error(sprintf "'%s' has ambiguous functions." funcGroup.Name, 0, syntaxNode)
-                | _ ->
-                    ()
+
         else
             value.TypeArguments
             |> ImArray.iter (fun tyArg -> 
-                analyzeTypePermitByRef  acenv aenv syntaxNode tyArg
+                if isVanilla then
+                    analyzeTypePermitByRefAndRestrictTypeParameterUse acenv aenv syntaxNode tyArg
+                else
+                    analyzeTypePermitByRef acenv aenv syntaxNode tyArg
             )
-            analyzeTypePermitByRef  acenv aenv syntaxNode value.Type
+            analyzeTypePermitByRef acenv aenv syntaxNode value.Type            
 
 let handleLambda acenv aenv (lambdaFlags: LambdaFlags) (pars: ILocalParameterSymbol imarray) =
     let aenv = 
@@ -446,7 +533,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
 
             // Context Analysis: UnmanagedAllocationOnly
             if aenv.IsInUnmanagedAllocationOnlyContext then
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     if not value.IsStaticLocalFunction || not value.IsUnmanagedAllocationOnly then
                         reportUnmanagedAllocationOnly acenv syntaxNode
 
@@ -456,11 +543,14 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
                 else
                     aenv.limits
 
-            analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
+            if value.HasLocalEnclosing then
+                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
+            else
+                analyzeExpression acenv { aenv with scope = aenv.scope + 1; isLastExprOfScope = true; isReturnable = true; limits = limits; currentNonLocalFunctionOpt = Some value.AsFunction; currentFunctionOpt = Some value.AsFunction } lazyBodyExpr.Expression |> ignore
             { ScopeValue = aenv.scope; ScopeLimits = ScopeLimits.None }
 
         | ValueSome(rhsExpr) ->
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 analyzeExpressionWithType acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr value.Type
             else
                 analyzeExpression acenv { aenv with scope = aenv.scope + 1; isReturnable = false; isLastExprOfScope = true } rhsExpr
@@ -474,7 +564,7 @@ let rec analyzeBindingInfo acenv (aenv: aenv) (syntaxNode: OlySyntaxNode) (rhsEx
         else
             { aenv with isMemberSig = true }
 
-    if value.IsLocal && not(value.IsFunction) && not value.IsGenerated then
+    if value.HasLocalEnclosing && not(value.IsFunction) && not value.IsGenerated then
         acenv.scopes[value.Id] <- { Value = aenv.scope; ValueLambda = aenv.scopeLambda; Limits = scopeResult.ScopeLimits }
 
     let checkValueTy () =
@@ -651,23 +741,27 @@ and analyzeLiteral acenv aenv (syntaxNode: OlySyntaxNode) (literal: BoundLiteral
     let benv = aenv.envRoot.benv
 
     match literal with
-    | BoundLiteral.NumberInference(_, ty) -> 
+    | BoundLiteral.NumberInference(lazyLiteral, ty) ->
+        // TODO: Consider we must always have the 'lazyLiteral' evaluated at this point.
+        //       Maybe use 'OlyAssert.True(lazyLiteral.IsValueCreated)'?
+        tryEvaluateLazyLiteral diagnostics lazyLiteral
+        |> ignore
         analyzeType acenv aenv syntaxNode ty
 
     | BoundLiteral.NullInference(ty) ->
-        if not ty.IsNullable && ty.IsSolved then
+        if not ty.IsNullable_ste && ty.IsSolved_ste then
             diagnostics.Error($"'null' is not allowed for '{printType benv ty}'.", 10, syntaxNode)
     | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        if not ty.IsAnyStruct && not ty.IsNullable && ty.IsSolved && not isUnchecked then
+        if not ty.IsError_ste && not ty.IsStruct_ste && not ty.IsNullable_ste && ty.IsSolved_ste && not isUnchecked then
             diagnostics.Error($"'default' is not allowed for '{printType benv ty}' as it could be null.", 10, syntaxNode)
 
     | _ ->
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             match literal with
-            | BoundLiteral.ConstantEnum(_, enumTy) when not enumTy.IsUnmanaged ->
+            | BoundLiteral.ConstantEnum(_, enumTy) when not (enumTy.IsUnmanaged_ste(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
-            | BoundLiteral.Constant(cons) when not cons.Type.IsUnmanaged ->
+            | BoundLiteral.Constant(cns) when not (cns.Type.IsUnmanaged_ste(PostInferenceAnalysis)) ->
                 reportUnmanagedAllocationOnly acenv syntaxNode
             | _ ->
                 ()
@@ -718,13 +812,13 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
         | _ ->
             ()
 
-    let createScopeResult isThisOnly (value: IValueSymbol) =
+    let createScopeResult (value: IValueSymbol) =
         let (newScopeValue, newScopeLimits) =
             match acenv.scopes.TryGetValue value.Id with
             | true, scope -> (scope.Value, scope.Limits)
             | _ -> (0, ScopeLimits.None)
         if value.IsParameter then
-            if isThisOnly then
+            if value.IsThis then
                 // This prevents taking the address of 'this' and returning it.
                 { ScopeValue = newScopeValue + 1; ScopeLimits = newScopeLimits ||| ScopeLimits.StackReferringByRef }
             else
@@ -737,37 +831,25 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
                     newScopeLimits ||| ScopeLimits.StackReferringByRef
             { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits2 }
 
-    let createScopeResultForReceiver (value: IValueSymbol) =
-        let (newScopeValue, newScopeLimits) =
-            match acenv.scopes.TryGetValue value.Id with
-            | true, scope -> (scope.Value, scope.Limits)
-            | _ -> (0, ScopeLimits.None)
-        let newScopeLimits2 =
-            if newScopeLimits.HasFlag(ScopeLimits.StackReferring) |> not then
-                ScopeLimits.ByRef
-            else
-                newScopeLimits ||| ScopeLimits.ByRef
-        { ScopeValue = newScopeValue; ScopeLimits = newScopeLimits2 }
-
     // Context Analysis: byref/byref-like
     match expr with
     | AddressOf(AutoDereferenced(expr2)) -> 
         match expr2 with
         | E.Value(value=value) ->
-            createScopeResult value.IsThis value
+            createScopeResult value
         | E.GetField(receiver=AddressOf(E.Value(value=value))) ->
-            createScopeResult false value
+            createScopeResult value
         | _ ->
             analyzeExpression acenv (aenv |> notLastExprOfScope) expr2
 
     | AddressOf(E.Value(value=value)) ->
-        createScopeResult value.IsThis value
+        createScopeResult value
     | AddressOf(E.GetField(receiver=AddressOf(E.Value(value=value)))) ->
-        createScopeResult false value
+        createScopeResult value
 
-    | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) when value.Type.IsScoped ->
-        if value.Type.IsByRef_t then
-            createScopeResultForReceiver value
+    | AddressOf(E.GetField(receiver=E.Value(syntaxInfo, value))) when value.Type.IsScoped_ste ->
+        if value.Type.IsAnyByRef_ste then
+            createScopeResult value
         else
             // TODO: What is this doing here again?
             checkScope syntaxInfo value
@@ -775,6 +857,22 @@ and analyzeAddressOf acenv aenv scopeValue scopeLimits expr =
 
     | _ ->
         { ScopeValue = scopeValue; ScopeLimits = scopeLimits }
+
+and analyzeTraitConstraintTypeInVirtualImplementation acenv (aenv: aenv) syntaxNode (value: IValueSymbol) =
+    if value.IsFunctionGroup then ()
+    else
+
+    if isInVirtualImplementation aenv then
+        match value.Enclosing with
+        | EnclosingSymbol.Witness(concreteTy, traitEnt) ->
+            match concreteTy.TryTypeParameter with
+            | ValueSome tyPar -> 
+                if isTypeParameterIllegalForTrait aenv tyPar traitEnt.AsType then
+                    acenv.cenv.diagnostics.Error($"Inside a virtual function, using members from '{printType aenv.benv tyPar.AsType}' for the trait constraint type '{printType aenv.benv traitEnt.AsType}' are not allowed.", 10, syntaxNode)
+            | _ ->
+                ()
+        | _ ->
+            ()
 
 and analyzeExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: TypeSymbol) =
     analyzeExpressionWithTypeAux acenv aenv expr false expectedTy
@@ -787,16 +885,16 @@ and analyzeReceiverExpressionWithType acenv (aenv: aenv) (expr: E) (expectedTy: 
 and analyzeExpressionWithTypeAux acenv (aenv: aenv) (expr: E) (isReceiver: bool) (expectedTy: TypeSymbol) =
     let exprTy = expr.Type
     let willBox = 
-        if exprTy.IsScoped then
-            not isReceiver && expectedTy.IsAnyNonStruct && not expectedTy.IsScoped
+        if exprTy.IsScoped_ste then
+            not isReceiver && expectedTy.IsAnyNonStruct_ste && not expectedTy.IsScoped_ste
         else
-            (exprTy.IsAnyStruct || exprTy.IsAnyTypeVariableWithoutStructOrUnmanagedOrNotStructConstraint) && expectedTy.IsAnyNonStruct
+            (exprTy.IsStruct_ste || exprTy.IsAnyVariableWithoutStructOrUnmanagedOrNotStructConstraint_ste) && expectedTy.IsAnyNonStruct_ste
 
     // Context Analysis: UnmanagedAllocationOnly
     if willBox && aenv.IsInUnmanagedAllocationOnlyContext then
         reportUnmanagedAllocationOnlyBoxing acenv expr.Syntax.BestSyntaxForReporting
 
-    if willBox && exprTy.IsScoped then
+    if willBox && exprTy.IsScoped_ste then
         reportScopedTypeBoxing acenv aenv.benv exprTy expr.Syntax.BestSyntaxForReporting
 
 and analyzeExpression acenv aenv (expr: E) : ScopeResult =
@@ -834,7 +932,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
     let syntaxNode = expr.Syntax
     match expr with
     | E.Value(syntaxInfo, value) ->
-        if value.Type.IsScoped then
+        if value.Type.IsScoped_ste then
             match acenv.scopes.TryGetValue value.Id with
             | true, scope ->
                 if aenv.isLastExprOfScope && scope.Value = aenv.scope then
@@ -920,6 +1018,8 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let bodyTy = bodyExpr.Type   
         if subsumesTypeWith Generalizable exprTy bodyTy then
             checkSubsumesType (SolverEnvironment.Create(acenv.cenv.diagnostics, benv, PostInferenceAnalysis)) bodyExpr.Syntax exprTy bodyTy
+        elif exprTy.IsEnum_ste && areTypesEqual exprTy.TryEnumUnderlyingType.Value bodyTy then
+            ()
         else
             match tryFindTypeHasTypeExtensionImplementedType benv exprTy bodyTy with
             | ValueSome entSet when entSet.Count > 0 ->
@@ -989,12 +1089,12 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         //         What are the pitfalls? It would make analysis more than just analysis, but doesn't retrying to solve constraints also mean that?
 
         // Re-check constraints
-        checkConstraintsFromCallExpression acenv.cenv.diagnostics false PostInferenceAnalysis expr
+        checkConstraintsFromCallExpression acenv.cenv.diagnostics PostInferenceAnalysis ConstraintSolverMode.ReportErrors expr
 
         if not value.IsFunctionGroup then
             witnessArgs
             |> ImArray.iter (fun x ->
-                checkWitnessSolution acenv aenv syntaxNode x
+                checkWitnessSolution acenv aenv syntaxInfo.SyntaxNameOrDefault x
             )
 
             // Context Analysis: UnmanagedAllocationOnly
@@ -1002,13 +1102,15 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
                 reportUnmanagedAllocationOnly acenv syntaxInfo.Syntax
 
             // Scope lambda call
-            if value.Type.IsScoped then
+            if value.Type.IsScoped_ste then
                 match acenv.scopes.TryGetValue(value.Formal.Id) with
                 | true, scope ->
                     if scope.ValueLambda < aenv.scopeLambda then
                         acenv.cenv.diagnostics.Error("Value cannot be captured.", 10, syntaxInfo.SyntaxNameOrDefault)
                 | _ ->
                     ()
+
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault value
                 
         let argCount =
             match receiverArgExprOpt with
@@ -1019,43 +1121,6 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         let scopeResult =
             if isValidCall then
-                if witnessArgs.IsEmpty |> not then
-                    match value.Formal.Type.TryGetFunctionWithParameters() with
-                    | ValueSome(parTys, returnTy) ->               
-                        let rec check (ty: TypeSymbol) =
-                            let tyArgs = ty.TypeArguments
-                            let tyPars = ty.TypeParameters
-                            if tyArgs.Length = tyPars.Length then
-                                (tyArgs, tyPars)
-                                ||> ImArray.iter2 (fun tyArg tyPar ->
-                                    let exists =
-                                        tyPar.Constraints
-                                        |> ImArray.exists (fun x ->
-                                            match x with
-                                            | ConstraintSymbol.TraitType(constrTy) ->
-                                                let constrTy = constrTy.Value
-                                                witnessArgs
-                                                |> ImArray.exists (fun x ->
-                                                    match x.Solution with
-                                                    | Some(WitnessSymbol.TypeExtension(tyExt, _)) ->
-                                                        subsumesType constrTy tyExt.AsType
-                                                    | _ ->
-                                                        false
-                                                )
-                                            | _ ->
-                                                false
-                                        )
-                                    check tyArg
-                                    if exists then
-                                        acenv.cenv.diagnostics.Error("Witnesses are escaping the scope. (TODO: better error message)", 10, syntaxInfo.Syntax.BestSyntaxForReporting)
-                                )
-
-                        parTys
-                        |> ImArray.iter check
-
-                        check returnTy
-                    | _ ->
-                        ()
                 match value.Type.TryGetFunctionWithParameters() with
                 | ValueSome(parTys, _) ->
                     let mutable scopeValue = 0
@@ -1092,9 +1157,9 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
 
         let scopeResult2 = analyzeAddressOf acenv aenv scopeResult.ScopeValue scopeResult.ScopeLimits expr
 
-        match value.Type.TryFunction with
+        match value.Type.TryAnyFunction with
         | ValueSome(_, returnTy) ->
-            if aenv.isLastExprOfScope && returnTy.IsByRef_t && scopeResult2.ScopeLimits.HasFlag(ScopeLimits.StackReferringByRef) then
+            if aenv.isLastExprOfScope && returnTy.IsAnyByRef_ste && scopeResult2.ScopeLimits.HasFlag(ScopeLimits.StackReferringByRef) then
                 if scopeResult2.ScopeValue >= aenv.scope then
                     match expr with
                     | AddressOf(AutoDereferenced(expr2)) ->
@@ -1122,23 +1187,25 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.SetField(_, receiver, field, rhs) ->
+    | E.SetField(_, receiver, field, rhs, _) ->
         analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs field.Type |> ignore
         analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) receiver |> ignore
         checkValue acenv aenv syntaxNode field
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.GetProperty(receiverOpt=receiverOpt;prop=prop) ->
+    | E.GetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault prop
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
-    | E.SetProperty(receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
+    | E.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
         analyzeExpressionWithType acenv (notReturnable aenv |> notLastExprOfScope) rhs prop.Type |> ignore
         receiverOpt
         |> Option.iter (analyzeExpression acenv (notReturnable aenv |> notLastExprOfScope) >> ignore)
         checkValue acenv aenv syntaxNode prop
+        analyzeTraitConstraintTypeInVirtualImplementation acenv aenv syntaxInfo.SyntaxNameOrDefault prop
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
     | E.SetValue(value=value;rhs=rhs) ->
@@ -1155,18 +1222,47 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         let aenv = handleLambda acenv aenv lambdaFlags pars
 
         OlyAssert.True(lazyBodyExpr.HasExpression)
-        OlyAssert.True(lazyTy.Type.IsAnyFunction)
+        OlyAssert.True(lazyTy.Type.IsAnyFunction_ste)
 
         // Context Analysis: UnmanagedAllocationOnly
         if aenv.IsInUnmanagedAllocationOnlyContext then
             reportUnmanagedAllocationOnly acenv syntaxNode
 
-        match lazyTy.Type.TryFunction with
+        match lazyTy.Type.TryAnyFunction with
         | ValueSome(_, outputTy) ->
-            pars
-            |> ImArray.iter (fun par ->
-                analyzeTypeForParameter acenv aenv syntaxNode par.Type
-            )
+            let syntaxPars =
+                match syntaxNode with
+                | :? OlySyntaxExpression as syntaxExpr ->
+                    match syntaxExpr with
+                    | OlySyntaxExpression.Lambda(_, syntaxPars, _, _) ->
+                        match syntaxPars with
+                        | OlySyntaxParameters.Parameters(_, syntaxParList, _) ->
+                            syntaxParList.ChildrenOfType
+                        | _ ->
+                            ImArray.empty
+                    | _ ->
+                        ImArray.empty
+                | _ ->
+                    ImArray.empty
+
+            let syntaxNode =
+                // Putting an error against the entire Lambda may not be helpful, so use the body if it has a better one.
+                let possibleSyntaxNode = lazyBodyExpr.Expression.Syntax
+                if possibleSyntaxNode.IsDummy then
+                    syntaxNode
+                else
+                    possibleSyntaxNode
+
+            if syntaxPars.IsEmpty || (syntaxPars.Length <> pars.Length) then
+                pars
+                |> ImArray.iter (fun par ->
+                    analyzeTypeForParameter acenv aenv syntaxNode par.Type
+                )
+            else
+                (syntaxPars, pars)
+                ||> ImArray.iter2 (fun syntaxPar par ->
+                    analyzeTypeForParameter acenv aenv syntaxPar par.Type
+                )
             analyzeTypeForParameter acenv aenv syntaxNode outputTy
         | _ ->
             ()
@@ -1177,7 +1273,7 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
     | E.MemberDefinition(_, binding) ->
         let aenv = (notLastExprOfScope aenv)
         let aenv = { aenv with memberFlags = binding.Info.Value.MemberFlags }
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         analyzeBinding acenv aenv expr.Syntax binding
         { ScopeValue = 0; ScopeLimits = ScopeLimits.None }
 
@@ -1186,7 +1282,15 @@ and analyzeExpressionAux acenv aenv (expr: E) : ScopeResult =
         analyzeExpression acenv aenv e2
 
     | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
-        analyzeBindingInfo acenv aenv syntaxInfo.Syntax (ValueSome rhsExpr) bindingInfo.Value
+        let sanitizedSyntax =
+            match syntaxInfo.Syntax.TryGetBindingDeclaration() with
+            | ValueSome(syntaxBindingDecl) ->
+                match syntaxBindingDecl with
+                | OlySyntaxBindingDeclaration.Function(syntaxName, _, _, _, _) -> syntaxName.Identifier: OlySyntaxNode
+                | _ -> syntaxBindingDecl
+            | _ ->
+                syntaxInfo.Syntax
+        analyzeBindingInfo acenv aenv sanitizedSyntax (ValueSome rhsExpr) bindingInfo.Value
         analyzeExpression acenv aenv bodyExpr
 
     | E.Literal(_, literal) ->
@@ -1222,7 +1326,13 @@ let analyzeRoot acenv aenv (root: BoundRoot) =
         analyzeExpression acenv aenv bodyExpr |> ignore
 
 let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
-    let acenv = { cenv = cenv; scopes = System.Collections.Generic.Dictionary(); checkedTypeParameters = System.Collections.Generic.HashSet() }
+    let acenv = 
+        { 
+            cenv = cenv
+            scopes = System.Collections.Generic.Dictionary()
+            checkedTypeParameters = System.Collections.Generic.HashSet() 
+            errorTyMsgDeDup = System.Collections.Generic.HashSet()
+        }
     let aenv = 
         { 
             envRoot = env 
@@ -1233,6 +1343,7 @@ let analyzeBoundTree (cenv: cenv) (env: BinderEnvironment) (tree: BoundTree) =
             isMemberSig = false 
             memberFlags = MemberFlags.None
             limits = Limits.None
+            currentNonLocalFunctionOpt = None
             currentFunctionOpt = None
             isReturnable = false
         }

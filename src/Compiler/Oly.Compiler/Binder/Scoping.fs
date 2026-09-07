@@ -7,6 +7,8 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 open Oly.Compiler.Internal.BoundTree
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 [<RequireQualifiedAccess>]
 type OpenContent =
@@ -15,22 +17,49 @@ type OpenContent =
     | Entities
     | Values
 
-let private scopeInValue canOverride (env: BinderEnvironment) (value: IValueSymbol) =
-    if canOverride then
+/// 'canReplace' means it will replace values with the same signature.
+let private scopeInValue canReplace (env: BinderEnvironment) (value: IValueSymbol) =
+    if canReplace then
         env.AddUnqualifiedValue(value)
     else
         env.TryAddUnqualifiedValue(value)
 
-let scopeInInstanceConstructors canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
-    let instanceCtors = ent.InstanceConstructors
+let private getAccessibleInstanceConstructors onlyPrivateOrProtected env (ent: EntitySymbol) =
+    ent.InstanceConstructors
+    |> ImArray.filter (fun x -> 
+        if onlyPrivateOrProtected then
+            if x.IsPrivate || x.IsProtected then
+                x.IsAccessible(env.benv.ac)
+            else
+                false
+        else
+            x.IsAccessible(env.benv.ac)
+    )
+
+/// 'canReplace' means it will replace constructors with the same signature.
+let scopeInInstanceConstructors canReplace onlyPrivateOrProtected (env: BinderEnvironment) (ent: EntitySymbol) =
+    let instanceCtors = 
+        if ent.IsAlias then
+            match (stripTypeEquations ent.AsType).TryEntityNoAlias with
+            | ValueSome(ent) -> 
+                getAccessibleInstanceConstructors
+                    onlyPrivateOrProtected
+                    env
+                    ent
+            | _ -> 
+                ImArray.empty
+        else
+            getAccessibleInstanceConstructors
+                onlyPrivateOrProtected
+                env
+                ent
     if instanceCtors.IsEmpty then
         env
-    elif instanceCtors.Length = 1 then
-        scopeInValue canOverride env instanceCtors[0]
     else
-        scopeInValue canOverride env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
+        scopeInValue canReplace env (FunctionGroupSymbol.Create(ent.Name, instanceCtors, instanceCtors[0].Parameters.Length, false))
 
-let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySymbol) =
+/// 'canReplace' means it will replace entities with the same name and arity.
+let private scopeInEntityAux canReplace (env: BinderEnvironment) (ent: EntitySymbol) =
     if ent.IsNamespace then
         // REVIEW: This will not partially open namespaces. We should consider doing this as a feature.
         env
@@ -40,14 +69,14 @@ let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySy
                 ent.LogicalTypeParameterCount - env.EnclosingTypeParameters.Length
             else
                 ent.LogicalTypeParameterCount
-        if canOverride then
+        if canReplace then
             env.SetUnqualifiedType(ent.Name, arity, ent.AsType)
         else
             env.AddUnqualifiedType(ent.Name, arity, ent.AsType)
     else
         let env =
-            match ent.TryIntrinsicType with
-            | Some ty ->
+            match ent.TryGetIntrinsicType() with
+            | true, ty ->
                 env.SetIntrinsicType(ty, ent)
             | _ ->
                 env
@@ -57,7 +86,7 @@ let private scopeInEntityAux canOverride (env: BinderEnvironment) (ent: EntitySy
                 ent.LogicalTypeParameterCount - env.EnclosingTypeParameters.Length
             else
                 ent.LogicalTypeParameterCount
-        if canOverride then
+        if canReplace then
             env.SetUnqualifiedType(ent.Name, arity, ent.AsType)
         else
             env.AddUnqualifiedType(ent.Name, arity, ent.AsType)
@@ -71,7 +100,7 @@ let scopeInEntityAndOverride env ent =
 let scopeInTypeParameter (env: BinderEnvironment) (tyPar: TypeParameterSymbol) =
     env.AddUnqualifiedType(tyPar.Name, tyPar.Arity, tyPar.AsType)
 
-let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: EntitySymbol) =
+let openContentsOfEntityAux (declTable: BoundDeclarationTable) canOverride canOpenNamespace (env: BinderEnvironment) openContent (ent: EntitySymbol) =
     if openContent = OpenContent.None then env
     else
 
@@ -80,25 +109,75 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         | :? AggregatedNamespaceSymbol as aggr ->
             (env, aggr.Namespaces)
             ||> ImArray.fold (fun env nmsp ->
-                openContentsOfEntityAux canOverride true env openContent nmsp
+                openContentsOfEntityAux declTable canOverride true env openContent nmsp
             )
         | _ ->
             failwith "not possible"        
     elif ent.IsNamespace && not canOpenNamespace then
         match env.benv.senv.namespaces.TryGetValue ent.FullNamespacePath with
         | true, ent ->
-            openContentsOfEntityAux canOverride false env openContent ent
+            openContentsOfEntityAux declTable canOverride false env openContent ent
         | _ ->
             env
     else
 
-    if env.HasOpenedEntity(ent) then
+    if ent.IsNamespace && (openContent <> OpenContent.Values) && env.HasOpenedNamespace(ent) then
+        if openContent = OpenContent.All then
+             openContentsOfEntityAux declTable canOverride canOpenNamespace env OpenContent.Values ent
+        else
+            env
+    else
+
+    let env =
+        if ent.IsNamespace && (openContent = OpenContent.Entities) && not(env.HasOpenedNamespace(ent)) then
+            env.AddOpenedNamespace(ent)
+        else
+            env
+            
+    let hasOpened = env.HasOpenedEntity(ent)
+    
+    let prevAcFlags = env.benv.ac.Flags
+    let env, earlyReturn =
+        // This is a special case when
+        // an entity opened before its scope
+        // needs to be able to access its private
+        // members. Example:
+        //
+        // open static Logging
+        //
+        // module Logging =
+        //
+        //     private WarningMarker: __oly_base_object get() = null
+        //
+        //     M(): () =
+        //         let _x = WarningMarker // <- we should be able to access this
+        match env.benv.ac.Entity with
+        | Some(entAc) when hasOpened && canOverride && areEntitiesEqual ent.Formal entAc.Formal ->
+            if env.HasFullyOpenedEntity(ent) then
+                env, true
+            else
+                let env = env.SetAccessorContextFlags(AccessorContextFlags.PrivateOnly)
+                env, false
+        | _ ->
+            env, hasOpened
+
+    if earlyReturn then
         env
     else
 
     let env =
+        // Add as an opened entity only if 'opentContent' is OpenContent.Values or OpenContent.All.
+        // This ensures that all the conents have been opened at this point.
+        // Note: We assume that OpenContent.Entities happened before OpenContent.Values.
         if (openContent = OpenContent.Values || openContent = OpenContent.All) then
-            env.AddOpenedEntity(ent)
+            let fullyOpened =
+                match env.benv.ac.Entity with
+                | Some(entAc) -> areEntitiesEqual entAc.Formal ent.Formal
+                | _ -> false
+            env.AddOpenedEntity(ent, fullyOpened)
+        elif ent.IsNonNamespaceRootInScope(env.benv.ac.AssemblyIdentity) && 
+             (match env.benv.ac.Entity with Some scopeEnt -> not(areEntitiesEqual scopeEnt.Formal ent.Formal) | _ -> true) then
+            env.AddPartialOpenedRootEntity(ent)
         else
             env
 
@@ -106,15 +185,21 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
         match openContent with
         | OpenContent.All 
         | OpenContent.Values ->
-            env.AddTypeExtension(ent)
+            env.AddTypeExtension(ent).SetAccessorContextFlags(prevAcFlags)
         | _ ->
-            env
+            env.SetAccessorContextFlags(prevAcFlags)
     elif ent.IsShape then
-        env
+        env.SetAccessorContextFlags(prevAcFlags)
     else
         let env1 =
-            (env, ent.Entities |> filterEntitiesByAccessibility env.benv.ac |> ImArray.ofSeq)
+            (env, ent.GetAccessibleNestedEntities(env.benv.ac) |> ImArray.ofSeq)
             ||> ImArray.fold (fun env ent ->
+
+                // Special-case for private types in namespaces. Only allow them in the current compilation unit which is dictated by the declaration table.
+                if ent.IsPrivate && ent.Enclosing.IsNamespace && not (declTable.EntityDeclarations.ContainsKey(ent.Formal)) then
+                    env
+                else
+
                 let env =
                     match openContent with
                     | OpenContent.All
@@ -125,7 +210,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
 
                 let env =
                     if ent.IsAutoOpenable then
-                        openContentsOfEntityAux canOverride false env openContent ent
+                        openContentsOfEntityAux declTable canOverride false env openContent ent
                     else
                         env       
                             
@@ -134,7 +219,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                 match openContent with
                 | OpenContent.All
                 | OpenContent.Values ->
-                    scopeInInstanceConstructors canOverride env ent  
+                    scopeInInstanceConstructors canOverride false env ent  
                 | _ ->
                     env
             )
@@ -145,8 +230,7 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
             | OpenContent.Values ->
                 let env2 =
                     let funcGroups = 
-                        ent.Functions
-                        |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static
+                        ent.GetImmediateAccessibleStaticFunctions(env.benv.ac)
                         |> Seq.filter (fun func -> not func.IsConstructor)
                         |> Seq.groupBy (fun func -> (func.Name, func.IsPatternFunction))
                         |> Seq.map (fun ((name, isPattern), funcs) ->
@@ -164,29 +248,29 @@ let openContentsOfEntityAux canOverride canOpenNamespace (env: BinderEnvironment
                     )
 
                 let env3 =
-                    (env2, ent.Properties |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
+                    (env2, ent.GetImmediateAccessibleStaticProperties(env.benv.ac) |> ImArray.ofSeq)
                     ||> ImArray.fold (fun env prop ->
                         scopeInValue canOverride env prop
                     )
 
-                (env3, ent.Fields |> filterValuesByAccessibility env.benv.ac QueryMemberFlags.Static |> ImArray.ofSeq)
+                (env3, ent.GetImmediateAccessibleStaticFields(env.benv.ac) |> ImArray.ofSeq)
                 ||> ImArray.fold (fun env field ->
                     scopeInValue canOverride env field
                 )
             | _ ->
                 env1
         
-        env2
+        env2.SetAccessorContextFlags(prevAcFlags)
 
-let openContentsOfEntity env openContent ent =
-    openContentsOfEntityAux false false env openContent ent
+let openContentsOfEntity declTable env openContent ent =
+    openContentsOfEntityAux declTable false false env openContent ent
 
-let openContentsOfEntityAndOverride env openContent ent =
-    openContentsOfEntityAux true false env openContent ent
+let openContentsOfEntityAndOverride declTable env openContent ent =
+    openContentsOfEntityAux declTable true false env openContent ent
 
 let addTypeParameter (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (tyPar: TypeParameterSymbol) =
     let tys = env.benv.GetUnqualifiedType(tyPar.Name, tyPar.Arity)
-    if tys |> ImArray.exists (fun x -> x.IsTypeVariable && not env.isInEntityDefinitionTypeParameters) then
+    if tys |> ImArray.exists (fun x -> x.IsAnyVariable_ste && not env.isInEntityDefinitionTypeParameters) then
         cenv.diagnostics.Error(sprintf "Type parameter '%s' has already been declared." tyPar.Name, 10, syntaxNode)
         env, tyPar
     else
@@ -211,4 +295,5 @@ let addTypeParametersFromEntity (cenv: cenv) (env: BinderEnvironment) (syntaxTyP
             ||> ImArray.fold (fun env (syntaxTyPar, tyPar) ->
                 addTypeParameter cenv env syntaxTyPar tyPar |> fst
             )
+
         { env with isInEntityDefinitionTypeParameters = false }

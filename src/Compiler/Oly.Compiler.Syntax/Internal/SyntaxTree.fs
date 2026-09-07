@@ -1,5 +1,8 @@
 ﻿namespace Oly.Compiler.Syntax.Internal
 
+#nowarn "3535"
+#nowarn "3536"
+
 open System.Runtime.CompilerServices
 open Oly.Core
 open Oly.Compiler.Text

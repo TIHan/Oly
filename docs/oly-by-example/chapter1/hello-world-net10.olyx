@@ -1,0 +1,6 @@
+#target "dotnet: net10.0"
+
+open System
+
+main(): () =
+    Console.WriteLine("Hello World!")

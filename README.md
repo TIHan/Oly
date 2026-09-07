@@ -1,32 +1,36 @@
-# <img src="vscode/icons/oly-dark.png" alt="oly-logo" width="200"/>
+# <img src="vscode/icons/oly-logo-1024.png" alt="oly-logo" width="200"/>
+![Windows CI Status](https://github.com/TIHan/Oly/actions/workflows/windows.yml/badge.svg)
+![Ubuntu CI Status](https://github.com/TIHan/Oly/actions/workflows/linux.yml/badge.svg)
+![macOS CI Status](https://github.com/TIHan/Oly/actions/workflows/macos.yml/badge.svg)
+
 Oly Language Compiler and Runtime
 
 A side project to understand programming languages and compilers in all stages.
 
-**Note: At the moment, documentation is in progress on building the project and language specification. It will come eventually.**
+**Note: At the moment, documentation is in progress.**
 
 ## Building
 
 Requirements:
-- .NET 7 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)
+- .NET 10 - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 
-This will build everything except for the VSCode extension.
-
-In the command-line at the root of the repository, run command:
-
-1. ```dotnet build```
-
-You can also open `Oly.sln` in Visual Studio and build it there.
+Command Line:
+- `dotnet build -c Release`
+    - This will build everything except for the VSCode extension.
 
 ## Running Tests
 
-**Note: Some tests are expected to fail.**
+**Note: Some tests are expected to fail as this project is in active development.**
 
-In the command-line at the root of the repository, run command:
+Use Visual Studio's Test Explorer to run the tests.
 
-1. ```dotnet test```
+SPIR-V: Currently experimental. Requires the [Evergreen](https://github.com/tihan/evergreen) repository to be located in the same directory next to the Oly repository. You must also build `Evergreen\src\managed\Engine\gpu_test.olyx` before running the SPIR-V tests.
 
-You can also run the tests in Visual Studio's Test Explorer.
+## Benchmarks
+
+Requires the [Evergreen](https://github.com/tihan/evergreen) repository to be located in the same directory next to the Oly repository
+
+Use Visual Studio to launch the `Oly.Benchmarks` project.
 
 ## Building VSCode Extension
 

@@ -1,5 +1,8 @@
 ﻿module rec Oly.Compiler.Syntax.Internal.Parser
 
+#nowarn "3535"
+#nowarn "3536"
+
 open System
 open System.Threading
 open System.Runtime.CompilerServices
@@ -10,7 +13,6 @@ open Oly.Compiler.Syntax.Internal.Lexer
 open Oly.Compiler.Syntax.Internal.SyntaxErrors
 
 let dummyToken() = SyntaxHelpers.dummyToken
-let SyntaxAttributeErrorF = SyntaxAttribute.Error
 
 type [<RequireQualifiedAccess>] SyntaxTreeContext =
     | TopLevel
@@ -590,6 +592,8 @@ let inline btLexer ([<InlineIfLambda>] p: _ -> _) state =
     let prevLexerStartPos = state.lexer.CurrentPosition
     let prevLexerEndPos = state.lexer.CurrentEndPosition
     let prevLexerColumn = state.lexer.CurrentColumn
+    let prevLexerConditionalCount = state.lexer.CurrentConditionalCount
+    let prevLexerCr = state.lexer.WasPreviousTokenCarriageReturn
     let prevBufferPos = state.btBufferPosition
     let prevBufferCount = state.btBufferCount
     let prevBuffer = state.btBuffer
@@ -612,6 +616,8 @@ let inline btLexer ([<InlineIfLambda>] p: _ -> _) state =
 #endif
         state.lexer.SetCurrentLexemeRange(prevLexerStartPos, prevLexerEndPos)
         state.lexer.SetCurrentColumn(prevLexerColumn)
+        state.lexer.SetCurrentConditionalCount(prevLexerConditionalCount)
+        state.lexer.SetWasPreviousCarriageReturn(prevLexerCr)
         state.btBufferPosition <- prevBufferPos
         state.btBufferCount <- prevBufferCount
 
@@ -790,6 +796,7 @@ let inline TRY state = tryToken (function Try -> true | _ -> false) state
 let inline CATCH state = tryToken (function Catch -> true | _ -> false) state
 let inline FINALLY state = tryToken (function Finally -> true | _ -> false) state
 let inline FIELD state = tryToken (function Field -> true | _ -> false) state
+let inline IS state = tryToken (function Is -> true | _ -> false) state
 
 //
 // These functions return 'nil' as to avoid Option allocations
@@ -1096,6 +1103,21 @@ let tryParseBracketsList tryParseNode state =
     | _ ->
         None
 
+let tryParseBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
+    let s = sp state
+
+    match bt LEFT_BRACKET state with
+    | Some(leftBracketToken) ->
+        let elementList = parseSeparatorList None tryParseSeparatorToken nodeName tryParseNode tryErrorNode state
+        match tryRightBracket state with
+        | Some(rightBracketToken) ->
+            SyntaxBrackets.Brackets(leftBracketToken, elementList, rightBracketToken, ep s state) |> Some
+        | _ ->
+            error(ExpectedToken RightBracket, SyntaxBrackets.Brackets(leftBracketToken, elementList, dummyToken(), ep s state)) state
+
+    | _ ->
+        None
+
 let tryParseBracketInnerPipesList tryParseNode state =
     let s = sp state
 
@@ -1121,21 +1143,6 @@ let tryParseParenthesisSeparatorList tryParseSeparatorToken nodeName tryParseNod
         | _ ->
             errorDo (ExpectedToken RightParenthesis, elementList) state
             Some(leftParenToken, elementList, dummyToken())
-
-    | _ ->
-        None
-
-let tryParseBracketsSeparatorList tryParseSeparatorToken nodeName tryParseNode tryErrorNode state =
-    let s = sp state
-
-    match bt LEFT_BRACKET state with
-    | Some(leftBracketToken) as previousTokenOpt ->
-        let elementList = parseSeparatorList previousTokenOpt tryParseSeparatorToken nodeName (tryOffside tryParseNode) tryErrorNode state
-        match bt tryRightBracket state with
-        | Some(rightBracketToken) ->
-            SyntaxBrackets.Brackets(leftBracketToken, elementList, rightBracketToken, ep s state) |> Some
-        | _ ->
-            error(ExpectedToken RightBracket, SyntaxBrackets.Brackets(leftBracketToken, elementList, dummyToken(), ep s state)) state
 
     | _ ->
         None
@@ -1209,10 +1216,11 @@ let tryParseOperatorAux isSpecial state =
         | LessThanLessThan 
         | Not
         | Or
-        | And -> true
+        | And 
+        | Throw
+        | Is -> true
         | LetExclamation 
-        | Return 
-        | Throw 
+        | Return
         | Pipe -> isSpecial
         | ExplicitIdentifier(_, ident, _) -> isSpecial && (ident = "[]" || ident = "[,]")
         | _ -> false) state
@@ -1446,7 +1454,7 @@ let tryParseLiteral state =
 
     match bt STRING_LITERAL state with
     | Some(valueToken) ->
-        SyntaxLiteral.Utf16(valueToken) |> Some
+        SyntaxLiteral.String16(valueToken) |> Some
     | _ ->
 
     match bt CHAR_LITERAL state with
@@ -1542,6 +1550,35 @@ let tryParseInputOrOutput state =
                 
     None
 
+let tryParseArrayTypeBrackets state =
+    if isNextToken (function LeftBracket -> true | _ -> false) state then
+        match tryParseBracketsList COMMA state with
+        | Some(brackets) ->
+            match brackets with
+            | SyntaxBrackets.Brackets(_, _, rightBracketToken, _) when rightBracketToken.RawToken.IsRightBracket ->
+                Some(brackets)
+            | _ ->
+                None
+        | _ ->
+            None
+    else
+        None
+
+let tryParseFixedArrayLength state : SyntaxFixedArrayLength option =
+    match bt (tryParseOffsideExpression SyntaxTreeContextLocal) state with
+    | Some(expr) ->
+        SyntaxFixedArrayLength.Expression(expr)
+        |> Some
+    | _ ->
+        None
+
+let tryParseFixedArrayBrackets state =
+    tryParseBrackets 
+        "expression" 
+        (fun token -> SyntaxFixedArrayLength.Expression(SyntaxExpression.Error(token)))
+        tryParseFixedArrayLength
+        state
+
 let errorMutableArrayType s mutableToken input state =
     let emptyBrackets = SyntaxBrackets.Brackets(dummyToken(), SyntaxList.Empty(), dummyToken(), 0)
     let result = SyntaxType.MutableArray(mutableToken, input, emptyBrackets, ep s state)
@@ -1551,9 +1588,16 @@ let errorMutableArrayType s mutableToken input state =
 let parseInputType s (mutableTokenOpt: SyntaxToken option) input state =
     match mutableTokenOpt with
     | Some(mutableToken) ->
-        match bt (tryParseBracketsList COMMA) state with
-        | Some(brackets) -> SyntaxType.MutableArray(mutableToken, input, brackets, ep s state)
-        | _ -> errorMutableArrayType s mutableToken input state
+        match bt tryParseArrayTypeBrackets state with
+        | Some(brackets) -> 
+            SyntaxType.MutableArray(mutableToken, input, brackets, ep s state)
+        | _ -> 
+
+        match bt tryParseFixedArrayBrackets state with
+        | Some(rankBrackets) ->
+            SyntaxType.MutableFixedArray(mutableToken, input, rankBrackets, ep s state)
+        | _ ->
+            errorMutableArrayType s mutableToken input state
     | _ ->
 
     match bt tryParseTypeOperator state with
@@ -1561,9 +1605,14 @@ let parseInputType s (mutableTokenOpt: SyntaxToken option) input state =
         SyntaxType.Postfix(input, operator, ep s state)
     | _ ->
 
-    match bt (tryParseBracketsList COMMA) state with
+    match bt tryParseArrayTypeBrackets state with
     | Some(brackets) ->
         SyntaxType.Array(input, brackets, ep s state)
+    | _ ->
+
+    match bt tryParseFixedArrayBrackets state with
+    | Some(rankBrackets) ->
+        SyntaxType.FixedArray(input, rankBrackets, ep s state)
     | _ ->
 
     input
@@ -1787,6 +1836,9 @@ let tryParseParameter state : SyntaxParameter option =
             match ty with
             | SyntaxType.Array(elementTy, brackets, _) ->
                 SyntaxParameter.Type(attrs, SyntaxType.MutableArray(mutableToken, elementTy, brackets, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
+                |> Some
+            | SyntaxType.FixedArray(elementTy, rankBrackets, _) ->
+                SyntaxParameter.Type(attrs, SyntaxType.MutableFixedArray(mutableToken, elementTy, rankBrackets, ep s state - (attrs :> ISyntaxNode).FullWidth), ep s state)
                 |> Some
             | _ ->
                 let par = SyntaxParameter.Pattern(attrs, mutability, SyntaxPattern.Error(dummyToken()), dummyToken(), ty, ep s state)
@@ -2639,7 +2691,7 @@ let isPossibleParenthesisOperator state =
     | _ -> false
 
 let tryParseParenthesisOrTupleOrLambdaExpression state =
-    if isNextToken (function LeftParenthesis | Identifier _ | Static -> true | _ -> false) state then
+    if isNextToken (function LeftParenthesis | Identifier _ | Static | Underscore -> true | _ -> false) state then
         if isPossibleLambdaExpression state then
             tryParseLambdaExpression state
         else
@@ -2709,16 +2761,6 @@ let tryParseArrayExpression context state =
     else
         None
 
-let tryCreateRecordExpression context state =
-    if isNextToken (function LeftCurlyBracket -> true | _ -> false) state then
-        match bt (tryParseConstructType context) state with
-        | Some(constructTy) ->
-           SyntaxExpression.CreateRecord(constructTy) |> Some
-        | _ ->
-            None
-    else
-        None
-
 let tryParseNameExpression state =
     if isNextToken (function Identifier _ | LeftParenthesis | This | Base -> true | _ -> false) state then
         match bt (tryParseName TypeParameterContext.Operator) state with
@@ -2764,7 +2806,7 @@ let literalOrPrefixCallOrNameExpr context state =
 
     tryParseNameExpression state
 
-let tryCreateTerminalExpression context state =
+let tryCreateTerminalExpression state =
     match bt (ignoreOffside (tryToken (fun _ -> true))) state with
     | Some token ->
         errorDo(UnexpectedToken token.RawToken, token) state
@@ -2772,7 +2814,7 @@ let tryCreateTerminalExpression context state =
     | _ ->
         None
 
-let checkContextForValueOrTypeDeclarationExpression (context: SyntaxTreeContext) syntaxNode state =
+let checkContextForValueOrTypeDeclarationExpression<'T when 'T :> ISyntaxNode> (context: SyntaxTreeContext) (syntaxNode: 'T) state =
     if context.CanSkipSequential then
         errorDo(InvalidSyntax("Declaration not valid in this context."), syntaxNode) state
 
@@ -2878,20 +2920,7 @@ let tryParseIndexer s left state =
 
     None
 
-let tryParseThrowExpression state =
-    if isNextToken (function Throw -> true | _ -> false) state then
-        let s = sp state
 
-        match bt2 THROW (tryParseOffsideExpression SyntaxTreeContextLocal) state with
-        | Some(throwToken), Some(expr) ->
-            SyntaxExpression.Throw(throwToken, expr, ep s state) |> Some
-        | Some(throwToken), _ ->
-            errorDo(ExpectedSyntaxAfterToken("expression", throwToken.RawToken), throwToken) state
-            SyntaxExpression.Throw(throwToken, SyntaxExpression.Error(dummyToken()), ep s state) |> Some
-        | _ ->
-            None
-    else
-        None
 
 let parseDefaultOrMutateExpression s lhs state =
     if isNextToken (function LeftArrow | LeftBracket -> true | _ -> false) state then
@@ -3012,7 +3041,6 @@ let tryInfixOperator s left state =
     | _ ->
         None
 
-
 let parseExpressionAux context state =
     let s = sp state
 
@@ -3045,10 +3073,6 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover (tryCreateRecordExpression context)) state with
-        | Some result -> result
-        | _ ->
-
         match bt (alignOrFlexAlignRecover (tryParseLetExpression context)) state with
         | Some result -> result
         | _ ->
@@ -3057,15 +3081,17 @@ let parseExpressionAux context state =
         | Some result -> result
         | _ ->
 
-        match bt (alignOrFlexAlignRecover tryParseThrowExpression) state with
-        | Some result -> result
-        | _ ->
-
         match bt (alignOrFlexAlignRecover (literalOrPrefixCallOrNameExpr context)) state with
         | Some result -> result
         | _ ->
 
-        match bt (tryCreateTerminalExpression context) state with
+        match bt (alignOrFlexAlignRecover (tryParseInitializer context)) state with
+        | Some result ->
+            // Anonymous record initialization. Not supported yet though.
+            SyntaxExpression.Initialize(SyntaxExpression.None(), result, (result: ISyntaxNode).FullWidth)
+        | _ ->
+
+        match bt tryCreateTerminalExpression state with
         | Some result -> result
         | _ ->
 
@@ -3079,7 +3105,7 @@ let parseExpressionAux context state =
     | SyntaxExpression.PrefixCall _
     | SyntaxExpression.Call _
     | SyntaxExpression.MemberAccess _ 
-    | SyntaxExpression.CreateRecord _ ->
+    | SyntaxExpression.Initialize _ ->
         let left = parseDefaultOrMutateExpression s res state
 
         match bt (tryInfixOperator s left) state with
@@ -3091,7 +3117,7 @@ let parseExpressionAux context state =
             parseNextAlignedExpression s context res state
         | _ ->
 
-        match bt (tryParseUpdateRecordExpression s left context) state with
+        match bt (tryParseUpdateRecordOrInitializeExpression s left context) state with
         | Some(res) ->
             parseNextAlignedExpression s context res state
         | _ ->
@@ -3109,35 +3135,39 @@ let parseExpression context state =
         noAlign (parseExpressionAux context) state
     )
 
-let tryParseUpdateRecordExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
+let tryParseUpdateRecordOrInitializeExpression (s: int) (expr: SyntaxExpression) (context: SyntaxTreeContext) state =
     if isNextToken (function With -> true | _ -> false) state then
-        match bt2 WITH (tryParseConstructType context) state with
-        | Some(withToken), Some(constructTy) ->
-            SyntaxExpression.UpdateRecord(expr, withToken, constructTy, ep s state) |> Some
+        match bt2 WITH (tryParseInitializer context) state with
+        | Some(withToken), Some(init) ->
+            SyntaxExpression.UpdateRecord(expr, withToken, init, ep s state) |> Some
         | Some(withToken), _ ->
-            error(ExpectedSyntaxAfterToken("record syntax", With), SyntaxExpression.UpdateRecord(expr, withToken, SyntaxConstructType.Anonymous(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
+            error(ExpectedSyntaxAfterToken("record syntax", With), SyntaxExpression.UpdateRecord(expr, withToken, SyntaxInitializer.Initializer(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
         | _ ->
             None
     else
-        None
+        match bt (tryParseInitializer context) state with
+        | Some(init) ->
+            SyntaxExpression.Initialize(expr, init, ep s state) |> Some
+        | _ ->
+            None
 
-let tryParseConstructType context state =
+let tryParseInitializer context state : SyntaxInitializer option =
     if isNextToken (function LeftCurlyBracket -> true | _ -> false) state then
         let s = sp state
 
         match bt3 LEFT_CURLY_BRACKET (tryParseListWithSeparatorOld tryOptionalSemiColon "field pattern" SyntaxFieldPattern.Error (tryParseFieldPattern context)) (tryFlexAlign RIGHT_CURLY_BRACKET) state with
         | Some(leftCurlyBracketToken), Some(fieldPatList), Some(rightCurlyBracketToken) ->
-            SyntaxConstructType.Anonymous(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, ep s state) |> Some
+            SyntaxInitializer.Initializer(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, ep s state) |> Some
         | Some(leftCurlyBracketToken), Some(fieldPatList), _ ->
-            let result = SyntaxConstructType.Anonymous(leftCurlyBracketToken, fieldPatList, dummyToken(), ep s state)
+            let result = SyntaxInitializer.Initializer(leftCurlyBracketToken, fieldPatList, dummyToken(), ep s state)
             errorDo(ExpectedToken RightCurlyBracket, result) state
             result |> Some
         | Some(leftCurlyBracketToken), _, _ ->
             match bt (tryFlexAlign RIGHT_CURLY_BRACKET) state with
             | Some(rightCurlyBracketToken) ->
-                SyntaxConstructType.Anonymous(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), rightCurlyBracketToken, ep s state) |> Some
+                SyntaxInitializer.Initializer(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), rightCurlyBracketToken, ep s state) |> Some
             | _ ->
-                let result = SyntaxConstructType.Anonymous(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), dummyToken(), ep s state)
+                let result = SyntaxInitializer.Initializer(leftCurlyBracketToken, SyntaxSeparatorList.Empty(), dummyToken(), ep s state)
                 errorDo(ExpectedToken RightCurlyBracket, result) state
                 result |> Some
         | _ ->
@@ -3354,24 +3384,28 @@ let tryParseWhileExpression state =
     else
         None
 
-let tryParseTypeDeclarationName state =
+let parseTypeDeclarationName state =
     match bt IDENTIFIER state with
     | Some(ident) ->
-        SyntaxTypeDeclarationName.Identifier(ident) |> Some
+        SyntaxTypeDeclarationName.Identifier(ident)
     | _ ->
 
     let s = sp state
 
     match bt tryParseParenthesisTypeOperator state with
     | Some(leftParenToken, operatorToken, rightParenToken) ->
-        SyntaxTypeDeclarationName.Parenthesis(leftParenToken, operatorToken, rightParenToken, ep s state) |> Some
+        SyntaxTypeDeclarationName.Parenthesis(leftParenToken, operatorToken, rightParenToken, ep s state)
     | _ ->
 
-    None
+    SyntaxTypeDeclarationName.Anonymous()
+
+let SyntaxTypeDeclarationBodyNone() =
+    SyntaxTypeDeclarationBody.Body(SyntaxExtends.Empty(), SyntaxImplements.Empty(), SyntaxList.Empty(), SyntaxExpression.None(), 0)
 
 let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
-    match bt2 tryParseTypeDeclarationKind tryParseTypeDeclarationName state with
-    | Some(kind), Some(tyDefName) ->
+    match bt tryParseTypeDeclarationKind state with
+    | Some(kind) ->
+        let tyDefName = parseTypeDeclarationName state
         let tyPars = parseTypeParameters TypeParameterContext.Default state
         let constrClauseList = parseConstraintClauseList state
         match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
@@ -3379,21 +3413,9 @@ let tryParseTypeDeclarationExpression s attrs (accessor: SyntaxAccessor) state =
             SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
         | Some(equalsToken), _ ->
             errorDo(ExpectedSyntaxAfterToken("declaration body", Equal), equalsToken) state
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
         | _ ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBody.None(), ep s state) |> Some
-    | Some(kind), _ ->
-        let tyPars = parseTypeParameters TypeParameterContext.Default state
-        let constrClauseList = parseConstraintClauseList state
-        errorDo(ExpectedSyntaxAfterSyntax("type declaration name", "type declaration kind"), kind) state
-        match bt2 EQUAL (tryOffside (liftOpt (parseEntityDefinitionBody false (ValueSome kind)))) state with
-        | Some(equalsToken), Some(body) ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, body, ep s state) |> Some
-        | Some(equalsToken), _ ->
-            errorDo(ExpectedSyntaxAfterToken("declaration body", Equal), equalsToken) state
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, equalsToken, SyntaxTypeDeclarationBody.None(), ep s state) |> Some
-        | _ ->
-            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, SyntaxTypeDeclarationName.Identifier(dummyToken()), tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBody.None(), ep s state) |> Some
+            SyntaxExpression.TypeDeclaration(attrs, accessor, kind, tyDefName, tyPars, constrClauseList, dummyToken(), SyntaxTypeDeclarationBodyNone(), ep s state) |> Some
     | _ ->
         None
 
@@ -3530,7 +3552,7 @@ let tryParseOffsideExpression (context: SyntaxTreeContext) (state: ParserState) 
     | _ ->
         None
 
-let parseOffsideExpression (context: SyntaxTreeContext, errorNode: ISyntaxNode) (state: ParserState) : SyntaxExpression =
+let parseOffsideExpression<'T when 'T :> ISyntaxNode> (context: SyntaxTreeContext, errorNode: 'T) (state: ParserState) : SyntaxExpression =
     match bt (tryParseOffsideExpression context) state with
     | Some expr ->
         expr
@@ -3737,11 +3759,11 @@ let tryParseAttribute state =
 let tryParseHashAttribute state =
     let s = sp state
 
-    match bt2 HASH (tryParseBrackets "attribute" SyntaxAttributeErrorF tryParseAttribute) state with
+    match bt2 HASH (tryParseBracketsSeparatorList COMMA "attribute" tryParseAttribute (fun token -> Some(SyntaxAttribute.Error token))) state with
     | Some(hashToken), Some(brackets) ->
         SyntaxHashAttribute.HashAttribute(hashToken, brackets, ep s state) |> Some
     | Some(hashToken), _ ->
-        error (SyntaxError.ExpectedSyntax "'[' or directive", SyntaxHashAttribute.HashAttribute(hashToken, SyntaxBrackets.Brackets(dummyToken(), SyntaxAttributeErrorF(dummyToken()), dummyToken(), 0), ep s state)) state
+        error (SyntaxError.ExpectedSyntax "'[' or directive", SyntaxHashAttribute.HashAttribute(hashToken, SyntaxBrackets.Brackets(dummyToken(), SyntaxSeparatorList.Empty(), dummyToken(), 0), ep s state)) state
     | _ ->
 
     None

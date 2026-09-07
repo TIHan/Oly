@@ -1,20 +1,15 @@
-﻿namespace Oly.Runtime.Target.DotNet
+﻿namespace Oly.Targets.DotNet
 
 open System
 open System.IO
-open System.Diagnostics
 open System.Reflection
 open System.Reflection.PortableExecutable
 open System.Reflection.Metadata
 open System.Collections.Generic
-open System.Collections.Concurrent
 open System.Collections.Immutable
 
 open Oly.Core
 open Oly.Metadata
-open Oly.Compiler
-open Oly.Compiler.Text
-open Oly.Compiler.Workspace
 
 [<AutoOpen>]
 module internal rec Helpers =
@@ -231,6 +226,8 @@ module internal rec Helpers =
                     OlyILTypeRefCell(olyTyArgs.[0])
                 | OlyILTypeArray(_, rank, kind) ->
                     OlyILTypeArray(olyTyArgs.[0], rank, kind)
+                | OlyILTypeFixedArray(_, length, kind) ->
+                    OlyILTypeFixedArray(olyTyArgs.[0], length, kind)
                 | OlyILTypeNativePtr _ ->
                     OlyILTypeNativePtr(olyTyArgs.[0])
                 | OlyILTypeByRef(_, kind) ->
@@ -277,7 +274,7 @@ module internal rec Helpers =
                                     | "InAttribute" ->
                                         match olyUnmodifiedType with
                                         | OlyILTypeByRef(olyElementTy, _) ->
-                                            OlyILTypeByRef(olyElementTy, OlyILByRefKind.Read)
+                                            OlyILTypeByRef(olyElementTy, OlyILByRefKind.ReadOnly)
                                         | _ ->
                                             invalidType cenv "Unsupported .NET type."
 
@@ -286,8 +283,7 @@ module internal rec Helpers =
                                         | OlyILTypeEntity(olyEntInst) ->
                                             match olyEntInst with
                                             | OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs) when olyTyArgs.IsEmpty && (olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition) ->
-                                                let olyEntRef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
-                                                let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                                                let name = cenv.olyEntDefToNameCache[olyEntDefOrRefHandle.Index]
                                                 // TODO: Check namespace...
                                                 if name = "ValueType" then                                         
                                                     OlyILTypeModified(olyModifier, olyUnmodifiedType)
@@ -344,7 +340,7 @@ module internal rec Helpers =
                 | PrimitiveTypeCode.Double -> OlyILTypeFloat64
                 | PrimitiveTypeCode.Void -> OlyILTypeVoid
                 | PrimitiveTypeCode.TypedReference -> invalidType cenv "Unsupported .NET type."
-                | PrimitiveTypeCode.String -> OlyILTypeUtf16
+                | PrimitiveTypeCode.String -> OlyILTypeString16
                 | PrimitiveTypeCode.IntPtr -> OlyILTypeNativeInt
                 | PrimitiveTypeCode.UIntPtr -> OlyILTypeNativeUInt
                 | PrimitiveTypeCode.Object -> OlyILTypeBaseObject
@@ -428,6 +424,7 @@ module internal rec Helpers =
         {
             olyAsm: OlyILAssembly
             reader: MetadataReader
+            olyDefaultCtorConstr: OlyILConstraint ref
             stringCache: Dictionary<string, OlyILStringHandle>
             stringToOlyStringCache: Dictionary<StringHandle, OlyILStringHandle>
             tyDefToOlyEntRefCache: Dictionary<TypeDefinitionHandle, OlyILEntityReferenceHandle>
@@ -436,6 +433,7 @@ module internal rec Helpers =
             tySpecToOlyTypeCache: Dictionary<TypeSpecificationHandle, OlyILType>
             exportedTyToOlyEntRefCache: Dictionary<ExportedTypeHandle, OlyILEntityReferenceHandle>
             methDefToOlyFuncDefCache: Dictionary<MethodDefinitionHandle, OlyILEntityDefinitionHandle>
+            olyEntDefToNameCache: Dictionary<int, string>
         }
 
     let unmangleName (name: string) =
@@ -497,7 +495,7 @@ module internal rec Helpers =
         | _ ->
             failwith "Invalid handle kind."
 
-    let tryImportConstraintAsOlyILConstraint (cenv: cenv) (constrHandle: GenericParameterConstraintHandle) =
+    let importConstraintAsOlyILConstraints (cenv: cenv) (constrHandle: GenericParameterConstraintHandle) : OlyILConstraint imarray =
         let reader = cenv.reader
 
         let constr = reader.GetGenericParameterConstraint(constrHandle)
@@ -507,18 +505,19 @@ module internal rec Helpers =
         | OlyILTypeModified(olyModifierTy, olyTy) ->
             if OlyTypeName.Check(olyModifierTy, cenv.olyAsm, "System.Runtime.InteropServices", "UnmanagedType") &&
                 OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
-                OlyILConstraint.Unmanaged
-                |> Some
+                (OlyILConstraint.SubtypeOf(olyTy), OlyILConstraint.Struct, OlyILConstraint.Unmanaged)
+                |||> ImArray.createThree
+                
             else
                 OlyILConstraint.SubtypeOf(olyTy)
-                |> Some
+                |> ImArray.createOne
         | _ ->
             if OlyTypeName.Check(olyTy, cenv.olyAsm, "System", "ValueType") then
-                OlyILConstraint.Struct
-                |> Some
+                (OlyILConstraint.SubtypeOf(olyTy), OlyILConstraint.Struct)
+                ||> ImArray.createTwo
             else
                 OlyILConstraint.SubtypeOf(olyTy)
-                |> Some
+                |> ImArray.createOne
 
     let importGenericParametersAsOlyILTypeParameters (cenv: cenv) (genericParHandles: GenericParameterHandleCollection) =
         let olyAsm = cenv.olyAsm
@@ -530,9 +529,22 @@ module internal rec Helpers =
 
                 let olyConstrs =
                     genericPar.GetConstraints().ToImmutableArray()
-                    |> ImArray.choose (fun constrHandle ->
-                        tryImportConstraintAsOlyILConstraint cenv constrHandle
+                    |> ImArray.map (fun constrHandle ->
+                        importConstraintAsOlyILConstraints cenv constrHandle
                     )
+                    |> ImArray.concat
+
+                let olyConstrs =
+                    if genericPar.Attributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint) then
+                        olyConstrs.Add(OlyILConstraint.NotStruct)
+                    else
+                        olyConstrs
+
+                let olyConstrs =
+                    if genericPar.Attributes.HasFlag(GenericParameterAttributes.DefaultConstructorConstraint) then
+                        olyConstrs.Add(cenv.olyDefaultCtorConstr.contents)
+                    else
+                        olyConstrs
 
                 let olyTyPar =
                     OlyILTypeParameter(
@@ -561,15 +573,19 @@ module internal rec Helpers =
                 for i = 0 to sigg.ParameterTypes.Length - 1 do
                     let parTy = sigg.ParameterTypes.[i]
 
-                    let olyNameHandle = 
+                    let olyAttrs, olyNameHandle = 
                         match pars |> ImArray.tryFind (fun x -> x.SequenceNumber = i + 1) with
                         | Some par ->
-                            if par.Name.IsNil then OlyILTableIndex(OlyILTableKind.String, -1)
-                            else importString cenv par.Name
-                        | _ ->
-                            OlyILTableIndex(OlyILTableKind.String, -1)
+                            let olyAttrs =
+                                par.GetCustomAttributes().ToImmutableArray()
+                                |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
 
-                    yield OlyILParameter(olyNameHandle, parTy, false)
+                            if par.Name.IsNil then olyAttrs, OlyILTableIndex(OlyILTableKind.String, -1)
+                            else olyAttrs, importString cenv par.Name
+                        | _ ->
+                            ImArray.empty, OlyILTableIndex(OlyILTableKind.String, -1)
+
+                    yield OlyILParameter(olyAttrs, olyNameHandle, parTy, false)
             }
             |> ImArray.ofSeq
 
@@ -710,7 +726,7 @@ module internal rec Helpers =
             | HandleKind.MethodDefinition ->
                 let methDef = reader.GetMethodDefinition(MethodDefinitionHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(methDef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     let tyDef = reader.GetTypeDefinition(methDef.GetDeclaringType())
                     let name = reader.GetString(tyDef.Name)
                     let namesp =
@@ -726,7 +742,7 @@ module internal rec Helpers =
             | HandleKind.MemberReference ->
                 let memRef = reader.GetMemberReference(MemberReferenceHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(memRef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     match memRef.Parent.Kind with
                     | HandleKind.TypeReference ->
                         let tyRef = reader.GetTypeReference(TypeReferenceHandle.op_Explicit memRef.Parent)
@@ -757,7 +773,7 @@ module internal rec Helpers =
             | HandleKind.MethodDefinition ->
                 let methDef = reader.GetMethodDefinition(MethodDefinitionHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(methDef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     let tyDef = reader.GetTypeDefinition(methDef.GetDeclaringType())
                     let name = reader.GetString(tyDef.Name)
                     let namesp =
@@ -773,7 +789,7 @@ module internal rec Helpers =
             | HandleKind.MemberReference ->
                 let memRef = reader.GetMemberReference(MemberReferenceHandle.op_Explicit attr.Constructor)
                 let name = reader.GetString(memRef.Name)
-                if name = ".ctor" then
+                if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
                     match memRef.Parent.Kind with
                     | HandleKind.TypeReference ->
                         let tyRef = reader.GetTypeReference(TypeReferenceHandle.op_Explicit memRef.Parent)
@@ -800,6 +816,7 @@ module internal rec Helpers =
 
         let fieldDef = reader.GetFieldDefinition(fieldDefHandle)
 
+        // TODO: We should actually include this.
         if fieldDef.Attributes &&& FieldAttributes.FieldAccessMask <> FieldAttributes.Public then None
         else
         
@@ -900,7 +917,8 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
-                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
+                yield! fieldDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
             }
             |> ImArray.ofSeq
 
@@ -942,7 +960,7 @@ module internal rec Helpers =
         let pars = 
             si.ParameterTypes
             |> ImArray.map (fun olyTy ->
-                OlyILParameter(OlyILTableIndex.CreateString(-1), olyTy, false)
+                OlyILParameter(ImArray.empty, OlyILTableIndex.CreateString(-1), olyTy, false)
             )
         let returnTy = si.ReturnType
 
@@ -966,7 +984,7 @@ module internal rec Helpers =
 
         OlyILFunctionReference(olyEnclosing, olyFuncSpecHandle)
 
-    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
+    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle olyEntKind tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
         match cenv.methDefToOlyFuncDefCache.TryGetValue methDefHandle with
         | true, res -> ValueSome res
         | _ ->
@@ -985,25 +1003,41 @@ module internal rec Helpers =
         if (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Private) && not isVirtual then ValueNone
         else
 
-        let name = if meth.Name.IsNil then "" else reader.GetString(meth.Name)
-
-        if name = ".cctor" then ValueNone
+        if meth.Name.IsNil then ValueNone
         else
+
+        let name = reader.GetString(meth.Name)
+
+        if name = DotNet.Metadata.DotNetSpecialNames.StaticConstructor then ValueNone
+        else
+
+        let origName = name
+
+        let name =
+            if name = DotNet.Metadata.DotNetSpecialNames.Constructor then
+                OlySpecialNames.Constructor
+            else
+                name
 
         let olyFuncSpecHandle = 
             importMethodDefinitionAsOlyILFunctionSpecification cenv name tyParOffset methDefHandle
 
         let olyFuncFlags = 
-            if name = ".ctor" then
+            if name = OlySpecialNames.Constructor then
                 OlyILFunctionFlags.Constructor
             else
                 OlyILFunctionFlags.None
 
+        let attrs = meth.GetCustomAttributes();
+
         let olyFuncFlags =
-            if hasReadOnlyAttribute cenv (meth.GetCustomAttributes()) then
-                olyFuncFlags
+            if olyEntKind = OlyILEntityKind.Struct && not isStatic then
+                if hasReadOnlyAttribute cenv attrs then
+                    olyFuncFlags
+                else
+                    olyFuncFlags ||| OlyILFunctionFlags.Mutable
             else
-                olyFuncFlags ||| OlyILFunctionFlags.Mutable
+                olyFuncFlags
 
         let olyMemberFlags =
             if (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Public) then
@@ -1049,7 +1083,8 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
-                OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
+                yield! attrs.ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName)
             }
             |> ImArray.ofSeq
 
@@ -1091,13 +1126,15 @@ module internal rec Helpers =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
-        let olyEntDefHandle = olyAsm.NextEntityDefinition()
+        let olyEntDefHandle = olyAsm.NextEntityDefinitionHandle()
         let fullTyParCount = getFullTypeParameterCount cenv tyDefHandle
         cenv.tyDefToOlyEntDefCache.[tyDefHandle] <- (olyEntDefHandle, fullTyParCount)
      
         let tyDef = reader.GetTypeDefinition(tyDefHandle)
         let name = reader.GetString(tyDef.Name)
         let unmangledName = unmangleName(name)
+
+        cenv.olyEntDefToNameCache[olyEntDefHandle.Index] <- unmangledName
 
         let path, olyTyPars, olyEnclosing = 
             if tyDef.IsNested then
@@ -1191,7 +1228,7 @@ module internal rec Helpers =
                     (OlyILAttribute.Intrinsic(importRawString cenv "bool"), OlyILTypeBool)
                     |> ValueSome
                 | "String" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "utf16"), OlyILTypeUtf16)
+                    (OlyILAttribute.Intrinsic(importRawString cenv "string16"), OlyILTypeString16)
                     |> ValueSome
                 | "IntPtr" ->
                     (OlyILAttribute.Intrinsic(importRawString cenv "native_int"), OlyILTypeNativeInt)
@@ -1254,6 +1291,7 @@ module internal rec Helpers =
 
         let olyAttrs =
             seq {
+                yield! tyDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
                 yield OlyILAttribute.Import(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name)
                 match olyIntrinsicAttrOpt with
                 | ValueSome(olyAttr, _) -> yield olyAttr
@@ -1299,7 +1337,7 @@ module internal rec Helpers =
             let handles = tyDef.GetMethods().ToImmutableArray()
             seq {
                 for i = 0 to handles.Length - 1 do
-                    match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls handles.[i] with
+                    match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls handles.[i] with
                     | ValueNone -> ()
                     | ValueSome x -> yield x
             }
@@ -1342,7 +1380,9 @@ module internal rec Helpers =
             |> ImArray.choose (fun handle ->
                 let propDef = reader.GetPropertyDefinition(handle)
 
-                let olyAttrs = ImArray.empty // TODO:
+                let olyAttrs = 
+                    propDef.GetCustomAttributes().ToImmutableArray() 
+                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
 
                 let name = propDef.Name |> reader.GetString
 
@@ -1356,7 +1396,7 @@ module internal rec Helpers =
                         if getter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls getter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls getter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
@@ -1373,7 +1413,7 @@ module internal rec Helpers =
                         if setter.IsNil then
                             None
                         else
-                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle fullTyParCount methImpls setter with
+                            match importMethodDefinitionAsOlyILFunctionDefinition cenv olyEntDefHandle olyEntKind fullTyParCount methImpls setter with
                             | ValueSome olyFuncDefHandle -> 
                                 let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
                                 let olyFuncSpec = olyAsm.GetFunctionSpecification(olyFuncDef.SpecificationHandle)
@@ -1470,6 +1510,7 @@ type Importer private (name: string, peReader: PEReader) =
             {
                 olyAsm = olyAsm
                 reader = reader
+                olyDefaultCtorConstr = ref Unchecked.defaultof<_>
                 stringCache = Dictionary()
                 stringToOlyStringCache = Dictionary()
                 tyDefToOlyEntRefCache = Dictionary()
@@ -1478,7 +1519,65 @@ type Importer private (name: string, peReader: PEReader) =
                 tySpecToOlyTypeCache = Dictionary()
                 exportedTyToOlyEntRefCache = Dictionary()
                 methDefToOlyFuncDefCache = Dictionary()
+                olyEntDefToNameCache = Dictionary()
             }
+
+        let olyDefaultCtorConstr =
+            let olyEntDefHandle = olyAsm.NextEntityDefinitionHandle()
+            OlyAssert.Equal(0, olyEntDefHandle.Index)
+
+            let olyCtorAttrs =
+                OlyILAttribute.Export
+                |> ImArray.createOne
+
+            let olyEntAttrs =
+                OlyILAttribute.Export
+                |> ImArray.createOne
+
+            let olyDefaultCtorHandle =
+                let olyFuncSpec =
+                    OlyILFunctionSpecification(
+                        true,
+                        OlyILCallingConvention.Default,
+                        importRawString cenv OlySpecialNames.Constructor,
+                        ImArray.empty,
+                        ImArray.empty,
+                        OlyILTypeVoid
+                    )
+
+                let olyFuncSpecHandle = olyAsm.AddFunctionSpecification(olyFuncSpec)
+                let olyFuncDef =
+                    OlyILFunctionDefinition(
+                        OlyILFunctionFlags.Constructor,
+                        OlyILMemberFlags.Abstract,
+                        olyCtorAttrs,
+                        olyFuncSpecHandle,
+                        None,
+                        ref None
+                    )
+                olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
+
+            let olyEntDef =
+                OlyILEntityDefinition(
+                    OlyILEntityKind.Shape,
+                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous,
+                    olyEntAttrs,
+                    OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
+                    OlyILStringHandle.GetNil(OlyILTableKind.String),
+                    ImArray.empty,
+                    ImArray.createOne olyDefaultCtorHandle,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty,
+                    ImArray.empty
+                )
+            olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
+            let olyEntInst = OlyILEntityInstance(olyEntDefHandle, ImArray.empty)
+            OlyILConstraint.SubtypeOf(OlyILTypeEntity(olyEntInst))
+
+        cenv.olyDefaultCtorConstr.contents <- olyDefaultCtorConstr
 
         reader.TypeDefinitions
         |> Seq.iter (fun x ->
@@ -1494,11 +1593,14 @@ type Importer private (name: string, peReader: PEReader) =
         olyAsm
 
     static member Import(name, stream: Stream) =
+        let s = System.Diagnostics.Stopwatch.StartNew()
         use peReader = new PEReader(stream, PEStreamOptions.LeaveOpen)
         try
-            Importer(name, peReader).Compute()
+            let result = Importer(name, peReader).Compute()
+            OlyTrace.Log($"[DotNet] (MSIL => OlyIL) Completed: {name} - {s.Elapsed.TotalMilliseconds}ms")
+            result
         with
         | ex ->
-            Debug.Write(ex.ToString())
+            OlyTrace.LogError($"[DotNet] (MSIL => OlyIL) Failed: {name} - Exception:\n{ex.ToString()}")
             reraise()
 

@@ -20,7 +20,7 @@ let ``Simple unmanaged(allocation_only) should compile with setting contents of 
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[unmanaged(allocation_only)]
@@ -218,7 +218,7 @@ struct S =
     public field mutable X: obj
 
     #[unmanaged(allocation_only)]
-    new() = { X = null }
+    new() = this { X = null }
 
 #[unmanaged(allocation_only)]
 main(): () =
@@ -249,7 +249,7 @@ struct S =
     X: obj get, set
 
     #[unmanaged(allocation_only)]
-    new() = { X = null }
+    new() = this { X = null }
 
 #[unmanaged(allocation_only)]
 main(): () =
@@ -301,7 +301,7 @@ alias int32
 #[intrinsic("base_object")]
 alias obj
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[unmanaged(allocation_only)]

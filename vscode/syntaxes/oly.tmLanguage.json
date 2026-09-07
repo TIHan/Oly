@@ -1,10 +1,7 @@
 {
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "Oly",
+	"scopeName": "source.oly",
 	"patterns": [
-		{
-			"include": "#conditional-directives"
-		},
 		{
 			"include": "#directives"
 		},
@@ -37,6 +34,27 @@
 		}
 	],
 	"repository": {
+		"conditional-directives": {
+			"name": "comment",
+			"begin": "^\\s*(#)(if)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "meta.preprocessor"
+				},
+				"2": {
+					"name": "keyword.control"
+				}
+			},
+			"end": "^\\s*(#)(end)\\b",
+			"endCaptures": {
+				"1": {
+					"name": "meta.preprocessor"
+				},
+				"2": {
+					"name": "keyword.control"
+				}
+			}
+		},
 		"directives": {
 			"name": "meta.preprocessor",
 			"match": "\\#+[a-zA-Z]+\\b"
@@ -125,6 +143,5 @@
 			"match": "[a-zA-Zα-ωΑ-Ω_]+\\d*?(?=\\(|\\<)",
 			"name": "entity.name.function"
 		}
-	},
-	"scopeName": "source.oly"
+	}
 }

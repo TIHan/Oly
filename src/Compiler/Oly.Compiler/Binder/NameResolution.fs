@@ -20,6 +20,8 @@ open Oly.Compiler.Internal.FunctionOverloading
 open Oly.Compiler.Internal.WellKnownExpressions
 open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.ImplicitRules
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 open System.Globalization
 
 [<RequireQualifiedAccess>]
@@ -29,6 +31,30 @@ type ResolutionContext =
     | ValueOnly
     | ValueOnlyAttribute
     | PatternOnly
+
+[<RequireQualifiedAccess>]
+type ResolutionMemberContext =
+    | All
+    | PatternOnly
+    | ValueOnlyAttribute
+
+    member this.IsPatternOnlyContext =
+        match this with
+        | PatternOnly -> true
+        | _ -> false
+
+    member this.IsValueOnlyAttributeContext =
+        match this with
+        | ValueOnlyAttribute -> true
+        | _ -> false
+
+    static member From(resContext: ResolutionContext) =
+        match resContext with
+        | ResolutionContext.All
+        | ResolutionContext.TypeOnly
+        | ResolutionContext.ValueOnly -> All
+        | ResolutionContext.PatternOnly -> PatternOnly
+        | ResolutionContext.ValueOnlyAttribute -> ValueOnlyAttribute
 
 [<NoComparison;NoEquality>]
 type ResolutionInfo =
@@ -129,9 +155,10 @@ type ReceiverInfo =
 type ResolutionItem = 
     | Type of syntaxName: OlySyntaxName * TypeSymbol
     | Namespace of syntaxName: OlySyntaxName * EntitySymbol
-    | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxExpression imarray * syntaxMemberExprOpt: OlySyntaxExpression option
+    | MemberCall of syntaxToCapture: OlySyntaxExpression * receiverInfoOpt: ReceiverInfo option * syntaxBodyExpr: OlySyntaxExpression * syntaxArgs: OlySyntaxArguments * syntaxMemberExprOpt: OlySyntaxExpression option
     | MemberIndexerCall of syntaxToCapture: OlySyntaxExpression * syntaxReceiver: OlySyntaxExpression * syntaxBrackets: OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>> * syntaxMemberExprOpt: OlySyntaxExpression option * expectedTyOpt: TypeSymbol option
     | Parenthesis of syntaxToCapture: OlySyntaxExpression * syntaxExprList: OlySyntaxSeparatorList<OlySyntaxExpression> * syntaxMemberExprOpt: OlySyntaxExpression option
+    // TODO: We really should not have Expression as part of ResolutionItem. Instead make separate cases for functions, locals, etc. Similar to Property and Pattern.
     | Expression of BoundExpression
     | Pattern of syntax: OlySyntaxNode * IPatternSymbol * witnessArgs: WitnessSolution imarray
     | Property of syntax: OlySyntaxNode * syntaxNameOpt: OlySyntaxName option * receiverInfoOpt: ReceiverInfo option * IPropertySymbol
@@ -151,42 +178,23 @@ type ResolutionItem =
         | Invalid(syntax) -> syntax
         | Error(syntax) -> syntax
 
-let getSyntaxArgumentsAsSyntaxExpressions (cenv: cenv) (syntaxArgs: OlySyntaxArguments) =
-    match syntaxArgs with
-    | OlySyntaxArguments.Arguments(_, syntaxArgList, syntaxNamedArgList, _) ->
-        if not syntaxNamedArgList.Children.IsEmpty then
-            cenv.diagnostics.Error("Named arguments not supported yet.", 10, syntaxNamedArgList)
-        syntaxArgList.ChildrenOfType
-    | _ ->
-        ImArray.empty
-
-let private createWitnessArguments (cenv: cenv) (value: IValueSymbol) =
-    let witnessArgs =
-        let allTyPars = value.AllTypeParameters
-        let allTyArgs = value.AllTypeArguments 
-        allTyPars
-        |> ImArray.map (freshWitnessesWithTypeArguments cenv.asm allTyArgs)
-        |> ImArray.concat
-
-    witnessArgs
-
 let bindConstantExpression (cenv: cenv) (env: BinderEnvironment) expectedTyOpt (syntaxExpr: OlySyntaxExpression) =
     match syntaxExpr with
     | OlySyntaxExpression.Literal(syntaxLiteral) ->
-        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteral cenv env expectedTyOpt syntaxLiteral)
+        let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxLiteral, env.benv), bindLiteralAndCheck cenv env expectedTyOpt syntaxLiteral)
         match expectedTyOpt with
-        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+        | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) CheckExpressionMode.Flexible expectedTy expr
         | _ -> ()
         expr
     | OlySyntaxExpression.Name(syntaxName) ->
         let resInfo = ResolutionInfo.Default
         let item = bindNameAsItem cenv env (Some syntaxExpr) None resInfo syntaxName
         match item with
-        | ResolutionItem.Type(_, ty) when ty.IsTypeVariable ->
+        | ResolutionItem.Type(_, ty) when ty.IsAnyVariable_ste ->
             let tyPar = ty.TryTypeParameter.Value
             let expr = BoundExpression.Literal(BoundSyntaxInfo.User(syntaxName, env.benv), BoundLiteral.Constant(ConstantSymbol.TypeVariable(tyPar)))
             match expectedTyOpt with
-            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expectedTy expr
+            | Some expectedTy -> checkExpressionType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) CheckExpressionMode.Flexible expectedTy expr
             | _ -> ()
             expr
         | _ ->
@@ -215,7 +223,7 @@ let tryEvaluateFixedIntegralConstantExpression (cenv: cenv) (env: BinderEnvironm
     match expr with
     | BoundExpression.Literal(_, literal) ->
         match literal with
-        | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsFixedInteger ->
+        | BoundLiteral.Constant(constantSymbol) when constantSymbol.Type.IsAnyFixedInteger_ste ->
             handleConstantSymbol constantSymbol
         | _ ->
             ValueNone
@@ -247,13 +255,14 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                 | ResolutionArguments.NotAFunctionCall -> 
                     ValueNone
                 | _ ->
+                    // TODO: We may have to move this in checkExpression if we want to handle overloads.
                     let ctors =
                         tyPar.Constraints
                         |> ImArray.map (function
                             | ConstraintSymbol.SubtypeOf(lazyTy)
                             | ConstraintSymbol.TraitType(lazyTy) ->
                                 let ty = lazyTy.Value
-                                if ty.IsShape then
+                                if ty.IsShape_ste then
                                     ty.Functions
                                     |> ImArray.filter (fun func -> func.IsInstanceConstructor)
                                     |> ImArray.map (fun func ->
@@ -276,7 +285,11 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
             let func = FunctionGroupSymbol.CreateIfPossible(ctors)
             ResolutionFormalItem.Value(None, func)
         | _ ->
-            ResolutionFormalItem.Type(tyPar.AsType)
+            if tyPar.HasArity && resInfo.resTyArity.IsZero && resInfo.InTypeOnlyContext then
+                cenv.diagnostics.Error("Type argument count do not match the type parameter count.", 10, syntaxNode)
+                ResolutionFormalItem.Type(TypeSymbol.Error(Some tyPar, None))
+            else
+                ResolutionFormalItem.Type(tyPar.AsType)
     | _ ->
         if resInfo.InTypeOnlyContext then
             match env.benv.TryGetNamespace(ident) with
@@ -286,7 +299,8 @@ let private bindIdentifierWithNoReceiverAsFormalItem (cenv: cenv) (env: BinderEn
                 match tryBindIdentifierAsType cenv env syntaxNode resInfo.resTyArity ident with
                 | Some ty -> ResolutionFormalItem.Type ty
                 | _ ->
-                    cenv.diagnostics.Error(sprintf "Type identifier '%s' not found in scope." ident, 10, syntaxNode)
+                    if (not env.isOpenDeclarationAttempt) && ((not env.skipCheckTypeConstructor) || (not env.isInTypeArgument)) then
+                        cenv.diagnostics.Error(sprintf "Type identifier '%s' not found in scope." ident, 10, syntaxNode)
                     ResolutionFormalItem.Type(invalidType())
         else
             match env.benv.TryGetNamespace(ident) with
@@ -336,33 +350,69 @@ let private tryFindNestedEntity cenv env syntaxNode ident resTyArity (ty: TypeSy
     else
         Some ents[0]
 
-let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) isPatternContext (ident: string) =
-    if isPatternContext then
-        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) true) ident
+let private bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) resTyArity (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
+    if resMemberContext.IsPatternOnlyContext then
+        let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs resMemberContext ident
         ResolutionFormalItem.Value(Some receiverTy, value)
     else
-        // Nested entities of receiverTy take precedence over its member values.
-        tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy
-        |> Option.map (fun nestedEnt ->
-            determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
-        )
+        let possibleAttrIdent =
+            if resMemberContext.IsValueOnlyAttributeContext then
+                ident + "Attribute"
+            else
+                ident
+
+        let inline tryFind ident =
+            // Nested entities of receiverTy take precedence over its member values.
+            tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverTy
+            |> Option.map (fun nestedEnt ->
+                determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
+            )
+
+        let resultOpt = tryFind possibleAttrIdent
+
+        let resultOpt =
+            if resultOpt.IsNone && resMemberContext.IsValueOnlyAttributeContext then
+                // We did not find an attribute with the added "Attribute" postfix, try to find it normally.
+                tryFind ident
+            else
+                resultOpt
+
+        resultOpt
         |> Option.defaultWith (fun () ->
-            let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs ((* isPatternContext *) false) ident
+            let value = bindIdentifierAsMemberValue cenv env syntaxNode true receiverTy resTyArity resArgs resMemberContext ident
             ResolutionFormalItem.Value(Some receiverTy, value)
         )
 
-let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (args: ResolutionArguments) (ident: string) =
+let private bindIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (receiverNamespaceEnt: INamespaceSymbol) resTyArity (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
     if System.String.IsNullOrWhiteSpace(ident) then
         if not cenv.syntaxTree.HasErrors then
             cenv.diagnostics.Error("Empty identifiers are not allowed.", 10, syntaxNode)
         ResolutionFormalItem.None
     else
-        match tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType with
+        let possibleAttrIdent =
+            if resMemberContext.IsValueOnlyAttributeContext then
+                ident + "Attribute"
+            else
+                ident
+
+        let inline tryFind ident =
+            tryFindNestedEntity cenv env syntaxNode ident resTyArity receiverNamespaceEnt.AsNamespaceType
+
+        let resultOpt = tryFind possibleAttrIdent
+
+        let resultOpt =
+            if resultOpt.IsNone && resMemberContext.IsValueOnlyAttributeContext then
+                // We did not find an attribute with the added "Attribute" postfix, try to find it normally.
+                tryFind ident
+            else
+                resultOpt
+
+        match resultOpt with
         | Some nestedEnt ->
             if nestedEnt.IsNamespace then
                 ResolutionFormalItem.Namespace(nestedEnt)
             else
-                determineConstructorOrTypeAsFormalItem cenv env nestedEnt args
+                determineConstructorOrTypeAsFormalItem cenv env nestedEnt resArgs
         | _ ->
             ResolutionFormalItem.None
 
@@ -379,14 +429,15 @@ let private bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem (cenv: cenv)
             else
                 ResolutionFormalItem.Type(nestedEnt.AsType)
         | _ ->
-            cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printEntity env.benv receiverNamespaceEnt), 10, syntaxNode)
+            if not env.isOpenDeclarationAttempt then
+                cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printEntity env.benv receiverNamespaceEnt), 10, syntaxNode)
             ResolutionFormalItem.Error
 
-let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode isStatic (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) isPatternContext (ident: string) =
+let private bindIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode isStatic (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (resArgs: ResolutionArguments) (resMemberContext: ResolutionMemberContext) (ident: string) =
     if isStatic then
-        bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType cenv env syntaxNode receiverTy resTyArity resArgs isPatternContext ident
+        bindIdentifierWithReceiverTypeAsFormalItemConstructorOrType cenv env syntaxNode receiverTy resTyArity resArgs resMemberContext ident
     else
-        let value = bindIdentifierAsMemberValue cenv env syntaxNode isStatic receiverTy resTyArity resArgs isPatternContext ident
+        let value = bindIdentifierAsMemberValue cenv env syntaxNode isStatic receiverTy resTyArity resArgs resMemberContext ident
         ResolutionFormalItem.Value(Some receiverTy, value)
 
 let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverTy: TypeSymbol) (resTyArity: ResolutionTypeArity) (ident: string) =
@@ -399,7 +450,8 @@ let private bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem (cenv: cenv) (env
         | Some nestedEnt ->
             ResolutionFormalItem.Type(nestedEnt.AsType)
         | _ ->
-            cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printType env.benv receiverTy), 10, syntaxNode)
+            if not env.isOpenDeclarationAttempt then
+                cenv.diagnostics.Error(sprintf "Type identifier '%s' not found on '%s'." ident (printType env.benv receiverTy), 10, syntaxNode)
             ResolutionFormalItem.Error
 
 let private bindIdentifierWithReceiverAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverInfo: ReceiverInfo) (resInfo: ResolutionInfo) (ident: string) =
@@ -411,13 +463,13 @@ let private bindIdentifierWithReceiverAsFormalItem (cenv: cenv) (env: BinderEnvi
         if resInfo.InTypeOnlyContext && isStatic then
             bindTypeOnlyIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode receiverTy resInfo.resTyArity ident
         else
-            bindIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode isStatic receiverTy resInfo.resTyArity resInfo.resArgs resInfo.InPatternOnlyContext ident
+            bindIdentifierWithReceiverTypeAsFormalItem cenv env syntaxNode isStatic receiverTy resInfo.resTyArity resInfo.resArgs (ResolutionMemberContext.From(resInfo.resContext)) ident
     
     | ReceiverItem.Namespace(receiverNamespaceEnt) ->
         if resInfo.InTypeOnlyContext && isStatic then
             bindTypeOnlyIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity ident
         else
-            bindIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity resInfo.resArgs ident
+            bindIdentifierWithReceiverNamespaceAsFormalItem cenv env syntaxNode receiverNamespaceEnt resInfo.resTyArity resInfo.resArgs (ResolutionMemberContext.From(resInfo.resContext)) ident
 
 let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode (receiverInfoOpt: ReceiverInfo option) (resInfo: ResolutionInfo) (ident: string) =
     match receiverInfoOpt with
@@ -425,6 +477,83 @@ let bindIdentifierAsFormalItem (cenv: cenv) (env: BinderEnvironment) syntaxNode 
         bindIdentifierWithReceiverAsFormalItem cenv env syntaxNode receiverInfo resInfo ident
     | _ ->
         bindIdentifierWithNoReceiverAsFormalItem cenv env syntaxNode resInfo ident
+
+let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
+    match expr with
+    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.None)
+            when value.IsFunction ->
+
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(value.IsInstance)
+                OlyAssert.True(value.IsFunction)
+                OlyAssert.False(value.IsConstructor)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, CallFlags.None)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            let isVirtual = determineVirtual receiverExprOpt value.AsFunction
+            if isVirtual then
+                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.Virtual)
+            else
+                expr
+
+    | E.GetProperty(syntaxInfo, receiverExprOpt, prop, (* isVirtual *) false) ->
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(prop.IsInstance)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, (* isVirtual *) false)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            match prop.Getter with
+            | Some(getter) ->
+                let isVirtual = determineVirtual receiverExprOpt getter
+                if isVirtual then
+                    E.GetProperty(syntaxInfo, receiverExprOpt, prop, true)
+                else
+                    expr
+            | _ ->
+                expr
+
+    | E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, (* isVirtual *) false) ->
+        match receiverExprOpt with
+        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
+            if not env.isInLocalLambda then
+                OlyAssert.True(prop.IsInstance)
+                match env.implicitThisOpt with
+                | Some(thisValue) ->
+                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
+                    E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, rhsExpr, (* isVirtual *) false)
+                | _ ->
+                    expr
+            else
+                expr
+        | _ ->
+            match prop.Setter with
+            | Some(setter) ->
+                let isVirtual = determineVirtual receiverExprOpt setter
+                if isVirtual then
+                    E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, true)
+                else
+                    expr
+            | _ ->
+                expr
+
+    | _ ->
+        expr
 
 let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receiverInfoOpt syntaxNameOpt (prop: IPropertySymbol) =
     let syntaxInfo =
@@ -447,7 +576,8 @@ let bindPropertyAsGetPropertyExpression (cenv: cenv) env syntaxToCapture receive
             else
                 receiverExpr
         let expr = E.GetProperty(syntaxInfo, Some(receiverExpr), freshenValue env.benv prop :?> IPropertySymbol, false)
-        checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
+        // TODO: Remove the commented code below if we deem it is safe.
+        //checkReceiverOfExpression (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) expr
         checkVirtualUsage cenv env expr
     | _ ->
         E.GetProperty(syntaxInfo, None, freshenValue env.benv prop :?> IPropertySymbol, false)
@@ -517,12 +647,12 @@ let bindValueAsCallExpressionWithSyntaxTypeArguments (cenv: cenv) (env: BinderEn
             else
                 match originalValue.Enclosing with
                 | EnclosingSymbol.Entity(ent) ->
-                    let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.Formal.Id)
+                    let enclosingTyInst = env.benv.GetEnclosingTypeArguments(ent.FormalId)
                     enclosingTyInst.Length
                 | _ ->
                     0
         let tyPars = originalValue.TypeParametersOrConstructorEnclosingTypeParameters
-        let tyArgs = bindTypeArguments cenv env originalValue.HasStrictInference tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
+        let tyArgs = bindTypeArguments cenv env tyArgOffset tyPars (syntaxTyArgsRoot, syntaxTyArgs)
 
         let finalExpr, _ =
             bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprsOpt tyArgs originalValue
@@ -535,62 +665,16 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 
     let value = originalValue.Substitute(tyArgs)
 
-    let isLastTyParVariadic =
-        if originalValue.IsConstructor then
-            match originalValue.Enclosing with
-            | EnclosingSymbol.Entity(ent) ->
-                let tyPars = ent.TypeParameters
-                if tyPars.IsEmpty then
-                    false
-                else
-                    tyPars[tyPars.Length - 1].IsVariadic
-            | _ ->
-                false
-        else
-            if originalValue.TypeParameters.IsEmpty then
-                false
-            else
-                originalValue.TypeParameters[originalValue.TypeParameters.Length - 1].IsVariadic
-            
-    let argExprs =
-        if isLastTyParVariadic then
-            let parCount = value.LogicalType.FunctionParameterCount
-            if argExprs.Length > parCount && parCount > 0 then
-                let lastArgIndex = parCount - 1
-                let headArgExprs = argExprs.RemoveRange(lastArgIndex, argExprs.Length - lastArgIndex)
-                let tailArgExprs = argExprs.RemoveRange(0, lastArgIndex)
-                headArgExprs.Add(
-                    BoundExpression.NewTuple(BoundSyntaxInfo.Generated(cenv.syntaxTree),
-                        tailArgExprs,
-                        TypeSymbol.CreateTuple(tailArgExprs |> ImArray.map (fun x -> x.Type))
-                    )
-                )
-            else
-                argExprs
-        else
-            argExprs
-
-    let value, argExprs = 
-        if value.IsFunction then
-            let func, argExprs = ImplicitArgumentsForFunction env.benv value.AsFunction argExprs
-            (func :> IValueSymbol, argExprs)
-        elif value.Type.IsAnyFunction then
-            let argExprs = ImplicitArgumentsForFunctionType value.Type argExprs
-            (value, argExprs)
-        else           
-            (value, argExprs)
-
     let argExprsOpt =
         if argExprsOpt.IsNone then ValueNone
         else ValueSome argExprs
 
-    let value = freshenAndCheckValue (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) argExprsOpt syntaxInfo.Syntax value   
-    let witnessArgs = createWitnessArguments cenv value
+    let value = freshenValue env.benv value   
+    let witnessArgs = createWitnessArguments value
 
     let receiverExprOpt =
         receiverExprOpt
         |> Option.map (fun expr -> 
-            let expr = AutoDereferenceReceiverIfPossible expr // TODO/REVIEW: What is this for?
             if value.IsInstance then
                 if value.Enclosing.IsType then
                     AddressOfReceiverIfPossible value.Enclosing.AsType expr
@@ -605,7 +689,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
         if value.IsBase && value.IsInstanceConstructor && receiverExprOpt.IsNone then
             match env.benv.senv.unqualifiedSymbols.TryGetValue "this" with
             | true, (UnqualifiedSymbol.Local thisValue) ->
-                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(cenv.syntaxTree), thisValue))
+                Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisValue))
             | _ ->
                 receiverExprOpt
         else
@@ -636,7 +720,7 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 
         let expr =
             E.Let(
-                BoundSyntaxInfo.Generated(cenv.syntaxTree),
+                BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                 BindingLocal(bridge),
                 getPropertyExpr,
                 callExpr
@@ -655,7 +739,6 @@ let bindValueAsCallExpression (cenv: cenv) (env: BinderEnvironment) syntaxInfo (
 let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture prevReceiverInfoOpt (syntaxReceiver: OlySyntaxExpression) (syntaxMemberExpr: OlySyntaxExpression) =
     match syntaxReceiver with
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-        let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         ResolutionItem.MemberCall(syntaxToCapture, prevReceiverInfoOpt, syntaxCallBodyExpr, syntaxArgs, Some syntaxMemberExpr)
 
     | OlySyntaxExpression.Indexer(syntaxReceiver, syntaxBrackets) ->
@@ -672,7 +755,7 @@ let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) synta
 
     | OlySyntaxExpression.Literal(syntaxLiteral) when prevReceiverInfoOpt.IsNone ->
         let syntaxInfo = BoundSyntaxInfo.User(syntaxLiteral, env.benv)
-        let literal = bindLiteral cenv env None syntaxLiteral
+        let literal = bindLiteral cenv syntaxLiteral
         bindMemberExpressionAsItem cenv env syntaxToCapture (Choice1Of2(E.Literal(syntaxInfo, literal))) syntaxMemberExpr
 
     | _ ->
@@ -681,11 +764,11 @@ let bindMemberAccessExpressionAsItem (cenv: cenv) (env: BinderEnvironment) synta
 let bindMemberExpressionWithTypeAsItem (cenv: cenv) (env: BinderEnvironment) syntaxToCapture (ty: TypeSymbol) (syntaxMemberExpr: OlySyntaxExpression) : ResolutionItem =
     match syntaxMemberExpr with
     | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-        let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
         let receiverInfo = { isStatic = true; item = ReceiverItem.Type(ty); expr = None }
         ResolutionItem.MemberCall(syntaxToCapture, Some receiverInfo, syntaxCallBodyExpr, syntaxArgs, None)
-    | OlySyntaxExpression.Name(syntaxName) ->
-        failwith "not implemented"
+    | OlySyntaxExpression.Name(_) ->
+        cenv.diagnostics.Error("Invalid member expression.", 10, syntaxToCapture)
+        ResolutionItem.Error(syntaxToCapture)
     | _ ->
         failwith "not implemented"
 
@@ -700,7 +783,6 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
             bindNameAsItem cenv env (Some syntaxToCapture) (Some receiverInfo) resInfo syntaxName
 
         | OlySyntaxExpression.Call(syntaxCallBodyExpr, syntaxArgs) ->
-            let syntaxArgs = getSyntaxArgumentsAsSyntaxExpressions cenv syntaxArgs
             ResolutionItem.MemberCall(syntaxToCapture, Some receiverInfo, syntaxCallBodyExpr, syntaxArgs, None)
 
         | OlySyntaxExpression.MemberAccess(syntaxReceiver, _, syntaxMemberExpr) ->
@@ -714,7 +796,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
     | Choice1Of2(receiver) ->
         match receiver with
         // For member accesses, we only want to undo auto-dereferencing if it is a struct type only.
-        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsAnyStruct ->
+        | AutoDereferenced(receiverAsAddr) when receiver.Type.IsStruct_ste ->
             bind cenv env receiverAsAddr syntaxMemberExpr
         | _ ->
             bind cenv env receiver syntaxMemberExpr
@@ -726,7 +808,7 @@ let bindMemberExpressionAsItem (cenv: cenv) (env: BinderEnvironment) (syntaxToCa
         | ResolutionFormalItem.Error ->
             ResolutionItem.Error(syntaxMemberExpr)
         | ResolutionFormalItem.Value(_, value) ->
-            bind cenv env (BoundExpression.CreateValue(cenv.syntaxTree, value)) syntaxMemberExpr
+            bind cenv env (BoundExpression.CreateGeneratedValue(syntaxToCapture, value)) syntaxMemberExpr
         | ResolutionFormalItem.Type ty ->
             bindMemberExpressionWithTypeAsItem cenv env syntaxToCapture ty syntaxMemberExpr
 
@@ -781,9 +863,10 @@ let resolveFormalValue (cenv: cenv) env syntaxToCapture (syntaxNode: OlySyntaxNo
                     // Dummy argExprs.
                     match resInfo.resArgs with
                     | ResolutionArguments.ByType(argTys) ->
-                        argTys |> ImArray.map (fun x -> E.Typed(BoundSyntaxInfo.Generated(cenv.syntaxTree), E.Error(BoundSyntaxInfo.Generated(cenv.syntaxTree)), x))
+                        // REVIEW: What exactly is this doing?
+                        argTys |> ImArray.map (fun x -> E.Typed(syntaxInfo, E.Error(BoundSyntaxInfo.Generated(syntaxNode)), x))
                     | _ ->
-                        func.Parameters |> ImArray.map (fun _ -> BoundExpression.CreateValue(syntaxNode.Tree, invalidValue None))
+                        func.Parameters |> ImArray.map (fun _ -> BoundExpression.CreateGeneratedValue(syntaxNode, invalidValue None))
                 else
                     resInfo.argExprs
 
@@ -829,7 +912,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         cenv.diagnostics.Error(sprintf "Identifier '%s' not found in scope." syntaxName.LastIdentifier.ValueText, 10, syntaxName)
                     match receiverItem with
                     | ReceiverItem.Type(ty) ->
-                        match ty.TryEntity with
+                        match ty.TryEntityNoAlias with
                         | ValueSome(ent) ->
                             ResolutionItem.Namespace(syntaxRootName, invalidNamespaceWithEnclosing ent.AsEnclosing)
                         | _ ->
@@ -846,7 +929,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         | ReceiverItem.Namespace(namespaceEnt) ->
                             ResolutionItem.Namespace(syntaxRootName, invalidNamespaceWithEnclosing namespaceEnt.AsEnclosing)
                         | ReceiverItem.Type(ty) ->
-                            match ty.TryEntity with
+                            match ty.TryEntityNoAlias with
                             | ValueSome ent ->
                                 ResolutionItem.Type(syntaxName, (invalidEntityWithEnclosing ent.AsEnclosing).AsType)
                             | _ ->
@@ -862,7 +945,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
 
             | ResolutionFormalItem.Type ty ->
                 let ty =
-                    if resInfo.resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty && not ty.IsError_t then
+                    if resInfo.resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty && not ty.IsError_ste then
                         let expectedTyArity = resInfo.resTyArity.TryArity.Value
                         let tyArity = ty.Arity
                         if expectedTyArity = tyArity then
@@ -870,7 +953,7 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
                         else
                             // At this point, we expect an instantiation of a type which then we try to do a partial instantiation of it.
                             // However, we cannot do a partial instantiation of a type-constructor, so simply return an error.
-                            if ty.IsTypeConstructor then
+                            if ty.IsTypeConstructor_steea then
                                 cenv.diagnostics.Error($"Partial instantiation of type-constructor '{printType env.benv ty}' not valid.", 10, syntaxName)
                                 TypeSymbolError
                             else
@@ -957,12 +1040,13 @@ let private bindNameAsItemAux (cenv: cenv) env (syntaxExprOpt: OlySyntaxExpressi
         | OlySyntaxName.Qualified(syntaxHeadName, _, syntaxTailName) ->
             // We want types to take precedent for the 'syntaxHeadName'.
             // If a type is not resolved, then it will try to choose a value - local, field, function, property or pattern.
-            let newContext =
+            let headResInfo =
                 match resInfo.resContext with
-                | ResolutionContext.ValueOnly
-                | ResolutionContext.ValueOnlyAttribute -> ResolutionContext.All
-                | _ -> resInfo.resContext
-            match bindNameAsFormalItem cenv env (Some syntaxExprOpt) receiverInfoOpt { ResolutionInfo.Default with resContext = newContext } syntaxHeadName with
+                | ResolutionContext.TypeOnly -> 
+                    { ResolutionInfo.Default with resContext = ResolutionContext.TypeOnly }
+                | _ -> 
+                    ResolutionInfo.Default
+            match bindNameAsFormalItem cenv env (Some syntaxExprOpt) receiverInfoOpt headResInfo syntaxHeadName with
             | ResolutionFormalItem.None ->
                 ResolutionItem.Invalid(syntaxName)
             | ResolutionFormalItem.Error ->
@@ -1054,7 +1138,7 @@ let tryBindIdentifierAsType (cenv: cenv) (env: BinderEnvironment) (syntaxNode: O
         let tys = 
             env.benv.GetUnqualifiedType(ident, resTyArity, 
                 fun ty ->
-                    if env.isInOpenDeclaration then
+                    if env.IsInOpenDeclaration() && not env.isInTypeArgument then
                         ty.Enclosing.IsRootNamespaceEnclosing ||
                         ty.Enclosing.IsAnonymousModule
                     else
@@ -1144,7 +1228,7 @@ let bindIdentifierAsValue (cenv: cenv) (env: BinderEnvironment) syntaxNode (args
         else
             invalidFunction () :> IValueSymbol
 
-let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs isPatternContext (ident: string) =
+let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) isStatic (ty: TypeSymbol) resTyArity resArgs (resMemberContext: ResolutionMemberContext) (ident: string) =
     let ty = stripByRef ty
 
     let ty =
@@ -1159,14 +1243,14 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
     let value =
         let queryMemberFlags =
             if isStatic then
-                QueryMemberFlags.Static
+                QueryMemberFlags.SkipConstructors ||| QueryMemberFlags.Static
             else
-                QueryMemberFlags.Instance
+                QueryMemberFlags.SkipConstructors ||| QueryMemberFlags.Instance
 
         let funcs =
-            findMostSpecificFunctionsOfType env.benv queryMemberFlags FunctionFlags.None (Some ident) QueryFunction.IntrinsicAndExtrinsic ty
+            ty.FindMostSpecificFunctions(env.benv, queryMemberFlags, FunctionFlags.None, QueryFunction.IntrinsicAndExtrinsic, ident)
             |> filterFunctionsForOverloadingPart1 env.benv resTyArity (resArgs.TryGetCount())
-            |> ImArray.filter (fun x -> x.IsPatternFunction = isPatternContext)
+            |> ImArray.filter (fun x -> x.IsPatternFunction = resMemberContext.IsPatternOnlyContext)
         if not funcs.IsEmpty then
             FunctionGroupSymbol.CreateIfPossible(funcs) :> IValueSymbol
         else
@@ -1174,12 +1258,12 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
 
             match fields with
             | [] ->
-                let propOpt = ty.FindProperties(env.benv, queryMemberFlags, QueryProperty.IntrinsicAndExtrinsic, ident) |> Seq.tryHead
+                let propOpt = ty.FindMostSpecificProperties(env.benv, queryMemberFlags, QueryProperty.IntrinsicAndExtrinsic, ident) |> Seq.tryHead
                 match propOpt with
                 | Some prop -> prop :> IValueSymbol
                 | _ ->
 
-                if canReportMissingIdentifier cenv ident && not ty.IsError_t then
+                if canReportMissingIdentifier cenv ident && not ty.IsError_ste then
                     if System.String.IsNullOrWhiteSpace(ident) then
                         cenv.diagnostics.Error(sprintf "Type '%s' does not contain any members." (printType env.benv ty), 0, syntaxNode)
                     else
@@ -1214,6 +1298,14 @@ let bindIdentifierAsMemberValue (cenv: cenv) (env: BinderEnvironment) (syntaxNod
             value.WithEnclosing(EnclosingSymbol.Witness(ty, appliedEnt))
         else
             value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
+    | EnclosingSymbol.Entity(ent), ty 
+            when 
+                ent.IsInterface && 
+                not ty.IsInterface_ste && 
+                value.IsStatic && 
+                not value.IsField && 
+                subsumesTypeInEnvironment env.benv ent.AsType ty ->
+        value.WithEnclosing(EnclosingSymbol.Witness(ty, ent))
     | _ ->
         // TODO: This is weird, we should make sure there is an error when a value is invalid.
         if value.IsInvalid then
@@ -1292,7 +1384,8 @@ let bindNameAsNamespace (cenv: cenv) env (syntaxName: OlySyntaxName) =
     | ResolutionItem.Namespace(_syntaxName, namespaceEnt) ->
         namespaceEnt : INamespaceSymbol
     | resItem ->
-        cenv.diagnostics.Error("Not a valid namespace.", 10, resItem.Syntax)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid namespace.", 10, resItem.Syntax)
         invalidNamespace
 
 let bindNameAsType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxName: OlySyntaxName) =
@@ -1301,10 +1394,12 @@ let bindNameAsType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeAri
     | ResolutionItem.Type(_syntaxName, ty) ->
         ty
     | ResolutionItem.Namespace(syntaxName, namespaceEnt) ->
-        cenv.diagnostics.Error("Not a valid type.", 10, syntaxName)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid type.", 10, syntaxName)
         (invalidateEntity namespaceEnt).AsType
     | resItem ->
-        cenv.diagnostics.Error("Not a valid type.", 10, resItem.Syntax)
+        if not env.isOpenDeclarationAttempt then
+            cenv.diagnostics.Error("Not a valid type.", 10, resItem.Syntax)
         invalidType()
 
 let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
@@ -1321,7 +1416,7 @@ let bindReturnTypeAnnotation (cenv: cenv) env syntaxTyAnnot =
             //         on top-level constructs.
             TypeSymbolError
 
-let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
+let bindType (cenv: cenv) (env: BinderEnvironment) syntaxExprOpt (resTyArity: ResolutionTypeArity) (syntaxTy: OlySyntaxType) =
     let rec bind cenv env resTyArity isFuncInput syntaxTy =
         match syntaxTy with
         | OlySyntaxType.Name(syntaxName) ->
@@ -1343,7 +1438,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                     | _ ->
                         raise(InternalCompilerUnreachedException())
 
-                if isFuncInput && (ty.IsUnit_t || ty.IsAnyTuple) && not ty.IsRealUnit then
+                if isFuncInput && (ty.IsUnit_ste || ty.IsTuple_ste) && not ty.IsRealUnit_ste then
                     // TODO: Kind of a hack using TypeSymbol.Tuple.
                     TypeSymbol.Tuple(ImArray.createOne ty, ImArray.empty)
                 else
@@ -1429,6 +1524,16 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             else
                 TypeSymbol.CreateMutableArray(elementTy)
 
+        | OlySyntaxType.FixedArray(syntaxElementTy, syntaxRankBrackets) ->
+            bindFixedArrayType cenv env resTyArity bind (*isMutable:*)false
+                syntaxElementTy
+                syntaxRankBrackets
+
+        | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, syntaxRankBrackets) ->
+            bindFixedArrayType cenv env resTyArity bind (*isMutable:*)true
+                syntaxElementTy
+                syntaxRankBrackets
+
         | OlySyntaxType.Shape(syntaxCurlyBrackets) ->
             cenv.bindAnonymousShapeTypeHole cenv env ImArray.empty syntaxCurlyBrackets.Element
 
@@ -1457,7 +1562,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
             if env.resolutionMustSolveTypes then
                 // For open-declarations, we do not error because open-declarations requires all type arguments of a type to either be "_"(wild-card) or not.
                 // Therefore, if we see a "_"(wild-card), we do not need to report this error.
-                if not env.skipCheckTypeConstructor && not env.isInOpenDeclaration then
+                if (not env.skipCheckTypeConstructor && ((env.isInTypeArgument && not(env.IsInOpenDeclaration())) || (env.isInTypeArgumentDepth2 && env.IsInOpenDeclaration()))) then
                     cenv.diagnostics.Error("Inferring types are not allowed in this context, be explicit.", 10, syntaxTy)
                 TypeSymbolError
             else
@@ -1477,7 +1582,7 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
                 TypeSymbolError
 
         | OlySyntaxType.Literal(syntaxLiteral) ->
-            match bindLiteral cenv env None syntaxLiteral with
+            match bindLiteral cenv syntaxLiteral with
             | BoundLiteral.Constant(ConstantSymbol.Int32(value)) ->
                 TypeSymbol.ConstantInt32(value)
             | BoundLiteral.NumberInference(lazyLiteral, literalTy) ->
@@ -1504,16 +1609,64 @@ let bindType (cenv: cenv) env syntaxExprOpt (resTyArity: ResolutionTypeArity) (s
 
     bind cenv env resTyArity false syntaxTy
 
+let bindFixedArrayType cenv env resTyArity bind isMutable syntaxElementTy (syntaxRankBrackets: OlySyntaxBrackets<OlySyntaxFixedArrayLength>) =
+    let bindExpressionAsRank syntaxExpr =
+        match syntaxExpr with
+        | OlySyntaxExpression.Literal(syntaxLiteral) ->
+            match stripLiteral (bindLiteralAndCheck cenv env (Some TypeSymbol.Int32) syntaxLiteral) with
+            | BoundLiteral.Constant(ConstantSymbol.Int32(rank)) -> 
+                if rank <= 0 then
+                    cenv.diagnostics.Error("Rank must be greater than zero.", 10, syntaxLiteral)
+                    TypeSymbol.ConstantInt32 1
+                else
+                    TypeSymbol.ConstantInt32 rank
+            | _ -> 
+                // No need to report an error; means the literal check failed with Int32.
+                TypeSymbol.ConstantInt32 1
+        | OlySyntaxExpression.Name(OlySyntaxName.Identifier(syntaxIdent)) ->
+            let ty = bindIdentifierAsTypeVariable cenv env syntaxIdent
+            match stripTypeEquations ty with
+            | TypeSymbol.Variable(tyPar) 
+                    when 
+                        tyPar.Constraints 
+                        |> ImArray.exists (function 
+                            | ConstraintSymbol.ConstantType(lazyTy) 
+                                    when (stripTypeEquations lazyTy.Value).IsInt32 -> 
+                                true 
+                            | _ -> 
+                                false
+                        ) -> ()
+            | _ ->
+                // TODO: Error message should include that it is specifically an 'int32'.
+                cenv.diagnostics.Error("Type variable missing a constant integer constraint.", 10, syntaxExpr)
+            ty
+        | _ ->
+            cenv.diagnostics.Error("Expected an integer.", 10, syntaxExpr)
+            TypeSymbol.ConstantInt32 1
+
+    let lengthTy = 
+        match syntaxRankBrackets.Element with
+        | OlySyntaxFixedArrayLength.Expression(syntaxExpr) ->
+            bindExpressionAsRank syntaxExpr
+        | _ ->
+            unreached()
+
+    let elementTy = bind cenv env resTyArity false syntaxElementTy
+    if isMutable then
+        TypeSymbol.CreateMutableFixedArray(elementTy, lengthTy)
+    else
+        TypeSymbol.CreateFixedArray(elementTy, lengthTy)
+
 let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: ResolutionTypeArity) (ty: TypeSymbol) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
-    if (ty.IsTypeVariable && ty.IsTypeConstructor) && syntaxTyArgs.IsEmpty then
+    if (ty.IsAnyVariable_ste && ty.IsTypeConstructor_steea) && syntaxTyArgs.IsEmpty then
         ty
     elif resTyArity.IsSecondOrder_t && syntaxTyArgs.IsEmpty then
-        if not ty.IsTypeConstructor then
+        if not ty.IsTypeConstructor_steea then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
         ty
     else
         let tyArities =
-            if ty.IsError_t (* error recovery *) then
+            if ty.IsError_ste (* error recovery *) then
                 ImArray.init syntaxTyArgs.Length (fun _ -> ResolutionTypeArity.Any)
             else
                 match ty.TryTypeParameter with
@@ -1536,9 +1689,9 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
         // Wild card open declaration rules
         let hasOpenDeclWildCard =
-            if not env.skipCheckTypeConstructor then
+            if not env.skipCheckTypeConstructor && not env.isInTypeArgument then
                 let hasOpenDeclWildCard =
-                    if env.isInOpenDeclaration then
+                    if env.IsInOpenDeclaration() then
                         syntaxTyArgs
                         |> ImArray.exists (fun x ->
                             match x with
@@ -1568,7 +1721,11 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
             if hasOpenDeclWildCard then
                 ImArray.empty
             else
-                let env = env.UnsetIsInOpenDeclaration()
+                let env = 
+                    if not env.skipCheckTypeConstructor && env.IsInOpenDeclaration() then
+                        env.SetResolutionMustSolveTypes()
+                    else
+                        env
                 bindTypeArgumentsAsTypes cenv env tyArities (syntaxTyArgsRoot, syntaxTyArgs)
 
         // TODO: This could use some cleanup.
@@ -1583,19 +1740,29 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                             ty.TypeArguments
                             |> Seq.take (ty.TypeParameters.Length - partialTyInst.Length)
                             |> Seq.map (fun x ->
-                                match x with
-                                // Handles generic local type definitions.
-                                | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
-                                    tyPar.HiddenLink.Value.AsType
-                                | _ ->
-                                    x
+                                let ty =
+                                    match x with
+                                    // Handles generic local type definitions.
+                                    | TypeSymbol.Variable(tyPar) when tyPar.HiddenLink.IsSome ->
+                                        tyPar.HiddenLink.Value.AsType
+                                    | _ ->
+                                        x
+                                if env.IsInOpenDeclaration() || env.resolutionMustSolveTypes then
+                                    ty
+                                else
+                                    // Only create an inference variable if the type variable is not inside the scope of where it was declared.
+                                    match stripTypeEquations ty with
+                                    | TypeSymbol.Variable(tyPar) when not(env.benv.TypeParameterExists(ty)) ->
+                                        mkInferenceVariableType (Some tyPar)
+                                    | _ ->
+                                        ty
                             )
                             |> ImArray.ofSeq
                         enclosingTyInst.AddRange(partialTyInst)
                     else
                         partialTyInst
 
-                if not ty.IsError_t (* error recovery *) then
+                if not ty.IsError_ste (* error recovery *) then
                     if ty.TypeParameters.Length <> tyArgs.Length || (ty.HasTypeVariableArity && resTyArity.IsZero) then
                         let syntaxNode =
                             if syntaxTyArgsRoot.IsDummy then
@@ -1607,13 +1774,13 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 if ty.Arity = tyArgs.Length then
                     (ty.TypeParameters, tyArgs)
                     ||> ImArray.map2 (fun tyPar tyArg ->
-                        if tyArg.IsError_t then
+                        if tyArg.IsError_ste then
                             tyArg
-                        elif not tyPar.HasArity && tyArg.IsTypeConstructor then
-                            cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used a type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
+                        elif not tyPar.HasArity && tyArg.IsTypeConstructor_steea then
+                            cenv.diagnostics.Error($"'{printType env.benv tyArg}' is used as type constructor for an instantiation that does not expect one.", 10, syntaxTyArgsRoot)
                             TypeSymbol.Error(Some tyPar, None)
                         elif tyPar.HasArity then
-                            if tyArg.IsTypeConstructor then
+                            if tyArg.IsTypeConstructor_steea then
                                 if tyArg.TypeParameters |> ImArray.exists (fun x -> x.HasArity) then
                                     cenv.diagnostics.Error($"'{printType env.benv tyArg}' has type parameters that require type constructors, therefore, cannot be used as a type constructor.", 10, syntaxTyArgsRoot)
                                     TypeSymbol.Error(Some tyPar, None)
@@ -1634,7 +1801,16 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
 
             // TODO: This check is a bit weird. A type parameter who is a generic type constructor, T<_>, will not have any type parameters, but it will have arity. Fix this.
             elif ty.Arity = tyArgs.Length then
-                applyType ty.Formal tyArgs 
+                if env.IsInOpenDeclaration() && not env.isInTypeArgument then
+                    let hasErrorTy =
+                        tyArgs
+                        |> ImArray.exists (fun tyArg -> tyArg.HasAnyInnerError_ste)
+                    if hasErrorTy then
+                        ty.Formal
+                    else
+                        applyType ty.Formal tyArgs 
+                else
+                    applyType ty.Formal tyArgs 
             else
                 ty
 
@@ -1650,7 +1826,14 @@ let bindTypeConstructor cenv env (syntaxNode: OlySyntaxNode) (resTyArity: Resolu
                 (* skipUnsolved *) true
                 syntaxTyArgs 
                 ty
-        if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor then
+
+            if env.IsInOpenDeclaration() && not ty.IsTypeConstructor_steea then
+                ty.ForEachAllInnerTypeArguments(fun tyArg ->
+                    if tyArg.IsSolved_ste && tyArg.IsAnyVariable_ste && not(env.benv.TypeParameterExists(tyArg)) then
+                         cenv.diagnostics.Error($"Type variables are not allowed in open declarations.", 10, syntaxNode)
+                )
+
+        if resTyArity.IsSecondOrder_t && not ty.IsTypeConstructor_steea then
             cenv.diagnostics.Error($"'{printType env.benv ty}' is not a type constructor.", 10, syntaxNode)
 
         ty
@@ -1704,7 +1887,7 @@ let bindTypeAndInferConstraints (cenv: cenv) (env: BinderEnvironment) syntaxTy =
     | _ ->
         env, bindType cenv env None ResolutionTypeArityZero syntaxTy
 
-let bindTypeArgument (cenv: cenv) env isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
+let bindTypeArgument (cenv: cenv) env (tyPars: ImmutableArray<TypeParameterSymbol>) isLastTyParVariadic (offset: int) (n: int) (syntaxTyArg: OlySyntaxType) =
     let index = offset + n
     let tyPar = 
         if isLastTyParVariadic && index >= tyPars.Length then
@@ -1722,12 +1905,9 @@ let bindTypeArgument (cenv: cenv) env isStrict (tyPars: ImmutableArray<TypeParam
                 else
                     ResolutionTypeArityZero
             bindType cenv env None resTyArity syntaxTyArg
-    if isStrict then
-        mkSolvedStrictInferenceVariableType tyPar ty
-    else
-        mkSolvedInferenceVariableType tyPar ty
+    mkSolvedMostFlexibleInferenceVariableType tyPar ty
 
-let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
+let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (offset: int) (tyPars: ImmutableArray<TypeParameterSymbol>) (syntaxTyArgsRoot: OlySyntaxNode, syntaxTyArgs: OlySyntaxType imarray) : TypeArgumentSymbol imarray =
     let expectedTypeParameterCount = tyPars.Length - offset
 
     if syntaxTyArgs.IsEmpty then
@@ -1753,7 +1933,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (of
 
             let tyArgsTail = 
                 syntaxTyArgs 
-                |> Seq.mapi (bindTypeArgument cenv env isStrict tyPars isLastTyParVariadic offset)
+                |> Seq.mapi (bindTypeArgument cenv env tyPars isLastTyParVariadic offset)
 
             let tyArgs =
                 if offset > 0 then
@@ -1771,10 +1951,7 @@ let bindTypeArguments (cenv: cenv) (env: BinderEnvironment) (isStrict: bool) (of
                 let lastIndex = tyPars.Length - 1
                 let headTyArgs = tyArgs.RemoveRange(lastIndex, tyArgs.Length - lastIndex)
                 let tailTyArgs = tyArgs.RemoveRange(0, lastIndex)
-                if isStrict then
-                    headTyArgs.Add(mkSolvedStrictInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
-                else
-                    headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
+                headTyArgs.Add(mkSolvedInferenceVariableType tyPars[lastIndex] (TypeSymbol.CreateTuple(tailTyArgs)))
             else
                 tyArgs
                 
@@ -1783,6 +1960,11 @@ let bindTypeArgumentAsType (cenv: cenv) (env: BinderEnvironment) resTyArity (syn
     bindType cenv env None resTyArity syntaxTyArg
 
 let bindTypeArgumentsAsTypes (cenv: cenv) (env: BinderEnvironment) (tyArities: ImmutableArray<ResolutionTypeArity>) (syntaxTyArgsRoot, syntaxTyArgs: OlySyntaxType imarray) =
+    let env =
+        if env.isInTypeArgument then
+            env.SetIsInTypeArgumentDepth2()
+        else
+            env.SetIsInTypeArgument()
     if syntaxTyArgs.IsEmpty then
         // TODO/REVIEW: Should we get rid of this?
         ImArray.empty
@@ -1794,26 +1976,32 @@ let bindTypeArgumentsAsTypes (cenv: cenv) (env: BinderEnvironment) (tyArities: I
             (tyArities, syntaxTyArgs)
             ||> ImArray.map2 (fun resTyArity syntaxTyArg -> bindTypeArgumentAsType cenv env resTyArity syntaxTyArg)
 
-let bindTypeParameter (cenv: cenv) (env: BinderEnvironment) tyParIndex tyParKind (syntaxTyPar: OlySyntaxType) =
-    let name, higherArity, isVariadic =
+let bindTypeParameter (cenv: cenv) (env: BinderEnvironment) (enclosing: EnclosingSymbol) tyParIndex tyParKind (syntaxTyPar: OlySyntaxType) =
+    let name, higherArity, flags =
         match syntaxTyPar with
-        | OlySyntaxType.Variadic(syntaxIdent, _) -> syntaxIdent.ValueText, 0, true
-        | OlySyntaxType.Name(OlySyntaxName.Identifier(syntaxIdent)) -> syntaxIdent.ValueText, 0, false
+        | OlySyntaxType.Variadic(syntaxIdent, _) -> syntaxIdent.ValueText, 0, TypeParameterFlags.Variadic
+        | OlySyntaxType.Name(OlySyntaxName.Identifier(syntaxIdent)) -> syntaxIdent.ValueText, 0, TypeParameterFlags.None
         | OlySyntaxType.Name(OlySyntaxName.Generic(OlySyntaxName.Identifier(syntaxIdent), syntaxTyArgsRoot)) ->
             let syntaxTyArgs = syntaxTyArgsRoot.Values
             checkSyntaxHigherTypeArguments cenv syntaxTyArgs
-            syntaxIdent.ValueText, syntaxTyArgs.Length, false
+            syntaxIdent.ValueText, syntaxTyArgs.Length, TypeParameterFlags.None
         | OlySyntaxType.WildCard _ ->
             cenv.diagnostics.Error("Invalid use of wild card in type parameter definition.", 10, syntaxTyPar)
-            "", 0, false
+            "", 0, TypeParameterFlags.None
         | _ -> 
-            "", 0, false
+            "", 0, TypeParameterFlags.None
 
-    let tyPar = TypeParameterSymbol(name, tyParIndex, higherArity, isVariadic, tyParKind, ref ImArray.empty)
+    let flags =
+        if enclosing.IsLocal then
+            flags ||| TypeParameterFlags.LocallyDefined
+        else
+            flags
+
+    let tyPar = TypeParameterSymbol(name, tyParIndex, higherArity, flags, tyParKind, ref ImArray.empty)
     recordTypeParameterDeclaration cenv tyPar syntaxTyPar
     addTypeParameter cenv env syntaxTyPar tyPar
     
-let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPars: OlySyntaxType imarray) =
+let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) (enclosing: EnclosingSymbol) isFunc (syntaxTyPars: OlySyntaxType imarray) =
     let env1, tyPars =
         let env1, tyPars =
             let tyParIndexOffset = env.EnclosingTypeParameters.Length
@@ -1826,7 +2014,7 @@ let bindTypeParameters (cenv: cenv) (env: BinderEnvironment) isFunc (syntaxTyPar
                         TypeParameterKind.Function i
                     else
                         TypeParameterKind.Type
-                let env, tyPar = bindTypeParameter cenv env tyParIndex tyParKind syntaxTyPar
+                let env, tyPar = bindTypeParameter cenv env enclosing tyParIndex tyParKind syntaxTyPar
                 tyParIndex <- tyParIndex + 1
                 i <- i + 1
                 env, tyPars @ [tyPar]
@@ -1882,8 +2070,8 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                 constrTy
 
         let constrTy =
-            match constrTy.TryEntity with
-            | ValueSome(ent) when ent.IsShape && ent.IsAnonymous ->
+            match constrTy.TryEntityNoAlias with
+            | ValueSome(ent) when ent.IsShape && ent.IsAnonymous && cenv.pass <> Pass1 ->
                 OlyAssert.True(ent.TypeParameters.IsEmpty)
 
                 let freeTyPars = constrTy.GetFreeTypeParameters()
@@ -1939,12 +2127,12 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
             None
         else
             if isTraitConstr then
-                if not constrTy.IsError_t && not constrTy.IsInterface && not constrTy.IsShape then
+                if not constrTy.IsError_ste && not constrTy.IsInterface_ste && not constrTy.IsShape_ste then
                     cenv.diagnostics.Error("Interfaces and shapes are only allowed for trait constraints.", 10, syntaxConstrTy)
-                ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(constrTy))
+                ConstraintSymbol.TraitType(LazyValue<_>.FromValue(constrTy))
                 |> Some
             else
-                ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(constrTy))
+                ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(constrTy))
                 |> Some
 
     | OlySyntaxConstraint.ConstantType(_, syntaxTy) ->
@@ -1957,7 +2145,7 @@ let bindConstraint (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<unit ->
                 resTyArity
 
         let constTy = bindType cenv env None resTyArity2 syntaxTy
-        let constr = ConstraintSymbol.ConstantType(Lazy<_>.CreateFromValue(constTy))
+        let constr = ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(constTy))
         match stripTypeEquations constTy with
         | TypeSymbol.Int32 ->
             Some constr
@@ -2008,7 +2196,7 @@ let bindConstraintClause (cenv: cenv) (env: BinderEnvironment) (delayed: Queue<u
             | TypeSymbol.Variable(tyPar) -> 
                 tyPar
             | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                if tyArgs |> Seq.exists (fun x -> x.IsSolved && not x.IsError_t) then
+                if tyArgs |> Seq.exists (fun x -> x.IsSolved_ste && not x.IsError_ste) then
                     cenv.diagnostics.Error("A type parameter with a generic instantiation is not allowed.", 10, syntaxTy)
                 tyPar
             | _ ->
@@ -2068,8 +2256,8 @@ let bindConstraintClauseList (cenv: cenv) (env: BinderEnvironment) (syntaxConstr
 /// Performs validation on the modifiers and kind.
 let bindValueModifiersAndKindAsMemberFlags 
         (cenv: cenv) 
-        (env: BinderEnvironment) 
-        isStaticProp
+        (env: BinderEnvironment)
+        (parentExplicitnessOpt: ValueExplicitness option)
         (syntaxValueDeclPremodifiers: OlySyntaxValueDeclarationPremodifier imarray) 
         (syntaxValueDeclKind: OlySyntaxValueDeclarationKind) 
         (syntaxValueDeclPostmodifiers: OlySyntaxValueDeclarationPostmodifier imarray) : _ * ValueExplicitness =
@@ -2078,7 +2266,7 @@ let bindValueModifiersAndKindAsMemberFlags
 
     let mutable isExplicitConstant = false
     let mutable isExplicitField = false
-    let mutable isExplicitStatic = isStaticProp
+    let mutable isExplicitStatic = false
     let mutable isExplicitAbstract = false
     let mutable isExplicitOverrides = false
     let mutable isExplicitDefault = false
@@ -2088,6 +2276,18 @@ let bindValueModifiersAndKindAsMemberFlags
     let mutable isExplicitSet = false
     let mutable isExplicitPattern = false
     let mutable isExplicitNew = false
+
+    // TODO: Add checks.
+    match parentExplicitnessOpt with
+    | Some(parentExplicitness) ->
+        if parentExplicitness.IsExplicitStatic then
+            isExplicitStatic <- true
+        if parentExplicitness.IsExplicitNew then
+            isExplicitNew <- true
+        if parentExplicitness.IsExplicitAbstract then
+            isExplicitAbstract <- true
+    | _ ->
+        ()
 
     match syntaxValueDeclKind with
     | OlySyntaxValueDeclarationKind.Constant _ ->
@@ -2244,6 +2444,12 @@ let bindValueModifiersAndKindAsMemberFlags
                 else
                     memberFlags ||| MemberFlags.Abstract
 
+        let memberFlags =
+            if isExplicitStatic && isExplicitOverrides then
+                memberFlags ||| MemberFlags.ExplicitOverrides
+            else
+                memberFlags
+
         memberFlags, valueExplicitness
             
     elif enclosing.IsShape then
@@ -2289,7 +2495,7 @@ let bindValueModifiersAndKindAsMemberFlags
             if not isExplicitLet then
                 cenv.diagnostics.Error("Invalid local value.", 10, syntaxValueDeclKind)
 
-            MemberFlags.Private, valueExplicitness
+            MemberFlags.None, valueExplicitness
         | _ ->
             if isExplicitLet then
                 cenv.diagnostics.Error("Types can never have let-bound members (yet).", 10, syntaxValueDeclKind)
@@ -2436,7 +2642,7 @@ let rec private unescapeTextAux cenv syntaxNode syntaxOffset (s: ReadOnlySpan<ch
         | c ->
             unescapeTextAux cenv syntaxNode (syntaxOffset + 1) (s.Slice(1)) (builder.Append(c))
 
-let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
+let rec bindLiteral (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     let cleanNumericText (text: string) =
         if text.StartsWith("0x") then
             text.Replace("_", String.Empty)
@@ -2485,10 +2691,10 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
         | _ ->
             cenv.diagnostics.Error("Invalid character literal.", 100, syntaxToken)
             BoundLiteral.Error
-    | OlySyntaxLiteral.Utf16(syntaxToken) ->
-        BoundLiteral.Constant(ConstantSymbol.Utf16(unescapeText syntaxToken.ValueText))
+    | OlySyntaxLiteral.String16(syntaxToken) ->
+        BoundLiteral.Constant(ConstantSymbol.String16(unescapeText syntaxToken.ValueText))
     | OlySyntaxLiteral.Null _ ->
-        BoundLiteral.NullInference(TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.BaseObject))
+        BoundLiteral.NullInference(mkEagerInferenceVariableType TypeSymbol.BaseObject)
     | OlySyntaxLiteral.Default _ ->
         BoundLiteral.DefaultInference(mkInferenceVariableType None, false)
     | OlySyntaxLiteral.UncheckedDefault _ ->
@@ -2496,7 +2702,7 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
 
     // These are the defaults for integer and rational values.
     | OlySyntaxLiteral.Integer(syntaxToken) ->
-        let ty = TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.Int32)
+        let ty = mkEagerInferenceVariableType TypeSymbol.Int32
         let lazyValue =
             lazy
                 try
@@ -2539,13 +2745,14 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let diag = 
                         OlyDiagnostic.CreateError(
                             $"Invalid numeric literal: {ex.Message}",
+                            OlyDiagnostic.CodePrefixOLY,
                             10,
                             syntaxToken
                         )
                     Error(diag)
         BoundLiteral.NumberInference(lazyValue, ty)
     | OlySyntaxLiteral.Real(syntaxToken) ->
-        let ty = TypeSymbol.EagerInferenceVariable(mkVariableSolution(), TypeSymbol.Float64)
+        let ty = mkEagerInferenceVariableType TypeSymbol.Float64
         let lazyValue =
             lazy
                 try
@@ -2561,6 +2768,7 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
                     let diag = 
                         OlyDiagnostic.CreateError(
                             $"Invalid numeric literal: {ex.Message}",
+                            OlyDiagnostic.CodePrefixOLY,
                             10,
                             syntaxToken
                         )
@@ -2570,8 +2778,8 @@ let rec bindLiteralAux (cenv: cenv) (syntaxLiteral: OlySyntaxLiteral) =
     | _ ->
         raise(InternalCompilerException())
 
-let bindLiteral cenv env expectedTyOpt syntaxLiteral =
-    let literal = bindLiteralAux cenv syntaxLiteral
+let bindLiteralAndCheck cenv env expectedTyOpt syntaxLiteral =
+    let literal = bindLiteral cenv syntaxLiteral
     match expectedTyOpt with
     | Some(expectedTy) ->
         checkSubsumesType (SolverEnvironment.Create(cenv.diagnostics, env.benv, cenv.pass)) syntaxLiteral expectedTy literal.Type
@@ -2593,7 +2801,7 @@ let bindExtends (cenv: cenv) (env: BinderEnvironment) (syntaxExtends: OlySyntaxE
         | _ ->
             raise(InternalCompilerException())
 #if DEBUG || CHECKED
-    extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+    extends |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
     extends
 
@@ -2609,7 +2817,7 @@ let bindImplements (cenv: cenv) (env: BinderEnvironment) (syntaxImplements: OlyS
         | _ ->
             raise(InternalCompilerException())
 #if DEBUG || CHECKED
-    implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved))
+    implements |> ImArray.iter (fun ty -> OlyAssert.True(ty.IsSolved_ste))
 #endif
     implements
 
@@ -2621,8 +2829,8 @@ let bindValueAsCallExpressionWithOptionalSyntaxName (cenv: cenv) (env: BinderEnv
         bindValueAsCallExpression cenv env syntaxInfo receiverExprOpt argExprs ImArray.empty value
         |> fst
 
-let private determineVirtual receiverExprOpt (func: IFunctionSymbol) =
-    if func.IsVirtual && not(func.Enclosing.IsAnyStruct) then
+let determineVirtual receiverExprOpt (func: IFunctionSymbol) =
+    if func.IsVirtual && not func.Enclosing.IsTypeExtension && not func.Enclosing.IsStruct then
         match receiverExprOpt with
         | Some(BoundExpression.Value(value=value)) ->
             not value.IsBase
@@ -2630,80 +2838,3 @@ let private determineVirtual receiverExprOpt (func: IFunctionSymbol) =
             true
     else
         false
-
-let checkVirtualUsage (cenv: cenv) (env: BinderEnvironment) expr =
-    match expr with
-    | E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.None)
-            when value.IsFunction ->
-
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(value.IsInstance)
-                OlyAssert.True(value.IsFunction)
-                OlyAssert.False(value.IsConstructor)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.Call(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), witnessArgs, argExprs, value, CallFlags.None)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            let isVirtual = determineVirtual receiverExprOpt value.AsFunction
-            if isVirtual then
-                E.Call(syntaxInfo, receiverExprOpt, witnessArgs, argExprs, value, CallFlags.Virtual)
-            else
-                expr
-
-    | E.GetProperty(syntaxInfo, receiverExprOpt, prop, (* isVirtual *) false) ->
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(prop.IsInstance)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.GetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, (* isVirtual *) false)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            match prop.Getter with
-            | Some(getter) ->
-                let isVirtual = determineVirtual receiverExprOpt getter
-                if isVirtual then
-                    E.GetProperty(syntaxInfo, receiverExprOpt, prop, true)
-                else
-                    expr
-            | _ ->
-                expr
-
-    | E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, (* isVirtual *) false) ->
-        match receiverExprOpt with
-        | Some(E.Value(syntaxBaseValueInfo, baseValue)) when baseValue.IsBase ->
-            if not env.isInLocalLambda then
-                OlyAssert.True(prop.IsInstance)
-                match env.implicitThisOpt with
-                | Some(thisValue) ->
-                    OlyAssert.True(subsumesType baseValue.Type thisValue.Type)
-                    E.SetProperty(syntaxInfo, Some(E.Value(syntaxBaseValueInfo, thisValue)), prop, rhsExpr, (* isVirtual *) false)
-                | _ ->
-                    expr
-            else
-                expr
-        | _ ->
-            match prop.Setter with
-            | Some(setter) ->
-                let isVirtual = determineVirtual receiverExprOpt setter
-                if isVirtual then
-                    E.SetProperty(syntaxInfo, receiverExprOpt, prop, rhsExpr, true)
-                else
-                    expr
-            | _ ->
-                expr
-
-    | _ ->
-        expr

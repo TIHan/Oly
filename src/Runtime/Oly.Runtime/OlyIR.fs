@@ -8,8 +8,13 @@ open Oly.Core.TaskExtensions
         
 [<NoComparison;NoEquality>]
 [<DebuggerDisplay("{ToString()}")>]
-type OlyIRParameter<'RuntimeType> =
-    | OlyIRParameter of name: string * ty: 'RuntimeType * isMutable: bool
+type OlyIRParameter<'RuntimeType, 'RuntimeFunction> =
+    | OlyIRParameter of attrs: Lazy<OlyIRAttribute<'RuntimeType, 'RuntimeFunction> imarray> * name: string * ty: 'RuntimeType * isMutable: bool
+
+    member this.Attributes =
+        match this with
+        | OlyIRParameter(attrs=attrs) when attrs.IsValueCreated -> attrs.Value
+        | _ -> failwith "Attributes cannot be accessed at this point."
 
     member this.Name =
         match this with
@@ -120,6 +125,21 @@ type OlyIRValue<'Type, 'Function, 'Field> =
     | StaticField of OlyIRField<'Type, 'Function, 'Field> * resultTy: 'Type
     | StaticFieldAddress of OlyIRField<'Type, 'Function, 'Field> * kind: OlyIRByRefKind * resultTy: 'Type
     | Constant of OlyIRConstant<'Type, 'Function> * resultTy: 'Type
+
+    member this.WithResultType(resultTy: 'Type) =
+        match this with
+        | Unit _ -> Unit(resultTy)
+        | Null _ -> Null(resultTy)
+        | Default _ -> Default(resultTy)
+        | FunctionPtr(func, _) -> FunctionPtr(func, resultTy)
+        | Function(func, _) -> Function(func, resultTy)
+        | Local(index, _) -> Local(index, resultTy)
+        | LocalAddress(index, kind, _) -> LocalAddress(index, kind, resultTy)
+        | Argument(index, _) -> Argument(index, resultTy)
+        | ArgumentAddress(index, kind, _) -> ArgumentAddress(index, kind, resultTy)
+        | StaticField(field, _) -> StaticField(field, resultTy)
+        | StaticFieldAddress(field, kind, _) -> StaticFieldAddress(field, kind, resultTy)
+        | Constant(cns, _) -> Constant(cns, resultTy)
 
     member this.ResultType =
         match this with
@@ -289,6 +309,17 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | NewRefCell of                 elementTy: 'Type * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewMutableArray of            elementTy: 'Type * sizeArg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | NewArray of                   elementTy: 'Type * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
+    | NewFixedArray of              elementTy: 'Type * length: int * kind: OlyIRArrayKind * args: OlyIRExpression<'Type, 'Function, 'Field> imarray * resultTy: 'Type
+
+    /// This is specialized in that this operation will only exist if the result type is a type variable.
+    /// Rules:
+    ///     1. The target platform must support generics.
+    ///     2. Result type of the operation is a type variable.
+    ///     3. During execution, if the type variable is substituted with a type struct that contains a parameterless instance constructor, call it.
+    ///     4. During execution, if the type variable is substituted with a struct that does not contain a parameterless instance constructor, then initialize memory for the struct with all bytes to zero.
+    ///     5. During execution, if the type variable is not substituted with a type struct or type variable, call the type's parameterless instance constructor.
+    ///     6. Violation of any of the above rules will result in undefined behavior.
+    | NewOrDefaultOfTypeVariable of resultTy: 'Type
 
     | Witness of                    body: OlyIRExpression<'Type, 'Function, 'Field> * witnessTy: 'Type * resultTy: 'Type
     | Ignore of                     arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
@@ -302,11 +333,99 @@ type OlyIROperation<'Type, 'Function, 'Field> =
     | Upcast of                     arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Cast of                       arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
 
+    /// TODO: Rename to 'LoadTupleItem'.
     | LoadTupleElement of           receiver: OlyIRExpression<'Type, 'Function, 'Field> * index: int32 * resultTy: 'Type
 
     | LoadFunction of               func: OlyIRFunction<'Type, 'Function, 'Field> * arg: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
 
     | CallStaticConstructor of      func: OlyIRFunction<'Type, 'Function, 'Field> * resultTy: 'Type
+
+    member inline this.GetArgument(index: int) =
+        match this with
+        | Add(arg1, arg2, _)
+        | Subtract(arg1, arg2, _)
+        | Multiply(arg1, arg2, _)
+        | Divide(arg1, arg2, _)
+        | Remainder(arg1, arg2, _)
+        | BitwiseAnd(arg1, arg2, _)
+        | BitwiseOr(arg1, arg2, _)
+        | BitwiseExclusiveOr(arg1, arg2, _)
+        | BitwiseShiftLeft(arg1, arg2, _)
+        | BitwiseShiftRight(arg1, arg2, _)
+        | Equal(arg1, arg2, _)
+        | NotEqual(arg1, arg2, _)
+        | Utf16Equal(arg1, arg2, _)
+        | GreaterThan(arg1, arg2, _)
+        | GreaterThanOrEqual(arg1, arg2, _)
+        | LessThan(arg1, arg2, _)
+        | LessThanOrEqual(arg1, arg2, _)
+        | StoreRefCellContents(arg1, arg2, _)
+        | StoreToAddress(arg1, arg2, _)
+        | StoreField(_, arg1, arg2, _) -> 
+            match index with
+            | 0 -> arg1
+            | 1 -> arg2
+            | _ -> raise(IndexOutOfRangeException())
+        | BitwiseNot(arg, _)
+        | Not(arg, _)
+        | Negate(arg, _)
+        | Print(arg, _)
+        | Throw(arg, _)
+        | Box(arg, _) 
+        | Unbox(arg, _) 
+        | Upcast(arg, _)
+        | Cast(arg, _)
+        | LoadRefCellContents(arg, _)
+        | LoadRefCellContentsAddress(arg, _, _)
+        | LoadFromAddress(arg, _)
+        | Store(_, arg, _) 
+        | StoreArgument(_, arg, _)
+        | LoadField(_, arg, _) 
+        | LoadFieldAddress(_, arg, _, _) 
+        | StoreStaticField(_, arg, _)
+        | NewRefCell(_, arg, _) 
+        | NewMutableArray(_, arg, _) 
+        | Witness(arg, _, _)
+        | LoadTupleElement(arg, _, _)
+        | LoadArrayLength(arg, _, _) 
+        | LoadFunction(_, arg, _) 
+        | Ignore(arg, _) ->
+            match index with
+            | 0 -> arg
+            | _ -> raise(IndexOutOfRangeException())
+
+        | Call(args=args)
+        | CallVirtual(args=args)
+        | CallConstrained(args=args)
+        | New(args=args)
+        | NewTuple(args=args)
+        | NewArray(args=args)
+        | NewFixedArray(args=args) ->
+            args[index]
+
+        | CallIndirect(receiver=receiver;args=args) ->
+            match index with
+            | 0 -> receiver
+            | _ -> args[index - 1]
+
+        | LoadArrayElement(receiver=receiver;indexArgs=indexArgs)
+        | LoadArrayElementAddress(receiver=receiver;indexArgs=indexArgs) ->
+            match index with
+            | 0 -> receiver
+            | _ -> indexArgs[index - 1]
+        
+        | StoreArrayElement(receiver=receiver;indexArgs=indexArgs;arg=arg) ->
+            match index with
+            | 0 -> receiver
+            | _ -> 
+                if (indexArgs.Length + 1) = index then
+                    arg
+                else
+                    indexArgs[index - 1]
+
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ ->
+            raise(IndexOutOfRangeException())
 
     member inline this.ForEachArgument ([<InlineIfLambda>] f) =
         match this with
@@ -363,7 +482,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
-        | NewArray(args=args) ->
+        | NewArray(args=args) 
+        | NewFixedArray(args=args) ->
             for i = 0 to args.Length - 1 do
                 f i args[i]
 
@@ -384,7 +504,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
                 f (i + 1) indexArgs[i]
             f (indexArgs.Length + 1) arg
 
-        | CallStaticConstructor _ -> ()
+        | CallStaticConstructor _ 
+        | NewOrDefaultOfTypeVariable _ -> ()
 
     member inline this.MapArguments ([<InlineIfLambda>] mapper: int -> OlyIRExpression<_, _, _> -> OlyIRExpression<_, _, _>) : OlyIRExpression<_, _, _> imarray =
         let args = ImArray.builderWithSize this.ArgumentCount
@@ -392,6 +513,23 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             args.Add(mapper i arg)
         )
         args.MoveToImmutable()
+
+    member inline this.MapAndReplaceArguments ([<InlineIfLambda>] mapper: int -> OlyIRExpression<_, _, _> -> OlyIRExpression<_, _, _>) : OlyIROperation<_, _, _> =
+        let mutable newArgs = Unchecked.defaultof<_ imarrayb>
+        this.ForEachArgument (fun i arg ->
+            let newArg = mapper i arg
+            if arg <> newArg then
+                if newArgs = null then
+                    newArgs <- ImArray.builderWithSize this.ArgumentCount
+                    for j = 0 to i - 1 do
+                        newArgs.Add(this.GetArgument(j))
+            if newArgs <> null then
+                newArgs.Add(newArg)
+        )
+        if newArgs = null then
+            this
+        else
+            this.ReplaceArguments(newArgs.MoveToImmutable())
 
     member this.ArgumentCount =
         match this with
@@ -447,7 +585,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | CallConstrained(args=args)
         | New(args=args)
         | NewTuple(args=args)
-        | NewArray(args=args) ->
+        | NewArray(args=args)
+        | NewFixedArray(args=args) ->
             args.Length
 
         | CallIndirect(receiver=_;args=args) ->
@@ -460,7 +599,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | StoreArrayElement(receiver=_;indexArgs=indexArgs;arg=_) ->
             indexArgs.Length + 2
 
-        | CallStaticConstructor _ -> 0
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ -> 0
 
     member this.GetArguments() =
         let builder = ImArray.builderWithSize this.ArgumentCount
@@ -574,6 +714,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
             NewTuple(elementTys, newArgs, this.ResultType)
         | NewArray(elementTy, kind, _, _) ->
             NewArray(elementTy, kind, newArgs, this.ResultType)
+        | NewFixedArray(elementTy, length, kind, _, _) ->
+            NewFixedArray(elementTy, length, kind, newArgs, this.ResultType)
 
         | CallIndirect(argTys,  _, _, _) ->
             CallIndirect(argTys, newArgs[0], newArgs.RemoveAt(0), this.ResultType)
@@ -586,8 +728,79 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | StoreArrayElement(receiver=_;indexArgs=indexArgs;arg=_) ->
             StoreArrayElement(newArgs[0], newArgs.RemoveAt(newArgs.Length - 1).RemoveAt(0), newArgs[newArgs.Length - 1], this.ResultType)
 
-        | CallStaticConstructor _ ->
+        | CallStaticConstructor _
+        | NewOrDefaultOfTypeVariable _ ->
             this
+
+    member this.WithResultType(resultTy) =
+        match this with
+        | Add(arg1, arg2, _) -> Add(arg1, arg2, resultTy)
+        | Subtract(arg1, arg2, _) -> Subtract(arg1, arg2, resultTy)
+        | Multiply(arg1, arg2, _) -> Multiply(arg1, arg2, resultTy)
+        | Divide(arg1, arg2, _) -> Divide(arg1, arg2, resultTy)
+        | Remainder(arg1, arg2, _) -> Remainder(arg1, arg2, resultTy)
+        | BitwiseAnd(arg1, arg2, _) -> BitwiseAnd(arg1, arg2, resultTy)
+        | BitwiseOr(arg1, arg2, _) -> BitwiseOr(arg1, arg2, resultTy)
+        | BitwiseExclusiveOr(arg1, arg2, _) -> BitwiseExclusiveOr(arg1, arg2, resultTy)
+        | BitwiseShiftLeft(arg1, arg2, _) -> BitwiseShiftLeft(arg1, arg2, resultTy)
+        | BitwiseShiftRight(arg1, arg2, _) -> BitwiseShiftRight(arg1, arg2, resultTy)
+        | Equal(arg1, arg2, _) -> Equal(arg1, arg2, resultTy)
+        | NotEqual(arg1, arg2, _) -> NotEqual(arg1, arg2, resultTy)
+        | Utf16Equal(arg1, arg2, _) -> Utf16Equal(arg1, arg2, resultTy)
+        | GreaterThan(arg1, arg2, _) -> GreaterThan(arg1, arg2, resultTy)
+        | GreaterThanOrEqual(arg1, arg2, _) -> GreaterThanOrEqual(arg1, arg2, resultTy)
+        | LessThan(arg1, arg2, _) -> LessThan(arg1, arg2, resultTy)
+        | LessThanOrEqual(arg1, arg2, _) -> LessThanOrEqual(arg1, arg2, resultTy)
+        | StoreRefCellContents(arg1, arg2, _) -> StoreRefCellContents(arg1, arg2, resultTy)
+        | StoreToAddress(arg1, arg2, _) -> StoreToAddress(arg1, arg2, resultTy)
+        | StoreField(field, arg1, arg2, _) -> StoreField(field, arg1, arg2, resultTy)
+
+        | BitwiseNot(arg, _) -> BitwiseNot(arg, resultTy)
+        | Not(arg, _) -> BitwiseNot(arg, resultTy)
+        | Negate(arg, _) -> Negate(arg, resultTy)
+        | Print(arg, _) -> Print(arg, resultTy)
+        | Throw(arg, _) -> Print(arg, resultTy)
+        | Box(arg, _) -> Print(arg, resultTy) 
+        | Unbox(arg, _) -> Unbox(arg, resultTy) 
+        | Upcast(arg, _) -> Upcast(arg, resultTy)
+        | Cast(arg, _) -> Cast(arg, resultTy)
+        | LoadRefCellContents(arg, _) -> LoadRefCellContents(arg, resultTy)
+        | LoadRefCellContentsAddress(arg, kind, _) -> LoadRefCellContentsAddress(arg, kind, resultTy)
+        | LoadFromAddress(arg, _) -> LoadFromAddress(arg, resultTy)
+        | Store(n, arg, _) -> Store(n, arg, resultTy) 
+        | StoreArgument(n, arg, _) -> StoreArgument(n, arg, resultTy)
+        | LoadField(field, arg, _) -> LoadField(field, arg, resultTy)
+        | LoadFieldAddress(field, arg, kind, _) -> LoadFieldAddress(field, arg, kind, resultTy)
+        | StoreStaticField(field, arg, _) -> StoreStaticField(field, arg, resultTy)
+        | NewRefCell(elementTy, arg, _) -> NewRefCell(elementTy, arg, resultTy) 
+        | NewMutableArray(elementTy, arg, _) -> NewMutableArray(elementTy, arg, resultTy) 
+        | Witness(arg, witnessTy, _) -> Witness(arg, witnessTy, resultTy)
+        | LoadTupleElement(arg, index, _) -> LoadTupleElement(arg, index, resultTy)
+        | LoadArrayLength(arg, rank, _) -> LoadArrayLength(arg, rank, resultTy) 
+        | LoadFunction(func, arg, _) -> LoadFunction(func, arg, resultTy)
+        | Ignore(arg, _) -> Ignore(arg, resultTy)
+
+        | Call(func, args, _) -> Call(func, args, resultTy)
+        | CallVirtual(func, args, _) -> CallVirtual(func, args, resultTy)
+        | CallConstrained(constrainedTy, func, args, _) -> CallConstrained(constrainedTy, func, args, resultTy)
+        | New(func, args, _) -> New(func, args, resultTy)
+        | NewTuple(itemTys, args, _) -> NewTuple(itemTys, args, resultTy)
+        | NewArray(elementTy, kind, args, _) -> NewArray(elementTy, kind, args, resultTy)
+
+        | CallIndirect(argTys, receiverArg, args, _) ->
+            CallIndirect(argTys, receiverArg, args, resultTy)
+
+        | LoadArrayElement(receiverArg, args, _) -> LoadArrayElement(receiverArg, args, resultTy)
+        | LoadArrayElementAddress(receiverArg, args, kind, _) -> LoadArrayElementAddress(receiverArg, args, kind, resultTy)
+        
+        | StoreArrayElement(receiverArg, args, arg, _) -> StoreArrayElement(receiverArg, args, arg, resultTy)
+
+        | CallStaticConstructor(func, _) -> CallStaticConstructor(func, resultTy)
+
+        | NewFixedArray(elementTy, length, kind, args, resultTy) ->
+            NewFixedArray(elementTy, length, kind, args, resultTy)
+
+        | NewOrDefaultOfTypeVariable(_) -> NewOrDefaultOfTypeVariable(resultTy)
 
     member this.ResultType =
         match this with
@@ -645,6 +858,8 @@ type OlyIROperation<'Type, 'Function, 'Field> =
         | Upcast(resultTy=resultTy)
         | Cast(resultTy=resultTy)
         | NewArray(resultTy=resultTy) 
+        | NewFixedArray(resultTy=resultTy)
+        | NewOrDefaultOfTypeVariable(resultTy=resultTy)
         | Ignore(resultTy=resultTy) -> resultTy
 
     override this.ToString() =
@@ -652,7 +867,7 @@ type OlyIROperation<'Type, 'Function, 'Field> =
 
 [<Struct>]
 [<DebuggerDisplay("{ToString()}")>]
-type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, endLine: int, endColumn: int) =
+type OlyIRDebugSourceTextRange private (path: OlyPath, startLine: int, startColumn: int, endLine: int, endColumn: int) =
 
     member _.Path = path
     member _.StartLine = startLine
@@ -669,6 +884,13 @@ type OlyIRDebugSourceTextRange(path: OlyPath, startLine: int, startColumn: int, 
     member this.IsEmpty =
         this.Path.IsEmpty
 
+    static member Create(path: OlyPath, startLine, startColumn, endLine, endColumn) =
+#if DEBUG || CHECKED
+        if startLine = 0 && startColumn = 0 && endLine = 0 && endColumn = 0 && not path.IsEmpty then
+            OlyAssert.Fail("Expected path to be empty.")
+#endif
+        OlyIRDebugSourceTextRange(path, startLine, startColumn, endLine, endColumn)
+
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 type OlyIRCatchCase<'Type, 'Function, 'Field> =
@@ -683,9 +905,29 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
     | Value of          textRange: OlyIRDebugSourceTextRange * value: OlyIRValue<'Type, 'Function, 'Field>
     | Operation of      textRange: OlyIRDebugSourceTextRange * op: OlyIROperation<'Type, 'Function, 'Field>
     | Sequential of     expr1: OlyIRExpression<'Type, 'Function, 'Field> * expr2: OlyIRExpression<'Type, 'Function, 'Field>
-    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
-    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * returnTy: 'Type
+    | IfElse of         conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * trueTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * falseTargetExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
+    | While of          conditionExpr: OlyIRExpression<'Type, 'Function, 'Field> * bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * resultTy: 'Type
     | Try of            bodyExpr: OlyIRExpression<'Type, 'Function, 'Field> * catchCases: OlyIRCatchCase<'Type, 'Function, 'Field> imarray * finallyBodyExprOpt: OlyIRExpression<'Type, 'Function, 'Field> option * resultTy: 'Type
+
+    member this.WithResultType(resultTy: 'Type) =
+        match this with
+        | None(textRange, _) ->
+            None(textRange, resultTy)
+        | Let(name, localIndex, rhsExpr, bodyExpr) ->
+            let newBodyExpr = bodyExpr.WithResultType(resultTy)
+            Let(name, localIndex, rhsExpr, newBodyExpr)
+        | Value(textRange, value) ->
+            Value(textRange, value.WithResultType(resultTy))
+        | Operation(textRange, op) ->
+            Operation(textRange, op.WithResultType(resultTy))
+        | Sequential(expr1, expr2) ->
+            Sequential(expr1, expr2.WithResultType(resultTy))
+        | IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+            IfElse(conditionExpr, trueTargetExpr, falseTargetExpr, resultTy)
+        | While(conditionExpr, bodyExpr, _) ->
+            While(conditionExpr, bodyExpr, resultTy)
+        | Try(bodyExpr, catchCases, finallyBodyExprOpt, _) ->
+            Try(bodyExpr, catchCases, finallyBodyExprOpt, resultTy)
 
     member this.GetExpressions() : _ imarray =
         match this with
@@ -717,13 +959,13 @@ type OlyIRExpression<'Type, 'Function, 'Field> =
 
     member this.ResultType =
         match this with
-        | None(_, returnTy) -> returnTy
         | Let(_, _, _, bodyExpr) -> bodyExpr.ResultType
         | Value(_, value) -> value.ResultType
         | Operation(_, op) -> op.ResultType
-        | While(returnTy=returnTy)
-        | IfElse(returnTy=returnTy) -> returnTy
         | Sequential(_, expr) -> expr.ResultType
+        | None(resultTy=resultTy)
+        | While(resultTy=resultTy)
+        | IfElse(resultTy=resultTy) 
         | Try(resultTy=resultTy) -> resultTy
 
     member this.TextRange =
@@ -916,15 +1158,16 @@ module Dump =
     let private dumpByRefKind (byRefKind: OlyIRByRefKind) =
         match byRefKind with
         | OlyIRByRefKind.ReadWrite -> "rw"
-        | OlyIRByRefKind.Read -> "r"
+        | OlyIRByRefKind.ReadOnly -> "r"
+        | OlyIRByRefKind.WriteOnly -> "w"
 
     let private dumpTypeVariableKind (tyVarKind: OlyIRTypeVariableKind) =
         match tyVarKind with
         | OlyIRTypeVariableKind.Function -> "f"
         | OlyIRTypeVariableKind.Type -> "t"
 
-    let DumpConstant (c: C<_, _>) : string =
-        match c with
+    let DumpConstant (cns: C<_, _>) : string =
+        match cns with
         | C.UInt8 value -> $"uint8 {value}"
         | C.Int8 value -> $"int8 {value}"
         | C.UInt16 value -> $"uint16 {value}"
@@ -1024,7 +1267,11 @@ module Dump =
         | E.None _ -> "NONE"
     
         | E.Value(_, v) ->
-            $"VALUE {DumpValue v}"
+            match v with
+            | V.Constant(cns, _) ->
+                $"CONSTANT {DumpConstant cns}"
+            | _ ->
+                $"VALUE {DumpValue v}"
     
         | E.IfElse(conditionE, trueTargetE, falseTargetE, _) ->
             let args =
@@ -1048,3 +1295,5 @@ module Dump =
         | E.Try _ ->
             // TODO: Implement this.
             "TRY"
+
+exception OlyRuntimeException of message: string * textRange: OlyIRDebugSourceTextRange

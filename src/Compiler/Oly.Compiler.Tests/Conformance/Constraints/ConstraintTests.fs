@@ -85,7 +85,7 @@ test(): () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Type instantiation 'T' is missing the constraint 'not struct'."
+            "Type instantiation 'a' is missing the constraint 'not struct'."
         ]
     |> ignore
 
@@ -123,7 +123,7 @@ class B =
     Oly src
     |> withErrorDiagnostics
         [
-            "'Test' type parameter constraints do not match its overriden function."
+            "'Test' type parameter constraints do not match its overriden function.\nExpected: Test<T>(): () where T: struct\nActual: Test<T>(): ()"
         ]
     |> ignore
 
@@ -144,7 +144,7 @@ class B =
     Oly src
     |> withErrorDiagnostics
         [
-            "'struct' constraint does not exist on the overriden function's type parameter 'T'."
+            "'Test' type parameter constraints do not match its overriden function.\nExpected: Test<T>(): () where T: struct\nActual: Test<T>(): () where T: struct"
         ]
     |> ignore
 
@@ -152,12 +152,12 @@ class B =
 let ``Constraint should fail 9``() =
     let src =
         """
-test<N>(): () where N: constant __oly_object = ()
+test<N>(): () where N: constant __oly_base_object = ()
     """
     Oly src
     |> withErrorDiagnostics
         [
-            "'__oly_object' is not a supported constant type."
+            "'__oly_base_object' is not a supported constant type."
         ]
     |> ignore
 
@@ -240,7 +240,7 @@ interface Monad<M<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -273,7 +273,7 @@ let ``Constraint should compile 4``() =
         """
 class Test<T> where T: not struct
 
-test(x: Test<__oly_utf16>): () =
+test(x: Test<__oly_string16>): () =
     ()
     """
     Oly src
@@ -445,8 +445,7 @@ main () : () =
     Oly src
     |> withErrorDiagnostics
         [
-            "Type instantiation 'T' is missing the constraint 'Add<__oly_int32, __oly_int32, T>'."
-            "Type parameter '?T' was unable to be inferred."
+            "Type parameter '?a' was unable to be inferred."
         ]
     |> ignore
 
@@ -552,7 +551,7 @@ class Test<T> where T : Add<T, T, T> =
 
     field x: T
 
-    new(x: T) = { x = x }
+    new(x: T) = this { x = x }
 
     test(y: T) : T = T.add(y, y) 
         """
@@ -672,7 +671,7 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
-            "Type instantiation 'X' is missing the constraint 'trait Add<X, X, X>'."
+            "Expected type 'T' but is 'X'."
         ]
     |> ignore
 
@@ -712,8 +711,6 @@ alias int32
     |> withErrorDiagnostics
         [
             "Expected type 'X' but is 'T'."
-            "Type instantiation 'X' is missing the constraint 'trait Add<X, X, X>'."
-            "Expected type 'X -> T' but is 'X -> X'."
             "Expected type 'X -> T' but is 'X -> X'."
         ]
     |> ignore
@@ -1289,7 +1286,7 @@ test<T>(): () where T: { new() } =
         """
     src |> hasSymbolSignatureTextByCursor "x: T"
 
-[<Fact(Skip = "Stack overflows")>]
+[<Fact>]
 let ``Shape constraint can have a constructor with the right signature 2``() =
     let src =
         """
@@ -1299,14 +1296,14 @@ CreateDelegate<T, TArg0, TReturn>(f: TArg0 -> TReturn): () where T: { new(); Inv
     src |> hasSymbolSignatureTextByCursor "x: T"
 
 [<Fact>]
-let ``Witness would escape scope``() =
+let ``Trait constraint type for a type's type variable should compile``() =
     let src =
         """
 #[intrinsic("int32")]
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IComponent
 
@@ -1331,15 +1328,7 @@ main(): () =
     print("worked")
         """
     Oly src
-    |> withErrorHelperTextDiagnostics
-        [
-            ("Witnesses are escaping the scope. (TODO: better error message)",
-                """
-    let _ = db.CreateQuery<S>()
-            ^^^^^^^^^^^^^^^^^^^
-"""
-            )
-        ]
+    |> shouldCompile
     |> ignore
 
 [<Fact>]
@@ -1603,6 +1592,699 @@ M2<T>(): () where T: trait IA =
                 """
     M<T>()
       ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 2``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+interface ITest2 =
+    inherits ITest
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest2' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 3``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test<ITest>(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test<ITest>(t)
+         ^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 4``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+test<T>(x: __oly_base_object): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 5``() =
+    """
+interface ITest =
+
+    static Doot: __oly_int32 abstract get
+
+class Test =
+    implements ITest
+
+    static Doot: __oly_int32 overrides get() = 5
+
+test<T>(x: T): __oly_int32 where T: ITest = T.Doot
+
+main(): () =
+    let t = Test(): ITest
+    let _ = test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot: __oly_int32 get""",
+                """
+    let _ = test(t)
+            ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 6``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()
+    static Zoot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 7``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+class G<T> where T: ITest =
+    new(x: T) = this { }
+
+M(xs: G<ITest>): () = ()
+
+main(): () =
+    let _ = M(G(Test()))
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+M(xs: G<ITest>): () = ()
+        ^^^^^
+"""
+            )
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    let _ = M(G(Test()))
+              ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 8``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: trait ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 9``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 10``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+
+interface ITest2 =
+    inherits ITest
+
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest2' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface has no implementations for its static abstract functions 11``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract Zoot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+    static overrides Zoot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = ()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()
+    static Zoot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should error as interface, even with an extension implementation, will fail as it will favor the principal type``() =
+    """
+// principal type
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+#[open]
+extension ITestExtension =
+    inherits ITest
+
+    static Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Doot(): (); static Zoot(): () } = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""'ITest' cannot be used as a type argument as the following static members do not have an implementation:
+    static Doot(): ()""",
+                """
+    test(t)
+    ^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Call should NOT error as interface has implementations for its static abstract functions``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface has implementations for its static abstract functions 2``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+interface ITest2 =
+    inherits ITest
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface has implementations for its static abstract functions 3``() =
+    """
+interface ITest =
+
+    static abstract default Doot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = T.Doot()
+test2<T>(x: T): () where T: ITest = test(x)
+
+main(): () =
+    let t = Test(): ITest
+    test2(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as interface does not have static abstract functions``() =
+    """
+interface ITest
+
+interface ITest2 =
+    inherits ITest
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest2
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: ITest = ()
+
+main(): () =
+    let t = Test(): ITest2
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should NOT error as we are using the concrete implementation to satisfy the constraint``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+interface ITest =
+
+    static abstract Doot(): ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+class G<T> where T: ITest =
+    new(x: T) = this { }
+
+M<T>(xs: G<T>): () where T: ITest = ()
+
+main(): () =
+    let _ = M(G(Test()))
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Call should not error as shape does not use the same unimplemented static function from the interface``() =
+    """
+interface ITest =
+
+    static abstract Doot(): ()
+    static abstract default Zoot(): () = ()
+
+class Test =
+    implements ITest
+
+    static overrides Doot(): () = ()
+
+test<T>(x: T): () where T: { static Zoot(): () } = T.Zoot()
+
+main(): () =
+    let t = Test(): ITest
+    test(t)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Witness for object should fail as it is NOT a trait constraint``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+struct Vector3
+
+#[open]
+extension ObjectExt =
+    inherits object
+
+    static Test(): () = print("test")
+
+Test<T>(): () where T: { static Test(): () } =
+    T.Test()
+
+main(): () =
+    Test<Vector3>()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Shape member 'static Test(): ()' does not exist on 'Vector3'.""",
+                """
+    Test<Vector3>()
+         ^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract GetValue(): int32
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = T0.GetValue()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
+                """
+    ArchetypedIndex: int32 get() = T0.GetValue()
+                                      ^^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error - 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static Value: int32 abstract get
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = T0.Value
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
+                """
+    ArchetypedIndex: int32 get() = T0.Value
+                                      ^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error - 3``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static abstract Value: int32 get
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = T0.Value
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Inside a virtual function, using members from 'T0' for the trait constraint type 'IComponent' are not allowed.""",
+                """
+    ArchetypedIndex: int32 get() = T0.Value
+                                      ^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Trait Constraint Limitation should error - 4``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent
+
+interface IArchetypeReference =
+
+    ArchetypedIndex: int32 get
+
+M<T>(): int32 where T: trait IComponent = 123
+
+class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
+    implements IArchetypeReference
+
+    ArchetypedIndex: int32 get() = M<T0>()
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("""Inside a virtual function, 'T0' is not allowed to solve the trait constraint type 'IComponent'.""",
+                """
+    ArchetypedIndex: int32 get() = M<T0>()
+                                   ^^^^^
 """
             )
         ]

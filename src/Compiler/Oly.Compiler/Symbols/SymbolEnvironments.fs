@@ -109,31 +109,28 @@ type ScopeEnvironment =
         parameters: ILocalParameterSymbol imarray
         typeParameters: TypeParameterSymbol imarray
         enclosing: EnclosingSymbol
+        enclosingValue: IValueSymbol option // only used for tooling
 
         // Current info
         typeExtensionsWithImplements: TypeSymbolGeneralizedMap<EntitySymbolGeneralizedMapEntitySet>
         typeExtensionMembers: TypeSymbolGeneralizedMap<ExtensionMemberSymbolOrderedSet>
     }
+    
+type AccessorContextFlags =
+    | None        = 0x000
+    | PrivateOnly = 0x001
 
 [<NoEquality;NoComparison>]
 type AccessorContext =
     {
         AssemblyIdentity: Oly.Metadata.OlyILAssemblyIdentity
         Entity: EntitySymbol option
+        Flags: AccessorContextFlags
     }
 
-[<NoEquality;NoComparison>]
-type BoundEnvironment =
-    {
-        senv: ScopeEnvironment
-        openedEnts: ImmutableHashSet<EntitySymbol>
-        openDecls: EntitySymbol imarray
-        ac: AccessorContext
-        implicitExtendsForStruct: TypeSymbol option
-        implicitExtendsForEnum: TypeSymbol option
-    }
+module private BoundEnvironment =
 
-    static member Empty =
+    let empty =
         let senv = 
             {
                 entitiesByIntrinsicTypes = TypeSymbolGeneralizedMap.Create()
@@ -150,8 +147,9 @@ type BoundEnvironment =
                 parameters = ImArray.empty
 
                 typeParameters = ImArray.empty
-                enclosing = EnclosingSymbol.Local
+                enclosing = EnclosingSymbol.RootNamespace
                 enclosingTyInst = IdMap.Empty
+                enclosingValue = None
 
                 typeExtensionsWithImplements = TypeSymbolGeneralizedMap.Create()
                 typeExtensionMembers = TypeSymbolGeneralizedMap.Create()
@@ -159,12 +157,32 @@ type BoundEnvironment =
 
         {
             senv = senv
-            openedEnts = ImmutableHashSet.Empty
+            openedNamespaces = ImmutableHashSet.Empty
+            openedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+            fullyOpenedEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
+            partialAutoOpenedRootEnts = ImmutableHashSet.Create<EntitySymbol>(SymbolComparers.EntitySymbolComparer())
             openDecls = ImArray.empty
-            ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity> }
+            ac = { Entity = None; AssemblyIdentity = Unchecked.defaultof<Oly.Metadata.OlyILAssemblyIdentity>; Flags = AccessorContextFlags.None }
             implicitExtendsForStruct = None
             implicitExtendsForEnum = None
         }
+
+/// This is the environment of the current expression.
+[<NoEquality;NoComparison>]
+type BoundEnvironment =
+    {
+        senv: ScopeEnvironment
+        openedNamespaces: ImmutableHashSet<int64>
+        openedEnts: ImmutableHashSet<EntitySymbol>
+        fullyOpenedEnts: ImmutableHashSet<EntitySymbol>
+        partialAutoOpenedRootEnts: ImmutableHashSet<EntitySymbol>
+        openDecls: EntitySymbol imarray
+        ac: AccessorContext
+        implicitExtendsForStruct: TypeSymbol option
+        implicitExtendsForEnum: TypeSymbol option
+    }
+
+    static member Empty = BoundEnvironment.empty
 
     member this.ClearLocals_unused() =
         let senv = this.senv
@@ -220,14 +238,14 @@ type BoundEnvironment =
     member this.EnclosingTypeParameters =
         this.senv.typeParameters
 
-    member this.TryFindEntityByIntrinsicType(ty: TypeSymbol) =
-        if ty.IsBuiltIn then
+    member this.TryFindEntityByIntrinsicType(ty: TypeSymbol): EntitySymbol voption =
+        if ty.IsBuiltIn_ste then
             this.senv.entitiesByIntrinsicTypes.TryFind(ty)
         else
             ValueNone
 
     member this.TryFindIntrinsicTypeByAliasType(aliasTy: TypeSymbol) =
-        if aliasTy.IsAlias then
+        if aliasTy.IsAlias_steea then
             this.senv.intrinsicTypesByAliasTypes.TryFind(aliasTy)
         else
             ValueNone
@@ -236,32 +254,9 @@ type BoundEnvironment =
         this.senv.aliasTypesByIntrinsicTypes.TryFind(intrinsicTy)
 
     member this.TryGetEntity(ty: TypeSymbol) =
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent -> ValueSome ent
         | _ -> ValueNone
-
-    member this.GetScopedTypeParameters(value: IValueSymbol) =
-        if value.IsConstructor then
-            value.Enclosing.TypeParameters
-        else
-            match value.Enclosing with
-            | EnclosingSymbol.Local ->
-                this.EnclosingTypeParameters.AddRange(value.TypeParameters)
-            | _ ->
-                value.Enclosing.TypeParameters.AddRange(value.TypeParameters)
-
-    member this.GetScopedTypeArguments(value: IValueSymbol) =
-        if value.IsConstructor then
-            value.Enclosing.TypeArguments
-        else
-            match value.Enclosing with
-            | EnclosingSymbol.Local ->
-                let enclosingTyInst =
-                    this.EnclosingTypeParameters
-                    |> ImArray.map (fun x -> x.AsType)
-                enclosingTyInst.AddRange(value.TypeArguments)
-            | _ ->
-                value.Enclosing.TypeArguments.AddRange(value.TypeArguments)
 
     /// Get an unqualified type within the current scope.
     /// An empty array means a type is not found in the current scope.
@@ -338,7 +333,7 @@ type BoundEnvironment =
         this.senv.parameters |> Seq.tryFind (fun x -> x.Name = name) 
 
     member this.TryFindTypeParameter name =
-        let resultOpt = this.senv.typeParameters |> Seq.tryFind (fun x -> x.Name = name)
+        let resultOpt = this.senv.typeParameters |> ImArray.tryFind (fun x -> x.Name = name)
 
         // TODO: We should get rid of this check, we only need it to look up the type parameter in the constraint.
         if resultOpt.IsNone then
@@ -357,13 +352,13 @@ type BoundEnvironment =
         | TypeSymbol.Variable(tyPar)
         | TypeSymbol.HigherVariable(tyPar, _) ->
             match this.TryFindTypeParameter tyPar.Name with
-            | Some tyPar2 when tyPar2.Id = tyPar.Id -> true
+            | Some tyPar2 -> tyPar2.Id = tyPar.Id
             | _ -> false
         | _ ->
             false
 
 let tryFindTypeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) ty =
-    match targetTy.TryEntity with
+    match targetTy.TryEntityNoAlias with
     | ValueSome(ent) ->
         benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty)
         |> ValueOption.bind (fun x -> x.TryFind(ent))
@@ -371,7 +366,7 @@ let tryFindTypeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) ty =
         ValueNone
 
 let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSymbol) =
-    match targetTy.TryEntity with
+    match targetTy.TryEntityNoAlias with
     | ValueSome(ent) ->
         benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty)
         |> ValueOption.map (fun x -> x.ContainsKey(ent))
@@ -382,7 +377,7 @@ let typeHasTypeExtensionImplementedType benv (targetTy: TypeSymbol) (ty: TypeSym
 let subsumesTypeInEnvironmentWith (benv: BoundEnvironment) rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if subsumesTypeWith rigidity superTy ty then
         true
-    elif ty.IsBuiltIn then
+    elif ty.IsBuiltIn_ste then
         match benv.TryFindEntityByIntrinsicType(ty) with
         | ValueSome(ent) ->
             subsumesTypeWith rigidity superTy ent.AsType
@@ -411,7 +406,8 @@ let tryFindTypeExtensions benv (ty: TypeSymbol) =
     else
         let tyExts =
             builder.ToImmutable()
-            |> ImArray.distinctBy (fun x -> x.Id)
+            |> EntitySymbol.Distinct
+            |> ImArray.ofSeq
         ValueSome(filterMostSpecificExtensions tyExts)
 
 let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSymbol) =
@@ -438,7 +434,8 @@ let tryFindTypeExtensionsWithTargetType benv (targetTy: TypeSymbol) (ty: TypeSym
     else
         let tyExts =
             builder.ToImmutable()
-            |> ImArray.distinctBy (fun x -> x.Id)
+            |> EntitySymbol.Distinct
+            |> ImArray.ofSeq
         ValueSome(filterMostSpecificExtensions tyExts)
 
 [<NoEquality;NoComparison>]

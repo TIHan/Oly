@@ -11,6 +11,7 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SymbolQuery
 
 [<Flags>]
 type LambdaFlags =
@@ -23,7 +24,7 @@ type LambdaFlags =
     | Scoped                = 0x0100000
 
     /// Only used in lambda-lifting
-    | Bound                 = 0x1000000
+    | Bound                 = 0x1000000 // TODO: Get rid of this.
 
 [<Flags>]
 type CallFlags =
@@ -46,9 +47,15 @@ type IBoundNode =
 
     abstract Syntax : OlySyntaxNode
 
+    abstract IsExpression: bool
+
+    abstract TryGetEnvironment: unit -> BoundEnvironment option
+
 let boundNone (syntaxTree: OlySyntaxTree) = 
     { new IBoundNode with 
         member _.Syntax = syntaxTree.DummyNode
+        member _.IsExpression = false
+        member _.TryGetEnvironment() = None
     }
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
@@ -94,6 +101,10 @@ type BoundBinding =
             match this with
             | Implementation(syntaxInfo=syntaxInfo)
             | Signature(syntaxInfo=syntaxInfo) -> syntaxInfo.Syntax
+
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() = None
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type BoundLiteral =
@@ -147,11 +158,11 @@ and [<Sealed>] LazyExpression (syntaxExprOpt: OlySyntaxExpression option, f: Oly
         lazyExpr.Run()
         lazyExpr
     
-and [<Sealed>] LazyExpressionType (syntaxTree) =
+and [<Sealed>] LazyExpressionType (syntaxGeneratedNode: OlySyntaxNode) =
 
     let mutable ty = Unchecked.defaultof<_>
 
-    member val Expression = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxTree)) with get, set
+    member val Expression = BoundExpression.None(BoundSyntaxInfo.Generated(syntaxGeneratedNode)) with get, set
 
     member this.Type =
         match box ty with
@@ -194,7 +205,14 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         syntaxName: OlySyntaxName *
         tyOpt: TypeSymbol option
 
-    | InternalGenerated of syntaxTree: OlySyntaxTree // TODO: We should be allowed to pass a syntaxNode instead of the tree
+    | InternalGenerated of syntaxBestEffort: OlySyntaxNode
+
+    // We define these dummies to trick the F# compiler to use tags for equality.
+    | DoNotCallDummy1
+    | DoNotCallDummy2
+    | DoNotCallDummy3
+    | DoNotCallDummy4
+    | DoNotCallDummy5
 
     member this.TryEnvironment =
         match this with
@@ -205,8 +223,9 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     member this.Syntax =
         match this with
         | InternalUser(syntax, _) 
-        | InternalUserWithName(syntax, _, _, _) -> syntax
-        | InternalGenerated(syntaxTree) -> syntaxTree.DummyNode
+        | InternalUserWithName(syntax, _, _, _)
+        | InternalGenerated(syntax) -> syntax
+        | _ -> unreached()
 
     member this.SyntaxNameOrDefault =
         match this.TrySyntaxName with
@@ -257,8 +276,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | _ ->
             this          
 
-    static member Generated(syntaxTree: OlySyntaxTree) =
-        InternalGenerated(syntaxTree)
+    static member Generated(syntaxNode: OlySyntaxNode) =
+        InternalGenerated(syntaxNode)
 
     static member User(syntaxNode: OlySyntaxNode, benv) =
         match syntaxNode.TryName with
@@ -277,6 +296,26 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 InternalUserWithName(syntaxNode, benv, syntaxName, tyOpt)
             | _ ->
                 InternalUser(syntaxNode, benv)
+
+and [<RequireQualifiedAccess;Struct;NoComparison;NoEquality;DebuggerDisplay("{ToDebugString()}")>] BoundSyntaxInfo<'T when 'T :> OlySyntaxNode and 'T : not struct> =
+    private {
+        inner: BoundSyntaxInfo
+    }
+
+    member this.Inner = this.inner
+
+    member this.Syntax: 'T voption =
+        match this.inner with
+        | BoundSyntaxInfo.InternalGenerated _ -> ValueNone
+        | BoundSyntaxInfo.InternalUser(syntax, _)
+        | BoundSyntaxInfo.InternalUserWithName(syntax, _, _, _) -> ValueSome(System.Runtime.CompilerServices.Unsafe.As syntax)
+        | _ -> unreached()
+
+    static member Generated(syntaxNode: OlySyntaxNode) =
+        { inner = BoundSyntaxInfo.Generated(syntaxNode) }
+
+    static member User(syntaxNode: 'T, benv) =
+        { inner = BoundSyntaxInfo.User(syntaxNode, benv) }
 
 and [<RequireQualifiedAccess;NoComparison;ReferenceEquality>] BoundCatchCase =
     | CatchCase of syntaxInfo: BoundSyntaxInfo * ILocalParameterSymbol * catchBodyExpr: BoundExpression
@@ -307,7 +346,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     | Literal of syntaxInfo: BoundSyntaxInfo * BoundLiteral
     | EntityDefinition of syntaxInfo: BoundSyntaxInfo * body: BoundExpression * ent: EntityDefinitionSymbol
     | GetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol
-    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression
+    | SetField of syntaxInfo: BoundSyntaxInfo * receiver: BoundExpression * field: IFieldSymbol * rhs: BoundExpression * isCtorInit: bool
 
     // REVIEW: Do GetProperty and SetProperty need witnessArgs? Not really since we do not handle witnesses for type-level type parameters/arguments.
     | GetProperty of syntaxInfo: BoundSyntaxInfo * receiverOpt: BoundExpression option * prop: IPropertySymbol * isVirtual: bool
@@ -324,7 +363,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
 
     | Let of syntaxInfo: BoundSyntaxInfo * bindingInfo: LocalBindingInfoSymbol * rhsExpr: BoundExpression * bodyExpr: BoundExpression
     | IfElse of syntaxInfo: BoundSyntaxInfo * conditionExpr: BoundExpression * trueTargetExpr: BoundExpression * falseTargetExpr: BoundExpression * cachedExprTy: TypeSymbol
-    | Match of syntax: OlySyntaxExpression * benv: BoundEnvironment * BoundExpression imarray * BoundMatchClause imarray * cachedExprTy: TypeSymbol
+    | Match of syntax: OlySyntaxExpression * benv: BoundEnvironment * matchItemExprs: BoundExpression imarray * matchClauses: BoundMatchClause imarray * cachedExprTy: TypeSymbol
     | While of syntaxInfo: BoundSyntaxInfo * conditionExpr: BoundExpression * bodyExpr: BoundExpression
 
     | Try of syntaxInfo: BoundSyntaxInfo * bodyExpr: BoundExpression * catchCases: BoundCatchCase imarray * finallyBodyExprOpt: BoundExpression option
@@ -344,7 +383,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             binding.GetValidUserSyntax()
         | GetField(syntaxInfo, receiver, _) when syntaxInfo.IsGenerated ->
             receiver.GetValidUserSyntax()
-        | SetField(syntaxInfo, receiver, _, rhs) when syntaxInfo.IsGenerated ->
+        | SetField(syntaxInfo, receiver, _, rhs, _) when syntaxInfo.IsGenerated ->
             let r1 = receiver.GetValidUserSyntax()
             if r1.IsDummy then
                 rhs.GetValidUserSyntax()
@@ -371,8 +410,18 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | Sequential(syntaxInfo=syntaxInfo)
         | IfElse(syntaxInfo=syntaxInfo)
         | NewTuple(syntaxInfo=syntaxInfo)
-        | MemberDefinition(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGenerated
-        | _ -> false
+        | MemberDefinition(syntaxInfo=syntaxInfo) 
+        | GetProperty(syntaxInfo=syntaxInfo)
+        | SetProperty(syntaxInfo=syntaxInfo)
+        | Try(syntaxInfo=syntaxInfo)
+        | Typed(syntaxInfo=syntaxInfo)
+        | Unit(syntaxInfo=syntaxInfo)
+        | While(syntaxInfo=syntaxInfo)
+        | Witness(syntaxInfo=syntaxInfo) -> syntaxInfo.IsGenerated
+        | NewArray _
+        | Match _
+        | ErrorWithNamespace _ 
+        | ErrorWithType _ -> false
 
     member this.IsLambdaExpression =
         match this with
@@ -511,10 +560,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | NewArray(ty=ty) -> ty
         | Call(value=value) ->
             let ty = value.Type
-            match ty.TryFunction with
+            match ty.TryAnyFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ ->
-                ty.TryEntity
+                ty.TryEntityNoAlias
                 |> ValueOption.bind (fun ent -> ent.TryClosureInvoke : IFunctionSymbol voption)
                 |> ValueOption.map (fun x -> x.ReturnType)
                 |> ValueOption.defaultValue ty
@@ -531,7 +580,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | SetField _
         | SetProperty _
         | EntityDefinition _ -> TypeSymbol.Unit
-        | Unit _ -> TypeSymbolRealUnit
+        | Unit _ -> TypeSymbol.RealUnit
         | Lambda(cachedLambdaTy=cachedLambdaTy) -> cachedLambdaTy.Type
         | None _ -> TypeSymbol.Unit
         | Error _
@@ -570,7 +619,7 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                 action expr
         f this
 
-    member this.RewriteReturningTargetExpression(rewrite) =
+    member inline this.RewriteReturningTargetExpression([<InlineIfLambda>] rewrite) =
         let rec f (expr: BoundExpression) =
             match expr with
             | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
@@ -640,41 +689,54 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         f this
         fields.ToImmutable()
 
-    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
-        let syntaxTree = expr1.Syntax.Tree
-        if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-            failwith "Syntax trees do not match."
-
+    static member CreateSequential(syntaxNode, benv, expr1: BoundExpression, expr2: BoundExpression, semantic) =
         BoundExpression.Sequential(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.User(syntaxNode, benv),
             expr1,
             expr2,
             semantic
         )
 
-    static member CreateSequential(expr1: BoundExpression, expr2: BoundExpression) =
-        BoundExpression.CreateSequential(expr1, expr2, NormalSequential)
+    static member CreateSequential(syntaxNode, benv, exprs: _ seq, semantic) =
+        BoundExpression.CreateSequential(BoundSyntaxInfo.User(syntaxNode, benv), exprs, semantic)
+
+    static member CreateGeneratedSequential(expr1: BoundExpression, expr2: BoundExpression, semantic) =
+        let syntaxTree = expr1.Syntax.Tree
+        if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
+            failwith "Syntax trees do not match."
+
+        BoundExpression.Sequential(
+            BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
+            expr1,
+            expr2,
+            semantic
+        )
+
+    static member CreateGeneratedSequential(expr1: BoundExpression, expr2: BoundExpression) =
+        BoundExpression.CreateGeneratedSequential(expr1, expr2, NormalSequential)
 
     static member CreateEntityDefinition(syntaxInfo, bodyExpr, ent: EntityDefinitionSymbol) =
         OlyAssert.True(ent.IsFormal)
         BoundExpression.EntityDefinition(syntaxInfo, bodyExpr, ent)
 
-    static member CreateSequential(exprs: BoundExpression seq, expr: BoundExpression) =
+    static member CreateGeneratedSequential(exprs: BoundExpression seq, expr: BoundExpression) =
         let exprs = exprs |> ImArray.ofSeq
         if exprs.IsEmpty then
             expr
         else
             let syntaxTree = expr.Syntax.Tree
-            BoundExpression.CreateSequential(syntaxTree, exprs.Add(expr))
+            BoundExpression.CreateGeneratedSequential(syntaxTree, exprs.Add(expr))
 
-    static member CreateSequential(syntaxTree, exprs: _ seq) =
+    static member CreateGeneratedSequential(syntaxTree: OlySyntaxTree, exprs: _ seq) =
+        BoundExpression.CreateSequential(BoundSyntaxInfo.Generated(syntaxTree.DummyNode), exprs)
+
+    static member CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq) =
         let exprs = exprs |> ImArray.ofSeq
         if exprs.IsEmpty then
-            BoundExpression.None(BoundSyntaxInfo.Generated(syntaxTree))
+            BoundExpression.None(syntaxInfo)
         elif exprs.Length = 1 then
             exprs.[0]
         else
-            let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
             let rec loop i =
                 let j = i + 1
                 let expr1 = exprs.[i]
@@ -703,8 +765,8 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
                         )
             loop 0
 
-    static member CreateSequential(syntaxTree, exprs: _ seq, semantic) =
-        let expr = BoundExpression.CreateSequential(syntaxTree, exprs)
+    static member private CreateSequential(syntaxInfo: BoundSyntaxInfo, exprs: _ seq, semantic) =
+        let expr = BoundExpression.CreateSequential(syntaxInfo, exprs)
         match expr with
         | BoundExpression.Sequential(syntaxInfo, expr1, expr2, semantic2) ->
             if semantic2 = semantic then
@@ -714,11 +776,11 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
         | _ ->
             expr
 
-    static member CreateLiteral(syntaxTree, literal) =
-        BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), literal)
+    static member CreateGeneratedLiteral(syntaxNode, literal) =
+        BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxNode), literal)
 
-    static member CreateFunctionDefinition(func: FunctionSymbol, rhsExpr: BoundExpression) =
-        let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    static member CreateGeneratedFunctionDefinition(func: FunctionSymbol, rhsExpr: BoundExpression) =
+        let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
         BoundExpression.MemberDefinition(
             syntaxInfo,
             BoundBinding.Implementation(
@@ -728,16 +790,16 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             )
         )
 
-    static member CreateValue(syntaxTree, value: IValueSymbol) =
-        BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxTree), value)
+    static member CreateGeneratedValue(syntaxNode: OlySyntaxNode, value: IValueSymbol) =
+        BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxNode), value)
 
-    static member CreateValue(syntaxInfo, value: IValueSymbol) =
+    static member CreateValue(syntaxInfo: BoundSyntaxInfo, value: IValueSymbol) =
         BoundExpression.Value(syntaxInfo, value)
 
-    static member CreateSetValue(value: IValueSymbol, rhsExpr: BoundExpression) =
+    static member CreateGeneratedSetValue(value: IValueSymbol, rhsExpr: BoundExpression) =
         if not value.IsMutable then
             failwith "Value must be mutable."
-        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree), value, rhsExpr)
+        BoundExpression.SetValue(BoundSyntaxInfo.Generated(rhsExpr.Syntax), value, rhsExpr)
 
     member this.ToDebugString() =
         let text = this.Syntax.GetText(CancellationToken.None).ToString()
@@ -747,19 +809,19 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
             text
 
     static member CreateLambda(syntax: OlySyntaxExpression, benv, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntax.Tree)
+        let lazyExprTy = LazyExpressionType(syntax)
         let expr = BoundExpression.Lambda(BoundSyntaxInfo.User(syntax, benv), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
 
-    static member CreateLambda(syntaxTree, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntaxTree)
-        let expr = BoundExpression.Lambda(BoundSyntaxInfo.Generated(syntaxTree), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
+    static member CreateGeneratedLambda(syntaxNode: OlySyntaxNode, lambdaFlags, tyPars, parValues, body) =
+        let lazyExprTy = LazyExpressionType(syntaxNode)
+        let expr = BoundExpression.Lambda(BoundSyntaxInfo.Generated(syntaxNode), lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
 
     static member CreateLambda(syntaxInfo: BoundSyntaxInfo, lambdaFlags, tyPars, parValues, body) =
-        let lazyExprTy = LazyExpressionType(syntaxInfo.Syntax.Tree)
+        let lazyExprTy = LazyExpressionType(syntaxInfo.Syntax)
         let expr = BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, body, lazyExprTy, ref ValueNone, ref ValueNone)
         lazyExprTy.Expression <- expr
         expr
@@ -767,6 +829,10 @@ and [<RequireQualifiedAccess;NoComparison;ReferenceEquality;DebuggerDisplay("{To
     interface IBoundNode with
 
         member this.Syntax = this.Syntax
+
+        member this.IsExpression = true
+
+        member this.TryGetEnvironment() = this.TryEnvironment
 
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundCasePattern =
@@ -818,6 +884,10 @@ type BoundCasePattern =
 
         member this.Syntax = this.Syntax
 
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() = None
+
 [<ReferenceEquality;NoComparison;RequireQualifiedAccess>]
 type BoundMatchPattern =
     | Cases of OlySyntaxNode * casePats: BoundCasePattern imarray
@@ -865,46 +935,104 @@ type BoundRoot =
 
         member this.Syntax = this.Syntax
 
+        member this.IsExpression = false
+
+        member this.TryGetEnvironment() =
+            match this with
+            | Namespace(benv=benv)
+            | Global(benv=benv) -> Some(benv)
+
 [<Sealed>]
 type BoundDeclarationTable private (
     valueDecls: ImmutableDictionary<IValueSymbol, OlySourceLocation>, 
     entDecls: ImmutableDictionary<EntitySymbol, OlySourceLocation>, 
-    tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>) =
+    tyParDecls: ImmutableDictionary<TypeParameterSymbol, OlySourceLocation>,
+    anonTyExtDecls: ImmutableDictionary<TypeSymbol, (BoundEnvironment * ImmutableHashSet<TypeSymbol> * ImmutableHashSet<EntitySymbol> * OlySourceLocation)>) =
 
     member _.ValueDeclarations = valueDecls
     member _.EntityDeclarations = entDecls
     member _.TypeParameterDeclarations = tyParDecls
+    member _.AnonymousTypeExtensionDeclarations = anonTyExtDecls
 
     member this.SetValueDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls.SetItem(key, value),
             entDecls,
-            tyParDecls
+            tyParDecls,
+            anonTyExtDecls
         )
 
     member this.SetEntityDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls,
             entDecls.SetItem(key, value),
-            tyParDecls
+            tyParDecls,
+            anonTyExtDecls
         )
 
     member this.SetTypeParameterDeclaration(key, value) =
         BoundDeclarationTable(
             valueDecls,
             entDecls,
-            tyParDecls.SetItem(key, value)
+            tyParDecls.SetItem(key, value),
+            anonTyExtDecls
         )
+
+    member this.SetAnonymousTypeExtensionDeclaration(key: EntitySymbol, benv, value) =
+        OlyAssert.True(key.IsTypeExtension)
+        OlyAssert.True(key.IsAnonymous)
+        OlyAssert.True(key.Extends.Length = 1)
+        OlyAssert.False(key.Implements.IsEmpty)
+        let extendsTy = key.Extends[0]
+        let implTys = ImmutableHashSet.CreateRange(SymbolComparers.TypeSymbolGeneralizedComparer(), key.AllTypeExtensionLogicalImplements)
+        match anonTyExtDecls.TryGetValue extendsTy with
+        | false, _ ->
+            let tyExts = ImmutableHashSet.Create(SymbolComparers.EntitySymbolGeneralizedComparer(), key)
+            true, tyExts, ImmutableHashSet.Empty, BoundDeclarationTable(
+                valueDecls,
+                entDecls,
+                tyParDecls,
+                anonTyExtDecls.SetItem(extendsTy, (benv, implTys, tyExts, value))
+            )
+        | true, (_, implTys2, tyExts, srcLoc) ->
+            let intersectedImplTys = implTys.Intersect(implTys2)
+            if intersectedImplTys.Count > 0 then
+                false, tyExts, intersectedImplTys, this
+            else
+                true, tyExts, ImmutableHashSet.Empty, BoundDeclarationTable(
+                    valueDecls,
+                    entDecls,
+                    tyParDecls,
+                    anonTyExtDecls.SetItem(extendsTy, (benv, implTys2.Union(implTys), tyExts.Add(key), srcLoc))
+                )
+
+    member this.TryGetAnonymousTypeExtensionDeclaration(key: EntitySymbol) =
+        OlyAssert.True(key.IsTypeExtension)
+        OlyAssert.True(key.IsAnonymous)
+        OlyAssert.True(key.Extends.Length = 1)
+        OlyAssert.False(key.Implements.IsEmpty)
+        let extendsTy = key.Extends[0]
+        let implTys = ImmutableHashSet.CreateRange(SymbolComparers.TypeSymbolGeneralizedComparer(), key.AllTypeExtensionLogicalImplements)
+        match anonTyExtDecls.TryGetValue(extendsTy) with
+        | true, (benv, implTys2, existingEnts, srcLoc) ->
+            let intersectedImplTys = implTys.Intersect(implTys2)
+            if intersectedImplTys.Count > 0 then
+                Some(benv, existingEnts, intersectedImplTys, srcLoc)
+            else
+                None
+        | _ -> 
+            None
 
     new() =
         BoundDeclarationTable(
             ImmutableDictionary.Create(SymbolComparers.SimilarValueSymbolComparer()), 
             ImmutableDictionary.Create(SymbolComparers.SimilarEntitySymbolComparer()),
-            ImmutableDictionary.Create(SymbolComparers.TypeParameterSymbolComparer())
+            ImmutableDictionary.Create(SymbolComparers.TypeParameterSymbolComparer()),
+            ImmutableDictionary.Create(SymbolComparers.TypeSymbolGeneralizedComparer())
         )
 
 [<Sealed>]
-type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot, diags: OlyDiagnostic imarray) =
+type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree: OlySyntaxTree, root: BoundRoot, rootSymbol: EntitySymbol, diags: OlyDiagnostic imarray) =
 
     member _.Assembly = asm
 
@@ -921,18 +1049,20 @@ type BoundTree(asm: AssemblySymbol, declTable: BoundDeclarationTable, syntaxTree
         | BoundRoot.Namespace(benv=benv)
         | BoundRoot.Global(benv=benv) -> benv
 
+    member _.RootSymbol = rootSymbol
+
     member _.DeclarationTable = declTable
 
     member _.UpdateRoot(root) =
-        BoundTree(asm, declTable, syntaxTree, root, diags)
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, diags)
 
     member _.Diagnostics = diags
 
     member _.AppendDiagnostics(newDiags: OlyDiagnostic imarray) =
-        BoundTree(asm, declTable, syntaxTree, root, diags.AddRange(newDiags))
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, diags.AddRange(newDiags))
 
     member _.PrependDiagnostics(newDiags: OlyDiagnostic imarray) =
-        BoundTree(asm, declTable, syntaxTree, root, newDiags.AddRange(diags))
+        BoundTree(asm, declTable, syntaxTree, root, rootSymbol, newDiags.AddRange(diags))
 
 [<Struct;NoEquality;NoComparison>]
 type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =
@@ -940,107 +1070,9 @@ type ArgumentInfo(ty: TypeSymbol, syntax: OlySyntaxNode) =
     member _.Type = ty
     member _.Syntax = syntax
 
-let freshenTypeAux (benv: BoundEnvironment) isStrict (tyPars: ImmutableArray<TypeParameterSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty (cache: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) : TypeSymbol =
-    let tyArgOffset = tyPars.Length - explicitTyArgs.Length
-    if tyArgOffset < 0 then
-        failwith "Internal error: Invalid tyArgOffset, must be greater than or equal to zero."
-
-    let rec freshen (tys: System.Collections.Generic.Dictionary<TypeParameterSymbol, TypeSymbol>) (explicitTyArgs: TypeArgumentSymbol imarray) ty =
-
-        match benv.TypeParameterExists ty with
-        | true -> ty
-        | _ ->
-
-        match stripTypeEquations ty with
-        | TypeSymbol.Function(inputTy, returnTy, kind) ->
-            TypeSymbol.Function(
-                freshen tys explicitTyArgs inputTy,
-                freshen tys explicitTyArgs returnTy,
-                kind
-            )
-
-        | TypeSymbol.ForAll(tyPars, innerTy) ->
-            tyPars
-            |> ImArray.iter (fun tyPar ->
-                tys[tyPar] <- tyPar.AsType
-            )
-            TypeSymbol.ForAll(
-                tyPars,
-                freshen tys explicitTyArgs innerTy
-            )
-
-        | TypeSymbol.Variable(tyPar) ->   
-            match tys.TryGetValue tyPar with
-            | true, inferenceTy -> inferenceTy
-            | _ ->
-                let ty = 
-                    match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
-                    | Some ty -> ty
-                    | _ -> 
-                        if isStrict then
-                            mkStrictInferenceVariableType (Some tyPar)
-                        else
-                            mkInferenceVariableType (Some tyPar)
-                tys.Add(tyPar, ty)
-                ty
-
-        | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-            let inferenceTy =
-                match tys.TryGetValue tyPar with
-                | true, inferenceTy -> inferenceTy
-                | _ ->
-                    let ty = 
-                        match explicitTyArgs |> Seq.tryItem (tyPar.Index - tyArgOffset) with
-                        | Some ty -> ty
-                        | _ -> 
-                            if isStrict then
-                                mkStrictInferenceVariableType (Some tyPar)
-                            else
-                                mkInferenceVariableType (Some tyPar)
-                    tys.Add(tyPar, ty)
-                    ty
-            applyType inferenceTy (tyArgs |> ImArray.map (freshen tys explicitTyArgs))
-
-        | TypeSymbol.Tuple(tyArgs, names) ->
-            TypeSymbol.Tuple(tyArgs |> ImArray.map (fun x -> freshen tys explicitTyArgs x), names)
-
-        | TypeSymbol.Array(elementTy, rank, kind) ->
-            TypeSymbol.Array(freshen tys explicitTyArgs elementTy, rank, kind)
-
-        | TypeSymbol.Entity(ent) when not (ent.IsTypeConstructor) ->
-            let enclosingTyInst =
-                match benv.senv.enclosingTyInst.TryGetValue ent.Formal.Id with
-                | true, enclosingTyInst -> enclosingTyInst
-                | _ -> ImArray.empty
-            let tyArgs =
-                ent.TypeArguments
-                |> Seq.skip enclosingTyInst.Length
-                |> Seq.map (freshen tys explicitTyArgs)
-            TypeSymbol.Entity(applyEntity (enclosingTyInst.AddRange(tyArgs)) ent.Formal)
-
-        | TypeSymbol.ByRef(innerTy, kind) ->
-            TypeSymbol.CreateByRef(freshen tys explicitTyArgs innerTy, kind)
-
-        | _ ->
-            ty
-        
-    // We do this specifically for inference variables as we want to maintain the type parameter.
-    match ty with
-    | TypeSymbol.InferenceVariable(Some tyPar, varSolution) when varSolution.HasSolution ->
-        let ty = (freshen cache explicitTyArgs varSolution.Solution)
-        if ty.HasImmediateStrictInferenceVariableTypeParameter then
-            mkSolvedStrictInferenceVariableType tyPar ty
-        else
-            mkSolvedInferenceVariableType tyPar ty
-    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, varSolution) when varSolution.HasSolution ->
-        let newTyArgs = tyArgs |> ImArray.map (fun tyArg -> freshen cache explicitTyArgs tyArg)
-        mkSolvedHigherInferenceVariableType tyPar newTyArgs (freshen cache explicitTyArgs varSolution.Solution)
-    | _ ->
-        freshen cache explicitTyArgs ty
-
-let freshenType benv (tyPars: TypeParameterSymbol imarray) (explicitTyInst: TypeSymbol imarray) ty =
+let freshenType (benv: BoundEnvironment) (tyPars: TypeParameterSymbol imarray) (explicitTyInst: TypeSymbol imarray) ty =
     let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
-    freshenTypeAux benv false tyPars explicitTyInst ty cache
+    freshenTypeAux benv.TypeParameterExists benv.senv.enclosingTyInst tyPars explicitTyInst ty cache
 
 let rec tryExpressionValue (expression: BoundExpression) =
     match expression with
@@ -1075,6 +1107,7 @@ let invalidLocalBinding name =
               member this.IsBase = false
               member this.IsField = false
               member this.IsFunction = false
+              member this.IsFunctionGroup = false
               member this.IsPattern = false
               member this.IsProperty = false
               member this.IsThis = false
@@ -1091,446 +1124,48 @@ let invalidLocalBinding name =
 
 // ** Queries
 
-type QueryMemberFlags =
-    | StaticOrInstance =          0x00000
-    | Static =                    0x00001
-    | Instance =                  0x00010
-    | Overridable =               0x00100
-
-    /// This will by-pass any accessor logic.
-    | InstanceFunctionOverrides = 0x01010
-    // TODO: Add StaticInstanceFunctionOverrides
-
-    | PatternFunction =           0x10001
-
 [<AutoOpen>]
 module EntitySymbolExtensions =
 
     type EntitySymbol with
 
         member this.ExtendsAndImplementsForMemberOverriding =
-            // TODO: If we make newtypes not extend anything, then this should not be needed.
-            if this.IsNewtype then
-                ImArray.empty
-            elif this.IsTypeExtension then
+            if this.IsTypeExtension then
                 this.Implements
             elif this.IsInterface then
                 this.Extends
             else
                 this.Extends.AddRange(this.Implements)
 
-let findIntrinsicTypeIfPossible (benv: BoundEnvironment) (ty: TypeSymbol) =
-    match benv.TryFindIntrinsicTypeByAliasType(ty) with
-    | ValueSome intrinsicTy ->
-        match benv.TryFindEntityByIntrinsicType(intrinsicTy) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
-    | _ ->
-        match benv.TryFindEntityByIntrinsicType(ty) with
-        | ValueSome ent -> ent.AsType
-        | _ -> ty
-
-let findIntrinsicAndExtrinsicInheritsAndImplementsOfType (benv: BoundEnvironment) (ty: TypeSymbol) =
-    match stripTypeEquations ty with
-    | TypeSymbol.Variable(tyPar)
-    | TypeSymbol.HigherVariable(tyPar, _)
-    | TypeSymbol.InferenceVariable(Some tyPar, _)
-    | TypeSymbol.HigherInferenceVariable(Some tyPar, _, _, _) ->
-        tyPar.Constraints
-        |> ImArray.choose (fun x -> 
-            match x.TryGetAnySubtypeOf() with
-            | ValueSome constrTy -> Some constrTy
-            | _ -> None
-        )
-    | ty ->
-        let intrinsic = ty.AllLogicalInheritsAndImplements
-        match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-        | ValueSome (tyExts) ->
-            let extrinsic =
-                tyExts.Values
-                |> Seq.collect (fun x ->
-                    x.Values
-                    |> Seq.collect (fun x ->
-                        if x.IsTypeExtension then
-                            x.Implements
-                        else
-                            ImArray.empty
-                    )
-                )
-
-            Seq.append intrinsic extrinsic
-            |> ImArray.ofSeq
-        | _ ->
-            intrinsic
-
-let filterFields (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (fields: IFieldSymbol seq) =
-    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
-    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
-    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
-    fields
-    |> Seq.filter (fun field -> 
-        (if isStatic = isInstance then true else field.IsInstance = isInstance) &&
-        (if isOverridable then field.IsOverridable = true else true) &&
-        (field.ValueFlags &&& valueFlags = valueFlags) &&
-        (
-            match nameOpt with
-            | None -> true
-            | Some(name) -> name = field.Name
-        ))
-
-let filterProperties (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (props: IPropertySymbol seq) =
-    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
-    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
-    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
-    props
-    |> Seq.filter (fun prop -> 
-        (if isStatic = isInstance then true else prop.IsInstance = isInstance) &&
-        (if isOverridable then prop.IsOverridable = true else true) &&
-        (prop.ValueFlags &&& valueFlags = valueFlags) &&
-        (
-            match nameOpt with
-            | None -> true
-            | Some(name) -> name = prop.Name
-        ))
-
-let filterFunctions (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (funcs: IFunctionSymbol seq) =
-    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
-    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
-    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
-    let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
-    funcs
-    |> Seq.filter (fun func ->
-        let func =
-            if canCheckOverrides then
-                match func.FunctionOverrides with
-                | Some func -> func
-                | _ -> func
-            else
-                func
-            
-        (if isStatic = isInstance then true else func.IsInstance = isInstance) &&
-        (if isOverridable then func.IsOverridable = true else true) &&
-        (func.FunctionFlags &&& funcFlags = funcFlags) &&
-        (
-            match nameOpt with
-            | None -> true
-            | Some(name) -> 
-                if func.IsConstructor then
-                    name = func.Enclosing.AsEntity.Name
-                else
-                    name = func.Name
-        ))
-
-[<RequireQualifiedAccess>]
-type QueryProperty =
-    | Intrinsic
-    | IntrinsicAndExtrinsic
-
-let canAccessEntity (ac: AccessorContext) (ent: EntitySymbol) =
-    if ent.IsPublic then true
-    elif ent.IsInternal then
-        // TODO: There a way to make this a faster check?
-        match ac.Entity with
-        | Some ent1 ->
-            match ent1.ContainingAssembly, ent.ContainingAssembly with
-            | Some asm1, Some asm2 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
-            | _ ->
-                false
-        | _ -> 
-            true
-    else
-        match ac.Entity, ent.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> 
-            areEntitiesEqual ent1 ent2
-        | _ -> 
-            false
-
-let filterEntitiesByAccessibility ac (ents: EntitySymbol seq) =
-    ents
-    |> Seq.filter (canAccessEntity ac)
-
-let canAccessValue (ac: AccessorContext) (value: IValueSymbol) =
-    if value.IsPublic then true
-    elif value.IsInternal then
-        // TODO: There a way to make this a faster check?
-        match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 when not ent2.IsNamespace ->
-            match ent1.ContainingAssembly, ent2.ContainingAssembly with
-            | Some asm1, Some asm2 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(asm2.Identity)
-            | _ ->
-                false
-        | _, Some ent1 ->
-            match ent1.ContainingAssembly with
-            | Some asm1 ->
-                (asm1.Identity :> IEquatable<Oly.Metadata.OlyILAssemblyIdentity>).Equals(ac.AssemblyIdentity)
-            | _ ->
-                false
-        | _ -> 
-            false
-    elif value.IsProtected then
-        match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> subsumesType ent1.AsType ent2.AsType || subsumesType ent2.AsType ent1.AsType
-        | _ -> false
-    else
-        match ac.Entity, value.Enclosing.TryEntity with
-        | Some ent1, Some ent2 -> areEntitiesEqual ent1 ent2
-        | _ -> false
-
-let filterValuesByAccessibility<'T when 'T :> IValueSymbol> ac (queryMemberFlags: QueryMemberFlags) (values: 'T seq) =
-    let isInstance = queryMemberFlags &&& QueryMemberFlags.Instance = QueryMemberFlags.Instance
-    let isStatic = queryMemberFlags &&& QueryMemberFlags.Static = QueryMemberFlags.Static
-    let isOverridable = queryMemberFlags &&& QueryMemberFlags.Overridable = QueryMemberFlags.Overridable
-    let canCheckOverrides = queryMemberFlags &&& QueryMemberFlags.InstanceFunctionOverrides = QueryMemberFlags.InstanceFunctionOverrides
-
-    let values =
-        values
-        |> Seq.filter (fun value ->
-            (if isStatic = isInstance then true else value.IsInstance = isInstance) &&
-            (if isOverridable then value.IsOverridable = true else true)
-        )
-
-    // We are querying for functions that override, we must include private functions in this case.
-    if canCheckOverrides then 
-        values
-    else
-        values
-        |> Seq.filter (canAccessValue ac)
-
-let findImmediateFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) =
-    let isPatternFunction = queryMemberFlags &&& QueryMemberFlags.PatternFunction = QueryMemberFlags.PatternFunction
-    let funcs =
-        if isPatternFunction then
-            ent.Patterns
-            |> ImArray.map (fun x -> x.PatternFunction)     
-        else
-            ent.Functions
-    filterFunctions queryMemberFlags funcFlags nameOpt funcs
-    |> filterValuesByAccessibility benv.ac queryMemberFlags
-
-// Finds the most specific functions of an entity
-let rec findMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (funcFlags: FunctionFlags) (nameOpt: string option) (ent: EntitySymbol) : IFunctionSymbol imarray =
-    let funcs = findImmediateFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent |> ImArray.ofSeq
-
-    let overridenFuncs =
-        funcs
-        |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
-
-    let inheritedFuncs =
-        // TODO: If we make newtypes not extend anything, then this should not be needed.
-        if ent.IsNewtype then Seq.empty
-        else
-            let inheritedFuncs = ImArray.builder()
-
-            ent.Extends
-            |> ImArray.iter (fun x ->
-                inheritedFuncs.AddRange(findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt x)
-            )
-
-            inheritedFuncs.ToImmutable()
-            |> ImArray.filter (fun (x: IFunctionSymbol) -> 
-                not x.IsConstructor &&
-                let isOverriden =
-                    overridenFuncs
-                    |> ImArray.exists (fun y ->
-                        x.IsVirtual && areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
-                    )
-                not isOverriden
-            )
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-
-    let nestedCtors =
-        if (queryMemberFlags &&& QueryMemberFlags.Instance <> QueryMemberFlags.Instance) then
-            ent.Entities
-            |> Seq.map (fun ent -> 
-                findMostSpecificIntrinsicFunctionsOfEntity benv (queryMemberFlags ||| QueryMemberFlags.Instance) (funcFlags ||| FunctionFlags.Constructor) nameOpt ent)
-            |> Seq.concat
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-        else
-            Seq.empty
-
-    let funcs = Seq.append funcs inheritedFuncs
-    let funcs = Seq.append funcs nestedCtors |> ImArray.ofSeq
-
-    // Most specific functions
-    funcs
-    |> filterMostSpecificFunctions
-
-and findMostSpecificIntrinsicFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) : _ imarray =
-    let ty = findIntrinsicTypeIfPossible benv ty
-    match stripTypeEquations ty with
-    | TypeSymbol.Entity(ent) ->
-        findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags nameOpt ent
-
-    | TypeSymbol.Variable(tyPar)
-    | TypeSymbol.InferenceVariable(Some tyPar, _) ->
-        OlyAssert.False(tyPar.HasArity)
-
-        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
-        |> filterFunctions queryMemberFlags funcFlags nameOpt
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-        |> ImArray.ofSeq
-
-    | TypeSymbol.HigherVariable(tyPar, tyArgs)
-    | TypeSymbol.HigherInferenceVariable(Some tyPar, tyArgs, _, _) ->
-        OlyAssert.True(tyPar.HasArity)
-
-        findMostSpecificIntrinsicFunctionsOfTypeParameter tyPar
-        |> filterFunctions queryMemberFlags funcFlags nameOpt
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-        |> Seq.map (fun func ->
-            if func.IsFormal then
-                if func.Enclosing.TypeParameterCount = 0 then
-                    func
-                else
-                    let enclosing =
-                        func.Enclosing
-                        |> applyEnclosing tyArgs
-                    actualFunction enclosing (enclosing.TypeArguments.AddRange(func.TypeArguments)) func
-            else
-                func
-        )
-        |> ImArray.ofSeq
-
-    | _ ->
-        ImArray.empty
-
-let findExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (ty: TypeSymbol) =
-    let find ty =
-        match benv.senv.typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn ty) with
-        | ValueSome(exts) ->
-            exts.Values
-            |> Seq.choose (fun extMember ->
-                match extMember with
-                | ExtensionMemberSymbol.Function(func) -> 
-                    OlyAssert.False(func.Enclosing.AsType.Inherits[0].IsAliasAndNotCompilerIntrinsic)    
-                    func.NewSubstituteExtension(ty.TypeArguments)
-                    |> Some
-                | ExtensionMemberSymbol.Property _ ->
-                    // TODO: Handle properties.
-                    None
-            )
-            |> filterFunctions queryMemberFlags funcFlags nameOpt
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-        | _ ->
-            Seq.empty
-
-    let results = find ty
-    if Seq.isEmpty results then
-        // Filter most specific extended types
-        ty.AllLogicalInheritsAndImplements
-        |> Seq.map find
-        |> Seq.concat
-    else
-        results
-
-    |> ImArray.ofSeq
-    |> filterMostSpecificFunctions
-
-let findMostSpecificInterfaceExtensionMembersOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) ty =
-    match tryFindTypeExtensions benv ty with
-    | ValueSome(tyExts) ->
-        tyExts
-        |> ImArray.map (fun tyExt ->
-            if tyExt.IsFormal && not ty.IsFormal then
-                tyExt.SubstituteExtension(ty.TypeArguments)
-            else
-                tyExt
-        )
-        |> Seq.collect (fun tyExt ->
-            tyExt.Functions
-            |> filterFunctions queryMemberFlags funcFlags nameOpt
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-        )
-        |> ImArray.ofSeq
-        |> filterMostSpecificFunctions
-    | _ ->
-        ImArray.empty
-
-let findAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty =
-    let extMembers = findExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
-    let extInterfaceMembers = 
-        findMostSpecificInterfaceExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
-    ImArray.append extMembers extInterfaceMembers
-    |> filterMostSpecificFunctions
-
-let combineConcreteAndExtensionMembers (concreteMembers: #IValueSymbol seq) (extMembers: #IValueSymbol seq) : #IValueSymbol imarray =
-    let filteredExtMembers =
-        // Concrete members take precedent.
-        extMembers
-        |> Seq.filter (fun extMember ->
-#if DEBUG || CHECKED
-            OlyAssert.True(extMember.Enclosing.IsTypeExtension)
-#endif
-            let concreteMemberExists =
-                concreteMembers
-                |> Seq.exists (fun concreteMember ->
-#if DEBUG || CHECKED
-                    OlyAssert.False(concreteMember.Enclosing.IsTypeExtension)
-#endif
-                    areValueSignaturesEqual concreteMember extMember
-                )
-            not concreteMemberExists
-        )
-
-    Seq.append concreteMembers filteredExtMembers
-    |> ImArray.ofSeq
-
-[<RequireQualifiedAccess>]
-type QueryFunction =
-    /// Query for members that are only directly on the type.
-    | Intrinsic
-    /// Query for members that are directly on the type and its extension members that are in scope.
-    | IntrinsicAndExtrinsic
-
-let findMostSpecificFunctionsOfType (benv: BoundEnvironment) queryMemberFlags funcFlags (nameOpt: string option) (queryFunc: QueryFunction) (ty: TypeSymbol) =
-    let intrinsicFuncs = findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags nameOpt ty
-
-    let extrinsicFuncs =
-        match queryFunc with
-        | QueryFunction.IntrinsicAndExtrinsic ->
-            findAllExtensionMembersOfType benv queryMemberFlags funcFlags nameOpt ty
-        | _ ->
-            ImArray.empty
-
-    combineConcreteAndExtensionMembers intrinsicFuncs extrinsicFuncs
-
 let freshenValue (benv: BoundEnvironment) (value: IValueSymbol) =
-    if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then value
-    else
+    freshenValueAux benv.TypeParameterExists benv.senv.enclosingTyInst value
 
-    match value with
-    | :? LocalSymbol
-    | :? IFieldSymbol -> value
-    | :? IPropertySymbol
-    | :? IFunctionSymbol ->
-        let isStrict = value.HasStrictInference
-        let cache = Dictionary<TypeParameterSymbol, TypeSymbol>(TypeParameterSymbolComparer())
-        let tyArgs =
-            let tyPars = benv.GetScopedTypeParameters(value)
-            let tyArgs = benv.GetScopedTypeArguments(value)
-            tyArgs
-            |> ImArray.map (fun ty ->
-                freshenTypeAux benv isStrict tyPars ImArray.empty ty cache
-            )
+let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imarray) (solutionIdReplace: Dictionary<int64, TypeSymbol>) (func: FunctionSymbol) =
+    
+    let rec handleTy ty =
+        match ty with
+        | TypeSymbol.InferenceVariable(_, solution) ->
+            match solutionIdReplace.TryGetValue solution.Id with
+            | true, ty -> ty
+            | _ -> ty
+        | _ ->
+            let ty = stripTypeEquationsExceptAlias ty
+            if ty.TypeArguments.IsEmpty then
+                ty
+            else
+                let tyArgs = ty.TypeArguments |> ImArray.map handleTy
+                applyType ty.Formal tyArgs
+                
+    let pars =
+        func.Parameters
+        |> ImArray.map (fun par ->
+            LocalParameterSymbol(par.Attributes, par.Name, handleTy par.Type, par.IsThis, par.IsBase, par.IsMutable): ILocalParameterSymbol
+        )
+        
+    let returnTy =
+        handleTy func.ReturnType
 
-        let enclosing = 
-            let tyArgsForEnclosing =
-                tyArgs 
-                |> Seq.take value.Enclosing.TypeParameters.Length 
-                |> ImmutableArray.CreateRange
-            applyEnclosing tyArgsForEnclosing value.Enclosing.Formal
-
-        actualValue enclosing tyArgs value.Formal
-    | _ ->
-        if not value.IsInvalid then
-            failwith "Invalid value symbol"
-        value
-
-let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imarray) (func: FunctionSymbol) =
-    let funcTy = TypeSymbol.CreateFunction(tyPars, func.Parameters |> ImArray.map (fun x -> x.Type), func.ReturnType, FunctionKind.Normal)
-    let tyArgs = tyPars |> ImArray.map (fun tyPar -> tyPar.AsType)
+    let funcTy = TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
 
     OlyAssert.False(func.FunctionOverrides.IsSome)
 
@@ -1539,9 +1174,8 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
         func.Attributes,
         func.Name,
         funcTy,
-        func.Parameters,
+        pars,
         tyPars,
-        tyArgs,
         func.MemberFlags,
         func.FunctionFlags,
         func.Semantic,
@@ -1552,7 +1186,7 @@ let createFunctionWithTypeParametersOfFunction (tyPars: TypeParameterSymbol imar
 
 let createLocalDeclarationExpression (rhsExpr: BoundExpression) (bodyExprf: BoundSyntaxInfo -> IValueSymbol -> BoundExpression) =
     let local = createLocalGeneratedValue "local" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),
@@ -1562,7 +1196,7 @@ let createLocalDeclarationExpression (rhsExpr: BoundExpression) (bodyExprf: Boun
 
 let createBridgeLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let bridge = createLocalBridgeValue rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(bridge),
@@ -1572,7 +1206,7 @@ let createBridgeLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
 
 let createLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let local = createLocalGeneratedValue "local" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),
@@ -1582,7 +1216,7 @@ let createLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
 
 let createMutableLocalDeclarationReturnExpression (rhsExpr: BoundExpression) =
     let local = createMutableLocalGeneratedValue "mlocal" rhsExpr.Type
-    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax.Tree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(rhsExpr.Syntax)
     BoundExpression.Let(
         syntaxInfo,
         BindingLocal(local),
@@ -1653,38 +1287,41 @@ let freshWitnesses (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun x -> 
         match x.TryGetAnySubtypeOf() with
-        | ValueSome constrTy ->
-            match constrTy.TryEntity with
-            | ValueSome ent when ent.IsInterface ->
-                WitnessSolution(tyPar, ent, None)
-                |> Some
-            | _ ->
-                None
+        | ValueSome _ ->
+            WitnessSolution(tyPar, x, None)
+            |> Some
         | _ ->
             None
     ) 
 
-let freshWitnessesWithTypeArguments asm (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
+let freshWitnessesWithTypeArguments (tyArgs: TypeArgumentSymbol imarray) (tyPar: TypeParameterSymbol) =
     tyPar.Constraints
     |> ImArray.choose (fun constr -> 
         match constr.TryGetAnySubtypeOf() with
-        | ValueSome constrTy ->
-            match constrTy.TryEntity with
-            | ValueSome ent when ent.IsInterface || ent.IsShape ->
-                let ent = ent.Substitute(tyArgs)
-                if ent.IsShape then
-                    ent.Functions
-                    |> ImArray.map (fun func ->
-                        WitnessSolution(tyPar, ent, Some func)
-                    )
-                    |> Some
-                else
-                    WitnessSolution(tyPar, ent, None)
-                    |> ImArray.createOne
-                    |> Some
-            | _ ->
-                None 
+        | ValueSome _ ->
+            let constr = constr.Substitute(tyArgs)
+            let constrTy = constr.TryGetAnySubtypeOf().Value;
+            if constrTy.IsShape_ste then
+                constrTy.Functions
+                |> ImArray.map (fun func ->
+                    WitnessSolution(tyPar, constr, Some func)
+                )
+                |> Some
+            else
+                WitnessSolution(tyPar, constr, None)
+                |> ImArray.createOne
+                |> Some
         | _ ->
             None
     )
     |> ImArray.concat
+
+let createWitnessArguments (value: IValueSymbol) =
+    let witnessArgs =
+        let allTyPars = value.AllTypeParameters
+        let allTyArgs = value.AllTypeArguments 
+        allTyPars
+        |> ImArray.map (freshWitnessesWithTypeArguments allTyArgs)
+        |> ImArray.concat
+
+    witnessArgs

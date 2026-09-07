@@ -11,7 +11,7 @@ let ``Basic reference should compile and run``() =
 module ReferenceTest
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 RefTest(): () = print("from a reference")
         """
@@ -36,7 +36,7 @@ module ReferenceTest
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3>
 
@@ -71,7 +71,7 @@ module ReferenceTest
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3>
         """
@@ -106,7 +106,7 @@ module ReferenceTest
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -148,7 +148,7 @@ module ReferenceTest
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface Add<T1, T2, T3> =
 
@@ -189,7 +189,7 @@ namespace Test
 module TestModule =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     RefTest(): () = print("from a reference")
         """
@@ -215,7 +215,7 @@ namespace Test.Inner
 module TestModule =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     RefTest(): () = print("from a reference")
         """
@@ -239,7 +239,7 @@ let ``Basic module reference should compile and run``() =
 module TestModule
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 RefTest(): () = print("from a reference")
         """
@@ -267,7 +267,7 @@ namespace Test
 module TestModule =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     test(): () =
         let a = A()
@@ -322,7 +322,7 @@ module TestModule =
     (`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     test(): (Item[])[] =
         [[Item()]]
@@ -351,7 +351,7 @@ namespace Test
 module TestModule =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     test(f: () -> ()): () =
         f()
@@ -374,7 +374,7 @@ let ``Basic ambiguity handling of functions across references``() =
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -411,7 +411,7 @@ module Test.A
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -449,7 +449,7 @@ module OlyPrelude
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]

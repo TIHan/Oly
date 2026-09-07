@@ -1,30 +1,117 @@
 ﻿namespace rec Oly.Compiler.Workspace
 
 open Oly.Core
+open Oly.Core.IO
 open Oly.Core.TaskExtensions
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open System
+open System.IO
+open System.IO.MemoryMappedFiles
+open System.Text.Json.Serialization
 open System.Threading
 open System.Threading.Tasks
 open System.Collections.Generic
 open System.Collections.Immutable
+open System.Runtime.CompilerServices
+
+open System.Diagnostics.CodeAnalysis
+
+[<RequireQualifiedAccess>]
+module ERROR =            
+
+    let reportInvalidTarget (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("Invalid target.", 300))
+
+    let reportDirectiveNeedsToBeSpecified (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("'#target' directive needs to be specified.", 301))
+
+    let reportTargetPlatformDoesNotExistInTheWorkspace platformName (location: OlySourceLocation option) (diags: imarrayb<OlyDiagnostic>) =
+        match location with
+        | Some location ->
+            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", 302, location))
+        | _ ->
+            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", 302))
+
+    let reportInvalidTargetFor targetName platformName (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'.", 303))
+
+    let reportReferenceNotValid (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Reference '{path}' is not valid.", 304, location))
+
+    let reportReferenceNotValidWithMessage (msg: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError(msg, 305, location))
+
+    let reportCannotReferenceOlyFiles (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", 306, location))
+
+    let reportProjectDoesNotExist (projPath: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}' as it does not exist in the current workspace.", 307, location))
+
+    let reportProjectHasInternalError (projPath: OlyPath) (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        System.Diagnostics.Debug.WriteLine(ex.Message)
+        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{projPath}'. Internal Error: {ex.Message}", 308, location))
+
+    let reportProjectPropertyNotValid (propertyName: string) (msg: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' is not valid. Reason: {msg}.", 309, location))
+
+    let reportDuplicateProjectProperty propertyName (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Duplicate property '{propertyName}'.", 310, location))
+
+    let reportExpectedProjectPropertyValue (propertyName: string) (expectedText: string) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"Property '{propertyName}' expects {expectedText}.", 311, location))
+
+    let reportProjectFilesCannotBeLoadedOnlyReferenced (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", 312, location))
+
+    let reportFileDoesNotExist (path: OlyPath) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(OlyDiagnostic.CreateError($"'{path}' does not exist.", 313, location))
+
+    let createProjectInternalBuildError (ex: Exception) (location: OlySourceLocation option) =
+        System.Diagnostics.Debug.WriteLine(ex.Message)
+        match location with
+        | Some(location) ->
+            OlyDiagnostic.CreateError($"Project internal build error: {ex.Message}", 313, location)
+        | _ ->
+            OlyDiagnostic.CreateError($"Project internal build error: {ex.Message}", 313)
+
+    let reportProjectInternalBuildError (ex: Exception) (location: OlySourceLocation) (diags: imarrayb<OlyDiagnostic>) =
+        diags.Add(createProjectInternalBuildError ex (Some location))
+
+exception OlyWorkspaceFileDoesNotExist of filePath: OlyPath
+
+type OlyWorkspaceChangedEvent =
+    | DocumentCreated of documentPath: OlyPath
+    | DocumentChanged of documentPath: OlyPath * isInMemory: bool
+    | DocumentDeleted of documentPath: OlyPath
+
+[<Sealed>]
+type OlyProgram(path: OlyPath, run: string[] -> string) =
+
+    member _.Path = path
+    member _.Run(args: string[]) = run(args)
 
 [<AutoOpen>]
 module Helpers =
+    
+    [<Literal>]
+    let SourceFileExtension = ".oly"
 
     [<Literal>]
-    let ProjectExtension = ".olyx"
+    let ProjectFileExtension = ".olyx"
 
     [<Literal>]
-    let CacheDirectoryName = ".olycache"
+    let TargetDirectoryName = ".oly_target"
+    
+    [<Literal>]
+    let ScratchDirectoryName = ".oly_target/scratch"
 
     [<Literal>]
-    let BinDirectoryName = "bin"
+    let CacheDirectoryName = ".oly_target/cache"
 
     [<Literal>]
-    let ProjectConfigurationExtension = ".json"
+    let BinDirectoryName = ".oly_target/bin"
 
     let inline internal getInlineCache (valueCache: byref<'T voption>) (f: unit -> 'T) =
         match valueCache with
@@ -68,9 +155,10 @@ type OlyOutputKind =
     | Executable
 
 [<Sealed>]
-type OlyTargetInfo(name: string, outputKind: OlyOutputKind, implicitExtendsForStructOpt: string option, implicitExtendsForEnumOpt: string option) =
+type OlyTargetInfo(name: string, projConfig: OlyProjectConfiguration, outputKind: OlyOutputKind, implicitExtendsForStructOpt: string option, implicitExtendsForEnumOpt: string option) =
 
     member _.Name = name
+    member _.ProjectConfiguration = projConfig
     member _.OutputKind = outputKind
     member _.IsExecutable = outputKind = OlyOutputKind.Executable
     member _.ImplicitExtendsForStruct = implicitExtendsForStructOpt
@@ -85,46 +173,59 @@ type OlyImportedReference(compRef: OlyCompilationReference, isTransitive: bool) 
 [<AbstractClass>]
 type OlyBuild(platformName: string) =
 
-    let relativeCacheDir = OlyPath.Create($"{CacheDirectoryName}/{platformName}/")
-    let relativeBinDir = OlyPath.Create($"{BinDirectoryName}/{platformName}/")
-
     member _.PlatformName = platformName
-
-    member _.GetAbsoluteCacheDirectory(absolutePath: OlyPath) =
-        if absolutePath.IsFile then
-            let fileName = OlyPath.GetFileName(absolutePath)
-            let dir = OlyPath.GetDirectory(absolutePath)
-            OlyPath.Combine(dir, OlyPath.Combine(relativeCacheDir, fileName + "/"))
+    
+    member _.GetProjectScratchDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
+            let dir = dir.Join(OlyPath.Create($"{ScratchDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
         else
-            OlyPath.Combine(absolutePath, relativeCacheDir)
+            invalidOp "Expected Oly project file"
 
-    member _.GetAbsoluteBinDirectory(absolutePath: OlyPath) =
-        if absolutePath.IsFile then
-            let fileName = OlyPath.GetFileName(absolutePath)
-            let dir = OlyPath.GetDirectory(absolutePath)
-            OlyPath.Combine(dir, OlyPath.Combine(relativeBinDir, fileName + "/"))
+    member _.GetProjectCacheDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
+            let dir = dir.Join(OlyPath.Create($"{CacheDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
         else
-            OlyPath.Combine(absolutePath, relativeBinDir)
+            invalidOp "Expected Oly project file"
+
+    member _.GetProjectBinDirectory(targetInfo: OlyTargetInfo, projectPath: OlyPath) =
+        if projectPath.IsFile && projectPath.HasExtension(ProjectFileExtension) then
+            let fileName = projectPath.GetFileNameWithoutExtension()
+            let dir = projectPath.GetDirectory()
+            let dir = dir.Join(OlyPath.Create($"{BinDirectoryName}/{fileName}/{platformName}/{targetInfo.Name}/{targetInfo.ProjectConfiguration.Name}/")).ToAbsolute()
+            Directory.CreateDirectory(dir.ToString()) |> ignore
+            dir
+        else
+            invalidOp "Expected Oly project file"
 
     abstract IsValidTargetName : targetInfo: OlyTargetInfo -> bool
 
-    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
+    abstract ResolveReferencesAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * referenceInfos: OlyReferenceInfo imarray * packageInfos: OlyPackageInfo imarray * properties: OlyProjectProperties * ct: CancellationToken -> Task<OlyReferenceResolutionInfo>
 
     abstract CanImportReference : path: OlyPath -> bool
 
     abstract ImportReferenceAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * path: OlyPath * ct: CancellationToken -> Task<Result<OlyImportedReference option, string>>
 
-    abstract OnBeforeReferencesImportedAsync : projPath: OlyPath * targetInfo: OlyTargetInfo * ct: CancellationToken -> Task<unit>
-    
-    abstract OnAfterReferencesImported : unit -> unit
+    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<OlyProgram, OlyDiagnostic imarray>>
 
-    abstract BuildProjectAsync : proj: OlyProject * ct: CancellationToken -> Task<Result<string, OlyDiagnostic imarray>>
+    abstract GetProjectPropertyDefinitions: OlyTargetInfo -> ImmutableDictionary<string, OlyProjectPropertyDefinition>
+    default _.GetProjectPropertyDefinitions(_) = ImmutableDictionary.Empty
 
     abstract GetImplicitExtendsForStruct: unit -> string option
     default _.GetImplicitExtendsForStruct() = None
 
     abstract GetImplicitExtendsForEnum: unit -> string option
     default _.GetImplicitExtendsForEnum() = None
+
+    abstract GetAnalyzerDiagnostics : targetInfo: OlyTargetInfo * boundModel: OlyBoundModel * ct: CancellationToken -> OlyDiagnostic imarray
+    default _.GetAnalyzerDiagnostics(_, _, _) = ImArray.empty
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyProjectReference =
@@ -145,14 +246,13 @@ type OlyProjectReference =
     static member CreateNonTransitive(compilationReference) = Compilation(compilationReference, true)
 
 [<Sealed>]
-type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree) =
+type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
 
     let mutable boundModel = ValueNone
-    let mutable extraDiags = ValueNone
     
     member _.Path = documentPath
 
-    member _.Project = newProjectLazy.Value
+    member _.Project : OlyProject = newProjectLazy.Value
 
     member _.SyntaxTree = syntaxTree
 
@@ -163,10 +263,7 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
             this.Project.Compilation.GetBoundModel(documentPath)
         )
 
-    member this.ExtraDiagnostics =
-        getInlineCache &extraDiags (fun () ->
-            this.Project.Compilation.GetExtraDiagnostics(documentPath)
-        )
+    member this.ExtraDiagnostics = extraDiagnostics
 
     member this.GetDiagnostics(ct) =
         let diags1 = syntaxTree.GetDiagnostics(ct)
@@ -174,10 +271,68 @@ type OlyDocument(newProjectLazy: OlyProject Lazy, documentPath: OlyPath, syntaxT
         diags1.AddRange(diags2).AddRange(this.ExtraDiagnostics)
 
     member this.IsProjectDocument =
-        documentPath.HasExtension(ProjectExtension)
+        documentPath.HasExtension(ProjectFileExtension)
+
+    member this.GetAnalyzerDiagnostics(ct) =
+        let project = this.Project
+        let boundModel = this.BoundModel
+        project.SharedBuild.GetAnalyzerDiagnostics(this.Project.TargetInfo, boundModel, ct)
 
 [<Sealed>]
-type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool) =
+type ActiveConfigurationState [<JsonConstructor>] (activeConfiguration: string) =
+
+    member _.ActiveConfiguration = activeConfiguration
+
+[<Sealed>]
+type ProjectConfiguration [<JsonConstructor>] (name: string, defines: string [], debuggable: bool) =
+    member _.Name = name
+    member _.Defines = defines
+    member _.Debuggable = debuggable
+
+[<Sealed>]
+type ProjectConfigurations [<JsonConstructor>] (configurations: ProjectConfiguration []) =
+    static let defaultConfig =
+        ProjectConfigurations(
+            [|
+                ProjectConfiguration("Debug", [|"DEBUG"|], true)
+                ProjectConfiguration("Release", [|"RELEASE"|], false)
+            |]
+        )
+
+    let configurations =
+        if configurations.Length = 0 then
+            defaultConfig.Configurations // If configurations are empty, use default configurations.
+        else
+            configurations
+
+    static member Default = defaultConfig
+
+    member _.Configurations = configurations
+
+    static member Deserialize(stream: System.IO.Stream): ProjectConfigurations =
+        Json.Deserialize<ProjectConfigurations>(stream)
+
+    member _.GetConfiguration(configName: string): OlyProjectConfiguration =
+        let configOpt =
+            configurations
+            |> Array.tryFind (fun x -> (not(String.IsNullOrEmpty(x.Name))) && x.Name.Equals(configName, StringComparison.OrdinalIgnoreCase))
+
+        let config =
+            match configOpt with
+            | None ->
+                match configurations |> Array.tryHead with
+                | Some config -> config
+                | _ -> defaultConfig.Configurations[1] // Default to Release config
+            | Some config ->
+                config
+
+        let name = config.Name
+        let conditionalDefines = config.Defines |> ImArray.ofSeq
+        let isDebuggable = config.Debuggable
+        OlyProjectConfiguration(name, conditionalDefines, isDebuggable, OlyDefaultAccessor.Public)
+
+[<Sealed>]
+type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: bool, defaultAccessor: OlyDefaultAccessor) =
 
     member _.Name = name
 
@@ -185,49 +340,100 @@ type OlyProjectConfiguration(name: string, defines: string imarray, debuggable: 
 
     member _.Debuggable = debuggable
 
+    member _.DefaultAccessor = defaultAccessor
+
+    member this.WithDefaultAccessor(accessorDefault) =
+        OlyProjectConfiguration(name, defines, debuggable, accessorDefault)
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyType =
+    | Bool
+    | String of propertyValues: ImmutableHashSet<string> option
+    | FilePath
+
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyProjectPropertyDefinition =
+    {
+        IsExecutableOnly: bool
+        Type: OlyProjectPropertyType
+    }
+
+[<Sealed>]
+type OlyProjectProperties(propertyDefinitions: ImmutableDictionary<string, OlyProjectPropertyDefinition>, properties: ImmutableDictionary<string, obj>) =
+
+    static let empty = OlyProjectProperties(ImmutableDictionary.Empty, ImmutableDictionary.Empty)
+    static member Empty = empty
+
+    member _.TryGetValue<'T>(propertyName: string): 'T option =
+        match properties.TryGetValue(propertyName) with
+        | true, value ->
+            if isNull value then
+                None
+            else
+                match tryUnbox (downcast value) with
+                | Some(value) ->
+                    Some(value)
+                | _ ->
+                    None
+        | _ ->
+            None
+
+    member _.Definitions = propertyDefinitions
+
 [<Sealed>]
 [<System.Diagnostics.DebuggerDisplay("{Path}")>]
 type OlyProject (
     solution: OlySolution Lazy, 
     projPath: OlyPath,
     projName: string,
-    projConfig: OlyProjectConfiguration,
+    compilationOptions: OlyCompilationOptions,
     compilation: OlyCompilation CacheValue, 
     documents: ImmutableDictionary<OlyPath, OlyDocument>, 
     references: OlyProjectReference imarray,
     packages: OlyPackageInfo imarray,
     copyFileInfos: OlyCopyFileInfo imarray,
+    properties: OlyProjectProperties option,
     platformName: string, 
-    targetInfo: OlyTargetInfo,
-    isInvalidated: bool) =
+    targetInfo: OlyTargetInfo) =
 
     let mutable documentList = ValueNone
+
+    static member internal CreateDocumentLookup(items) =
+        ImmutableDictionary.CreateRange(
+            OlyPathEqualityComparer.Instance,
+            items
+        )
 
     member _.DocumentLookup = documents
     member _.PlatformName = platformName
     member _.TargetInfo = targetInfo
-    member _.SharedBuild =
+    member _.SharedBuild : OlyBuild =
         solution.Value.State.workspace.GetBuild(projPath)
     
     member _.Solution = solution.Value
+    member _.CompilationOptions = compilationOptions
     member _.CompilationLazy = compilation
     member _.Compilation: OlyCompilation = compilation.GetValue(CancellationToken.None)
-    member _.Documents =
+    member _.Documents: OlyDocument imarray =
         getInlineCache &documentList (fun () ->
             documents.Values.ToImmutableArray()
         )
     member _.References = references
     member _.Name = projName
     member _.Path = projPath
-    member _.Configuration = projConfig
+    member _.Configuration = targetInfo.ProjectConfiguration
+    member _.Properties =
+        match properties with
+        | Some properties -> properties
+        | _ -> OlyProjectProperties.Empty
     member _.Packages = packages
     member _.CopyFileInfos = copyFileInfos
-    member _.IsInvalidated = isInvalidated
 
-    member this.Invalidate(newSolutionLazy) =
-         this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None) 
+    member this.InvalidateReferences(newSolutionLazy) =
+        OlyTrace.Log($"[Project] '{projPath.ToString()}' - Invalidating References")
+        this.UpdateReferences(newSolutionLazy, this.References, CancellationToken.None)
 
-    member val AsCompilationReference = OlyCompilationReference.Create(projPath, (fun () -> compilation.GetValue(CancellationToken.None)))
+    member val AsCompilationReference = OlyCompilationReference.Create(projPath, CacheValue(fun ct -> compilation.GetValue(ct)))
 
     member this.TryGetDocument(documentPath: OlyPath) =
         match documents.TryGetValue documentPath with
@@ -243,23 +449,63 @@ type OlyProject (
         this.Documents
         |> ImArray.filter (fun doc -> not(OlyPath.Equals(doc.Path, documentPath)))
 
+    member this.Set(newSolutionLazy: Lazy<OlySolution>, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
+        let mutable newProject = this
+        let newProjectLazy = lazy newProject
+        let newDocuments =
+            documents
+            |> ImArray.map (fun (documentPath, syntaxTree, extraDiagnostics) ->
+                OlyDocument(newProjectLazy, documentPath, syntaxTree, extraDiagnostics)
+            )
+        let syntaxTrees =
+            documents
+            |> ImArray.map (fun (_, syntaxTree, _) -> syntaxTree)
+
+        let newCompilation = 
+            CacheValue(fun ct ->
+                OlyAssert.True(newSolutionLazy.IsValueCreated)
+                ct.ThrowIfCancellationRequested()
+                let solution = newSolutionLazy.Value
+                let transitiveReferences = getTransitiveCompilationReferences solution projectReferences ct
+                OlyCompilation.Create(
+                    projName,
+                    syntaxTrees,
+                    transitiveReferences,
+                    compilationOptions
+                )
+            )
+
+        let newDocuments = 
+            newDocuments
+            |> Seq.map (fun newDocument ->
+                KeyValuePair(newDocument.Path, newDocument)
+            )
+            |> OlyProject.CreateDocumentLookup
+
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
+        newProjectLazy.Force() |> ignore
+        newProject
+
     member this.UpdateDocument(newSolutionLazy, documentPath: OlyPath, syntaxTree: OlySyntaxTree, extraDiagnostics) =
         let mutable newProject = this
         let newProjectLazy = lazy newProject
-        let newDocument = OlyDocument(newProjectLazy, documentPath, syntaxTree)
+        let newDocument = OlyDocument(newProjectLazy, documentPath, syntaxTree, extraDiagnostics)
         let newCompilation = 
-            CacheValue(fun ct ->
-                compilation.GetValue(ct).SetSyntaxTree(newDocument.SyntaxTree).SetExtraDiagnostics(newDocument.Path, extraDiagnostics)
-            )
+            if compilation.HasValue then
+                CacheValue.FromValue(compilation.GetValue(CancellationToken.None).SetSyntaxTree(newDocument.SyntaxTree))
+            else
+                CacheValue(fun ct ->
+                    compilation.GetValue(ct).SetSyntaxTree(newDocument.SyntaxTree)
+                )
 
         let newDocuments = 
             documents.SetItem(documentPath, newDocument).Values
             |> Seq.map (fun document ->
-                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
+                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject, newDocument
 
@@ -278,15 +524,16 @@ type OlyProject (
         let newDocuments = 
             documents.Remove(document.Path).Values
             |> Seq.map (fun document ->
-                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
+                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, references, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, references, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
 
     member this.UpdateReferences(newSolutionLazy: Lazy<OlySolution>, projectReferences: OlyProjectReference imarray, ct) =
+        ct.ThrowIfCancellationRequested()
         let mutable newProject = this
         let newProjectLazy = lazy newProject
         let newCompilation = 
@@ -300,13 +547,73 @@ type OlyProject (
         let newDocuments = 
             documents.Values
             |> Seq.map (fun document ->
-                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
+                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
-        newProject <- OlyProject(newSolutionLazy, projPath, projName, projConfig, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, platformName, targetInfo, false)
+        newProject <- OlyProject(newSolutionLazy, projPath, projName, compilationOptions, newCompilation, newDocuments, projectReferences, packages, copyFileInfos, properties, platformName, targetInfo)
         newProjectLazy.Force() |> ignore
         newProject
+
+    member this.GetDiagnostics(ct: CancellationToken) : OlyDiagnostic imarray =
+        let builder = ImArray.builder()
+        builder.AddRange(this.Compilation.GetDiagnostics(ct))
+        this.Documents
+        |> ImArray.iter (fun doc -> builder.AddRange(doc.ExtraDiagnostics))
+        OlyAssert.True(solution.IsValueCreated)
+        let projs = getTransitiveProjectReferences solution.Value this.References ct
+        projs
+        |> ImArray.iter (fun (proj: OlyProject) ->
+            proj.Documents
+            |> ImArray.iter (fun doc ->
+                builder.AddRange(doc.ExtraDiagnostics)
+            )
+        )
+        builder.ToImmutable()
+
+    member this.GetAnalyzerDiagnostics(ct: CancellationToken) : OlyDiagnostic imarray =
+        let builder = ImArray.builder()
+        this.Documents
+        |> ImArray.iter (fun doc -> builder.AddRange(doc.GetAnalyzerDiagnostics(ct)))
+        OlyAssert.True(solution.IsValueCreated)
+        let projs = getTransitiveProjectReferences solution.Value this.References ct
+        projs
+        |> ImArray.iter (fun (proj: OlyProject) ->
+            proj.Documents
+            |> ImArray.iter (fun doc ->
+                builder.AddRange(doc.GetAnalyzerDiagnostics(ct))
+            )
+        )
+        builder.ToImmutable()
+
+    member this.CouldHaveDocument(documentPath: OlyPath) : bool =
+        if documentPath.HasExtension(".oly") then
+            let syntaxTree = this.Compilation.GetSyntaxTree(this.Path)
+            let unitConfig = syntaxTree.GetCompilationUnitConfiguration(CancellationToken.None)
+            let loads =
+                unitConfig.Loads
+                |> ImArray.map (fun (_, path) ->
+                    if path.IsRooted then
+                        path
+                    else
+                        this.Path.GetDirectory().Join(path)
+                )
+
+            loads
+            |> ImArray.exists (fun x ->
+                match x.TryGetGlob() with
+                | Some(dir, ext) ->
+                    if documentPath.HasExtension(ext) then
+                        OlyPath.Equals(dir, documentPath.GetDirectory())
+                    else
+                        false
+                | _ ->
+                    OlyPath.Equals(x, documentPath)
+            )
+        elif documentPath.HasExtension(".olyx") then
+            OlyPath.Equals(this.Path, documentPath)
+        else
+            false
 
 [<NoEquality;NoComparison>]
 type ProjectChanged =
@@ -328,25 +635,25 @@ module WorkspaceHelpers =
                 |> ImArray.iter (fun r ->
                     ct.ThrowIfCancellationRequested()
                     if not(checkTransitive) || r.IsTransitive then
-                        match r with
-                        | OlyProjectReference.Project(projectId) ->
-                            if h.Add(projectId.ToString()) then
+                        if h.Add(r.Path.ToString()) then
+                            match r with
+                            | OlyProjectReference.Project(projectId) ->
                                 match solution.TryGetProject projectId with
                                 | Some refProj -> 
                                     let compRef = refProj.AsCompilationReference
                                     builder.Add(compRef)
+                                    compRef.TryGetCompilation(ct) |> ignore // force evaluate to get rid of project+solution inside the CacheValue
                                     loop true refProj.References
                                 | _ -> 
-                                    OlyAssert.Fail("Unable to find project.")
-                        | OlyProjectReference.Compilation(r, _) ->
-                            if h.Add(r.Path.ToString()) then
+                                    invalidOp "Unable to find project."
+                            | OlyProjectReference.Compilation(r, _) ->
                                 builder.Add(r)
                 )
             loop false references
             builder.ToImmutable()
         transitiveReferences
 
-    let getTransitiveProjectReferences (solution: OlySolution) references (ct: CancellationToken) =
+    let getTransitiveProjectReferences (solution: OlySolution) (references: OlyProjectReference imarray) (ct: CancellationToken) =
         let transitiveReferences =
             let h = HashSet<string>(StringComparer.OrdinalIgnoreCase)
             let builder = imarray.CreateBuilder()
@@ -383,8 +690,7 @@ module WorkspaceHelpers =
                     | OlyProjectReference.Project(projectId) ->
                         if h.Add(projectId.ToString()) then
                             match solution.TryGetProject projectId with
-                            | Some refProj -> 
-                                let compRef = refProj.AsCompilationReference
+                            | Some refProj ->
                                 builder.AddRange(refProj.Packages)
                                 loop refProj.References
                             | _ -> 
@@ -405,9 +711,9 @@ module WorkspaceHelpers =
     let getReferenceDirectives (syntaxTree: OlySyntaxTree) ct =
         syntaxTree.GetCompilationUnitConfiguration(ct).References
         |> ImArray.map (fun (textSpan, referencePath) ->
-            let dir = OlyPath.GetDirectory(syntaxTree.Path)
+            let dir = syntaxTree.Path.GetDirectory()
             let newReferencePath =
-                OlyPath.Combine(dir, referencePath.ToString())
+                dir.Join(referencePath.ToString())
             (textSpan, newReferencePath)
         )
     
@@ -415,17 +721,26 @@ module WorkspaceHelpers =
             (newSolution: OlySolution Lazy)
             projectId 
             projectName 
-            (projectConfig: OlyProjectConfiguration) 
             (documents: OlyDocument imarray) 
             (projectReferences: OlyProjectReference imarray) 
             (packages: OlyPackageInfo imarray)
             (copyFiles: OlyCopyFileInfo imarray)
+            (properties: OlyProjectProperties option)
             platformName 
             (targetInfo: OlyTargetInfo) =
-        let isDebuggable = projectConfig.Debuggable
+
+        let isDebuggable = targetInfo.ProjectConfiguration.Debuggable
 
         let syntaxTrees = getSyntaxTrees documents
-        let options = { Debuggable = isDebuggable; Parallel = true; Executable = targetInfo.IsExecutable; ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct; ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum }
+        let options = 
+            { 
+                Debuggable = isDebuggable
+                Parallel = true
+                Executable = targetInfo.IsExecutable
+                ImplicitExtendsForStruct = targetInfo.ImplicitExtendsForStruct
+                ImplicitExtendsForEnum = targetInfo.ImplicitExtendsForEnum
+                DefaultAccessor = targetInfo.ProjectConfiguration.DefaultAccessor
+            }
         let compilation = 
             CacheValue(fun ct ->
                 OlyAssert.True(newSolution.IsValueCreated)
@@ -436,25 +751,42 @@ module WorkspaceHelpers =
         let documents =
             documents
             |> ImArray.map (fun x -> KeyValuePair(x.Path, x))
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
-        OlyProject(newSolution, projectId, projectName, projectConfig, compilation, documents, projectReferences, packages, copyFiles, platformName, targetInfo, false)   
+        OlyProject(newSolution, projectId, projectName, options, compilation, documents, projectReferences, packages, copyFiles, properties, platformName, targetInfo)   
 
     let updateProject (newSolutionLazy: OlySolution Lazy) (project: OlyProject) =
+        OlyAssert.False(newSolutionLazy.IsValueCreated)
         let mutable project = project
         let newProjectLazy = lazy project
         let newDocuments = 
             project.DocumentLookup.Values
             |> Seq.map (fun document ->
-                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree))
+                KeyValuePair(document.Path, OlyDocument(newProjectLazy, document.Path, document.SyntaxTree, document.ExtraDiagnostics))
             )
-            |> ImmutableDictionary.CreateRange
+            |> OlyProject.CreateDocumentLookup
 
-        project <- OlyProject(newSolutionLazy, project.Path, project.Name, project.Configuration, project.CompilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, project.PlatformName, project.TargetInfo, project.IsInvalidated)
+        let options = project.CompilationOptions
+        let compilationLazy =
+            if project.CompilationLazy.HasValue then
+                project.CompilationLazy
+            else
+                let syntaxTrees = getSyntaxTrees project.Documents
+                CacheValue(fun ct ->
+                    OlyAssert.True(newSolutionLazy.IsValueCreated)
+                    OlyAssert.True(newProjectLazy.IsValueCreated)
+                    let solution = newSolutionLazy.Value
+                    let project = newProjectLazy.Value
+                    let transitiveReferences = getTransitiveCompilationReferences solution project.References ct
+                    OlyCompilation.Create(project.Name, syntaxTrees, references = transitiveReferences, options = options)
+                )
+
+        project <- OlyProject(newSolutionLazy, project.Path, project.Name, options, compilationLazy, newDocuments, project.References, project.Packages, project.CopyFileInfos, Some project.Properties, project.PlatformName, project.TargetInfo)
         newProjectLazy.Force() |> ignore
         project
 
-    let updateSolution (newSolution: OlySolution) newSolutionLazy =
+    let updateSolution (newSolution: OlySolution) (newSolutionLazy: Lazy<OlySolution>) =
+        OlyAssert.False(newSolutionLazy.IsValueCreated)
         let newProjects =
             newSolution.State.projects.Values
             |> Seq.map (fun x ->
@@ -480,15 +812,21 @@ type OlySolution (state: SolutionState) =
 
     let state = { state with version = state.version + 1UL }
 
+    static member InvalidateDependentProjectsOnCore(newSolution: byref<OlySolution>, newSolutionLazy: Lazy<OlySolution>, projectPath: OlyPath): unit =
+        let projectsToInvalidate = 
+            newSolution.GetProjectsDependentOnReference(projectPath)
+            |> ImArray.map (fun x -> x.Path)
+
+        let newProjects =
+            (newSolution.State.projects, projectsToInvalidate)
+            ||> ImArray.fold (fun projects x -> 
+                projects.SetItem(x, projects[x].InvalidateReferences(newSolutionLazy))
+            )
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
+
     member this.State = state
 
     member this.Version = state.version
-
-    member this.InternalSetProject(project: OlyProject) =
-        { state with
-            projects = state.projects.SetItem(project.Path, project)
-        }
-        |> OlySolution
 
     member this.HasProject(projectPath: OlyPath): bool =
         state.projects.ContainsKey(projectPath)
@@ -500,8 +838,12 @@ type OlySolution (state: SolutionState) =
 
     member this.GetProject(projectPath: OlyPath) =
         match this.TryGetProject(projectPath) with
-        | None -> failwithf "Unable to find project '%A'." projectPath
+        | None -> failwith $"Unable to find project '{projectPath}'. Check if the project is updated in the workspace."
         | Some project -> project
+
+    member this.TryGetProjectByName(projectName: string) =
+        state.projects.Values
+        |> Seq.tryFind (fun x -> x.Name = projectName)
 
     member this.GetProjects() =
         state.projects.Values |> ImArray.ofSeq
@@ -533,30 +875,73 @@ type OlySolution (state: SolutionState) =
         |> Seq.concat
         |> ImArray.ofSeq
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, packages, copyFileInfos, ct: CancellationToken) =
+    member this.CreateProject(projectPath: OlyPath, platformName, targetInfo, packages, copyFileInfos, properties: OlyProjectProperties option, ct: CancellationToken) =
         ct.ThrowIfCancellationRequested()
-        let projectName = OlyPath.GetFileNameWithoutExtension(projectPath)
+        let projectName = projectPath.GetFileNameWithoutExtension()
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
-        let newProject = createProject newSolutionLazy projectPath projectName projectConfig ImArray.empty ImArray.empty packages copyFileInfos platformName targetInfo
-        newSolution <- this.InternalSetProject(newProject)
+        let newProject = createProject newSolutionLazy projectPath projectName ImArray.empty ImArray.empty packages copyFileInfos properties platformName targetInfo
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
         newSolution, newProject
 
-    member this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ct: CancellationToken) =
-        this.CreateProject(projectPath, projectConfig, platformName, targetInfo, ImArray.empty, ImArray.empty, ct)
+    member this.SetProject(projectPath: OlyPath, documents: (OlyPath * OlySyntaxTree * OlyDiagnostic imarray) imarray, projectReferences: OlyProjectReference imarray) =
+        let project = this.GetProject(projectPath)
+        let mutable newSolution = this
+        let newSolutionLazy = lazy newSolution
+        OlyTrace.Log($"[Project] '{projectPath}' - Setting")
+        OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
+        let newProject = project.Set(newSolutionLazy, documents, projectReferences)
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
+        newSolution <- updateSolution newSolution newSolutionLazy
+        newSolutionLazy.Force() |> ignore
+
+#if DEBUG || CHECKED
+        let checkProj (newProject: OlyProject) =
+            OlyAssert.Equal(newSolution, newProject.Solution)
+            newProject.Documents
+            |> ImArray.iter (fun doc ->
+                OlyAssert.Equal(newProject, doc.Project)
+                OlyAssert.Equal(newSolution, doc.Project.Solution)
+            )
+        checkProj newProject
+        newSolution.GetProjects()
+        |> ImArray.iter checkProj
+#endif
+
+        newSolution, newProject     
 
     member this.UpdateDocument(projectPath: OlyPath, documentPath, syntaxTree: OlySyntaxTree, extraDiagnostics: OlyDiagnostic imarray) =
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
+        OlyTrace.Log($"[Document] '{documentPath.ToString()}' - Updating")
+        OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
         let newProject, newDocument = project.UpdateDocument(newSolutionLazy, documentPath, syntaxTree, extraDiagnostics)
-        let newProjects = state.projects.SetItem(newProject.Path, newProject)
-
-        newSolution <- { state with projects = newProjects } |> OlySolution
+        let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+        newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
         newSolution <- updateSolution newSolution newSolutionLazy
         newSolutionLazy.Force() |> ignore
+
+#if DEBUG || CHECKED
+        OlyAssert.Equal(newProject, newDocument.Project)
+        OlyAssert.Equal(newSolution, newDocument.Project.Solution)
+
+        let checkProj (newProject: OlyProject) =
+            OlyAssert.Equal(newSolution, newProject.Solution)
+            newProject.Documents
+            |> ImArray.iter (fun doc ->
+                OlyAssert.Equal(newProject, doc.Project)
+                OlyAssert.Equal(newSolution, doc.Project.Solution)
+            )
+        checkProj newProject
+        newSolution.GetProjects()
+        |> ImArray.iter checkProj
+#endif
+
         newSolution, newProject, newDocument
 
     member this.RemoveDocument(projectPath, documentPath) =
@@ -566,9 +951,10 @@ type OlySolution (state: SolutionState) =
             let project = this.GetProject(projectPath)
             let mutable newSolution = this
             let newSolutionLazy = lazy newSolution
+            OlySolution.InvalidateDependentProjectsOnCore(&newSolution, newSolutionLazy, projectPath)
             let newProject = project.RemoveDocument(newSolutionLazy, documentPath)
-            let newProjects = state.projects.SetItem(newProject.Path, newProject)
-            newSolution <- { state with projects = newProjects } |> OlySolution
+            let newProjects = newSolution.State.projects.SetItem(newProject.Path, newProject)
+            newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
             newSolution <- updateSolution newSolution newSolutionLazy
             newSolutionLazy.Force() |> ignore
             newSolution
@@ -576,35 +962,13 @@ type OlySolution (state: SolutionState) =
     member this.RemoveProject(projectPath) =
         match this.TryGetProject(projectPath) with
         | Some project ->
+            let mutable newSolution = this
+            let newSolutionLazy = lazy newSolution
             let projectsToRemove = 
-                this.GetProjectsDependentOnReference(projectPath).Add(project)
+                newSolution.GetProjectsDependentOnReference(projectPath).Add(project)
                 |> ImArray.map (fun x -> x.Path)
-
-            let mutable newSolution = this
-            let newSolutionLazy = lazy newSolution
-            let newProjects = state.projects.RemoveRange(projectsToRemove)
-            newSolution <- { state with projects = newProjects } |> OlySolution
-            newSolution <- updateSolution newSolution newSolutionLazy
-            newSolutionLazy.Force() |> ignore
-            newSolution
-        | _ ->
-            this
-
-    member this.InvalidateProject(projectPath) =
-        match this.TryGetProject(projectPath) with
-        | Some project ->
-            let projectsToInvalidate = 
-                this.GetProjectsDependentOnReference(projectPath)
-                |> ImArray.map (fun x -> x.Path)
-
-            let mutable newSolution = this
-            let newSolutionLazy = lazy newSolution
-            let newProjects =
-                (state.projects.SetItem(project.Path, project.Invalidate(newSolutionLazy)), projectsToInvalidate)
-                ||> ImArray.fold (fun projects x -> 
-                    projects.SetItem(x, projects[x].Invalidate(newSolutionLazy))
-                )
-            newSolution <- { state with projects = newProjects } |> OlySolution
+            let newProjects = newSolution.State.projects.RemoveRange(projectsToRemove)
+            newSolution <- { newSolution.State with projects = newProjects } |> OlySolution
             newSolution <- updateSolution newSolution newSolutionLazy
             newSolutionLazy.Force() |> ignore
             newSolution
@@ -612,6 +976,7 @@ type OlySolution (state: SolutionState) =
             this
 
     member this.UpdateReferences(projectPath, projectReferences: OlyProjectReference imarray, ct) =
+        OlyTrace.Log($"[Project] '{projectPath.ToString()}' - Updating References")
         let project = this.GetProject(projectPath)
         let mutable newSolution = this
         let newSolutionLazy = lazy newSolution
@@ -626,69 +991,319 @@ type OlySolution (state: SolutionState) =
         let project = this.GetProject(projectPath)
         getTransitiveProjectReferences this project.References ct
 
-type IOlyWorkspaceResourceService =
 
-    abstract LoadSourceText: filePath: OlyPath -> IOlySourceText
+[<NoEquality;NoComparison>]
+type internal ResourceState =
+    {
+        workingDirectory: OlyPath
+        mutable files: ImmutableDictionary<OlyPath, int64 * MemoryMappedFile * DateTime>
+        mutable subPaths: ImmutableDictionary<OlyPath, OlyPath imarray>
+        inMemorySourceTexts: ImmutableDictionary<OlyPath, IOlySourceText>
+        version: DateTime
+    }
 
-    abstract GetTimeStamp: filePath: OlyPath -> DateTime
-
-    abstract FindSubPaths: dirPath: OlyPath -> OlyPath imarray
-
-    abstract LoadProjectConfigurationAsync: projectConfigPath: OlyPath * ct: CancellationToken -> Task<OlyProjectConfiguration>
-
+/// TODO: We should not make this public.
 [<Sealed>]
-type OlyDefaultWorkspaceResourceService() =
+type OlyWorkspaceResourceSnapshot(state: ResourceState, activeConfigPath: OlyPath) =
 
-    interface IOlyWorkspaceResourceService with
+    let activeConfigPath =
+        if activeConfigPath.IsRooted then
+            activeConfigPath
+        else
+            state.workingDirectory.Join(activeConfigPath)
+            
+    static let sourceTexts = ConditionalWeakTable<MemoryMappedFile, WeakReference<IOlySourceText>>()
 
-        member _.LoadSourceText(filePath) =
-            OlySourceText.FromFile(filePath.ToString())
+    member private this.State = state
 
-        member _.GetTimeStamp(filePath) =
-            System.IO.File.GetLastWriteTimeUtc(filePath.ToString())
+    member private this.HasResourceChanged(filePath: OlyPath, dt: DateTime): bool =
+        match state.files.TryGetValue filePath with
+        | true, (_, _, storedDt) -> storedDt <> dt
+        | _ -> true
 
-        member _.FindSubPaths(dirPath) =
+    member _.Version = state.version
+
+    member this.SetResourceAsCopy(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        let fileInfo = FileInfo(filePath.ToString())
+        let dt = fileInfo.LastWriteTimeUtc
+        if this.HasResourceChanged(filePath, dt) then
+            use streamToCopy = OlyIO.OpenFileRead(fileInfo.FullName)
+            this.SetResourceAsCopyCore(filePath, streamToCopy, dt)
+        else
+            this
+
+    member this.SetResourceAsCopy(filePath: OlyPath, stream: Stream) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        this.SetResourceAsCopyCore(filePath, stream, DateTime.UtcNow)
+
+    member private this.SetResourceAsCopyCore(filePath: OlyPath, streamToCopy: Stream, dt: DateTime): OlyWorkspaceResourceSnapshot =
+        let length = streamToCopy.Length - streamToCopy.Position
+        if length > 0 then
+            let mmap = MemoryMappedFile.CreateNew(null, length, MemoryMappedFileAccess.ReadWrite)
+            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Write)
             try
-                System.IO.Directory.EnumerateFiles(dirPath.ToString())
-                |> Seq.map OlyPath.Create
-                |> ImArray.ofSeq
+                streamToCopy.CopyTo(view)
+                this.SetResourceCore(filePath, length, mmap, dt)
+            finally
+                view.Dispose()
+        else
+            let mmap = MemoryMappedFile.CreateNew(null, 1, MemoryMappedFileAccess.ReadWrite)
+            this.SetResourceCore(filePath, length, mmap, dt)
+
+    member private _.SetResourceCore(filePath: OlyPath, length: int64, mmap: MemoryMappedFile, dt: DateTime): OlyWorkspaceResourceSnapshot =
+        OlyWorkspaceResourceSnapshot(
+            { state with files = state.files.SetItem(filePath, (length, mmap, dt)); version = DateTime.UtcNow },
+            activeConfigPath
+        )
+
+    member _.RemoveResource(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        OlyWorkspaceResourceSnapshot({ state with files = state.files.Remove(filePath); version = DateTime.UtcNow }, activeConfigPath)
+
+
+    member this.SetInMemorySourceText(filePath: OlyPath, sourceText) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        OlyWorkspaceResourceSnapshot(
+            { state with inMemorySourceTexts = state.inMemorySourceTexts.SetItem(filePath, sourceText) },
+            activeConfigPath
+        )
+
+    member this.RemoveInMemorySourceText(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        OlyWorkspaceResourceSnapshot(
+            { state with inMemorySourceTexts = state.inMemorySourceTexts.Remove(filePath) },
+            activeConfigPath
+        )
+
+    member this.GetSourceText(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        match state.inMemorySourceTexts.TryGetValue(filePath) with
+        | true, result -> result
+        | _ ->
+
+        match state.files.TryGetValue(filePath) with
+        | false, _ -> 
+            try
+                let newThis = this.SetResourceAsCopy(filePath)
+                state.files <- newThis.State.files
+                this.GetSourceText(filePath)
             with
             | _ ->
-                ImArray.empty
+                raise(OlyWorkspaceFileDoesNotExist(filePath))
+        | _, (length, mmap, _) ->
 
-        member _.LoadProjectConfigurationAsync(_projectFilePath: OlyPath, ct: CancellationToken) =
-            backgroundTask {
-                ct.ThrowIfCancellationRequested()
-                return OlyProjectConfiguration(String.Empty, ImArray.empty, true)
-            }
+        if length = 0 then
+            // Blank file.
+            OlySourceText.Create("")
+        else
+
+        match sourceTexts.TryGetValue mmap with
+        | true, weakTarget ->
+            match weakTarget.TryGetTarget() with
+            | true, sourceText -> sourceText
+            | _ ->
+                lock mmap (fun () ->
+                    match weakTarget.TryGetTarget() with
+                    | true, sourceText -> sourceText
+                    | _ ->
+                        let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+                        try
+                            let sourceText = OlySourceText.FromStream(view)
+                            weakTarget.SetTarget(sourceText)
+                            sourceText
+                        finally
+                            view.Dispose()
+                )
+        | _ ->
+            lock mmap (fun () ->
+                match sourceTexts.TryGetValue mmap with
+                | true, weakTarget ->
+                    match weakTarget.TryGetTarget() with
+                    | true, sourceText -> sourceText
+                    | _ ->
+                        match weakTarget.TryGetTarget() with
+                        | true, sourceText -> sourceText
+                        | _ ->
+                            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+                            try
+                                let sourceText = OlySourceText.FromStream(view)
+                                weakTarget.SetTarget(sourceText)
+                                sourceText
+                            finally
+                                view.Dispose()
+                | _ ->
+                    let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+                    try
+                        let sourceText = OlySourceText.FromStream(view)
+                        sourceTexts.AddOrUpdate(mmap, WeakReference<_>(sourceText))
+                        sourceText
+                    finally
+                        view.Dispose()
+            )
+
+    member this.GetTimeStamp(filePath: OlyPath) =
+        let filePath =
+            if filePath.IsRooted then
+                filePath
+            else
+                state.workingDirectory.Join(filePath)
+        match state.files.TryGetValue(filePath) with
+        | true, (_, _, dt) -> dt
+        | _ ->
+            let newThis = this.SetResourceAsCopy(filePath)
+            state.files <- newThis.State.files
+            this.GetTimeStamp(filePath)
+
+    member this.FindSubPaths(dirPath: OlyPath) =
+        let dirPath =
+            if dirPath.IsRooted then
+                dirPath
+            else
+                state.workingDirectory.Join(dirPath)
+        let set = HashSet(OlyPathEqualityComparer.Instance)
+
+        let builder = ImArray.builder()
+        // TODO: This isn't optimal. We iterate through every resource to find the ones with the dfirectory.
+        //       We should introduce a side-table that has this information instead of having to do this iteration.
+        //       For now, it works.
+        for key in state.files.Keys do
+            if (OlyPath.Equals(key.GetDirectory(), dirPath)) then
+                builder.Add(key)
+                set.Add(key) |> ignore
+        for key in state.inMemorySourceTexts.Keys do
+            if (OlyPath.Equals(key.GetDirectory(), dirPath)) then
+                builder.Add(key)
+                set.Add(key) |> ignore
+
+        let subPaths = state.subPaths
+        let results =
+            match subPaths.TryGetValue(dirPath) with
+            | true, results -> results
+            | _ ->
+                let results =
+                    try
+                        Directory.EnumerateFiles(dirPath.ToString(), "*.*", SearchOption.TopDirectoryOnly)
+                        |> Seq.map (fun x -> OlyPath.Create(x))
+                        |> ImArray.ofSeq
+                    with
+                    | _ ->
+                        ImArray.empty
+                state.subPaths <- subPaths.Add(dirPath, results)
+                results
+
+        results
+        |> ImArray.iter (fun x ->
+            if set.Add(x) then
+                builder.Add(x)
+        )
+
+        builder.ToImmutable()
+
+    member this.GetProjectConfiguration(projectFilePath: OlyPath) =
+        let configName = this.GetActiveConfigurationName()
+        ProjectConfigurations.Default.GetConfiguration(configName)
+
+    member this.GetActiveConfigurationName() =
+        match state.files.TryGetValue activeConfigPath with
+        | true, (length, mmap, _) ->
+            let view = mmap.CreateViewStream(0, length, MemoryMappedFileAccess.Read)
+            try
+                let contents = Json.Deserialize<ActiveConfigurationState>(view)
+                contents.ActiveConfiguration
+            finally
+                view.Dispose()
+        | _ ->
+            try
+                let newThis = this.SetResourceAsCopy(activeConfigPath)
+                state.files <- newThis.State.files
+                this.GetActiveConfigurationName()
+            with
+            | _ ->
+                "Release" // Default to Release
+
+    member _.ActiveConfigurationPath = activeConfigPath
+
+    static member Create(workingDirectory: OlyPath, activeConfigPath: OlyPath) =
+        OlyWorkspaceResourceSnapshot({
+            workingDirectory = workingDirectory
+            files = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
+            subPaths = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
+            inMemorySourceTexts = ImmutableDictionary.Create(OlyPathEqualityComparer.Instance)
+            version = DateTime()
+        }, activeConfigPath)
 
 [<NoComparison;NoEquality>]
 type private WorkspaceState =
     {
         defaultTargetPlatform: OlyBuild
         targetPlatforms: ImmutableDictionary<string, OlyBuild>
-        rs: IOlyWorkspaceResourceService
+        preludeDirectory: OlyPath
+        progress: IOlyWorkspaceProgress
+        workspaceDirectory: OlyPath
+        workspaceStateDirectory: OlyPath
+        workspaceStateFileName: OlyPath
     }
 
 [<NoComparison;NoEquality>]
 type WorkspaceMessage =
-    | UpdateDocumentNoReply of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
-    | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
-    | GetDocuments of documentPath: OlyPath * ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
-    | GetAllDocuments of ct: CancellationToken * AsyncReplyChannel<OlyDocument imarray>
     | RemoveProject of projectPath: OlyPath * ct: CancellationToken
-    | GetSolution of ct: CancellationToken * AsyncReplyChannel<OlySolution>
-    | ClearSolution of ct: CancellationToken * AsyncReplyChannel<unit>
+    | GetSolution of ct: CancellationToken * AsyncReplyChannel<Result<OlySolution, Exception>>
+    | ClearSolution
+
+    | UpdateDocument of documentPath: OlyPath * sourceText: IOlySourceText * ct: CancellationToken
+    | LoadProject of projectPath: OlyPath * ct: CancellationToken
+    | FileCreated of filePath: OlyPath
+    | FileChanged of filePath: OlyPath
+    | FileDeleted of filePath: OlyPath
+    | FolderCreated of folderPath: OlyPath
+    | FolderDeleted of folderPath: OlyPath
+
+type IOlyWorkspaceProgress =
+
+    abstract OnBeginWork: unit -> unit
+
+    abstract OnEndWork: unit -> unit
 
 [<Sealed>]
-type OlyWorkspace private (state: WorkspaceState) as this =
+type OlyWorkspace private (state: WorkspaceState, initialRs: OlyWorkspaceResourceSnapshot) as this =
 
-    static let getStortedPaths (rs: IOlyWorkspaceResourceService) absoluteDir (paths: (OlyTextSpan * OlyPath) seq) =
+    [<Literal>]
+    static let WorkspaceStateDirectoryLiteral = ".oly/workspace/"
+
+    [<Literal>]
+    static let WorkspaceStateFileNameLiteral = "state.json"
+
+    static let getStortedPaths (rs: OlyWorkspaceResourceSnapshot) (absoluteDir: OlyPath) (paths: (OlyTextSpan * OlyPath) seq) =
         paths
         |> Seq.map (fun (textSpan, path) ->
             match path.TryGetGlob() with
             | Some(dir, ext) ->
-                let dir = OlyPath.Combine(absoluteDir, dir.ToString())
+                let dir = absoluteDir.Join(dir.ToString())
                 rs.FindSubPaths(dir)
                 |> ImArray.choose (fun path ->
                     if path.ToString().EndsWith(ext, StringComparison.OrdinalIgnoreCase) then
@@ -709,181 +1324,428 @@ type OlyWorkspace private (state: WorkspaceState) as this =
     static let getSortedReferencesFromConfig rs absoluteDir (config: OlyCompilationUnitConfiguration) =
         getStortedPaths rs absoluteDir config.References
 
-    let mutable solution = 
+    let mutable solutionRef = 
         {
             workspace = this
             projects = ImmutableDictionary.Empty
             version = 0UL
         }
         |> OlySolution
+        |> ref
 
-    let checkProject (proj: OlyProject) ct =
+    let projectBuildCts = new AsyncCancellationTokenSource()
+
+    let mutable cts = new CancellationTokenSource()
+
+    let mapCtToCtr (ct: CancellationToken) =
         async {
-            let syntaxTree = proj.DocumentLookup[proj.Path].SyntaxTree
-            let! newSolutionOpt = OlyWorkspace.UpdateProjectAsync(state, solution, syntaxTree, proj.Path, proj.Configuration, ct) |> Async.AwaitTask
-            match newSolutionOpt with
-            | Some(newSolution) ->
-                solution <- newSolution
-            | _ ->
-                ()
+            cts.Dispose()
+            cts <- new CancellationTokenSource()
+            return 
+                (
+                    let ctr =
+                        ct.Register(
+                            fun () ->
+                                cts.Cancel()
+                        )
+                    try
+                        ct.ThrowIfCancellationRequested()
+                    with
+                    | _ ->
+                        ctr.Dispose()
+                        reraise()
+                    ctr,
+                    cts.Token
+                )
         }
 
-    let checkProjectsByDocuments (docs: OlyDocument imarray) ct =
-        async {
-            let projs =
-                docs |> ImArray.map (fun x -> x.Project)
-            for proj in projs do
-                do! checkProject proj ct
+    let clearSolution() =
+        solutionRef.contents <- 
+            {
+                workspace = this
+                projects = ImmutableDictionary.Empty
+                version = solutionRef.contents.Version + 1UL
+            }
+            |> OlySolution
+
+    let mutable currentRs = initialRs
+    let onBeginWork() = 
+        state.progress.OnBeginWork()
+        { new IDisposable with
+            member _.Dispose() = state.progress.OnEndWork()
         }
 
-    let checkProjectsThatContainDocument (documentPath: OlyPath) ct =
-        async {
-            let docs = solution.GetDocuments(documentPath)
-            do! checkProjectsByDocuments docs ct
-        }
+    let documentsToUpdate = System.Collections.Concurrent.ConcurrentQueue<OlyPath * CancellationToken>()
+    let processDocumentUpdates(ct: CancellationToken) = async {
+        let mutable item = Unchecked.defaultof<_>
+        while documentsToUpdate.TryDequeue(&item) do
+            let prevSolution = solutionRef.contents
+            try
+                let documentPath, documentCt = item
+                do! this.UpdateDocumentAsyncCore(currentRs, documentPath, currentRs.GetSourceText(documentPath), documentCt) |> Async.AwaitTask
+            with
+            | ex ->
+                match ex with
+                | :? OperationCanceledException -> ()
+                | _ -> OlyTrace.LogError($"[Workspace] Failed Updating Document:\n" + ex.ToString())
+                solutionRef.contents <- prevSolution
+            ct.ThrowIfCancellationRequested()
+    }
 
-    let checkAllProjects ct =
-        async {
-            let docs = solution.GetAllDocuments()
-            do! checkProjectsByDocuments docs ct
-        }
+    let events = Event<OlyWorkspaceChangedEvent>()
+
+    let refresh() = async {
+        let projects = solutionRef.contents.GetProjects()
+        clearSolution()
+        documentsToUpdate.Clear()
+        for proj in projects do
+            documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
+    }
+
+    let getProjectsReferencingFile(filePath: OlyPath) =
+        if OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+            solutionRef.contents.GetProjects()
+        else
+            solutionRef.contents.GetProjects()
+            |> ImArray.choose (fun proj ->
+                if proj.CouldHaveDocument(filePath) then
+                    Some(proj)
+                else
+                    None
+            )                           
 
     let mbp = new MailboxProcessor<WorkspaceMessage>(fun mbp ->
         let rec loop() =
             async {
                 match! mbp.Receive() with
                 | GetSolution(ct, reply) ->
+                    use _progress = onBeginWork()
+
+                    OlyTrace.Log($"[Workspace] Getting Solution")
+
+                    let prevSolution = solutionRef.contents
+                    
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
-                        reply.Reply(solution)
+                        do! processDocumentUpdates ct
+                        reply.Reply(Ok(solutionRef.contents))
                     with
-                    | _ ->
-                        ()
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.LogError($"[Workspace] Failed Getting Solution:\n" + ex.ToString())
+                        solutionRef.contents <- prevSolution
+                        reply.Reply(Error(ex))
 
                 | RemoveProject(projectPath, ct) ->
+                    use _progress = onBeginWork()
+
+                    OlyTrace.Log($"[Workspace] Removing Project '{projectPath.ToString()}'")
+
+                    let prevSolution = solutionRef.contents
                     try
+                        let! ctr, ct = mapCtToCtr ct
+                        use _ = ctr
                         ct.ThrowIfCancellationRequested()
-                        solution <- solution.RemoveProject(projectPath)
+                        solutionRef.contents <- solutionRef.contents.RemoveProject(projectPath)
                     with
-                    | _ ->
-                        ()
+                    | ex ->
+                        match ex with
+                        | :? OperationCanceledException -> ()
+                        | _ -> OlyTrace.LogError($"[Workspace] Failed Removing Project '{projectPath.ToString()}':\n" + ex.ToString())
+                        solutionRef.contents <- prevSolution
 
-                | ClearSolution(ct, reply) ->
-                    try
-                        try
-                            ct.ThrowIfCancellationRequested()
-                            solution <- 
-                                {
-                                    workspace = this
-                                    projects = ImmutableDictionary.Empty
-                                    version = 0UL
-                                }
-                                |> OlySolution
-                        with
-                        | _ ->
-                            ()
-                    finally
-                        reply.Reply(())
+                | ClearSolution ->
+                    use _progress = onBeginWork()
 
-                | UpdateDocumentNoReply(documentPath, sourceText, ct) ->
-                    try
-                        ct.ThrowIfCancellationRequested()
-                        do! checkProjectsThatContainDocument documentPath ct
-                        do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
-                        solution.GetDocuments(documentPath)
-                        |> ImArray.iter (fun doc ->
-                            solution.GetProjectsDependentOnReference(doc.Project.Path)
+                    OlyTrace.Log($"[Workspace] Clearing Solution")
+
+                    clearSolution()
+
+                // File handling, these cannot be cancelled
+
+                | UpdateDocument(documentPath, sourceText, ct) ->
+                    use _progress = onBeginWork()
+
+                    OlyTrace.Log($"[Workspace] Updating Document '{documentPath.ToString()}'")
+
+                    currentRs <- currentRs.SetInMemorySourceText(documentPath, sourceText)
+                    documentsToUpdate.Enqueue(documentPath, ct)
+                    events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(documentPath, true))
+
+                | LoadProject(projectPath, ct) ->
+                    use _progress = onBeginWork()
+
+                    OlyTrace.Log($"[Workspace] Loading Project '{projectPath.ToString()}'")
+
+                    if projectPath.HasExtension(".olyx") then
+                        documentsToUpdate.Enqueue(projectPath, ct)
+
+                | FileCreated(filePath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] File Created '{filePath.ToString()}'")
+
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            projects
                             |> ImArray.iter (fun proj ->
-                                solution <- solution.InvalidateProject(proj.Path)
+                                documentsToUpdate.Enqueue(proj.Path, CancellationToken.None)
                             )
-                        )
-                    with
-                    | _ -> ()
+                            documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentCreated(filePath))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            do! refresh()
 
-                | UpdateDocument(documentPath, sourceText, ct, reply) ->
-                    try
-                        ct.ThrowIfCancellationRequested()
-                        do! checkProjectsThatContainDocument documentPath ct
-                        do! this.UpdateDocumentAsyncCore(documentPath, sourceText, ct) |> Async.AwaitTask
-                        let docs = solution.GetDocuments(documentPath)
-                        reply.Reply(docs)
-                        docs
-                        |> ImArray.iter (fun doc ->
-                            solution.GetProjectsDependentOnReference(doc.Project.Path)
-                            |> ImArray.iter (fun proj ->
-                                solution <- solution.InvalidateProject(proj.Path)
-                            )
-                        )
-                    with
-                    | _ ->
-                        reply.Reply(ImArray.empty)
+                | FileChanged(filePath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] File Changed '{filePath.ToString()}'")
 
-                | GetDocuments(documentPath, ct, reply) ->
-                    try
-                        ct.ThrowIfCancellationRequested()
-                        do! checkProjectsThatContainDocument documentPath ct
-                        let docs = solution.GetDocuments(documentPath)
-                        reply.Reply(docs)
-                    with
-                    | _ ->
-                        reply.Reply(ImArray.empty)
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.SetResourceAsCopy(filePath)  
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            documentsToUpdate.Enqueue(filePath, CancellationToken.None)
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentChanged(filePath, false))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            do! refresh()
 
-                | GetAllDocuments(ct, reply) ->
-                    try
-                        ct.ThrowIfCancellationRequested()
-                        do! checkAllProjects ct
-                        let docs = solution.GetAllDocuments()
-                        reply.Reply(docs)
-                    with
-                    | _ ->
-                        reply.Reply(ImArray.empty)
+                | FileDeleted(filePath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] File Deleted - {filePath.ToString()}")
+
+                    let projects = getProjectsReferencingFile filePath
+                    if not projects.IsEmpty then
+                        currentRs <- currentRs.RemoveInMemorySourceText(filePath)
+                        currentRs <- currentRs.RemoveResource(filePath)
+                        if filePath.HasExtension(".oly") || filePath.HasExtension(".olyx") then
+                            let mutable newSolution = solutionRef.contents
+                            let docs = newSolution.GetDocuments(filePath)
+                            for doc in docs do
+                                if doc.IsProjectDocument then
+                                    newSolution <- newSolution.RemoveProject(doc.Project.Path)
+                                else
+                                    newSolution <- newSolution.RemoveDocument(doc.Project.Path, doc.Path)
+                            solutionRef.contents <- newSolution
+                            events.Trigger(OlyWorkspaceChangedEvent.DocumentDeleted(filePath))
+                        elif OlyPath.Equals(filePath, this.WorkspaceStateFileName) then
+                            do! refresh()
+
+                | FolderCreated(folderPath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] Folder Created - {folderPath.ToString()}")
+                    ()
+
+                | FolderDeleted(folderPath) ->
+                    use _progress = onBeginWork()
+                    OlyTrace.Log($"[Workspace] Folder Deleted - {folderPath.ToString()}")
+                    ()
 
                 return! loop()
             }
-        loop()
+
+        let start() =
+            async {
+                try
+                    do! loop()
+                with
+                | ex ->
+                    OlyTrace.LogError($"[Workspace] Shutting Down - Reason:\n{ex.ToString()}")
+                    raise ex
+            }
+
+        start()
     )
+
+    static let checkProjectsDependentOnDocument 
+            workspaceSolutionRef 
+            (rs: OlyWorkspaceResourceSnapshot) 
+            (state: WorkspaceState)
+            (solution: OlySolution) 
+            (documentPath: OlyPath) 
+            ct = backgroundTask {
+        let projectsThatWillHaveThisDocument =
+            // REVIEW: Could this be a bottleneck at 500+ projects?
+            //         We have to do this everytime a document has been updated.
+            solution.GetProjects()
+            |> ImArray.choose (fun proj ->
+                // Document is already part of the project, we are done.
+                if proj.DocumentLookup.ContainsKey(documentPath) then None
+                else 
+                
+                let exists = proj.CouldHaveDocument(documentPath)
+                if exists then
+                    Some proj
+                else
+                    None
+            )
+
+        if projectsThatWillHaveThisDocument.IsEmpty then
+            return solution
+        else
+            let mutable newSolution = solution
+            projectsThatWillHaveThisDocument
+            |> ImArray.iter (fun proj ->
+                newSolution <- newSolution.RemoveProject(proj.Path)
+            )
+            for proj in projectsThatWillHaveThisDocument do
+                let syntaxTree, projConfig = OlyWorkspace.ParseProject(rs, proj.Path, rs.GetSourceText(proj.Path))
+                match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, newSolution, syntaxTree, documentPath, projConfig, ct) with
+                | Some solution ->
+                    newSolution <- solution
+                    workspaceSolutionRef.contents <- solution
+                | _ ->
+                    ()
+            return newSolution
+    }
 
     do
         mbp.Start()
 
+    member this.CancelCurrentWork() =
+        try
+            cts.Cancel()
+        with
+        | _ ->
+            ()
+
     member this.GetBuild(projPath: OlyPath) =   
-        let solution = solution
+        let solution = solutionRef.contents
         let project = solution.GetProject(projPath)
         state.targetPlatforms.[project.PlatformName]
 
-    static member private LoadProjectConfigurationAsync(rs: IOlyWorkspaceResourceService, projPath: OlyPath, ct) =
-        let projConfigPath = OlyPath.ChangeExtension(projPath, ProjectConfigurationExtension)
-        rs.LoadProjectConfigurationAsync(projConfigPath, ct)
+    static member private GetProjectConfiguration(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath) =
+        rs.GetProjectConfiguration(projPath)
 
-    static member private ReloadProjectAsync(state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
+    static member CreateProjectProperties(targetBuild: OlyBuild, targetInfo: OlyTargetInfo, syntaxTree: OlySyntaxTree, config: OlyCompilationUnitConfiguration, diags: OlyDiagnostic imarrayb) =
+        let propertyDefinitions = targetBuild.GetProjectPropertyDefinitions(targetInfo)
+
+        let builder = ImmutableDictionary.CreateBuilder()
+        config.Properties
+        |> ImArray.iter (fun (propertyNameTextSpan, propertyName, propertyValueTextSpan, propertyValue) ->
+            let isValid =
+                if builder.ContainsKey(propertyName) then
+                    ERROR.reportDuplicateProjectProperty propertyName (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                    false
+                else
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        if propertyDesc.IsExecutableOnly && not targetInfo.IsExecutable then
+                            let msg = $"'{propertyName}' cannot set be set in a library"
+                            ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                            false
+                        else
+                
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.Bool ->
+                            match propertyValue with
+                            | :? bool ->
+                                true
+                            | _ ->
+                                let expectedText = "'true' or 'false' value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
+                        | OlyProjectPropertyType.String(propertyValues) ->
+                            match propertyValue with
+                            | :? string as propertyValue ->
+                                match propertyValues with
+                                | Some(propertyValues) ->
+                                    if propertyValues.Contains(propertyValue) then
+                                        true
+                                    else
+                                        let expectedText = System.Text.StringBuilder()
+                                        expectedText.AppendLine("one of the following string values:") |> ignore
+                                        propertyValues
+                                        |> Seq.sort
+                                        |> Seq.iter (fun expectedValue ->
+                                            expectedText.AppendLine("    " + expectedValue) |> ignore
+                                        )
+                                        let expectedText = expectedText.ToString()
+                                        ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                        false
+                                | _ ->
+                                    true
+                            | _ ->
+                                let expectedText = "a string value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
+                        | OlyProjectPropertyType.FilePath ->
+                            match propertyValue with
+                            | :? string ->
+                                true
+                            | _ ->
+                                let expectedText = "a string value"
+                                ERROR.reportExpectedProjectPropertyValue propertyName expectedText (OlySourceLocation.Create(propertyValueTextSpan, syntaxTree)) diags
+                                false
+                    | _ ->
+                        let msg = $"Not a property for target '{targetInfo.Name}'."
+                        ERROR.reportProjectPropertyNotValid propertyName msg (OlySourceLocation.Create(propertyNameTextSpan, syntaxTree)) diags
+                        false
+            if isValid then
+                let propertyValue =
+                    match propertyDefinitions.TryGetValue(propertyName) with
+                    | true, propertyDesc ->
+                        match propertyDesc.Type with
+                        | OlyProjectPropertyType.FilePath ->
+                            match propertyValue with
+                            | :? string as filePath ->
+                                // TODO: Validate file path
+                                let filePath = OlyPath.Create(filePath)
+                                if filePath.IsRooted then
+                                    filePath.ToString() :> obj
+                                else
+                                    syntaxTree.Path.GetDirectory().Join(filePath).ToString() :> obj
+                            | _ ->
+                                propertyValue
+                        | _ ->
+                            propertyValue
+                    | _ ->
+                        propertyValue
+                builder.Add(propertyName, propertyValue)
+        )
+        OlyProjectProperties(propertyDefinitions, builder.ToImmutable())
+
+    static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct: CancellationToken) =
         backgroundTask {
             if syntaxTree.ParsingOptions.CompilationUnitConfigurationEnabled |> not then
                 failwith "Unable to load project: Compilation unit configuration must be enabled."
 
             let filePath = syntaxTree.Path
-            if filePath.HasExtension(ProjectExtension) |> not then
+            if filePath.HasExtension(ProjectFileExtension) |> not then
                 failwithf "Invalid project file path '%A'" filePath
 
-            let diags = ImArray.builder ()
-
-            let absoluteDir = OlyPath.GetDirectory(filePath)
-
             let config = syntaxTree.GetCompilationUnitConfiguration(ct)
+            return! OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, config, filePath, projConfig, ct)
+        }
+
+    static member private ReloadProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, config: OlyCompilationUnitConfiguration, filePath, projConfig, ct: CancellationToken) =
+        backgroundTask {
+            let diags: imarrayb<OlyDiagnostic> = ImArray.builder ()
+
+            let absoluteDir = filePath.GetDirectory()
+
             let platformName, targetName = 
                 match config.Target with
                 | Some(_, targetName) -> 
                     let targetName = targetName.Replace(" ", "")
                     let index = targetName.IndexOf(':')
                     if (index = -1) || (index + 1 = targetName.Length) || targetName.Contains("\n") then
-                        diags.Add(OlyDiagnostic.CreateError("Invalid target."))
+                        ERROR.reportInvalidTarget diags
                         String.Empty, String.Empty
                     else
                         targetName.Substring(0, index), targetName.Substring(index + 1)
                 | _ -> 
-                    diags.Add(OlyDiagnostic.CreateError("'#target' directive needs to be specified."))
+                    ERROR.reportDirectiveNeedsToBeSpecified diags
                     String.Empty, String.Empty
 
-            let targetPlatform =
+            OlyTrace.Log($"[Project] '{projPath}' - Configuring Target - Platform: '{platformName}', Target: '{targetName}'")
+
+            let targetBuild =
                 if String.IsNullOrWhiteSpace(platformName) then
                     state.defaultTargetPlatform
                 else
@@ -892,9 +1754,9 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     | _ -> 
                         match config.Target with
                         | Some(textSpan, _) ->
-                            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                            ERROR.reportTargetPlatformDoesNotExistInTheWorkspace platformName (Some(OlySourceLocation.Create(textSpan, syntaxTree))) diags
                         | _ ->
-                            diags.Add(OlyDiagnostic.CreateError($"Target platform '{platformName}' does not exist in the workspace."))
+                            ERROR.reportTargetPlatformDoesNotExistInTheWorkspace platformName None diags
                         state.defaultTargetPlatform
 
             let outputKind = 
@@ -903,25 +1765,30 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 else
                     OlyOutputKind.Executable
 
+            let projConfig =
+                match config.DefaultAccessor with
+                | Some("public") -> projConfig
+                | Some("private") -> projConfig.WithDefaultAccessor(OlyDefaultAccessor.Private)
+                | Some(_) -> projConfig
+                | None -> projConfig
+
+            OlyTrace.Log($"[Project] '{projPath}' - Configuring Target - Output: {outputKind}")
+
             let targetInfo =
-                OlyTargetInfo(targetName, outputKind, targetPlatform.GetImplicitExtendsForStruct(), targetPlatform.GetImplicitExtendsForEnum())
+                OlyTargetInfo(targetName, projConfig, outputKind, targetBuild.GetImplicitExtendsForStruct(), targetBuild.GetImplicitExtendsForEnum())
 
-            if String.IsNullOrWhiteSpace(platformName) |> not && targetPlatform.IsValidTargetName(targetInfo) |> not then
-                diags.Add(OlyDiagnostic.CreateError($"'{targetName}' is an invalid target for '{platformName}'."))
+            OlyTrace.Log($"[Project] '{projPath}' - Configured Target")
 
-            try
-                do! targetPlatform.OnBeforeReferencesImportedAsync(projPath, targetInfo, ct)
-            with
-            | ex ->
-                diags.Add(OlyDiagnostic.CreateError(ex.Message))
+            if String.IsNullOrWhiteSpace(platformName) |> not && targetBuild.IsValidTargetName(targetInfo) |> not then
+                ERROR.reportInvalidTargetFor targetName platformName diags
 
             let projPath = OlyPath.Create(filePath.ToString())
 
             let chooseReference textSpan (path: OlyPath) =
                 backgroundTask {
-                    let path = OlyPath.Combine(absoluteDir, path.ToString())
-                    if targetPlatform.CanImportReference path then
-                        match! targetPlatform.ImportReferenceAsync(projPath, targetInfo, path, ct) with
+                    let path = absoluteDir.Join(path.ToString())
+                    if targetBuild.CanImportReference path then
+                        match! targetBuild.ImportReferenceAsync(projPath, targetInfo, path, ct) with
                         | Ok r -> 
                             match r with
                             | Some r ->
@@ -932,10 +1799,10 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                             | _ ->
                                 return None
                         | Error msg ->
-                            diags.Add(OlyDiagnostic.CreateError(msg, OlySourceLocation.Create(textSpan, syntaxTree)))
+                            ERROR.reportReferenceNotValidWithMessage msg (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                             return None
                     else
-                        diags.Add(OlyDiagnostic.CreateError($"Reference '{path}' is not valid.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                        ERROR.reportReferenceNotValid path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
                         return None
                 }
 
@@ -943,13 +1810,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             config.References
             |> ImArray.iter (fun (textSpan, path) ->
                 if path.HasExtension(".oly") then
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly file(s) '{path}'. Use '#load' instead.", OlySourceLocation.Create(textSpan, syntaxTree)))
+                    ERROR.reportCannotReferenceOlyFiles path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
             )
 
             let referenceInfos = 
-                getSortedReferencesFromConfig state.rs absoluteDir config
+                getSortedReferencesFromConfig rs absoluteDir config
                 |> ImArray.map (fun (textSpan, path) ->
-                    OlyReferenceInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
+                    OlyReferenceInfo(absoluteDir.Join(path.ToString()), textSpan)
                 )
 
             let packageInfos =
@@ -961,27 +1828,88 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             let copyFileInfos =
                 config.CopyFiles
                 |> ImArray.map (fun (textSpan, path) ->
-                    OlyCopyFileInfo(OlyPath.Combine(absoluteDir, path.ToString()), textSpan)
+                    OlyCopyFileInfo(absoluteDir.Join(path.ToString()), textSpan)
                 )
 
             let olyxReferenceInfos =
                 referenceInfos
                 |> ImArray.filter (fun x -> x.Path.HasExtension(".olyx"))
 
+            let olyxReferenceInfos =
+                let preludeProjectPath = state.preludeDirectory.Join($"prelude_{platformName}.olyx")
+                if OlyPath.Equals(projPath, preludeProjectPath) then
+                    olyxReferenceInfos
+                else
+                    olyxReferenceInfos.Add(OlyReferenceInfo(preludeProjectPath, OlyTextSpan.Create(0, 0)))
+
+            OlyTrace.Log($"[Project] '{projPath}' - Parsing References")
+
+            let olyxReferenceInfosToUpdate =
+                olyxReferenceInfos
+                |> ImArray.map (fun x ->
+                    OlyTrace.Log($"[Project] '{projPath}' - Parsing Reference '{x.Path}'")
+                    let result = OlyWorkspace.ParseProject(rs, x.Path, rs.GetSourceText(x.Path)), x.TextSpan
+                    OlyTrace.Log($"[Project] '{projPath}' - Parsed Reference '{x.Path}'")
+                    result
+                )
+
+            OlyTrace.Log($"[Project] '{projPath}' - Parsed References")
+
+            let olyxReferenceInfosToUpdate =
+
+                // TODO: Theoretically, this could stack overflow. Make this tail recursive.
+                // REVIEW: This *may* have performance implications due to the following:
+                //     - We could be redundantly parsing for the unit configurations if caching is not happening
+                let visited = Dictionary<OlyPath, int>(OlyPathEqualityComparer.Instance)
+                let rec getProjectReferenceCount (absolutePath: OlyPath) =
+                    match visited.TryGetValue absolutePath with
+                    | true, count -> count
+                    | _ ->
+                        if absolutePath.HasExtension(ProjectFileExtension) then
+                            let (syntaxTree: OlySyntaxTree), _ = OlyWorkspace.ParseProject(rs, absolutePath, rs.GetSourceText(absolutePath))
+                            let config = syntaxTree.GetCompilationUnitConfiguration(ct)
+                            let absoluteDir = absolutePath.GetDirectory()
+                            let count = config.References.Length + (config.References |> ImArray.sumBy (fun (_, x) -> getProjectReferenceCount (absoluteDir.Join(x))))
+                            visited.Add(absolutePath, count)
+                            count
+                        else
+                            let count = 0
+                            visited.Add(absolutePath, count)
+                            count
+                        
+                    
+                // This is a heuristic as we want to update projects that have the least amount of references to projects as to provide
+                // results faster for the workspace solution.
+                try
+                    olyxReferenceInfosToUpdate
+                    |> ImArray.sortBy (fun ((syntaxTree, _), _) ->
+                        getProjectReferenceCount syntaxTree.Path
+                    )
+                with
+                | ex ->
+                    OlyTrace.LogError($"[Project] Failed getting project reference count:\n{ex.ToString()}")
+                    ImArray.empty
+
             let projectReferencesInWorkspace = ImArray.builder()
             let mutable solution = solution
-            for info in olyxReferenceInfos do
+            for (syntaxTree: OlySyntaxTree, projConfig), projTextSpan in olyxReferenceInfosToUpdate do
+                let projPath = syntaxTree.Path
                 try
-                    let! result = OlyWorkspace.UpdateDocumentAsyncCore(state, solution, info.Path, state.rs.LoadSourceText(info.Path), ct)
-                    solution <- result
-                    match solution.TryGetProject(info.Path) with
+                    let! resultOpt = OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                    match resultOpt with
+                    | Some result ->
+                        solution <- result
+                        workspaceSolutionRef.contents <- result // Update the main workspace solution as to provide faster results as multiple projects are being built.
+                    | _ ->
+                        ()
+                    match solution.TryGetProject(projPath) with
                     | Some proj ->
                         projectReferencesInWorkspace.Add(OlyProjectReference.Project(proj.Path))
                     | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}' as it does not exist in the current workspace.", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                        ERROR.reportProjectDoesNotExist projPath (OlySourceLocation.Create(projTextSpan, syntaxTree)) diags
                 with
                 | ex ->
-                    diags.Add(OlyDiagnostic.CreateError($"Cannot reference Oly project '{info.Path}'. Internal Error: {ex.Message}", OlySourceLocation.Create(info.TextSpan, syntaxTree)))
+                    ERROR.reportProjectHasInternalError projPath ex (OlySourceLocation.Create(projTextSpan, syntaxTree)) diags
             let projectReferencesInWorkspace = projectReferencesInWorkspace.ToImmutable()
 
             let transitivePackageInfos =
@@ -1013,8 +1941,12 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     not(x.Path.HasExtension(".olyx")) &&
                     not(x.Path.HasExtension(".oly"))
                 )
+
+            let properties = OlyWorkspace.CreateProjectProperties(targetBuild, targetInfo, syntaxTree, config, diags)
+
+            OlyTrace.Log($"[Project] '{projPath}' - Resolving References")
             
-            let! resInfo = targetPlatform.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, ct)
+            let! resInfo = targetBuild.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, combinedPackageInfos, properties, ct)
 
             resInfo.Diagnostics
             |> ImArray.iter diags.Add
@@ -1026,6 +1958,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 |> Seq.sortBy (fun (_, x) -> x.ToString())
                 |> ImArray.ofSeq
 
+            let s = System.Diagnostics.Stopwatch.StartNew()
             let! projectReferences =
                 resolvedReferences
                 |> Seq.distinctBy (fun x -> x.ToString().ToLower()) // TODO: This allocates extra with '.ToLower()', figure out a better way for this.
@@ -1033,6 +1966,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     chooseReference textSpan path
                 )
                 |> Task.WhenAll
+            OlyTrace.Log($"[Project] '{projPath}' - Resolved References")
 
             let projectReferences =
                 projectReferences
@@ -1049,47 +1983,41 @@ type OlyWorkspace private (state: WorkspaceState) as this =
 
             let projectReferences = ImArray.append projectReferences projectReferencesInWorkspace
 
-            try
-                targetPlatform.OnAfterReferencesImported()
-            with
-            | ex ->
-                diags.Add(OlyDiagnostic.CreateError(ex.Message))
+            let solution, _ = solution.CreateProject(projPath, platformName, targetInfo, packageInfos, copyFileInfos, Some properties, ct)
 
-            let solution, _ = solution.CreateProject(projPath, projConfig, platformName, targetInfo, packageInfos, copyFileInfos, ct)
+            let loads = getSortedLoadsFromConfig rs absoluteDir config
 
-            let loads = getSortedLoadsFromConfig state.rs absoluteDir config
+            let documents = ImArray.builder()
 
-            let solution, _, _ = solution.UpdateDocument(projPath, filePath, syntaxTree, diags.ToImmutable())
-
-            let solution =
-                (solution, loads)
-                ||> ImArray.fold (fun solution (textSpan, path) ->
-                    if path.HasExtension(ProjectExtension) then
-                        diags.Add(OlyDiagnostic.CreateError("Project files cannot be loaded, only referenced. Use '#reference'.", OlySourceLocation.Create(textSpan, syntaxTree)))
-                        solution
+            loads
+            |> ImArray.iter (fun (textSpan, path) ->
+                if path.HasExtension(ProjectFileExtension) then
+                    ERROR.reportProjectFilesCannotBeLoadedOnlyReferenced (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                else
+                    let path = absoluteDir.Join(path.ToString())
+                    if OlyPath.Equals(filePath, path) then
+                        ()
                     else
-                        let path = OlyPath.Combine(absoluteDir, path.ToString())
-                        if OlyPath.Equals(filePath, path) then
-                            solution
-                        else
-                            try
-                                let sourceText = state.rs.LoadSourceText(path)
-                                let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines }
-                                let syntaxTree = 
-                                    OlySyntaxTree.Parse(path, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
-                                let solution, _, _ = solution.UpdateDocument(projPath, path, syntaxTree, ImArray.empty)
-                                solution
-                            with
-                            | ex ->
-                                diags.Add(OlyDiagnostic.CreateError(ex.Message, OlySourceLocation.Create(textSpan, syntaxTree)))
-                                solution
-                )
+                        try
+                            let sourceText = rs.GetSourceText(path)
+                            let parsingOptions = { OlyParsingOptions.Default with ConditionalDefines = projConfig.Defines.Add(platformName.ToUpper()) }
+                            let syntaxTree = 
+                                OlySyntaxTree.Parse(path, (fun ct -> ct.ThrowIfCancellationRequested(); sourceText), parsingOptions)
+                            documents.Add(path, syntaxTree, ImArray.empty)
+                        with
+                        | :? OlyWorkspaceFileDoesNotExist ->
+                            ERROR.reportFileDoesNotExist path (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+                        | ex ->
+                            ERROR.reportProjectInternalBuildError ex (OlySourceLocation.Create(textSpan, syntaxTree)) diags
+            )
 
-            let solution, _ = solution.UpdateReferences(projPath, projectReferences, ct)
+            documents.Add(filePath, syntaxTree, diags.ToImmutable())
+
+            let solution, _ = solution.SetProject(projPath, documents.ToImmutable(), projectReferences)
             return solution
         }
 
-    static member private UpdateProjectAsync(state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct) : Task<OlySolution option> =
+    static member private UpdateProjectAsync(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state: WorkspaceState, solution: OlySolution, syntaxTree: OlySyntaxTree, projPath: OlyPath, projConfig: OlyProjectConfiguration, ct) : Task<OlySolution option> =
         backgroundTask {
             let filePath = syntaxTree.Path
             match solution.TryGetProject(filePath) with
@@ -1103,6 +2031,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let currentCopyFiles = currentConfig.CopyFiles
                 let currentTarget = currentConfig.Target
                 let currentIsLibrary = currentConfig.IsLibrary
+                let currentProperties = currentConfig.Properties
 
                 let config = syntaxTree.GetCompilationUnitConfiguration(ct)
                 let loads = config.Loads
@@ -1111,13 +2040,16 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 let copyFiles = config.CopyFiles
                 let target = config.Target
                 let isLibrary = config.IsLibrary
+                let properties = config.Properties
 
                 let currentTargetName = currentTarget |> Option.map snd |> Option.defaultValue ""
                 let targetName = target |> Option.map snd |> Option.defaultValue ""
 
-                if project.IsInvalidated || loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
-                   copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary then
-                    let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
+                if loads.Length <> currentLoads.Length || refs.Length <> currentRefs.Length || packages.Length <> currentPackages.Length ||
+                   copyFiles.Length <> currentCopyFiles.Length || targetName <> currentTargetName || currentIsLibrary <> isLibrary || properties.Length <> currentProperties.Length then
+                    OlyTrace.Log($"[Project] '{projPath}' - Reloading")
+                    let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                    OlyTrace.Log($"[Project] '{projPath}' - Reloaded") 
                     return Some result
                 else
                     let loadsAreSame =
@@ -1136,34 +2068,58 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                         (copyFiles, currentCopyFiles)
                         ||> ImArray.forall2 (fun (_, path1) (_, path2) -> OlyPath.Equals(path1, path2))
 
-                    if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame then
+                    let propertiesAreSame =
+                        (properties, currentProperties)
+                        ||> ImArray.forall2 (fun (_, name1, _, value1) (_, name2, _, value2) -> name1 = name2 && value1.Equals(value2))
+
+                    if loadsAreSame && refsAreSame && packagesAreSame && copyFilesAreSame && propertiesAreSame then
                         return None
                     else
-                        let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
+                        OlyTrace.Log($"[Project] '{projPath}' - Reloading")                       
+                        let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                        OlyTrace.Log($"[Project] '{projPath}' - Reloaded") 
                         return Some result
             | _ -> 
-                let! result = OlyWorkspace.ReloadProjectAsync(state, solution, syntaxTree, projPath, projConfig, ct)
+                OlyTrace.Log($"[Project] '{projPath}' - Creating")
+                let! result = OlyWorkspace.ReloadProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, projPath, projConfig, ct)
+                OlyTrace.Log($"[Project] '{projPath}' - Created")
                 return Some result
         }
 
-    static member private UpdateDocumentAsyncCore(state, solution: OlySolution, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken) =
+    static member private ParseProject(rs: OlyWorkspaceResourceSnapshot, projPath: OlyPath, sourceText: IOlySourceText) =
+        OlyTrace.Log($"[Project] '{projPath}' - Parsing")
+        OlyAssert.True(projPath.HasExtension(ProjectFileExtension))
+
+        // Handle project config for syntax tree
+        let projConfig = OlyWorkspace.GetProjectConfiguration(rs, projPath)
+        let parsingOptions = 
+            { OlyParsingOptions.CompilationUnitConfigurationEnabled = true
+              OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
+              OlyParsingOptions.ConditionalDefines = projConfig.Defines }
+
+        let result = OlySyntaxTree.Parse(projPath, sourceText, parsingOptions), projConfig
+        OlyTrace.Log($"[Project] '{projPath}' - Parsed")
+        result
+
+    static member private UpdateDocumentAsyncCore(workspaceSolutionRef: OlySolution ref, rs: OlyWorkspaceResourceSnapshot, state, solution: OlySolution, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlySolution> =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
+
+            let! solution = 
+                checkProjectsDependentOnDocument 
+                    workspaceSolutionRef
+                    rs
+                    state
+                    solution
+                    documentPath 
+                    ct
+
             let docs = solution.GetDocuments(documentPath)
 
             if docs.IsEmpty then
-                if documentPath.HasExtension(ProjectExtension) then
-
-                    // Handle project config for syntax tree
-                    let projPath = documentPath
-                    let! projConfig = OlyWorkspace.LoadProjectConfigurationAsync(state.rs, projPath, ct)
-                    let parsingOptions = 
-                        { OlyParsingOptions.CompilationUnitConfigurationEnabled = true
-                          OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
-                          OlyParsingOptions.ConditionalDefines = projConfig.Defines }
-
-                    let syntaxTree = OlySyntaxTree.Parse(projPath, sourceText, parsingOptions)
-                    match! OlyWorkspace.UpdateProjectAsync(state, solution, syntaxTree, documentPath, projConfig, ct) with
+                if documentPath.HasExtension(ProjectFileExtension) then
+                    let syntaxTree, projConfig = OlyWorkspace.ParseProject(rs, documentPath, sourceText)
+                    match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solution, syntaxTree, documentPath, projConfig, ct) with
                     | Some solution -> return solution
                     | _ -> return solution
                 else
@@ -1174,13 +2130,13 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                     ct.ThrowIfCancellationRequested()
                     let doc = docs[i]
                     let prevSourceText = doc.GetSourceText(ct)
-                    if not(obj.ReferenceEquals(prevSourceText, sourceText)) && prevSourceText.GetHashCode() <> sourceText.GetHashCode() then
+                    if (not(obj.ReferenceEquals(prevSourceText, sourceText)) && prevSourceText.GetHashCode() <> sourceText.GetHashCode()) then
                         let syntaxTree = doc.SyntaxTree.ApplySourceText(sourceText)
                         if doc.IsProjectDocument then
 
                             // Handle project config for syntax tree
                             let projPath = doc.Path
-                            let! projConfig = OlyWorkspace.LoadProjectConfigurationAsync(state.rs, projPath, ct)
+                            let projConfig = OlyWorkspace.GetProjectConfiguration(rs, projPath)
                             let parsingOptions = 
                                 { OlyParsingOptions.CompilationUnitConfigurationEnabled = true
                                   OlyParsingOptions.AnonymousModuleDefinitionAllowed = true 
@@ -1192,7 +2148,7 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                                 else
                                     OlySyntaxTree.Parse(projPath, sourceText, parsingOptions)
 
-                            match! OlyWorkspace.UpdateProjectAsync(state, solutionResult, syntaxTree, projPath, projConfig, ct) with
+                            match! OlyWorkspace.UpdateProjectAsync(workspaceSolutionRef, rs, state, solutionResult, syntaxTree, projPath, projConfig, ct) with
                             | Some solution -> solutionResult <- solution
                             | _ ->
                                 let solution, _, _ = solutionResult.UpdateDocument(doc.Project.Path, doc.Path, syntaxTree, doc.ExtraDiagnostics)
@@ -1205,60 +2161,97 @@ type OlyWorkspace private (state: WorkspaceState) as this =
                 return solutionResult
         }
 
-    member this.GetSolutionAsync(ct) =
-        backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply))
-        }
+    member _.StaleSolution = solutionRef.contents
 
-    member this.UpdateDocumentAsyncCore(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<unit> =
+    member this.UpdateDocumentAsyncCore(rs: OlyWorkspaceResourceSnapshot, documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<unit> =
         backgroundTask {
-            let prevSolution = solution
+            let prevSolution = solutionRef.contents
             try
                 ct.ThrowIfCancellationRequested()
-                let! newSolution = OlyWorkspace.UpdateDocumentAsyncCore(state, prevSolution, documentPath, sourceText, ct)
-                solution <- newSolution
+                let! newSolution = OlyWorkspace.UpdateDocumentAsyncCore(solutionRef, rs, state, prevSolution, documentPath, sourceText, ct)
+                solutionRef.contents <- newSolution
             with
             | ex ->
-                solution <- prevSolution
+                solutionRef.contents <- prevSolution
                 raise ex
         }
 
+    // Message calls
+
+    member this.GetSolutionAsync(ct) =
+        backgroundTask {
+            match! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetSolution(ct, reply)) with
+            | Ok(solution) -> return solution
+            | Error(ex) -> return raise ex
+        }
+
     member this.UpdateDocument(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): unit =
-        mbp.Post(WorkspaceMessage.UpdateDocumentNoReply(documentPath, sourceText, ct))
+        mbp.Post(WorkspaceMessage.UpdateDocument(documentPath, sourceText, ct))
 
     member this.RemoveProject(projectPath: OlyPath, ct: CancellationToken): unit =
         mbp.Post(WorkspaceMessage.RemoveProject(projectPath, ct))
 
-    member this.UpdateDocumentAsync(documentPath: OlyPath, sourceText: IOlySourceText, ct: CancellationToken): Task<OlyDocument imarray> =
-        backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.UpdateDocument(documentPath, sourceText, ct, reply))
-        }
-
     member this.GetDocumentsAsync(documentPath: OlyPath, ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetDocuments(documentPath, ct, reply))
+            let! solution = this.GetSolutionAsync(ct)
+            return solution.GetDocuments(documentPath)
         }
 
     member this.GetAllDocumentsAsync(ct: CancellationToken): Task<OlyDocument imarray> =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.GetAllDocuments(ct, reply))
-        }
-
-    member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
-        backgroundTask {          
             let! solution = this.GetSolutionAsync(ct)
-            let proj = solution.GetProject(projectPath)
-            let target = proj.SharedBuild
-            try
-                return! target.BuildProjectAsync(proj, ct)
-            with
-            | ex ->
-                return Error(ImArray.createOne (OlyDiagnostic.CreateError(ex.Message + "\n" + ex.StackTrace.ToString())))
+            return solution.GetAllDocuments()
         }
 
-    static member CreateCore(targetPlatforms: OlyBuild seq, rs: IOlyWorkspaceResourceService) =
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ActiveConfigurationState>)>]
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectConfigurations>)>]
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectConfiguration>)>]
+    member this.BuildProjectAsync(projectPath: OlyPath, ct: CancellationToken) =
+        backgroundTask {
+            try
+                let! docs = this.GetDocumentsAsync(projectPath, ct)
+                if docs.IsEmpty then
+                    failwith $"Project '{projectPath.ToString()}' not found"
+                if docs.Length > 1 then
+                    failwith $"Ambiguous projects found for '{projectPath.ToString()}'"
+
+                let proj = docs[0].Project
+                let target = proj.SharedBuild
+
+                let! projectBuildCt, _ = projectBuildCts.CancelAndGetNewTokenAsync(CancellationToken.None)
+                let! result = target.BuildProjectAsync(proj, projectBuildCt)
+                return Some(result)
+            with
+            | :? OperationCanceledException ->
+                return None
+            | ex ->
+                return Some(Error(ImArray.createOne (ERROR.createProjectInternalBuildError ex None)))
+        }
+
+    member this.ClearSolution() =
+        mbp.Post(WorkspaceMessage.ClearSolution)
+
+    member this.LoadProject(documentPath: OlyPath, ct: CancellationToken): unit =
+        mbp.Post(WorkspaceMessage.LoadProject(documentPath, ct))
+
+    member _.FileCreated(filePath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FileCreated(filePath))
+    
+    member _.FileChanged(filePath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FileChanged(filePath))
+
+    member _.FileDeleted(filePath: OlyPath)=
+        mbp.Post(WorkspaceMessage.FileDeleted(filePath))
+
+    member _.FolderCreated(folderPath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FolderCreated(folderPath))
+
+    member _.FolderDeleted(folderPath: OlyPath) =
+        mbp.Post(WorkspaceMessage.FolderDeleted(folderPath))
+
+    static member CreateCore(targetPlatforms: OlyBuild seq, progress, initialRs, workspaceDirectory: OlyPath) =
         let targetPlatforms =
             targetPlatforms
             |> ImArray.ofSeq
@@ -1273,20 +2266,64 @@ type OlyWorkspace private (state: WorkspaceState) as this =
             |> ImArray.map (fun x -> KeyValuePair(x.PlatformName, x))
             |> ImmutableDictionary.CreateRange
 
+        let preludeDirName = System.IO.Path.GetDirectoryName(System.AppContext.BaseDirectory)
+
+        let preludeDir = OlyPath.CreateAbsolute(preludeDirName)
+        let preludeDir =
+            if preludeDir.IsDirectory then
+                preludeDir
+            else
+                OlyPath.Create(preludeDirName + "/")
+
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
+
         let workspace =
             OlyWorkspace({
                 defaultTargetPlatform = defaultTargetPlatform
                 targetPlatforms = targets
-                rs = rs
-            })
+                preludeDirectory = preludeDir
+                progress = progress
+                workspaceDirectory = workspaceDirectory
+                workspaceStateDirectory = workspaceStateDirectory
+                workspaceStateFileName = workspaceStateFileName
+            },
+            initialRs)
         workspace
 
-    member this.ClearSolutionAsync(ct) =
-        backgroundTask {
-            return! mbp.PostAndAsyncReply(fun reply -> WorkspaceMessage.ClearSolution(ct, reply))
-        }
+    member _.WorkspaceDirectory = state.workspaceDirectory
+    member _.WorkspaceStateDirectory = state.workspaceStateDirectory
+    /// TODO: Rename to WorkspaceStateFilePath
+    member _.WorkspaceStateFileName = state.workspaceStateFileName
+    member _.WorkspaceChanged = events.Publish
 
-    static member Create(targets, ?rs: IOlyWorkspaceResourceService) =
-        let rs = defaultArg rs (OlyDefaultWorkspaceResourceService())
-        OlyWorkspace.CreateCore(targets, rs)
+    static member Create(targets, workspaceDirectory: OlyPath, initialRs: OlyWorkspaceResourceSnapshot) =
+        let progress =
+            { new IOlyWorkspaceProgress with
+                member _.OnBeginWork () = 
+                    ()
+                member _.OnEndWork () = 
+                    ()
+            }
+        OlyWorkspace.Create(targets, progress, workspaceDirectory, initialRs)
 
+    static member Create(targets, progress: IOlyWorkspaceProgress, workspaceDirectory: OlyPath, initialRs: OlyWorkspaceResourceSnapshot) =
+        let progress =
+            { new IOlyWorkspaceProgress with
+                member _.OnBeginWork () = 
+                    try progress.OnBeginWork() with | _ -> ()
+
+                member _.OnEndWork () =  
+                    try progress.OnEndWork() with | _ -> ()
+            }
+        OlyWorkspace.CreateCore(targets, progress, initialRs, workspaceDirectory)
+
+    static member Create(targets, workspaceDirectory: OlyPath) =
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
+        OlyWorkspace.Create(targets, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceDirectory, workspaceStateFileName))
+
+    static member Create(targets, progress, workspaceDirectory: OlyPath) =
+        let workspaceStateDirectory = workspaceDirectory.Join(WorkspaceStateDirectoryLiteral)
+        let workspaceStateFileName = workspaceStateDirectory.Join(WorkspaceStateFileNameLiteral)
+        OlyWorkspace.Create(targets, progress, workspaceDirectory, OlyWorkspaceResourceSnapshot.Create(workspaceDirectory, workspaceStateFileName))

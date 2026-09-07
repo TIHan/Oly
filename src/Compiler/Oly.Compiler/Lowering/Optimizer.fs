@@ -51,27 +51,27 @@ let optimizeImmediateExpression cenv origExpr =
         | True, _ -> argExpr2
         | _, True -> argExpr1
         | E.Sequential(_, expr1, True, _), _ ->
-            E.CreateSequential(expr1, argExpr2)
+            E.CreateGeneratedSequential(expr1, argExpr2)
         | _ ->
             origExpr
 
     | LogicalOr(argExpr1, argExpr2) when settings.BranchElimination || origExpr.IsGenerated ->
         match argExpr1, argExpr2 with
         | True, _
-        | False, True -> E.CreateLiteral(cenv.syntaxTree, BoundLiteralTrue)
+        | False, True -> E.CreateGeneratedLiteral(argExpr1.Syntax, BoundLiteralTrue)
         | _, False -> argExpr1
         | _, True ->
             let flattenedArgExpr1 = argExpr1.FlattenSequentialExpressions()
             let lastIndex = flattenedArgExpr1.Length - 1
             match flattenedArgExpr1.[lastIndex] with
             | NoSideEffect ->
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     flattenedArgExpr1.RemoveAt(lastIndex),
                     argExpr2
                 )
             | lastExpr ->
-                E.CreateSequential(
-                    E.CreateSequential(
+                E.CreateGeneratedSequential(
+                    E.CreateGeneratedSequential(
                         flattenedArgExpr1.RemoveAt(lastIndex),
                         Ignore lastExpr
                     ),
@@ -95,7 +95,7 @@ let optimizeImmediateExpression cenv origExpr =
             let flattenedConditionExpr = conditionExpr.FlattenSequentialExpressions()
             match flattenedConditionExpr.[flattenedConditionExpr.Length - 1] with
             | True _ ->
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     flattenedConditionExpr.RemoveAt(flattenedConditionExpr.Length - 1),
                     truePathExpr
                 )
@@ -106,11 +106,11 @@ let optimizeImmediateExpression cenv origExpr =
                     let liftedArgExpr2 = flattenedArgExpr2.RemoveAt(flattenedArgExpr2.Length - 1)
                     E.IfElse(
                         syntaxInfo,
-                        E.CreateSequential(
+                        E.CreateGeneratedSequential(
                             flattenedConditionExpr.RemoveAt(flattenedConditionExpr.Length - 1),
                             argExpr1
                         ),
-                        E.CreateSequential(
+                        E.CreateGeneratedSequential(
                             liftedArgExpr2,
                             truePathExpr
                         ),
@@ -151,17 +151,17 @@ let optimizeImmediateExpression cenv origExpr =
 
 #if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         origExpr
 #endif
 
-    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.IsLocal || bindingInfo.Value.IsBase ->
+    | E.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) when bindingInfo.Value.HasLocalEnclosing || bindingInfo.Value.IsBase ->
         match rhsExpr with
-        | E.Value(_, rhsValue) when not(rhsValue.IsMutable) && rhsValue.IsLocal ->
+        | E.Value(_, rhsValue) when not(rhsValue.IsMutable) && rhsValue.HasLocalEnclosing ->
             if canEliminateBinding settings bindingInfo rhsValue.Type then
                 let newBodyExpr =
                     bodyExpr.Rewrite(function
-                        | E.Value(syntaxInfo, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
+                        | E.Value(syntaxInfo, value) when value.HasLocalEnclosing && value.Id = bindingInfo.Value.Id ->
                             E.Value(syntaxInfo, rhsValue)
                         | E.Call(syntaxInfo, receiverOpt, witnessArgs, args, value, isVirtualCall) when value.Formal.Id = bindingInfo.Value.Id ->
                             E.Call(syntaxInfo, receiverOpt, witnessArgs, args, actualValue rhsValue.Enclosing value.AllTypeArguments rhsValue, isVirtualCall)
@@ -192,7 +192,7 @@ let optimizeImmediateExpression cenv origExpr =
                                 true
                         ), fun expr ->
                         match expr with
-                        | E.Value(_, value) when value.IsLocal && value.Id = bindingInfo.Value.Id ->
+                        | E.Value(_, value) when value.HasLocalEnclosing && value.Id = bindingInfo.Value.Id ->
                             rhsExpr
                         | _ ->
                             expr

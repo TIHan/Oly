@@ -42,45 +42,26 @@ main(): () =
     |> ignore
 
 [<Fact>]
-let ``Newtype should never allow getting address of field``() =
+let ``Newtype should never allow attributes on the pincipal field``() =
     let src =
         """
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
-alias byref<T>
-
-#[intrinsic("by_ref_read")]
-alias inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): inref<T>
-
-#[intrinsic("address_of")]
-(&)<T>(T): byref<T>
-
 newtype A =
+    #[open]
     public field Value: int32
 
 main(): () =
-    let mutable a = A(1)
-    let value = &a.Value
+    ()
         """
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            // TODO: Fix compiler to not duplicate the error.
-            ("Newtypes do not allow getting the address of its field.",
+            ("Attributes are not allowed on the principal field for a newtype.",
                 """
-    let value = &a.Value
-                ^^^^^^^^
-"""
-            )
-            ("Newtypes do not allow getting the address of its field.",
-                """
-    let value = &a.Value
-                ^^^^^^^^
+    #[open]
+    ^^^^^^^
 """
             )
         ]
@@ -114,3 +95,46 @@ main(): () =
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Newtype without a field should fail``() =
+    let src =
+        """
+newtype A
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected field definition signature for newtype 'A' as the first expression.",
+             """
+newtype A
+        ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Newtype should work with a non-trait shape constraint - NOTE - THIS USED TO NOT WORK``() =
+    let src =
+        """
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+newtype NewInt =
+    public field Value: int32
+
+    Doot(): int32 = 8
+
+M<T>(x: T): () where T: { Doot(): int32 } =
+    print(x.Doot())
+
+main(): () =
+    let ns = NewInt(2)
+    M(ns)
+        """
+    Oly src
+    |> shouldCompile

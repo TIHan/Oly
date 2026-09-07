@@ -24,6 +24,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     match ty with
     | TypeSymbol.Error _ -> "?"
     | TypeSymbol.Unit -> "()"
+    | TypeSymbol.RealUnit -> "()"
     | TypeSymbol.EagerInferenceVariable(solution, _) ->
         if solution.HasSolution then           
             printTypeAux benv isDefinition isTyCtor solution.Solution
@@ -42,7 +43,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
     | TypeSymbol.Bool
     | TypeSymbol.Char16
     | TypeSymbol.BaseObject
-    | TypeSymbol.Utf16
+    | TypeSymbol.String16
     | TypeSymbol.Void
     | TypeSymbol.NativeInt
     | TypeSymbol.NativeUInt
@@ -57,7 +58,7 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
             printEntityAux benv isDefinition ent   
 
     | TypeSymbol.Tuple(tyArgs, names) -> 
-        if ty.IsRealUnit then
+        if ty.IsRealUnit_ste then
             "(())"
         elif Seq.isEmpty tyArgs then
             "()"
@@ -82,20 +83,41 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         if rank <= 0 then
             failwith "Expected rank to be greater than zero."
 
+        let elementText = printTypeAux benv isDefinition false elementTy
+        let elementText =
+            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction_ste then
+                "(" + elementText + ")"
+            else
+                elementText
+
         match rank with
         | 1 ->
             match kind with
             | ArrayKind.Immutable ->
-                printTypeAux benv isDefinition false elementTy + "[]"
+                elementText + "[]"
             | ArrayKind.Mutable ->
-                "mutable " + printTypeAux benv isDefinition false elementTy + "[]"
+                "mutable " + elementText + "[]"
         | _ ->
             let commas = Array.init (rank - 1) (fun _ -> ",") |> String.concat ""
             match kind with
             | ArrayKind.Immutable ->
-                printTypeAux benv isDefinition false elementTy + $"[{commas}]"
+                elementText + $"[{commas}]"
             | ArrayKind.Mutable ->
-                "mutable " + printTypeAux benv isDefinition false elementTy + $"[{commas}]"
+                "mutable " + elementText + $"[{commas}]"
+
+    | TypeSymbol.FixedArray(elementTy, lengthTy, kind) -> 
+        let elementText = printTypeAux benv isDefinition false elementTy
+        let elementText =
+            if (stripTypeEquationsExceptAlias elementTy).IsAnyFunction_ste then
+                "(" + elementText + ")"
+            else
+                elementText
+
+        match kind with
+        | ArrayKind.Immutable ->
+            elementText + $"[{printType benv lengthTy}]"
+        | ArrayKind.Mutable ->
+            "mutable " + elementText + $"[{printType benv lengthTy}]"
 
     | TypeSymbol.Variable(tyPar) ->
         let name =
@@ -139,15 +161,19 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         "<" + (tyPars |> Seq.map (fun x -> x.Name) |> String.concat ", ") + ">" + " " + printTypeAux benv isDefinition false innerTy
 
     | TypeSymbol.InferenceVariable(tyPar, solution) ->
-        if solution.HasSolution && solution.Solution.IsSolved then
-            printTypeAux benv isDefinition isTyCtor solution.Solution
+        if solution.HasSolution && solution.Solution.IsSolved_ste then
+            match tyPar with
+            | Some tyPar when not tyPar.IsVariadic && solution.Solution.IsUnit_ste ->
+                "(())"
+            | _ ->
+                printTypeAux benv isDefinition isTyCtor solution.Solution
         else
             match tyPar with
             | Some tyPar -> "?" + tyPar.DisplayName
             | _ -> "?"
 
     | TypeSymbol.HigherInferenceVariable(tyPar, tyArgs, _, solution) ->
-        if solution.HasSolution && solution.Solution.IsSolved then
+        if solution.HasSolution && solution.Solution.IsSolved_ste then
             printTypeAux benv isDefinition isTyCtor solution.Solution
         else
             // TODO: Do we need to do anything else here? What happens if we don't have a solution with tyArgs?
@@ -162,8 +188,8 @@ let rec private printTypeAux (benv: BoundEnvironment) isDefinition isTyCtor (ty:
         | ty ->
             printTypeAux benv isDefinition isTyCtor ty
 
-and private printIntrinsicType benv isDefinition isInner ty =
-    match benv.TryFindAliasTypeByIntrinsicType(ty) with
+and private printIntrinsicType benv isDefinition isInner (ty: TypeSymbol) =
+    match benv.TryFindAliasTypeByIntrinsicType(ty.Formal) with
     | ValueSome aliasTy -> printTypeAux benv isDefinition isInner (applyType aliasTy ty.TypeArguments)
     | _ -> 
         match ty with
@@ -244,7 +270,7 @@ and private printEntityAux (benv: BoundEnvironment) isDefinition (ent: EntitySym
             sprintf "%s%s"
                 (
                     let ty = tyArgs[0]
-                    if ty.IsAnyFunction then
+                    if ty.IsAnyFunction_ste then
                         "(" + printTypeAux benv isDefinition true ty + ")"
                     else
                         printTypeAux benv isDefinition true ty
@@ -269,11 +295,28 @@ and printEntityDefinition benv ent =
 and private printEntityConstructorAux (benv: BoundEnvironment) (ent: EntitySymbol) =
     ent.Name
 
-and printValueName (value: IValueSymbol) =
-    if value.IsConstructor then
-        value.Enclosing.AsEntity.Name
+and printValueName benv (value: IValueSymbol) =
+    let name = value.Name
+    if value.IsFunction then
+        match name with
+        | Oly.Metadata.OlySpecialNames.Constructor
+        | Oly.Metadata.OlySpecialNames.StaticConstructor ->
+            match value.Enclosing.TryType with
+            | Some ty -> printType benv ty
+            | _ -> name
+        | _ ->
+            if name.EndsWith(Oly.Metadata.OlySpecialNames.Getter) || name.EndsWith(Oly.Metadata.OlySpecialNames.Setter) then
+                match value.AsFunction.AssociatedFormalProperty with
+                | Some prop -> prop.Name
+                | _ -> name
+            elif name.EndsWith(Oly.Metadata.OlySpecialNames.PatternGuard) then
+                match value.AsFunction.AssociatedFormalPattern with
+                | Some pat -> pat.Name
+                | _ -> name
+            else
+                name
     else
-        value.Name
+        name
 
 and printEntityConstructor benv ent =
     printEntityConstructorAux benv ent
@@ -314,40 +357,35 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
             if Seq.isEmpty constrs then
                 None
             else
-                // TODO: This is the wrong way to print constaints. Fix this.
+                let tyParText = 
+                    let isTyCtor = tyPar.HasArity
+                    printTypeAux benv false isTyCtor tyPar.AsType
                 let constrs =
                     constrs |> Seq.map (fun constr ->
                         match constr with
                         | ConstraintSymbol.Null ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": null"
+                            "null"
                         | ConstraintSymbol.Struct ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": struct"
+                            "struct"
                         | ConstraintSymbol.NotStruct ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": not struct"
+                            "struct"
                         | ConstraintSymbol.Unmanaged ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": unmanaged"
+                            "unmanaged"
                         | ConstraintSymbol.Blittable ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": blittable"
+                            "blittable"
                         | ConstraintSymbol.Scoped ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": scoped"
+                            "scoped"
                         | ConstraintSymbol.SubtypeOf(ty) ->
-                            let isTyCtor = ty.Value.IsTypeConstructor
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": " + printTypeAux benv false isTyCtor ty.Value
+                            let isTyCtor = ty.Value.IsTypeConstructor_steea
+                            printTypeAux benv false isTyCtor ty.Value
                         | ConstraintSymbol.ConstantType(ty) ->
-                            let isTyCtor = tyPar.HasArity
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": constant " + printTypeAux benv false isTyCtor ty.Value
+                            "constant " + printTypeAux benv (* isDefinition *) false (* isTyCtor *) false ty.Value
                         | ConstraintSymbol.TraitType(ty) ->
-                            let isTyCtor = ty.Value.IsTypeConstructor
-                            printTypeAux benv false isTyCtor tyPar.AsType + ": trait " + printTypeAux benv false isTyCtor ty.Value
+                            let isTyCtor = ty.Value.IsTypeConstructor_steea
+                            "trait " + printTypeAux benv false isTyCtor ty.Value
                     )
-                    |> String.concat " and "
-                Some(constrs)
+                    |> String.concat ", "
+                Some(tyParText + ": " + constrs)
         )
 
     let constrs =
@@ -355,7 +393,7 @@ let printTypeParameters (benv: BoundEnvironment) (tyPars: TypeParameterSymbol se
         if Seq.isEmpty constrs then
             String.Empty
         else
-            " where " + (constrs |> String.concat " and ")
+            " where " + (constrs |> String.concat "")
 
     if tyPars.IsEmpty then
         String.Empty, String.Empty
@@ -378,7 +416,7 @@ let private printConstant (benv: BoundEnvironment) (constant: ConstantSymbol) =
     | ConstantSymbol.True -> "true"
     | ConstantSymbol.False -> "false"
     | ConstantSymbol.Char16(value) -> value.ToString()
-    | ConstantSymbol.Utf16(value) -> value
+    | ConstantSymbol.String16(value) -> value
     | ConstantSymbol.TypeVariable(tyPar) -> tyPar.Name
     | ConstantSymbol.Array(_, elements) ->
         let printedConstants =
@@ -400,7 +438,7 @@ let private printField (benv: BoundEnvironment) (field: IFieldSymbol) =
 
 let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbol) =
     let prefixText =
-        if value.IsInstance || value.IsLocal || OlySyntaxFacts.IsOperator(value.Name) then ""
+        if value.IsInstance || value.HasLocalEnclosing || OlySyntaxFacts.IsOperator(value.Name) then String.Empty
         elif value.IsFunction && (value :?> IFunctionSymbol).IsPatternFunction then "pattern "
         elif value.IsFieldConstant then "constant "
         else "static "
@@ -417,13 +455,13 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
                             func.TypeParameters
                     let printedTyPars, printedConstrs = printTypeParameters benv tyPars
                     if noConstrs then
-                        printedTyPars, ""
+                        printedTyPars, String.Empty
                     else
                         printedTyPars, printedConstrs
                 else
-                    if func.TypeArguments.IsEmpty then "", ""
+                    if func.TypeArguments.IsEmpty then String.Empty, String.Empty
                     else
-                        "<" + (func.TypeArguments |> Seq.map (fun x -> printTypeAux benv false false x) |> String.concat ", ") + ">" , ""
+                        "<" + (func.TypeArguments |> Seq.map (fun x -> printTypeAux benv false false x) |> String.concat ", ") + ">" , String.Empty
             let name =
                 if func.IsConstructor then
                     "new", printedConstrs
@@ -432,32 +470,43 @@ let private printValueAux (benv: BoundEnvironment) noConstrs (value: IValueSymbo
             name
 
         | :? IFieldSymbol as field ->
-            printField benv field, ""
+            printField benv field, String.Empty
 
         | :? IPropertySymbol as prop ->
             if prop.Getter.IsSome && prop.Setter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} get, set", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get, set", String.Empty
             elif prop.Getter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} get", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} get", String.Empty
             elif prop.Setter.IsSome then
-                prop.Name + $": {printTypeAux benv false false value.Type} set", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} set", String.Empty
             else
-                prop.Name + $": {printTypeAux benv false false value.Type} (invalid)", ""
+                prop.Name + $": {printTypeAux benv false false value.Type} (invalid)", String.Empty
         | _ ->
-            value.Name + ": ", ""
+            value.Name + ": ", String.Empty
     let right =
         match value with
-        | :? IFunctionSymbol as func when not func.IsFunctionGroup ->
-            let printedOutput = printTypeAux benv false false func.ReturnType
-            let printedInput = 
-                if func.IsParameterLessFunction then
-                    String.Empty
+        | :? IFunctionSymbol as func ->
+            if func.IsFunctionGroup then
+                func.Name
+            else
+                let printedOutput = 
+                    let returnTy = func.ReturnType
+                    if returnTy.IsShape_ste then // handles anonymous shapes with ctors, ex: '{ new() }'
+                        String.Empty
+                    else
+                        printTypeAux benv false false func.ReturnType
+                let printedInput = 
+                    if func.IsParameterLessFunction then
+                        String.Empty
+                    else
+                        printLogicalParameters benv func
+                if String.IsNullOrWhiteSpace(printedOutput) then
+                    printedInput
                 else
-                    printLogicalParameters benv func
-            printedInput + ": " + printedOutput
+                    printedInput + ": " + printedOutput
 
         | _ ->
-            if value.IsField || value.IsProperty then ""
+            if value.IsField || value.IsProperty then String.Empty
             else
                 printTypeAux benv false false value.Type
 
@@ -485,3 +534,44 @@ let printEnclosingDefinition (benv: BoundEnvironment) (enclosing: EnclosingSymbo
     | EnclosingSymbol.Local -> ""
     | EnclosingSymbol.Witness(_, tr) -> printEntityDefinition benv tr
     | EnclosingSymbol.Entity(ent) -> printEntityDefinition benv ent
+
+/// Similar to 'printValue', but if the value is associated with a property or pattern,
+/// it will print out either of those instead of the value.
+/// REVIEW: This is kinda expensive, but it's really only called during errors, so it very likely does not matter.
+let printMember (benv: BoundEnvironment) (value: IValueSymbol) =
+    OlyAssert.True(value.Enclosing.IsEntity)
+    if value.IsFunction && value.Enclosing.IsEntity then
+        let enclosingEnt = value.Enclosing.AsEntity
+        let props = 
+            enclosingEnt.Properties
+            |> ImArray.filter (fun prop ->
+                let exists =
+                    match prop.Getter with
+                    | Some getter -> getter.Formal.Id = value.Formal.Id
+                    | _ -> false
+                if exists then
+                    true
+                else
+                    match prop.Setter with
+                    | Some setter -> setter.Formal.Id = value.Formal.Id
+                    | _ -> false
+            )
+        let pats =
+            enclosingEnt.Patterns
+            |> ImArray.filter (fun pat ->
+                let exists = pat.PatternFunction.Formal.Id = value.Formal.Id
+                if exists then
+                    true
+                else
+                    match pat.PatternGuardFunction with
+                    | Some guard -> guard.Formal.Id = value.Formal.Id
+                    | _ -> false
+            )
+        if not props.IsEmpty then
+            printValue benv props[0]
+        elif not pats.IsEmpty then
+            printValue benv pats[0]
+        else
+            printValue benv value
+    else
+        printValue benv value

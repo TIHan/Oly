@@ -65,9 +65,33 @@ let private emitAssembly (refAsms: OlyILAssembly imarray) (asm: OlyILAssembly) =
     runtime.InitializeEmitter()
     runtime.EmitEntryPoint()
     
-    TestPlatform.emitterWrite emitter
+    TestPlatform.emitterWrite(emitter, asm.IsDebuggable)
 
-let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
+let rec private runWithExpectedOutputAndWithRealAssemblies expectedOutput (output: TestCompilationOutput) =
+    let hasCompRef =
+        output.c.Compilation.References
+        |> ImArray.exists (fun ref -> ref.IsCompilation)
+    if hasCompRef then
+        let references =
+            output.c.Compilation.References
+            |> ImArray.map (fun ref ->
+                match ref.TryGetCompilation(CancellationToken.None) with
+                | Some refc -> 
+                    match refc.GetILAssembly(CancellationToken.None) with
+                    | Ok(refasm) ->
+                        OlyCompilationReference.Create(ref.Path, 0UL, refasm)
+                    | _ ->
+                        failwith "Reference compilation had errors"
+                | _ -> 
+                    ref
+            )
+        let newOutput = 
+            let newCompilation = output.c.Compilation.Update(references, output.c.Compilation.Options)
+            TestCompilation.Create newCompilation
+            |> withCompile
+        runWithExpectedOutputAux expectedOutput newOutput
+
+and private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutput) =
     let refAsms =
         output.c.Compilation.References
         |> ImArray.map (fun x -> 
@@ -76,13 +100,15 @@ let private runWithExpectedOutputAux expectedOutput (output: TestCompilationOutp
             | Error diags -> raise(System.Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
         )
 #if DEBUG || CHECKED
-    Log($"Testing - Debug Build")
+    OlyTrace.Log($"[Testing] Debug Build")
 #endif
     TestPlatform.run(emitAssembly refAsms output.ilAsmDebug, expectedOutput)
 #if DEBUG || CHECKED
-    Log($"Testing - Optimized Build")
+    OlyTrace.Log($"[Testing] Optimized Build")
 #endif
     TestPlatform.run(emitAssembly refAsms output.ilAsm, expectedOutput)
+
+    runWithExpectedOutputAndWithRealAssemblies expectedOutput output
 
 let shouldRunWithExpectedOutput expectedOutput result =
     runWithExpectedOutputAux expectedOutput result
@@ -125,12 +151,14 @@ let runWithExpectedExceptionMessage expectedExceptionMsg (c: OlyCompilation) =
     | ex ->
         OlyAssert.Equal(expectedExceptionMsg, ex.Message)
 
+/// TODO: Get rid of this.
 let private printApi =
     "
 #[intrinsic(\"print\")]
 print(object): ()
     "
 
+/// TODO: Get rid of this.
 let OlySharp src =
     let prelude =
         """
@@ -155,16 +183,16 @@ alias float64
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
 
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
         """
     Oly (prelude + printApi + src)

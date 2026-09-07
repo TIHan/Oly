@@ -1,24 +1,116 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module internal rec Oly.Compiler.Internal.Binder.Pass3
 
+open System.Diagnostics
 open System.Collections.Generic
-open System.Collections.Immutable
 
 open Oly.Core
-open Oly.Compiler
 open Oly.Compiler.Syntax
-open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.PrettyPrint
-open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Solver
 open Oly.Compiler.Internal.Checker
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal.SemanticDiagnostics
+open Oly.Compiler.Internal.Binder.OpenDeclarations
+open Oly.Compiler.Internal.Binder.Attributes
+
+type private FakeUnit = FakeUnit
+
+let ForEachBinding projection (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody, bindings: (BindingInfoSymbol * bool) imarray) =
+    let mutable bindingIndex = 0
+    let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
+        match expr with
+        | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+            let binding = bindings[bindingIndex]
+            bindingIndex <- bindingIndex + 1
+            let rec addBinding syntaxAttrs syntaxBinding binding =
+                match syntaxBinding with
+                | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                | OlySyntaxBinding.Signature(syntaxBindingDecl) ->
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | OlySyntaxBinding.Property(syntaxBindingDecl, syntaxPropBindingList)
+                | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, syntaxPropBindingList, _, _) ->
+                    match (fst binding) with
+                    | BindingInfoSymbol.BindingProperty(innerBindings, _) ->
+                        syntaxPropBindingList.ChildrenOfType
+                        |> ImArray.iteri (fun i syntaxPropBinding ->
+                            match syntaxPropBinding with
+                            | OlySyntaxPropertyBinding.Binding(syntaxAttrs, _, _, _, _, syntaxBinding) ->
+                                let isImpl =
+                                    match syntaxBinding with
+                                    | OlySyntaxBinding.Signature _ -> false
+                                    | _ -> true
+                                projection syntaxAttrs syntaxBinding.Declaration (innerBindings[i],isImpl)
+                            | _ ->
+                                unreached()
+                        )
+                    | _ ->
+                        failwith "Expected a property binding."  
+                    projection syntaxAttrs syntaxBindingDecl binding
+
+                | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                    // TODO: What about the guard?
+                    projection syntaxAttrs syntaxBindingDecl binding
+                | _ ->
+                    ()
+            addBinding syntaxAttrs syntaxBinding binding
+            cont(FakeUnit)
+        | OlySyntaxExpression.Sequential(expr1, expr2) ->
+            f expr1 (fun FakeUnit ->
+                f expr2 cont
+            )
+        | _ ->
+            cont(FakeUnit)
+
+    syntaxTyDeclBody.Children
+    |> ImArray.iter (function
+        | :? OlySyntaxExpression as expr ->
+            f expr id |> ignore
+        | _ ->
+            ()
+    )
+
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+
+let private fullyQualifiedSignatureTextOfType (ty: TypeSymbol) =
+    let ty = stripTypeEquationsAndBuiltIn ty
+    let baseName =
+        match ty.TryEntityNoAlias with
+        | ValueSome ent -> ent.QualifiedName
+        | _ -> ty.Name
+    if ty.TypeArguments.IsEmpty then
+        baseName
+    else
+        let tyArgSigs =
+            ty.TypeArguments
+            |> ImArray.map (fullyQualifiedSignatureTextOfType)
+            |> String.concat ","
+        baseName + "<" + tyArgSigs + ">"
+
+let private createExtensionName (ent: EntitySymbol) =
+    if ent.Extends.Length = 1 then
+        let extendName =  fullyQualifiedSignatureTextOfType ent.Extends[0]
+        if ent.Implements.IsEmpty then
+            extendName + "__oly_extension"
+        else
+            let implementsNames =
+                ent.Implements
+                |> ImArray.map (fun x -> fullyQualifiedSignatureTextOfType x)
+                |> String.concat "_"
+            extendName + "_" + implementsNames + "__oly_extension"
+    else
+        "__oly_extension"
 
 // Pass 3 check for duplicates
-let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxAttrs syntaxIdent syntaxConstrClauses syntaxTyDefBody =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) syntaxNode syntaxAttrs syntaxConstrClauses (syntaxTyDefBody: OlySyntaxTypeDeclarationBody) =
     let envBody = unsetSkipCheckTypeConstructor env
 
     let entBuilder = entities.[cenv.entityDefIndex]
@@ -28,27 +120,92 @@ let bindTypeDeclarationPass3 (cenv: cenv) (env: BinderEnvironment) (entities: En
 
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
-    let attrs = bindAttributes cenv envBody true syntaxAttrs
+    let attrs = bindAttributes cenv envBody syntaxAttrs
+
+    // IMPORTANT: Be careful when trying to look at a type's attributes when it may not have been fully populated.
+    //            In this case, it is OK because we always populate the attributes for the parent first before the children.
+    let attrs = Pass2.addExportAttributeIfNecessary cenv env syntaxNode attrs
     entBuilder.SetAttributes(cenv.pass, attrs)
+
+    let envBody =
+        if entBuilder.Entity.IsExported && not envBody.isInExport then
+            { envBody with isInExport = true }
+        else
+            envBody
 
     if not ent.Extends.IsEmpty then
         let superTy = ent.Extends.[0]
-        match superTy.TryEntity, ent.TryFindDefaultInstanceConstructor() with
+        match superTy.TryEntityNoAlias, ent.TryFindDefaultInstanceConstructor() with
         | ValueSome(superEnt), Some(ctor) when ctor.FunctionFlags &&& FunctionFlags.ImplicitDefaultConstructor = FunctionFlags.ImplicitDefaultConstructor ->
             if not superEnt.HasDefaultInstanceConstructor then
-                cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxIdent)
+                cenv.diagnostics.Error($"The type '{printEntity envBody.benv ent}' cannot implicitly create a default constructor as its base type '{printEntity envBody.benv superEnt}' does not have a default constructor.", 10, syntaxNode)
         | _ ->
             ()
 
-    let _env: BinderEnvironment = bindTypeDeclarationBodyPass3 cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
+    if ent.IsAnonymousTypeExtension then 
+
+        if ent.Extends.Length <> 1 then
+            cenv.diagnostics.Error($"Anonymous type extension must extend a type.", 10, syntaxNode)
+
+        if ent.Implements.IsEmpty then
+            cenv.diagnostics.Error($"Anonymous type extension must implement an interface.", 10, syntaxNode)
+
+        if ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+            let report() =
+                cenv.diagnostics.Error($"Anonymous type extension must be declared in the same assembly as the type it is extending or all its interfaces.", 10, syntaxNode)
+
+            let check (asm: AssemblySymbol) (extendsEnt: EntitySymbol) =
+                let asm2 = extendsEnt.ContainingAssembly
+                if asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key then
+                    let isInvalid =
+                        ent.AllTypeExtensionLogicalImplements
+                        |> ImArray.exists (fun implTy ->
+                            match implTy.TryEntityNoAlias with
+                            | ValueSome implEnt ->
+                                let asm2 = implEnt.ContainingAssembly
+                                asm.Identity.Name <> asm2.Identity.Name || asm.Identity.Key <> asm2.Identity.Key
+                            | _ ->
+                                false
+                        )
+                    if isInvalid then
+                        report()
+
+            let asm = ent.ContainingAssembly
+            let extendsTy = ent.Extends[0]
+            match extendsTy.TryEntity with
+            | ValueSome extendsEnt -> 
+                if extendsEnt.IsCompilerIntrinsic then
+                    check asm extendsEnt
+                else
+                    match extendsTy.TryEntityNoAlias with
+                    | ValueSome extendsEnt ->
+                        check asm extendsEnt
+                    | _ ->
+                        report()
+            | _ ->
+                report()
+
+        if ent.Extends.Length = 1 && not ent.Implements.IsEmpty then
+            let extensionName = createExtensionName ent
+            (ent :> obj :?> EntityDefinitionSymbol).SetNameFromAnonymousName(cenv.pass, extensionName)
+            let succeeded, existingEnts, intersectedImplTys = recordAnonymousTypeExtensionDeclaration cenv env ent syntaxNode
+            if not succeeded then
+                existingEnts
+                |> Seq.iter (fun existingEnt ->
+                    if existingEnt.Extends.Length = 1 && ent.Extends.Length = 1 then
+                        if areGeneralizedTypesEqual existingEnt.Extends[0] ent.Extends[0] then
+                            cenv.diagnostics.Report(Error_AnonymousTypeExtensionAlreadyDeclared(env.benv, syntaxNode.GetLocation(), existingEnt.Extends[0], ent.Extends[0], intersectedImplTys))
+                )
+
+    let _env: BinderEnvironment = bindTypeDeclarationBody cenv envBody entBuilder.NestedEntityBuilders entBuilder false syntaxTyDefBody
 
     if ent.IsNewtype then
         if ent.GetInstanceFields().Length <> 1 then
-            cenv.diagnostics.Error($"Newtype '{ent.Name}' must have only a single field.", 10, syntaxIdent)
+            cenv.diagnostics.Error($"Newtype '{ent.Name}' must have only a single field.", 10, syntaxNode)
 
     env
 
-let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot syntaxTyDeclBody =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entBuilder: EntitySymbolBuilder) isRoot (syntaxTyDeclBody: OlySyntaxTypeDeclarationBody) =
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -56,17 +213,17 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     let env = unsetSkipCheckTypeConstructor env
     let env = env.SetAccessorContext(ent)
     let env = env.SetEnclosing(EnclosingSymbol.Entity(ent))
-    let env = openContentsOfEntityAndOverride env OpenContent.All ent
+    let env = openContentsOfEntityAndOverride cenv.declTable.contents env OpenContent.All ent
 
-    let funcs = 
+    let inheritedFuncs = 
         ent.FindMostSpecificIntrinsicFunctions(env.benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
-        |> ImArray.filter (fun x ->
-            if x.IsConstructor || (x.IsStatic && not x.IsNewSlot) then
+        |> ImArray.filter (fun inheritedFunc ->
+            if inheritedFunc.IsConstructor || (inheritedFunc.IsStatic && not inheritedFunc.IsNewSlot) then
                 false
             else
-                match x.Enclosing.TryEntity with
+                match inheritedFunc.Enclosing.TryEntity with
                 | Some ent2 -> 
-                    if ent2.Id = ent.Id then
+                    if ent2.FormalId = ent.FormalId then
                         false
                     else
                         if ent.IsTypeExtension && not ent.Extends.IsEmpty then
@@ -85,10 +242,10 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         )
 
     let fieldOrPropSet =
-        ent.FindIntrinsicFields(env.benv, QueryMemberFlags.StaticOrInstance)
+        ent.FindIntrinsicFields(env.benv.ac, QueryMemberFlags.StaticOrInstance)
         |> Seq.filter (fun x ->
             match x.Enclosing.TryEntity with
-            | Some ent -> ent.Id <> entBuilder.Entity.Id
+            | Some ent -> ent.FormalId <> entBuilder.Entity.FormalId
             | _ -> true
         )
         |> Seq.map (fun x ->
@@ -99,14 +256,14 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
     ent.FindIntrinsicProperties(env.benv, QueryMemberFlags.StaticOrInstance)
     |> Seq.filter (fun x ->
         match x.Enclosing.TryEntity with
-        | Some ent -> ent.Id <> entBuilder.Entity.Id
+        | Some ent -> ent.FormalId <> entBuilder.Entity.FormalId
         | _ -> true
     )
     |> Seq.iter (fun x ->
         fieldOrPropSet.Add(x.Name) |> ignore
     )
 
-    let inheritedFuncSet = FunctionSignatureMutableSet.Create(funcs)
+    let inheritedFuncSet = FunctionSignatureMutableSet.Create(inheritedFuncs)
     let funcSet = FunctionSignatureMutableSet.Create([])
 
     let implicitDefaultCtors =
@@ -125,14 +282,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
         if (funcSet.Add(func) |> not) then
             true
         else
-            match inheritedFuncSet.TryGet func with
-            | ValueSome inheritedFunc ->
-                if func.IsNewSlot then
-                    false
-                else
-                    true
-            | _ ->
-                false
+            inheritedFuncSet.Contains(func)
 
     let env =
         match syntaxTyDeclBody with
@@ -158,20 +308,28 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
             | _ ->
                 ()
 
-            bindTopLevelExpressionPass3 cenv env isRoot entities syntaxBodyExpr
+            bindTopLevelExpression cenv env isRoot entities syntaxBodyExpr
             |> fst
         | _ ->
             env
 
-    let syntaxMemberDecls = syntaxTyDeclBody.GetMemberDeclarations()
-    (syntaxMemberDecls, entBuilder.Bindings)
-    ||> ImArray.iter2 (fun (syntaxAttrs, syntax) (binding, isImpl) ->
-        let attrs = bindAttributes cenv env true syntaxAttrs
-        let attrs = addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
+    let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
+        let attrs = bindAttributes cenv env syntaxAttrs
+        let attrs = Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
+        let attrs = Pass2.addExportAttributeIfNecessary cenv env syntax attrs
+
+        let env =
+            if binding.Value.IsExported && not env.isInExport then
+                { env with isInExport = true }
+            else
+                env
+
+        // IPatternSymbol should not show up here, only the function of it.
+        OlyAssert.False(binding.Value.IsPattern)
 
         match binding.Value with
         | :? FunctionSymbol as func -> 
-            func.SetAttributes_Pass3_NonConcurrent(attrs)
+            func.SetAttributes_Pass3_NonConcurrent(cenv.pass, attrs)
             match syntax with
             | OlySyntaxBindingDeclaration.Function(_, _, syntaxPars, _, _) ->
                 let syntaxPars = syntaxPars.Values
@@ -193,7 +351,7 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                             | _ ->
                                 match logicalPar with
                                 | :? LocalParameterSymbol as par ->
-                                    par.SetAttributes_Pass3_NonConcurrent(bindAttributes cenv env true syntaxAttrs)
+                                    par.SetAttributes_Pass3_NonConcurrent(bindAttributes cenv env syntaxAttrs)
                                 | _ ->
                                     ()
                         | _ ->
@@ -203,6 +361,10 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 
         | :? FieldSymbol as field -> 
             field.SetAttributes_Pass3_NonConcurrent(attrs)
+
+        | :? PropertySymbol as prop ->
+            prop.SetAttributes_Pass3_NonConcurrent(cenv.pass, attrs)
+
         | _ -> ()
 
         let duplicateError (value: IValueSymbol) syntaxNode =
@@ -234,6 +396,19 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 |> ImArray.filter (fun overridenFunc ->
                     areLogicalFunctionSignaturesEqual func overridenFunc
                 )
+
+            let mostSpecificFuncs =
+                if mostSpecificFuncs.Length > 1 then
+                    let nonInterfaceMostSpecificFuncs =
+                        // If we have ambiguities 
+                        mostSpecificFuncs
+                        |> ImArray.filter (fun x -> not x.Enclosing.IsInterface)
+                    if nonInterfaceMostSpecificFuncs.Length > 0 then
+                        nonInterfaceMostSpecificFuncs
+                    else
+                        mostSpecificFuncs
+                else
+                    mostSpecificFuncs
             
             if mostSpecificFuncs.Length > 1 then
                 cenv.diagnostics.Error($"The member '{func.Name}' is ambiguous to override.", 10, syntax.Identifier)
@@ -259,26 +434,48 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     false
                 else
                     if areLogicalFunctionSignaturesEqual func overridenFunc then
-                        func.SetOverrides_Pass3_NonConcurrent(overridenFunc)
+                        func.SetOverrides_Pass3_NonConcurrent(cenv.pass, overridenFunc)
                         let func = func :> IFunctionSymbol
 
                         (func.TypeParameters, overridenFunc.TypeParameters)
                         ||> ImArray.tryIter2 (fun tyPar1 tyPar2 ->
+                            let mutable constraintsMatch = true
+
                             if tyPar1.Constraints.Length = tyPar2.Constraints.Length then
                                 (tyPar1.Constraints, tyPar2.Constraints)
                                 ||> ImArray.iter2 (fun constr1 constr2 ->
                                     if not(areConstraintsEqualWith Indexable constr1 constr2) then
-                                        cenv.diagnostics.Error($"'{printConstraint env.benv constr1}' constraint does not exist on the overriden function's type parameter '{printType env.benv tyPar2.AsType}'.", 10, syntax.Identifier)
+                                        constraintsMatch <- false
                                 )
                             else
-                                cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.", 10, syntax.Identifier)
+                                constraintsMatch <- false
+
+                            if not constraintsMatch then
+                                cenv.diagnostics.Error($"'{func.Name}' type parameter constraints do not match its overriden function.\nExpected: {printValue env.benv overridenFunc}\nActual: {printValue env.benv func}", 10, syntax.Identifier)
                         )
+
+                        let isExported = func.IsExported
+                        let isOverridenExportedOrImported = overridenFunc.IsExported || overridenFunc.IsImported
+
+                        match isExported, isOverridenExportedOrImported with
+                        | true, true
+                        | false, false -> ()
+                        | true, false ->
+                            cenv.diagnostics.Error($"'{func.Name}' cannot be exported because the function its overriding is neither imported or exported.", 10, syntax.Identifier)
+                        | false, true ->
+                            if func.TypeParameters.IsEmpty |> not then
+                                cenv.diagnostics.Error($"'{func.Name}' has type parameters and must be exported with the attribute '#[export]' because the function its overriding is imported or exported.", 10, syntax.Identifier)
 
                         true
                     else
                         false
             else
                 false
+
+        let checkFuncFromNewtype (func: IFunctionSymbol) =
+            // Newtypes cannot override anything.
+            if func.Enclosing.IsNewtype then
+                cenv.diagnostics.Error($"'{func.Name}' cannot be overriden in a newtype declaration.", 10, syntax.Identifier)
 
         let checkFunc (func: IFunctionSymbol) =
             match func.FunctionOverrides with
@@ -297,8 +494,12 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                 | _ -> ()
 
             if tryOverride func then
+                if doesFuncAlreadyExist func then
+                    duplicateError func syntax.Identifier
                 if not func.IsExplicitOverrides then
                     checkFunc func
+                else
+                    checkFuncFromNewtype func
             else
                 if func.IsExplicitOverrides then
                     cenv.diagnostics.Error($"The function '{printValue env.benv func}' cannot find a function to override.", 10, syntax.Identifier)
@@ -306,62 +507,13 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     if doesFuncAlreadyExist func then
                         duplicateError func syntax.Identifier
 
-        if binding.Value.IsProperty then           
-            if not ent.IsInterface then
-                match binding.Value with
-                | :? IPropertySymbol as prop ->
-
-                    let mustCheckExistsGetter =
-                        match prop.Getter with
-                        | Some getter ->
-                            let getter = getter :?> FunctionSymbol
-                            if tryOverride getter then
-                                if not getter.IsExplicitOverrides then
-                                    checkFunc getter
-                                false
-                            else
-                                if getter.IsExplicitOverrides then
-                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'get' to override.", 10, syntax.Identifier)
-                                    false
-                                else
-                                    true
-                        | _ ->
-                            false
-
-                    let mustCheckExistsSetter =
-                        match prop.Setter with
-                        | Some setter ->
-                            let setter = setter :?> FunctionSymbol
-                            if tryOverride setter then
-                                if not setter.IsExplicitOverrides then
-                                    checkFunc setter
-                                false
-                            else
-                                if setter.IsExplicitOverrides then
-                                    cenv.diagnostics.Error($"The property '{printValue env.benv prop}' cannot find a 'set' to override.", 10, syntax.Identifier)
-                                    false
-                                else
-                                    true
-                        | _ ->
-                            false
-
-                    if mustCheckExistsGetter || mustCheckExistsSetter then
-                        if fieldOrPropSet.Add(binding.Value.Name) |> not then
-                            duplicateError binding.Value syntax.Identifier
-                | _ ->
-                    ()
-
-        elif binding.Value.IsField then
+        if binding.Value.IsField then
             if fieldOrPropSet.Add(binding.Value.Name) then
                 if not ent.IsNewtype && not isImpl && ((binding.Value.IsInstance && hasImplicitInstanceDefaultCtor) || (not binding.Value.IsInstance && hasImplicitStaticDefaultCtor)) then
                     cenv.diagnostics.Error($"The field '{binding.Value.Name}' must be given a default value.", 10, syntax.Identifier)
 
                 if not ent.IsModule && isImpl && not hasImplicitInstanceDefaultCtor && binding.Value.IsInstance then
                     cenv.diagnostics.Error($"The field '{binding.Value.Name}' must not be given a default value.", 10, syntax.Identifier)
-
-                if ent.IsNewtype then
-                    if binding.Value.IsMutable then
-                        cenv.diagnostics.Error($"The field '{binding.Value.Name}' cannot be mutable on newtypes.", 10, syntax.Identifier)
             else
                 duplicateError binding.Value syntax.Identifier
 
@@ -392,11 +544,29 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
-        | BindingProperty(prop=prop) ->
-            match syntax with
-            // TODO:
-            | _ ->
-                ()
+        | BindingProperty(binding, prop) ->
+            if prop.IsAutoProperty then
+                let isImported =
+                    match prop.Getter with
+                    | Some getter -> getter.IsImported
+                    | _ -> false
+                let isImported =
+                    if isImported then
+                        true
+                    else
+                        match prop.Setter with
+                        | Some setter -> setter.IsImported
+                        | _ -> false
+                if isImported then
+                    // REVIEW: This is sort of a hack.
+                    //         We have to do this because "AttributeImporter" attributes
+                    //         are not resolved until Pass3 and property creation with the backing field
+                    //         occurs in Pass2.
+                    //         A way to possibly get rid of this hack, is by creating the backing field in Pass3
+                    //         instead of Pass2.
+                    let backingField = prop.BackingField.Value
+                    entBuilder.RemoveField(cenv.pass, backingField)
+                    prop.RemoveBackingField_Pass3_NonConcurrent()
         | BindingFunction(func)
         | BindingPattern(_, func) ->
             match syntax with
@@ -431,11 +601,28 @@ let bindTypeDeclarationBodyPass3 (cenv: cenv) (env: BinderEnvironment) entities 
                     ()
             | _ ->
                 ()
+
+    (syntaxTyDeclBody, entBuilder.Bindings)
+    |> ForEachBinding (fun syntaxAttrs syntaxBindingDecl binding ->
+        processMember (syntaxAttrs, syntaxBindingDecl) binding
     )
+
+    (* CHECK FOR DUPLICATE NESTED ENTITIES *)
+    let duplicateEnts = HashSet()
+    let syntaxNodes = syntaxTyDeclBody.GetNestedTypeDeclarationIdentifiers()
+    (entBuilder.NestedEntityBuilders, syntaxNodes)
+    ||> ImArray.iter2 (fun nestedEntBuilder syntaxNode ->
+        let nestedEnt = nestedEntBuilder.Entity
+        let key = (nestedEnt.Name, nestedEnt.TypeParameters.Length)
+        if duplicateEnts.Add(key) |> not then
+            if not nestedEnt.IsAnonymous then
+                cenv.diagnostics.Error(sprintf "'%s' has already been declared." (printEntity env.benv nestedEnt), 10, syntaxNode)
+    )
+    (**)
 
     env
 
-let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment * bool =
+let private bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (canOpen: bool) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) : BinderEnvironment * bool =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
@@ -450,12 +637,16 @@ let private bindTopLevelExpressionPass3 (cenv: cenv) (env: BinderEnvironment) (c
             env, canOpen
 
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1, canOpen = bindTopLevelExpressionPass3 cenv env canOpen entities syntaxExpr1
-        bindTopLevelExpressionPass3 cenv env1 canOpen entities syntaxExpr2
+        let env1, canOpen = bindTopLevelExpression cenv env canOpen entities syntaxExpr1
+        bindTopLevelExpression cenv env1 canOpen entities syntaxExpr2
 
-    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, _, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+    | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, _, syntaxTyDeclKind, syntaxTyDefName, _, syntaxConstrClauseList, _, syntaxTyDefBody) ->
+        let syntaxNode =
+            match syntaxTyDefName.Identifier with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyDeclKind
         let prevEntityDefIndex = cenv.entityDefIndex
-        let env = bindTypeDeclarationPass3 cenv env entities syntaxAttrs syntaxTyDefName.Identifier syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
+        let env = bindTypeDeclaration cenv env entities syntaxNode syntaxAttrs syntaxConstrClauseList.ChildrenOfType syntaxTyDefBody
         cenv.entityDefIndex <- prevEntityDefIndex + 1
         env, false
 

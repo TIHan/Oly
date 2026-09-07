@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Configurations>Debug;Release;Checked</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="MiscHelpers.fs" />
+    <Compile Include="Tracing.fs" />
+    <Compile Include="Path.fs" />
+    <Compile Include="ImArray.fs" />
+    <Compile Include="Assert.fs" />
+    <Compile Include="CacheValue.fs" />
+    <Compile Include="Json.fs" />
+    <Compile Include="IO.fs" />
+    <Compile Include="FileWatcher.fs" />
+    <Compile Include="Threading.fs" />
+    <Compile Include="Async.fs" />
+    <Compile Include="ExternalProcess.fs" />
+  </ItemGroup>
+
+</Project>

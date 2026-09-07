@@ -8,7 +8,7 @@ open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
-open Oly.Runtime.Target.DotNet
+open Oly.Targets.DotNet
 open Oly.Core
 open System.Runtime.Loader
 open System
@@ -169,7 +169,7 @@ let ``CLR import generic type``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
@@ -194,10 +194,11 @@ let ``CLR import generic type 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
+    inherits System.Object
 
     get_Count() : __oly_int32
     get_Item(__oly_int32): T
@@ -206,7 +207,7 @@ class List<T> =
 
     Add(item: T) : ()
 
-    overrides ToString() : __oly_utf16
+    overrides ToString() : __oly_string16
 
 main() : () =
     let xs : List<__oly_int32> = List<__oly_int32>()
@@ -226,15 +227,16 @@ let ``Custom CLR import intrinsic int32``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 #[import("CLR:mscorlib", "System", "Int32")]
 struct CustomInt32 =
+    inherits System.ValueType
 
-    static Parse(s: __oly_utf16) : CustomInt32
+    static Parse(s: __oly_string16) : CustomInt32
 
-    overrides ToString() : __oly_utf16
+    overrides ToString() : __oly_string16
 
 main() : () =
     let x = CustomInt32.Parse("123")
@@ -282,7 +284,7 @@ test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 class Test =
   implements IDisposable
 
-  new() = {}
+  new() = this { }
 
   Dispose(): () = 
     let x = 1
@@ -326,7 +328,7 @@ test<T>(x: T): () where T: trait IDisposable = x.Dispose()
 class Test =
   implements IDisposable
 
-  new() = {}
+  new() = this { }
 
   Dispose(): () = 
     let x = 1
@@ -364,7 +366,7 @@ open System
 open System.Diagnostics
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias (&)<T>
 
 #[intrinsic("address_of")]
@@ -374,7 +376,7 @@ struct TestStruct =
 
     x: Int32 get, set
 
-    new(x: Int32) = { x = x }
+    new(x: Int32) = this { x = x }
 
 test<T>(x: T&): Int32 where T: { x: Int32 get, set } = 
     let mutable result = Int32.Parse("123")
@@ -406,7 +408,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -431,7 +433,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -456,11 +458,11 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     mutable GetValue(): int32 =
         this.item.GetHashCode()
@@ -488,11 +490,11 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     mutable GetValue(): int32 =
         this.item.GetHashCode()
@@ -520,21 +522,21 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     mutable GetValue(): int32 =
         this.item.GetHashCode()
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     mutable GetValue(): int32 =
@@ -564,28 +566,28 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-interface IHash<T> where T: { mutable GetHashCode(): int32 } =
+interface IHash<T> where T: { GetHashCode(): int32 } =
 
     default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
     
     private field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
         let x: IHash<T> = this
         x.GetValue(this.item)
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
 
     private field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
@@ -615,29 +617,29 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-interface IHash<T> where T: { mutable GetHashCode(): int32 } =
+interface IHash<T> where T: { GetHashCode(): int32 } =
 
     default GetValue(mutable x: T): int32 =
         x.GetHashCode()
 
-struct Hash<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
     
     public field mutable item: T
 
-    new(item: T) = { item = item }
+    new(item: T) = this { item = item }
 
     #[inline(never)]
     GetValue(): int32 =
         let x: IHash<T> = this
         x.GetValue(this.item)
 
-struct Hash2<T> where T: { mutable GetHashCode(): int32 } =
+struct Hash2<T> where T: { GetHashCode(): int32 } =
     implements IHash<T>
 
     public field mutable item: Hash<T>
 
-    new(item: Hash<T>) = { item = item }
+    new(item: Hash<T>) = this { item = item }
 
     #[inline(never)]
     GetValue(x: T): int32 =
@@ -670,7 +672,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-hash<T>(mutable x: T): int32 where T: { mutable GetHashCode(): int32 } =
+hash<T>(mutable x: T): int32 where T: { GetHashCode(): int32 } =
     x.GetHashCode()
 
 main(): () =
@@ -711,16 +713,18 @@ test<T>(x: T): () where T: IExample =
 class Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
 class Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -732,8 +736,18 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
-        withCompile
-        >> shouldRunWithExpectedOutput "testExample"
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type parameter 'U' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+      test<_>(x)
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
         )
 
 [<Fact>]
@@ -767,16 +781,18 @@ test<T>(x: T): () where T: IExample =
 struct Example =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
 struct Example2 =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -788,8 +804,18 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
-        withCompile
-        >> shouldRunWithExpectedOutput "testExample"
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type parameter 'U' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+      test<_>(x)
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
         )
 
 [<Fact>]
@@ -823,16 +849,18 @@ test<T>(x: T): () where T: IExample =
 struct Example<Z> =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
 struct Example2<Z> =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
 
@@ -844,8 +872,18 @@ main(): () =
         """
     OlyWithCSharp csSrc src
         (
-        withCompile
-        >> shouldRunWithExpectedOutput "testExample"
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type parameter 'U' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+      test<_>(x)
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
         )
 
 [<Fact>]
@@ -890,8 +928,9 @@ module Test =
 struct Example<Z> =
   implements IExample
 
-  new() = { }
+  new() = this { }
 
+  #[export]
   GenericExample<U>(x: U): () = 
       Console.Write("Example")
 
@@ -899,16 +938,1059 @@ struct Example<Z> =
 struct Example2<Z> =
   implements IExample2
 
-  new() = { }
+  new() = this { }
 
   GenericExample<U>(x: U): () where U: IExample = 
       test<_>(x)
         """
     OlyWithCSharp csSrc src
         (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type parameter 'U' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+      test<_>(x)
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 5``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 5 - but explicit``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    #[export]
+    new GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 6``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+module Test =
+
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+
+#[export]
+abstract default class BaseExample =
+
+    abstract default GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+#[export]
+class Example =
+    inherits BaseExample
+    implements IExample
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 7``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract class BaseExample =
+
+    abstract GenericExample<T>(T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    overrides GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 8 - using an export``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+module Test =
+
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+
+#[export]
+abstract class BaseExample =
+
+    abstract GenericExample<T>(T): ()
+
+#[export]
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    overrides GenericExample<T>(x: T): () =
+        Console.Write(x)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 9``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    #[export]
+    new GenericExample<T>(x: T): () = Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 10 - cannot use a non-exported class inside a function that cannot be erased``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+        """
+
+    let src =
+        """
+open System
+
+class NonExportedClass<T> =
+
+    Value: T get, set
+    new(value: T) = this { Value = value }
+
+abstract class BaseExample =
+
+    GenericExample<T>(x: T): () = Console.Write("failed")
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    #[export]
+    new GenericExample<T>(x: T): () =
+        let x = NonExportedClass(x)
+        Console.Write(x.Value)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let x = NonExportedClass(x)
+                ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let x = NonExportedClass(x)
+                ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let x = NonExportedClass(x)
+                ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let x = NonExportedClass(x)
+            ^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        Console.Write(x.Value)
+                      ^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        Console.Write(x.Value)
+                      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but explicit``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    new GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but explicit without new``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write("failed");
+    }
+}
+        """
+
+    let src =
+        """
+open System
+
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+    GenericExample<T>(x: T): () =
+        Console.Write(x)
+
+main(): () =
+    let example = Example()
+    let example2 = example: IExample
+    example2.GenericExample(123)
+    example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withErrorHelperTextDiagnostics
+                    [
+            ("The member 'GenericExample' will hide over its base.",
+                """
+    GenericExample<T>(x: T): () =
+    ^^^^^^^^^^^^^^
+"""
+            )
+            ("The function 'GenericExample<T>(x: T): ()' is not implemented for 'IExample' on 'Example'.",
+                """
+class Example =
+      ^^^^^^^
+"""
+            )
+                    ]
+                    |> ignore
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but with export``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write(x);
+    }
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+module Main =
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 11 - but with export on function only``() =
+    let csSrc =
+        """
+public abstract class BaseExample
+{
+    public virtual void GenericExample<T>(T x)
+    {
+        System.Console.Write(x);
+    }
+}
+        """
+
+    let src =
+        """
+namespace Test
+
+open System
+
+interface IExample =
+
+    #[export]
+    GenericExample<T>(x: T): ()
+
+class Example =
+    inherits BaseExample
+    implements IExample
+
+module Main =
+    main(): () =
+        let example = Example()
+        let example2 = example: IExample
+        example2.GenericExample(123)
+        example2.GenericExample("test")
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "123test"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 12 - using export attributes``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
         withCompile
         >> shouldRunWithExpectedOutput "testExample"
         )
+
+[<Fact>]
+let ``Complex test and csharp source 13 - using export attributes and wrapped in a lambda``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<Z>(x: Z): () where Z: IExample =
+  Console.Write("test")
+  x.GenericExample<Z>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 14 - partially using export attributes``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  #[export]
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+  
+  #[export]
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "testExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 15 - using export attributes and local class``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      class LocalClass =
+        M(): () = Console.Write("LocalClass")
+      let c = LocalClass()
+      c.M()
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "LocalClasstestExample"
+        )
+
+[<Fact>]
+let ``Complex test and csharp source 16 - using export attributes and local class using static``() =
+    let csSrc =
+        """
+public interface IExample
+{
+    void GenericExample<T>(T x);
+}
+
+public interface IExample2
+{
+    void GenericExample<T>(T x) where T : IExample;
+}
+        """
+
+    let src =
+        """
+open System
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      class LocalClass =
+        static M(): () = Console.Write("LocalClass")
+      LocalClass.M()
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    OlyWithCSharp csSrc src
+        (
+        withCompile
+        >> shouldRunWithExpectedOutput "LocalClasstestExample"
+        )
+
+[<Fact>]
+let ``Complex test and NO-csharp source - using no export attributes``() =
+    let src =
+        """
+open System
+
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Complex test and NO-csharp source 2 - using export attributes``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+    
+[<Fact>]
+let ``Complex test and NO-csharp source 3 - using export attributes and wrapped in a lambda``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+  
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Complex test and NO-csharp source 4 - partially using export attributes``() =
+    let src =
+        """
+open System
+
+#[export]
+interface IExample =
+    
+    GenericExample<T>(T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(T): () where T: IExample
+
+#[export]
+test<T>(x: T): () where T: IExample =
+  Console.Write("test")
+  x.GenericExample<T>(x)
+
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  #[export]
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+  
+  #[export]
+  GenericExample<U>(x: U): () where U: IExample = 
+      test<_>(x)
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
 
 [<Fact>]
 let ``Property test and csharp source``() =
@@ -928,7 +2010,7 @@ class Test =
     implements IExample
 
     X: Int32 get
-    new() = { X = 123 }
+    new() = this { X = 123 }
 
 main(): () =
     let t = Test()
@@ -1053,7 +2135,7 @@ class Test
 
 module Helpers =
     #[intrinsic("cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
 interface IDootExample =
     inherits IDoot, IExample
@@ -1083,7 +2165,7 @@ let ``Second order generic on List``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "List`1")]
 class List<T> =
@@ -1112,7 +2194,7 @@ let ``Second order generic on ICollection``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
@@ -1149,7 +2231,7 @@ let ``Second order generic on ICollection 2``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[import("CLR:mscorlib", "System.Collections.Generic", "ICollection`1")]
 interface ICollection<T> =
@@ -1184,7 +2266,7 @@ main(): () =
 let ``String concat with fully qualified calls``() =
     let src =
         """
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 (+)(str1: string, str2: string): string = System.String.Concat(str1, str2)
@@ -1237,6 +2319,105 @@ main(): () =
     let xs2 = map(xs, x -> x + 100)
     Console.Write(xs2.get_Item(0))
     Console.Write(xs2.get_Item(1))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "101102"
+
+[<Fact>]
+let ``Mappable example 2 - in a module``() =
+    let src =
+        """
+module CoolModule
+
+open System
+open System.Collections.Generic
+open extension CoolModule.ListMappable<_>
+
+#[intrinsic("add")]
+(+)(Int32, Int32): Int32
+
+#[intrinsic("less_than")]
+(<)(Int32, Int32): Boolean
+
+interface IMappable<T<_>> =
+
+    static abstract Map<A, B>(ta: T<A>, f: A -> B): T<B>
+
+extension ListMappable<T> =
+    inherits List<T>
+    implements IMappable<List>
+
+    static overrides Map<A, B>(list: List<A>, f: A -> B): List<B> =
+        let newList = List<B>(list.Count)
+        let loop(i) =
+            if (i < list.Count)
+                newList.Add(f(list.get_Item(i)))
+                loop(i + 1)
+        loop(0)
+        newList
+
+map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: trait IMappable<T> =
+    T.Map<A, B>(ta, f)
+
+main(): () =
+    let xs = List<Int32>()
+    xs.Add(1)
+    xs.Add(2)
+    let xs2 = map(xs, x -> x + 100)
+    Console.Write(xs2.get_Item(0))
+    Console.Write(xs2.get_Item(1))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "101102"
+
+[<Fact>]
+let ``Mappable example 3 - in a namespace``() =
+    let src =
+        """
+namespace CoolNamespace
+
+open System
+open System.Collections.Generic
+open extension CoolNamespace.ListMappable<_>
+
+#[open]
+module Helpers =
+    #[intrinsic("add")]
+    (+)(Int32, Int32): Int32
+
+    #[intrinsic("less_than")]
+    (<)(Int32, Int32): Boolean
+
+interface IMappable<T<_>> =
+
+    static abstract Map<A, B>(ta: T<A>, f: A -> B): T<B>
+
+extension ListMappable<T> =
+    inherits List<T>
+    implements IMappable<List>
+
+    static overrides Map<A, B>(list: List<A>, f: A -> B): List<B> =
+        let newList = List<B>(list.Count)
+        let loop(i) =
+            if (i < list.Count)
+                newList.Add(f(list.get_Item(i)))
+                loop(i + 1)
+        loop(0)
+        newList
+
+module Mod =
+    map<T<_>, A, B>(ta: T<A>, f: A -> B): T<B> where T: trait IMappable<T> =
+        T.Map<A, B>(ta, f)
+
+    main(): () =
+        let xs = List<Int32>()
+        xs.Add(1)
+        xs.Add(2)
+        let xs2 = map(xs, x -> x + 100)
+        Console.Write(xs2.get_Item(0))
+        Console.Write(xs2.get_Item(1))
         """
     Oly src
     |> withCompile
@@ -1309,7 +2490,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "olytest__oly_module+Test"
 
 [<Fact>]
 let ``Call ToString on newly defined class with overriding ToString``() =
@@ -1317,7 +2498,7 @@ let ``Call ToString on newly defined class with overriding ToString``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
 main(): () =
     let x = Test()
@@ -1334,11 +2515,11 @@ let ``Call ToString on newly defined class with overriding ToString 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
 main(): () =
     let x = Test()
-    let y: __oly_object = x
+    let y: __oly_base_object = x
     System.Console.Write(y.ToString())
         """
 
@@ -1352,7 +2533,7 @@ let ``Call ToString via witness on newly defined class``() =
         """
 class Test
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16 } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16 } = 
     System.Console.Write(x.ToString())
 
 main(): () =
@@ -1362,7 +2543,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "olytest__oly_module+Test"
 
 [<Fact>]
 let ``Call ToString via witness on newly defined class 2``() =
@@ -1370,9 +2551,9 @@ let ``Call ToString via witness on newly defined class 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16 } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16 } = 
     System.Console.Write(x.ToString())
 
 main(): () =
@@ -1390,9 +2571,9 @@ let ``Call ToString via witness on newly defined class 3``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overriding ToString"
+    overrides ToString(): __oly_string16 = "overriding ToString"
 
-test<T>(x: T): () where T: { ToString(): __oly_utf16; GetType(): System.Type } = 
+test<T>(x: T): () where T: { ToString(): __oly_string16; GetType(): System.Type } = 
     System.Console.Write(x.ToString())
     System.Console.Write(x.GetType())
 
@@ -1403,7 +2584,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput "overriding ToString__oly_gen_0+Test"
+    |> shouldRunWithExpectedOutput "overriding ToStringolytest__oly_module+Test"
 
 [<Fact>]
 let ``Use of '()' should pass 1``() =
@@ -1425,7 +2606,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
 
 [<Fact>]
 let ``Use of '()' should pass 2``() =
@@ -1447,7 +2628,7 @@ main(): () =
 
     Oly src
     |> withCompile
-    |> shouldRunWithExpectedOutput ""
+    |> shouldRunWithExpectedOutput "()"
 
 [<Fact>]
 let ``Type extension of a generic type``() =
@@ -1562,7 +2743,7 @@ shape DotNetIndexSetter<TKey, TValue> =
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
 
 main(): () =
-    let lookup = Dictionary<__oly_utf16, int32>()
+    let lookup = Dictionary<__oly_string16, int32>()
     lookup["hello"] <- 123
     Console.Write(lookup["hello"])
         """
@@ -1602,7 +2783,7 @@ shape DotNetIndexSetter<TKey, TValue> =
 (`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
 
 main(): () =
-    let strs = List<__oly_utf16>()
+    let strs = List<__oly_string16>()
     strs.Add("hello")
     Console.Write(strs[0])
         """
@@ -1714,7 +2895,20 @@ open System.Threading.Tasks
 
 main(): () =
     let task = Task.Run(() -> ())
-    let w = task.ContinueWith(x -> (), null)
+    let w = 
+        task.ContinueWith(
+            x ->
+               let _w = x.IsCompleted
+               (), 
+            null
+        )
+    let w2 = 
+        task.ContinueWith(
+            x ->
+               let _w = x.IsCompleted
+               5, 
+            null
+        )
         """
     Oly src
     |> shouldCompile
@@ -1754,10 +2948,10 @@ open System.Runtime.CompilerServices
 #[intrinsic("not")]
 (!)(__oly_bool): __oly_bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1826,10 +3020,10 @@ open System.Runtime.CompilerServices
 #[intrinsic("not")]
 (!)(__oly_bool): __oly_bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1870,7 +3064,7 @@ let ``Indexer operator example with struct with export``() =
         """
 namespace A
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[export]
@@ -1884,7 +3078,7 @@ struct Test2 =
 
 module Test =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = x.get_Item(key)
 
@@ -1907,7 +3101,7 @@ namespace A
 module Prelude =
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     main() : () =
         Test.test()
@@ -1915,12 +3109,10 @@ module Prelude =
 #[export]
 module Test =
 
-    #[export]
     private test_private(): () =
         print("test")
         print("_private")
 
-    #[export]
     test(): () = Test.test_private()
         """
     Oly src
@@ -1944,38 +3136,6 @@ main() : () =
     |> withCompile
     |> shouldRunWithExpectedOutput ""
 
-[<Fact(Skip = "We cannot call 'test' as it is marked as unmanaged callers only, we need a new test. Passes in Release vs Debug - weird .NET behavior.")>]
-let ``UnmanagedCallersOnly example``() =
-    let src =
-        """
-namespace A
-
-open System.Runtime.InteropServices
-open System.Runtime.CompilerServices
-
-#[open]
-module Test =
-
-    #[intrinsic("constant")]
-    #[import("intrinsic-CLR", "", "typeof")]
-    typeof<T>(): System.Type
-
-    #[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>()])]
-    test(x: __oly_int32): __oly_int32 = x
-
-module Main =
-
-    #[intrinsic("print")]
-    print(__oly_object): ()
-
-    main(): () =
-        let result = test(1234)
-        print(result)
-        """
-    Oly src
-    |> withCompile
-    |> shouldRunWithExpectedOutput "1234"
-
 [<Fact>]
 let ``Using SystemValueType subsumption``() =
     let src =
@@ -1983,7 +3143,7 @@ let ``Using SystemValueType subsumption``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result = 1234
@@ -2003,7 +3163,7 @@ open System
 struct Test
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result = Test()
@@ -2021,10 +3181,10 @@ let ``Overrides ToString()``() =
 class Test =
     inherits System.Object
 
-    overrides ToString(): __oly_utf16 = "overrides"
+    overrides ToString(): __oly_string16 = "overrides"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result: System.Object = Test()
@@ -2040,10 +3200,10 @@ let ``Overrides ToString() 2``() =
         """
 class Test =
 
-    overrides ToString(): __oly_utf16 = "overrides"
+    overrides ToString(): __oly_string16 = "overrides"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let result: System.Object = Test()
@@ -2058,7 +3218,7 @@ let ``System Convert ToUInt64``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(System.Convert.ToUInt64(123))
@@ -2077,7 +3237,7 @@ open System.Runtime.InteropServices
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct Test =
     public field X: int32 = 123
@@ -2106,7 +3266,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -2130,7 +3290,7 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
@@ -2160,14 +3320,13 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 class AClass =
 
-    #[export]
     Mtd(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2192,14 +3351,13 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 class AClass =
 
-    #[export]
     Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2207,7 +3365,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2224,21 +3382,19 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass =
     inherits BClass
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2246,7 +3402,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2263,21 +3419,19 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 abstract class BClass<T> =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass =
-    inherits BClass<__oly_utf16>
+    inherits BClass<__oly_string16>
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
@@ -2285,7 +3439,7 @@ class AClass =
 module Main =
     main() : () =
         let a = AClass()
-        print(a.Mtd<__oly_object>())
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2302,29 +3456,27 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass<T> =
     inherits BClass
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        let a = AClass<__oly_string16>()
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2341,29 +3493,27 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 abstract class BClass<T> =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One
 
 #[export]
 class AClass<T> =
     inherits BClass<T>
 
-    #[export]
     overrides Mtd<U>(): Vector3 =
         let v1 = Vector3.Zero
         v1 * v1
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        let a = AClass<__oly_string16>()
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2380,14 +3530,13 @@ open System.Numerics
 #[open]
 module M =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
 
 #[export]
 abstract class BClass =
 
-    #[export]
     abstract default Mtd<U>(): Vector3 = Vector3.One * Vector3.One
 
 #[export]
@@ -2396,8 +3545,8 @@ class AClass<T> =
 
 module Main =
     main() : () =
-        let a = AClass<__oly_utf16>()
-        print(a.Mtd<__oly_object>())
+        let a = AClass<__oly_string16>()
+        print(a.Mtd<__oly_base_object>())
         """
     Oly src
     |> withCompile
@@ -2409,18 +3558,19 @@ let ``Weird one``() =
         """
 namespace Test
 
-#[export]
-module M =
+#[open]
+module Prelude =
+
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
     
     #[intrinsic("int32")]
     alias int
     
-    #[intrinsic("utf16")]
+    #[intrinsic("string16")]
     alias string
     
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
     
     #[intrinsic("address_of")]
@@ -2430,13 +3580,14 @@ module M =
     (+)(int, int): int
     
     #[intrinsic("unsafe_cast")]
-    unsafeCast<T>(__oly_object): T
+    unsafeCast<T>(__oly_base_object): T
 
-    #[export]
+#[export]
+module M =
+
     interface IMoveable =
         Position: int get, set
    
-    #[export]
     class Item =
         implements IMoveable
 
@@ -2453,14 +3604,12 @@ module M =
                 print(this.Name)
                 print(" ")
 
-    #[export]
     GetOffset<T>(item: byref<T>): int =
         let item2 = Item()
         item2.Name <- "Bar"
         item <- unsafeCast(item2)
         0
 
-    #[export]
     Shift<T>(mutable item : T): () where T: IMoveable, not struct =
         item.Position <- item.Position + (GetOffset(&item))
 
@@ -2479,18 +3628,19 @@ let ``Weird one 2``() =
         """
 namespace Test
 
-#[export]
-module M =
+#[open]
+module Prelude =
+
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
     
     #[intrinsic("int32")]
     alias int
     
-    #[intrinsic("utf16")]
+    #[intrinsic("string16")]
     alias string
     
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
     
     #[intrinsic("address_of")]
@@ -2500,13 +3650,14 @@ module M =
     (+)(int, int): int
     
     #[intrinsic("unsafe_cast")]
-    unsafeCast<T>(__oly_object): T
+    unsafeCast<T>(__oly_base_object): T
 
-    #[export]
+#[export]
+module M =
+
     interface IMoveable =
         Position: int get, set
-   
-    #[export]
+
     struct Item =
         implements IMoveable
 
@@ -2523,14 +3674,12 @@ module M =
                 print(this.Name)
                 print(" ")
 
-    #[export]
     GetOffset<T>(item: byref<T>): int where T: IMoveable =
         let mutable item2 = Item()
         item2.Name <- "Bar"
         item <- unsafeCast(item2)
         0
 
-    #[export]
     Shift<T>(mutable item : T): () where T: IMoveable, struct =
         item.Position <- item.Position + (GetOffset(&item))
 
@@ -2563,13 +3712,13 @@ alias uint64
 alias (*)<T>
 
 #[intrinsic("unsafe_cast")]
-unsafeCast<T>(__oly_object): T
+unsafeCast<T>(__oly_base_object): T
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 alloc(numberOfBytes: int32): void* =
     unsafeCast(System.Runtime.InteropServices.Marshal.AllocHGlobal(numberOfBytes))
@@ -2602,7 +3751,7 @@ alias void
 alias (*)<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("load_null_ptr")]
 nullptr<T>: T*
@@ -2622,7 +3771,7 @@ let ``Simple throw should give the right exception``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
@@ -2654,7 +3803,7 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("native_int")]
@@ -2686,10 +3835,10 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -2738,14 +3887,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits Vector3
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -2782,14 +3931,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -2826,14 +3975,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
 
 main(): () =
@@ -2871,14 +4020,14 @@ print(object): ()
 #[intrinsic("add")]
 (+)(float32, float32): float32
 
-(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static (+)<T4, T5, T6>(T4, T5): T6 where T4: { static op_Addition(T4, T5): T6 } }, { static op_Addition(T1, T2): T3 } = 
+(+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static (+)<T4, T5, T6>(T4, T5): T6 where T4: trait { static op_Addition(T4, T5): T6 } }, trait { static op_Addition(T1, T2): T3 } = 
     T1.(+)<T1, T2, T3>(x, y)
 
 #[open]
 extension AddExtension =
     inherits object
 
-    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = 
+    static (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = 
         T1.op_Addition(x, y)
         """
     let src =
@@ -2947,7 +4096,7 @@ let ``Test various branch sizes``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32
@@ -3009,9 +4158,9 @@ let ``Use 'Length' property from string``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -3027,9 +4176,9 @@ let ``Use 'Length' property from string 2``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -3045,9 +4194,9 @@ let ``Use 'Length' property from string 3``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 main(): () =
@@ -3062,7 +4211,7 @@ let ``Use 'MaxValue' from uint16``() =
     let src =
         """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint16")]
 alias uint16
@@ -3081,7 +4230,7 @@ let ``Simple Try expression``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -3106,7 +4255,7 @@ let ``Simple Try expression 2``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -3130,7 +4279,7 @@ let ``Simple Try expression 3``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -3158,7 +4307,7 @@ alias int32
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct TestData =
     public field X: int32 = 1
@@ -3191,7 +4340,7 @@ open System
 alias uint64
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class TestData =
     public field X: uint64 = 123456789
@@ -3211,7 +4360,7 @@ let ``Cast to SystemEnum``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -3231,7 +4380,7 @@ let ``Cast to SystemValueType``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum E =
     | A
@@ -3251,7 +4400,7 @@ let ``Enum equality overload check``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("bool")]
 alias bool
@@ -3259,7 +4408,7 @@ alias bool
 #[intrinsic("equal")]
 (==)(value1: Enum, value2: Enum): bool
 
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 #[intrinsic("or")]
 (||)(bool, bool): bool
@@ -3296,14 +4445,14 @@ open System.Runtime.InteropServices
 open System.Runtime.CompilerServices
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("constant")]
 #[import("intrinsic-CLR", "", "typeof")]
 typeof<require T>: System.Type
 
 #[blittable]
-#[UnmanagedCallersOnly(CallConvs = [typeof<CallConvCdecl>])]
+#[UnmanagedCallersOnly() { CallConvs = [typeof<CallConvCdecl>] }]
 test(): () =
     ()
 
@@ -3365,7 +4514,7 @@ alias nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -3374,10 +4523,10 @@ alias char
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -4064,19 +5213,19 @@ extension ArrayExtensions =
 // DotNet Specific
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
 (`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
@@ -4135,11 +5284,9 @@ open System
 #[export]
 abstract class A<T> =
 
-    #[export]
     abstract default Test(x: T): () =
         Program.print("Test_T_")
 
-    #[export]
     abstract default Test(x: Int32): () =
         Program.print("Test_int32_")
 
@@ -4151,13 +5298,12 @@ class Test =
 class Test2 =
     inherits A<Int32>
 
-    #[export]
     overrides Test(x: Int32): () =
         Program.print(x)
 
 module Program =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     main(): () =
         let t = Test()
@@ -4183,7 +5329,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, f: T -> ()): () =
     let xse = xs.GetEnumerator()
@@ -4211,7 +5357,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4244,7 +5390,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4281,7 +5427,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4315,7 +5461,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4356,7 +5502,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4402,7 +5548,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension ArrayEnumerableExtension<T> =
@@ -4445,10 +5591,10 @@ open System
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4458,10 +5604,10 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -4469,7 +5615,7 @@ print(__oly_object): ()
     x.get_Item(key)
 
 #[inline]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
     x.get_Item(key)
 
 main(): () =
@@ -4492,7 +5638,7 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
@@ -4524,9 +5670,9 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
-(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
 #[open]
 extension IEquatableExtensions<T> =
@@ -4560,7 +5706,7 @@ open System
 alias bool
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
 
@@ -4597,7 +5743,7 @@ let ``Always choose most specific implementation for extension``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
    implements IDisposable
@@ -4629,7 +5775,7 @@ let ``Always choose most specific implementation for extension 2``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract default class C
 
@@ -4668,7 +5814,7 @@ let ``Always choose most specific implementation for extension 3``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 abstract default class C
 
@@ -4700,7 +5846,7 @@ let ``Override finalizer``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -4727,7 +5873,7 @@ let ``Field array of byte pointers should work``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint8")]
 alias byte
@@ -4751,7 +5897,7 @@ let ``Lambda uses a pointer type should work``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("uint8")]
 alias byte
@@ -4781,7 +5927,7 @@ open System
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 test(f: Span<byte> -> ()): () =
@@ -4806,7 +5952,7 @@ open System
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 test(f: ReadOnlySpan<byte> -> ()): () =
@@ -4832,7 +5978,7 @@ open System.Runtime.InteropServices
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 struct S =
     field value: byte = 1
@@ -4844,10 +5990,10 @@ extension MutableArrayExtensions<T> =
     AsSpan(): Span<T> = Span(this)
 
 #[open]
-extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+extension MutableArrayCastExtensions<T> where T: struct, ValueType, { new() } =
     inherits mutable T[]
 
-    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
 
 main(): () =
     let xs = mutable [S()]
@@ -4869,7 +6015,7 @@ open System.Runtime.InteropServices
 alias byte
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[open]
 extension MutableArrayExtensions<T> =
@@ -4878,10 +6024,10 @@ extension MutableArrayExtensions<T> =
     AsSpan(): Span<T> = Span(this)
 
 #[open]
-extension MutableArrayCastExtensions<T> where T: struct, ValueType =
+extension MutableArrayCastExtensions<T> where T: struct, ValueType, { new() } =
     inherits mutable T[]
 
-    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType = MemoryMarshal.Cast(Span(this))
+    AsSpan<TCast>(): Span<TCast> where TCast: struct, ValueType, { new() } = MemoryMarshal.Cast(Span(this))
 
 test(xs: Span<byte>): () = ()
 test<T>(xs: T): () = ()
@@ -4919,7 +6065,7 @@ class ArchetypeReference<T0> where T0: unmanaged, trait IComponent =
     ArchetypedIndex: int32 get
 
     new() =
-        {
+        this {
             ArchetypedIndex = T0.GetValue()
         }
 
@@ -4943,7 +6089,7 @@ extension S2Component =
 
 module TestModule =
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     GetIndex<T>(): int32 where T: unmanaged, trait IComponent =
         // 'T' might have a witness and it needs to be passed to type-ctor 'ArchetypeReference'.
@@ -4973,10 +6119,10 @@ alias int32
 #[intrinsic("float32")]
 alias float32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -4986,7 +6132,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
@@ -5011,7 +6157,7 @@ extension Vector3Extensions =
 struct Transform =
     public field mutable Matrix: Matrix4x4
 
-    new(matrix: Matrix4x4) = { Matrix = matrix }
+    new(matrix: Matrix4x4) = this { Matrix = matrix }
 
     Position: Vector3
         get() = this.Matrix.Translation
@@ -5133,10 +6279,10 @@ alias int32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5146,7 +6292,7 @@ alias inref<T>
 (&)<T>(T): inref<T> 
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 shape DotNetIndexGetter<TKey, TValue> =
 
@@ -5175,7 +6321,7 @@ class Subscription<T> =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -5200,7 +6346,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key(value))
 
-    new(value: T) = { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = System.Collections.Concurrent.ConcurrentDictionary() }
 
 main(): () =
     let var = Observable<int32>(0)
@@ -5219,7 +6365,7 @@ let ``Span get_Item simple test``() =
 open System
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let mutable span = Span(mutable [567])
@@ -5237,14 +6383,14 @@ let ``Observer example``() =
 open System
 open System.Collections.Concurrent
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -5263,7 +6409,7 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -5273,17 +6419,17 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 private class Subscription =
@@ -5292,7 +6438,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -5303,7 +6449,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -5336,7 +6482,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = ConcurrentDictionary() }
 
 main(): () =
     let o = Observable(123)
@@ -5357,14 +6503,14 @@ open System.Collections.Concurrent
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -5383,7 +6529,7 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
@@ -5393,17 +6539,17 @@ ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, #[inline(always)] f: T
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { mutable get_Item(TKey): TValue } where TValue: scoped = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
     x.get_Item(key)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 #[inline]
 #[System.Diagnostics.DebuggerHiddenAttribute()]
-(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { mutable set_Item(TKey, TValue): () } = 
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: { set_Item(TKey, TValue): () } = 
     x.set_Item(key, value)
 
 private class Subscription =
@@ -5412,7 +6558,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -5423,7 +6569,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -5456,7 +6602,7 @@ class Observable =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: int32) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: int32) = this { value = value; subscribers = ConcurrentDictionary() }
 
 main(): () =
     let o = Observable(123)
@@ -5474,14 +6620,14 @@ let ``Lock example``() =
 open System
 open System.Collections.Concurrent
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
@@ -5517,7 +6663,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -5545,6 +6691,9 @@ module M =
 
     #[intrinsic("load_function_ptr")]
     (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
 
     #[intrinsic("constant")]
     #[import("intrinsic-CLR", "", "typeof")]
@@ -5576,7 +6725,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -5617,7 +6766,7 @@ module M =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+            ("Invalid use of 'LoadFunctionPtr'.",
                 """
         let del = CreateDelegate(callback, &&callback.Invoke)
                                            ^^^^^^^^^^^^^^^^^
@@ -5635,7 +6784,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -5677,14 +6826,75 @@ module M =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type 'static (Callback, uint32, uint32) -> (())' but is 'static (Callback, uint32, uint32) -> ()'.",
+            ("Invalid use of 'LoadFunctionPtr'.",
                 """
-        let del = CreateDelegate(callback, ptr)
-                                           ^^^
+        let ptr = &&callback.Invoke
+                  ^^^^^^^^^^^^^^^^^
 """
             )
         ]
     |> ignore
+
+[<Fact>]
+let ``Custom delegate should not error due to physical unit type``() =
+    let src =
+        """
+namespace N
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[export]
+class Callback =
+
+    Invoke(bodyId1: uint32, bodyId2: uint32): () = 
+        M.print("hello")
+        M.print(bodyId1)
+        M.print(bodyId2)
+
+module Unsafe =
+
+    #[intrinsic("unsafe_cast")]
+    Cast<T>(object): T
+
+module M =
+
+    #[intrinsic("print")]
+    print(object): ()
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+    #[intrinsic("load_function_ptr")]
+    (&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
+    #[intrinsic("constant")]
+    #[import("intrinsic-CLR", "", "typeof")]
+    typeof<require T>: System.Type
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TReturn, TParameters...>(object, static TParameters... -> TReturn): System.Delegate
+
+    #[import("intrinsic-CLR", "", "CreateDelegate")]
+    CreateDelegate<TParameters...>(object, static TParameters... -> ()): System.Delegate
+
+    main(): () =
+        let callback = Callback()
+        let del = CreateDelegate(callback, &&callback.Invoke)
+        let _ = del.DynamicInvoke(mutable [4: uint32; 2: uint32])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello42"
 
 [<Fact>]
 let ``Custom delegate with return type``() =
@@ -5695,7 +6905,7 @@ namespace N
 #[intrinsic("base_object")]
 alias object
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("uint32")]
@@ -5759,7 +6969,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5797,7 +7007,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -5834,7 +7044,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5871,7 +7081,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5908,7 +7118,7 @@ alias object
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -5946,7 +7156,7 @@ module Prelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
 #[export]
 struct S<T> =
@@ -5956,10 +7166,8 @@ struct S<T> =
 #[export]
 module Program =
 
-    #[export]
     field X: S<int32> = S()
 
-    #[export]
     main(): () =
         print(X.X)
         """
@@ -5978,14 +7186,14 @@ module Prelude =
     #[intrinsic("int32")]
     alias int32
 
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
 
     #[intrinsic("address_of")]
     (&)<T>(T): byref<T>
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("add")]
     (+)(int32, int32): int32
@@ -6032,20 +7240,17 @@ struct S3<T> where T: IA =
 #[export]
 module Program =
 
-    #[export]
     M<T>(x: S3<T>): int32 where T: IA =
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     M2<T>(x: S3<T>): int32 where T: IA =
         x.SetX(1)
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     main(): () =
         let mutable s = S3<S2<S>>()
         let result = M(s)
@@ -6072,14 +7277,14 @@ module Prelude =
     #[intrinsic("int32")]
     alias int32
 
-    #[intrinsic("by_ref_read_write")]
+    #[intrinsic("by_ref")]
     alias byref<T>
 
     #[intrinsic("address_of")]
     (&)<T>(T): byref<T>
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
     #[intrinsic("add")]
     (+)(int32, int32): int32
@@ -6126,20 +7331,17 @@ struct S3<T> where T: IA =
 #[export]
 module Program =
 
-    #[export]
     M<T>(x: S3<T>): int32 where T: IA =
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     M2<T>(x: S3<T>): int32 where T: IA =
         x.SetX(1)
         x.S.SideEffect()
         x.S.SideEffect()
         x.GetX()
 
-    #[export]
     main(): () =
         let mutable s = S3<S2<S>>()
         let result = M(s)
@@ -6164,7 +7366,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -6205,7 +7407,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -6252,7 +7454,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -6279,7 +7481,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object>(x -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object>(x -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -6299,7 +7501,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -6326,7 +7528,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object, int32, int32>((x, y) -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>((x, y) -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -6346,7 +7548,7 @@ open System.Collections.Generic
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class C =
 
@@ -6373,7 +7575,7 @@ class C =
 
 main(): () =
     let c = C()
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>(x -> print(" world"))
     let f = c.funcs.get_Item(0)
     f()
     let f = c.moreFuncs.get_Item(0)
@@ -6382,10 +7584,10 @@ main(): () =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("Expected type '(int32, int32) -> ()' but is '? -> ?'.",
+            ("Expected type '(int32, int32) -> ()' but is '? -> ()'.",
                 """
-    c.M<int32, __oly_object, __oly_object, int32, int32>(x -> print(" world"))
-                                                         ^^^^^^^^^^^^^^^^^^^^
+    c.M<int32, __oly_base_object, __oly_base_object, int32, int32>(x -> print(" world"))
+                                                                   ^^^^^^^^^^^^^^^^^^^^
 """
             )
         ]
@@ -6398,11 +7600,15 @@ let ``Static local function returning a pointer``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+#[unmanaged(allocation_only)]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
 
 main(): () =
 
@@ -6434,7 +7640,7 @@ alias int32
 sizeof<require T>: int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 enum PacketKind =
     | Invalid
@@ -6493,7 +7699,7 @@ let ``Mutable array extension should work``() =
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("get_length")]
@@ -6527,7 +7733,7 @@ module M
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[unmanaged(allocation_only)]
 #[intrinsic("get_length")]
@@ -6624,7 +7830,179 @@ extension MutableArrayEnumerableExtension<T> =
             field mutable currentTyped: T
 
             new(arr: mutable T[]) =
-                {
+                this {
+                    arr = arr
+                    currentIndex = -1
+                    current = unchecked default
+                    currentTyped = unchecked default
+                }
+
+            private Current: object get() = this.current
+
+            Current: T get() = this.currentTyped
+
+            MoveNext(): bool =
+                if (this.arr.Length == 0)
+                    false
+                else if ((this.currentIndex == -1) || (this.currentIndex < this.arr.Length))
+                    if (this.currentIndex == -1)
+                        this.currentIndex <- 0
+                    this.current <- this.arr[this.currentIndex]
+                    this.currentTyped <- this.arr[this.currentIndex]
+                    this.currentIndex <- this.currentIndex + 1
+                    true
+                else
+                    false
+
+            Reset(): () =
+                this.currentIndex <- -1
+                this.current <- unchecked default
+                this.currentTyped <- unchecked default
+
+            Dispose(): () = ()
+
+        Impl(this)
+
+
+Test<T>(xs: System.Collections.Generic.IEnumerable<T>): () =
+    print(System.Linq.Enumerable.Count(xs))
+
+main(): () =
+    let xs = mutable [0;0]
+    Test<int32>(Cast(xs))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+    |> ignore
+
+[<Fact>]
+let ``Mutable array enumerable extension should work 2``() =
+    """
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("less_than")]
+(<)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("or")]
+(||)(bool, bool): bool
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("by_ref_write_only")]
+alias outref<T>
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: int32): T
+#end // not SPIRV
+
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: uint32): T
+#end // SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(T[,], index1: int32, index2: int32): T
+#end // not SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: int32, T): ()
+#end // not SPIRV
+
+#if SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[]`)<T>(mutable T[], index: uint32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[]`)<T>(mutable T[], index: uint32, T): ()
+#end // SPIRV
+
+#if not SPIRV
+#[unmanaged(allocation_only)]
+#[intrinsic("get_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("set_element")]
+(`[,]`)<T>(mutable T[,], index1: int32, index2: int32, T): ()
+#end // not SPIRV
+
+#if not SPIRV
+#[intrinsic("get_element")]
+(`[]`)<T, N>(inref<T[N]>, index: int32): T where N: constant int32
+
+#[intrinsic("get_element")]
+(`[]`)<T, N>(inref<mutable T[N]>, index: int32): T where N: constant int32
+#end // not SPIRV
+
+#[intrinsic("cast")]
+Cast<T>(object): T
+
+#[unmanaged(allocation_only)]
+#[intrinsic("get_length")]
+private getLength<T>(mutable T[]): int32
+
+#[open]
+extension MutableArrayExtensions<T> =
+    inherits mutable T[]
+
+    Length: int32 
+        #[inline]
+        #[unmanaged(allocation_only)]
+        get() = getLength(this)
+
+#[open]
+extension MutableArrayEnumerableExtension<T> =
+    inherits mutable T[]
+    implements System.Collections.Generic.IEnumerable<T>
+
+    private GetEnumerator(): System.Collections.IEnumerator =
+        this.GetEnumerator(): System.Collections.Generic.IEnumerator<T>  
+
+    GetEnumerator(): System.Collections.Generic.IEnumerator<T> =
+        class Impl =
+            implements System.Collections.Generic.IEnumerator<T>
+
+            field mutable arr: mutable T[]
+            field mutable currentIndex: int32
+            field mutable current: object
+            field mutable currentTyped: T
+
+            new(arr: mutable T[]) =
+                this {
                     arr = arr
                     currentIndex = -1
                     current = unchecked default
@@ -6803,10 +8181,10 @@ typeof<require T>: Type
 class A
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
-consume(x: __oly_utf16): () = ()
+consume(x: __oly_string16): () = ()
 
 main(): () =
     let ty = typeof<A>
@@ -6824,17 +8202,17 @@ let ``Int32 ToString via a shape abstraction``() =
     """
 open System
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
 alias int32
 
-printSpecial<T>(mutable value: T): () where T: { mutable ToString(): string } =
+printSpecial<T>(mutable value: T): () where T: { ToString(): string } =
     print(value.ToString())
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let x = 456
@@ -6860,11 +8238,11 @@ alias float32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(Exception): TResult
@@ -6901,7 +8279,7 @@ private class Subscription =
     private Unsubscribe: () -> () get
 
     new(unsubscribe: () -> ()) =
-        {
+        this {
             Unsubscribe = unsubscribe
         }
 
@@ -6912,7 +8290,7 @@ private class Observer<T> =
 
     field callback: T -> ()
 
-    new(callback: T -> ()) = { callback = callback }
+    new(callback: T -> ()) = this { callback = callback }
 
     OnCompleted(): () = ()
 
@@ -6946,7 +8324,7 @@ class Observable<T> =
             this.value <- value
             ForEach(this.subscribers, (mutable pair) -> pair.Key.OnNext(value))
 
-    new(value: T) = { value = value; subscribers = ConcurrentDictionary() }
+    new(value: T) = this { value = value; subscribers = ConcurrentDictionary() }
 
 #[open]
 newtype Adaptive<T> =
@@ -7146,17 +8524,17 @@ let ``byref captured in scoped lambda``() =
         """
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 M(f: scoped () -> ()): () =
@@ -7186,17 +8564,17 @@ let ``inref captured in scoped lambda``() =
         """
 open System.Numerics
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
 (&)<T>(T): byref<T>
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[inline(never)]
 M(f: scoped () -> ()): () =
@@ -7240,7 +8618,7 @@ M(xs: A[], f: A -> ()): () = ()
 M<T>(xs: T[], f: T -> ()): () = ()
 M<T>(xs: IEnumerable<T>, f: T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -7274,7 +8652,7 @@ M<T>(xs: mutable T[], f: scoped T -> ()): () = ()
 M<T>(xs: T[], f: scoped T -> ()): () = ()
 M<T>(xs: IEnumerable<T>, f: scoped T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs4 = Dictionary<__oly_int32, B>()
@@ -7294,7 +8672,7 @@ open System
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 class A
 
@@ -7315,7 +8693,9 @@ main(): () =
         [
             // TODO: Honestly, this shouldn't even report ambiguous functions.
             //       It should actually say that there is no valid overload.
-            ("'.ctor' has ambiguous functions.",
+            ("'Span<T>' has ambiguous functions. Candidates:
+    new(array: mutable T[]): Span<T>
+    new(reference: __oly_by_ref<T>): Span<T>",
                 """
         Span(this.A).Clear()
         ^^^^
@@ -7365,10 +8745,10 @@ extension ArrayDotNetExtensions<T> =
     AsSpan(): ReadOnlySpan<T> = AsMutable(this).AsReadOnlySpan()
 
 #[open]
-extension ArrayCastDotNetExtensions<T> where T: struct, ValueType =
+extension ArrayCastDotNetExtensions<T> where T: struct, ValueType, { new() } =
     inherits T[]
 
-    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType = 
+    AsSpan<TCast>(): ReadOnlySpan<TCast> where TCast: struct, ValueType, { new() } = 
         Span<_>.op_Implicit(MemoryMarshal.Cast(AsMutable(this).AsSpan()))
 
 main(): () =
@@ -7398,7 +8778,7 @@ alias object
 #[intrinsic("print")]
 print(object): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias (&)<T>
 
 #[intrinsic("address_of")]
@@ -7448,11 +8828,11 @@ alias int32
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("throw")]
 (throw)<TResult>(System.Exception): TResult
@@ -7492,7 +8872,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: INumberBase<T> =
     T.One
@@ -7518,15 +8898,14 @@ module Prelude =
     alias int32
 
     #[intrinsic("print")]
-    print(__oly_object): ()
+    print(__oly_base_object): ()
 
 #[export]
 module Exported =
-    #[export]
+
     Test<T>(): T where T: INumberBase<T> =
         T.One
 
-    #[export]
     main(): () =
         print(Test<int32>())
         """
@@ -7544,7 +8923,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: IBinaryInteger<T> =
     T.One
@@ -7566,7 +8945,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(int32.One)
@@ -7585,7 +8964,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 Test<T>(): T where T: IBinaryInteger<T> =
     T.get_One()
@@ -7607,7 +8986,7 @@ open System.Numerics
 alias int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print(int32.get_One())
@@ -7615,3 +8994,2628 @@ main(): () =
     Oly src
     |> withCompile
     |> shouldRunWithExpectedOutput "1"
+
+[<Fact>]
+let ``Overloading regression on AddByteOffset``() =
+    let src =
+        """
+#[intrinsic("uint8")]
+alias uint8
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[intrinsic("unsafe_cast")]
+nuint(uint8): nuint
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+do_not_run_this(): () =
+    let mutable x: int32 = 5
+    let result = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&x, nuint(4))
+
+main(): () =
+    print("hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Enum to object then to enum``() =
+    let src =
+        """
+#[intrinsic("unsafe_cast")]
+unsafeCast<T>(__oly_base_object): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+enum E =
+    | A
+    | B 
+
+main(): () =
+    let x = E.B
+    let y = x: System.Enum
+    let z = unsafeCast<E>(y)
+    print(z)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "B"
+
+[<Fact>]
+let ``Newtype inherits ValueType properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+main(): () =
+    let a = A(24)
+    let v = a: ValueType
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "24Int32"
+
+[<Fact>]
+let ``Newtype inherits Enum properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+enum E =
+    | A
+    | B 
+
+newtype A =
+    field Value: E
+
+main(): () =
+    let a = A(E.B)
+    let v = a: Enum
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "BE"
+
+[<Fact>]
+let ``Newtype of a newtype inherits ValueType properly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+newtype B =
+    field Value: __oly_int32
+
+newtype A =
+    field Value: B
+
+main(): () =
+    let a = A(B(42))
+    let v = a: ValueType
+    print(a)
+    print(v.GetType().Name)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "42Int32"
+
+[<Fact>]
+let ``Newtype should error when trying to override method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    overrides ToString(): __oly_string16 =
+        "A"
+
+main(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("'ToString' cannot be overriden in a newtype declaration.",
+                """
+    overrides ToString(): __oly_string16 =
+              ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Newtype should error when NOT trying to hide method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    ToString(): __oly_string16 =
+        "Test"
+
+main(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The member 'ToString' will hide over its base.",
+                """
+    ToString(): __oly_string16 =
+    ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Newtype should pass when trying to hide method ToString``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+newtype A =
+    field Value: __oly_int32
+
+    new ToString(): __oly_string16 =
+        "Test"
+
+main(): () =
+    let a = A(32)
+    print(a.ToString())
+    let v = a: ValueType
+    print(v.ToString())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Test32"
+
+[<Fact>]
+let ``Newtype of Vector512 - regression - should not crash runtime``() =
+    let src =
+        """
+open System
+open System.IO
+open System.Text
+open System.Numerics
+open System.Diagnostics
+open System.Security.Cryptography
+open System.Runtime.InteropServices
+open System.Runtime.CompilerServices
+open System.Runtime.Intrinsics
+open System.Collections.Generic
+open System.Collections.Concurrent
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("add")]
+(+)(int32, int32) : int32
+
+shape DotNetIndexGetter<TKey, TValue> =
+
+    get_Item(TKey): TValue
+
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: DotNetIndexGetter<TKey, TValue> = x.get_Item(key)
+
+newtype BitSet512 =
+    field value: Vector512<int32>
+
+    GetSomeValue(): int32 = this.value[0] + this.value[1]
+
+    GetSomething(): int32 =
+        let valueIndex = this.GetSomeValue()
+        valueIndex
+
+main(): () =
+    let x = BitSet512(default)
+    print(x.GetSomeValue())
+    print(x.GetSomething())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "00"
+
+[<Fact>]
+let ``Able to use exported type inside an exported function``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+#[export]
+class ExportedClass<T> =
+
+    Value: mutable T[] get
+
+    new(xs: mutable T[]) =
+        this {
+            Value = xs
+        }
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): ExportedClass<T> =
+        let xs = ExportedClass<T>(input)
+        xs
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4]).Value
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "14"
+
+[<Fact>]
+let ``Not able to use non-exported type inside an exported function``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+class NonExportedClass<T> =
+
+    Value: mutable T[] get
+
+    new(xs: mutable T[]) =
+        this {
+            Value = xs
+        }
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): mutable T[] =
+        let xs = NonExportedClass<T>(input)
+        xs.Value
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4])
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+        |> withErrorHelperTextDiagnostics
+        [
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let xs = NonExportedClass<T>(input)
+                 ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let xs = NonExportedClass<T>(input)
+                 ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let xs = NonExportedClass<T>(input)
+                 ^^^^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        let xs = NonExportedClass<T>(input)
+            ^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        xs.Value
+        ^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+        xs.Value
+        ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Not able to use non-exported type inside an exported function 2``() =
+    let src =
+        """
+namespace Test
+
+#[open]
+module OlyPrelude =
+    #[intrinsic("int32")]
+    alias int32
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+    #[intrinsic("get_element")]
+    (`[]`)<T>(mutable T[], index: int32): T
+
+class NonExportedClass<T> =
+
+    Value: mutable T[] get
+
+    new(xs: mutable T[]) =
+        this {
+            Value = xs
+        }
+
+#[export]
+module TestModule =
+
+    Run<T>(input: mutable T[]): mutable T[] =
+        let f() =
+            let xs = NonExportedClass(input)
+            xs.Value
+        f()
+
+module Main =
+
+    main(): () =
+        let result = TestModule.Run(mutable [1;2;3;4])
+        print(result[0])
+        print(result[3])
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            let xs = NonExportedClass(input)
+                     ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            let xs = NonExportedClass(input)
+                     ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            let xs = NonExportedClass(input)
+                     ^^^^^^^^^^^^^^^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            let xs = NonExportedClass(input)
+                ^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            xs.Value
+            ^^
+"""
+            )
+            ("Type parameter 'T' cannot be used in this vanilla construct. Yes this error message is terrible. TODO:",
+                """
+            xs.Value
+            ^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Property has the specified attribute``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+class Testing1Attribute
+class Testing2Attribute
+
+class A
+
+class B =
+
+    #[Testing1]
+    P0: int32 get, set = 123
+
+    P1: int32 get, set = 123
+    
+    #[Testing2]
+    P2: int32 get, set = 123
+
+class C
+
+ForEach<T>(xs: System.Collections.Generic.IEnumerable<T>, f: T -> ()): () =
+    let xse = xs.GetEnumerator()
+    if (xse.MoveNext())
+        f(xse.Current)
+
+main(): () =
+    let a = A()
+    let b = B()
+    let c = C()
+    ForEach(b.GetType().GetProperty("P0").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+    print("--")
+    ForEach(b.GetType().GetProperty("P1").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+    print("--")
+    ForEach(b.GetType().GetProperty("P2").CustomAttributes,
+        attr ->
+            print(attr.Constructor.DeclaringType.Name)
+    )
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Testing1Attribute----Testing2Attribute"
+
+[<Fact>]
+let ``Able to use newtype when a constraint requires ValueType``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M<T>(): () where T: ValueType = ()
+
+class C<T> where T: ValueType
+
+struct S
+        """
+    let src =
+        """
+newtype NewS =
+    public field Value: S
+
+main(): () =
+    M<NewS>()
+    let _ = C<NewS>()
+    print("hello")
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Able to use newtype when a constraint requires ValueType 2``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+interface IComponent
+
+interface IComponent<N, T> where N: constant int32 where T: blittable, struct, ValueType, { new() } =
+    inherits IComponent
+        """
+    let src =
+        """
+struct S
+
+newtype NewS =
+    public field Value: S
+
+#[open]
+extension NewSExtensions =
+    inherits NewS
+    implements IComponent<1, NewS>
+
+main(): () =
+    print("hello")
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "hello"
+
+[<Fact>]
+let ``Equality operator should work for nint``() =
+    let refSrc =
+        """
+#[open]
+module RefModule
+
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("unsafe_cast")]
+nint(int32): nint
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+(==)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_Equality(T1, T2): T3 } = T1.op_Equality(x, y)
+        """
+    let src =
+        """
+main(): () =
+    print(nint(0) == nint(0))
+        """
+    OlyWithRef refSrc src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+
+[<Fact>]
+let ``C# abstract generic class should work``() =
+    let csSrc =
+        """
+public abstract class BaseA<T>
+{
+}
+        """
+
+    let src =
+        """
+class A =
+    inherits BaseA<__oly_int32>
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "hello"
+        )
+
+[<Fact>]
+let ``Regression - defined exports with interfaces should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(x: T): () where T: IExample
+
+#[export]
+test<Z>(x: Z): () where Z: IExample =
+  Console.Write("test")
+  x.GenericExample<Z>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Regression - defined exports with interfaces but reversed should work``() =
+    let src =
+        """
+open System
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[export]
+test<Z>(x: Z): () where Z: IExample =
+  Console.Write("test")
+  x.GenericExample<Z>(x)
+
+#[export]
+class Example =
+  implements IExample
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () = 
+      Console.Write("Example")
+
+#[export]
+class Example2 =
+  implements IExample2
+
+  new() = this { }
+
+  GenericExample<U>(x: U): () where U: IExample = 
+      let f() =
+          test<_>(x)
+      f()
+
+#[export]
+interface IExample =
+
+    GenericExample<T>(x: T): ()
+
+#[export]
+interface IExample2 =
+
+    GenericExample<T>(x: T): () where T: IExample
+
+main(): () =
+    let t = Example()
+    let t2 = Example2()
+
+    t2.GenericExample<_>(t)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "testExample"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task"``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                123
+        )
+    print(task.Result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task" 2``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("string16")]
+alias strbg
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                "123"
+        )
+    print(task.Result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Regression - should not require type annotation for "task" 3``() =
+    let src =
+        """
+open System
+open System.Threading
+open System.Threading.Tasks
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M<T>(x: T): T = x
+
+M2<T>(x: T): () =
+    let task = // should not need a type annotation
+        Task.Factory.StartNew(
+            () ->
+                Thread.Sleep(100)
+                M(x)                
+        )
+    print(task.Result)
+
+main(): () =
+    M2(456)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+
+[<Fact>]
+let ``Get index of a span``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+main(): () =
+    let mutable s = Span<int32>(mutable [1;2;3])
+    let x = &s[0]
+    print(x)
+    let y = &s[1]
+    print(y)
+    let z = &s[2]
+    print(z)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "123"
+
+[<Fact>]
+let ``Get index of a span 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+M(mutable s: Span<int32>, f: byref<int32> -> ()): () =
+    f(&s[2])
+
+main(): () =
+    let mutable s = Span<int32>(mutable [1;2;3])
+    M(s, x -> print(x))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "3"
+
+[<Fact>]
+let ``Get index of a span 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[unmanaged(allocation_only)]
+#[intrinsic("bitwise_and")]
+(&)(int32, int32): int32
+
+(&)<T1, T2, T3>(x: T1, y: T2): T3 where T1: trait { static op_BitwiseAnd(T1, T2): T3 } = T1.op_BitwiseAnd(x, y)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+#[System.Diagnostics.DebuggerHiddenAttribute()]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: trait { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+M(s: byref<Span<int32>>): byref<int32> =
+    &s[1]
+
+main(): () =
+    let mutable s = Span<int32>(mutable [1;2;3])
+    let result = M(&s)
+    print(result)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2"
+
+[<Fact>]
+let ``Should choose right overload when used as receiver``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("subtract")]
+(-)(int32, int32) : int32
+(-)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Subtraction(T1, T2): T3 } = T1.op_Subtraction(x, y)
+
+main(): () =
+    Console.Write(Math.Abs((Vector3.Zero - Vector3.Zero).Length()))
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "0"
+
+[<Fact>]
+let ``Should resolve address-of correctly``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+struct S<T> =
+    public field mutable X: T
+    new(x: T) = this { X = x }
+
+M(): () =
+    let mutable s = S(S(456))
+    let z = &s.X
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+    print(res.X)
+
+main(): () =
+    M()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+
+[<Fact>]
+let ``Should resolve address-of correctly 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+struct S<T> =
+    public field mutable X: T
+    new(x: T) = this { X = x }
+
+M(): () =
+    let mutable s = S(S(456))
+    let z = &s.X
+    let res = 
+        &System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+            if (true)
+                let w = 1
+                &z
+            else
+                let a = 1
+                &z, 
+            nuint(0)
+         )
+    print(res.X)
+
+main(): () =
+    M()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "456"
+
+[<Fact>]
+let ``Should fail address-of correctly because field is not mutable``() =
+    let src =
+        """
+open System
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_uint")]
+alias nuint
+
+#[intrinsic("address_of")]
+(&)<T>(T): byref<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T> 
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("unsafe_cast")]
+nuint(int32): nuint
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: byref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(x: inref<T>, key: TKey): TValue where T: { get_Item(TKey): TValue } where TValue: scoped = 
+    x.get_Item(key)
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey): TValue where T: { get_Item(TKey): TValue } = 
+    x.get_Item(key)
+
+struct S<T> =
+    public field X: T
+    new(x: T) = this { X = x }
+
+M(): () =
+    let mutable s = S(S(456))
+    let z = &s.X
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+    print(res.X)
+
+main(): () =
+    M()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'byref<S<int32>>' but is 'inref<S<int32>>'.",
+                """
+    let res = &System.Runtime.CompilerServices.Unsafe.AddByteOffset(&z, nuint(0))
+                                                                    ^^
+"""
+            )
+        ]
+    |> ignore
+
+
+[<Fact>]
+let ``Should resolve the default correctly``() =
+    let src =
+        """
+open System
+open System.Numerics
+
+#[intrinsic("void")]
+alias void
+
+#[intrinsic("base_object")]
+alias object
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("by_ref")]
+alias byref<T>
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("print")]
+print(object): ()
+
+#[intrinsic("unsafe_cast")]
+(*)<T>(void*): byref<T>
+
+#[intrinsic("unsafe_cast")]
+(*)<T>(T*): byref<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
+
+M(_dummy: int32, res: Quaternion*): () =
+    *res <- Quaternion.Identity
+
+main(): () =
+    let mutable res = default
+    M(0, &&res)
+    print(res)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "{X:0 Y:0 Z:0 W:1}"
+
+[<Fact>]
+let ``Should not crash and should error``() =
+    let src =
+        """
+open System.Collections.Generic
+
+main(): () =
+    let xs = List()
+    xs.Add(xs)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Detected a cycle in inference: '?T' cannot be solved with 'List<?T>'.",
+                """
+    xs.Add(xs)
+           ^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Dotnet - Should still get shape member even though it has a subsumption``() =
+    let src = 
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+shape DotNetIndexSetter<TKey, TValue> =
+
+    set_Item(TKey, TValue): ()
+
+(`[]`)<T, TKey, TValue>(x: T, key: TKey, value: TValue): () where T: DotNetIndexSetter<TKey, TValue> = x.set_Item(key, value)
+
+abstract default class A
+
+class B =
+    inherits A
+
+main(): () =
+    let dict = ConcurrentDictionary<A, ()>()
+    let b = B()
+    dict[b] <- ()
+    print("doot")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+
+[<Fact>]
+let ``Dotnet - Should still get shape member even though it has a subsumption 2``() =
+    let src = 
+        """
+open System
+open System.Collections.Concurrent
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[inline]
+(`[]`)<T, TKey, TValue>(mutable x: T, key: TKey, value: TValue): () where T: trait { set_Item(TKey, TValue): () } = 
+    x.set_Item(key, value)
+
+abstract default class A
+
+class B =
+    inherits A
+
+main(): () =
+    let dict = ConcurrentDictionary<A, ()>()
+    let b = B()
+    dict[b] <- ()
+    print("doot")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+
+
+[<Fact>]
+let ``Should handle nested exported generic types properly``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+doot<T>(x: T): int32 =
+    let f() = 
+        print(x)
+        print(Beef<float32>.Zoot(x).value)
+    f()
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Should handle nested exported generic types properly 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+M(f: () -> ()): () =
+    f()
+
+#[export]
+doot<T>(x: T): int32 =
+    M(() ->
+        print(x)
+        print(Beef<float32>.Zoot(x).value)        
+    )
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Should handle nested exported generic types properly 3``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("float32")]
+alias float32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[export]
+module Beef<U> =
+    class Zoot<T> =
+        public field value: T
+        new(x: T) = this { value = x }
+
+#[export]
+M(f: scoped () -> ()): () =
+    f()
+
+#[export]
+doot<T>(x: T): int32 =
+    M(() ->
+        print(x)
+        print(Beef<float32>.Zoot(x).value)        
+    )
+    1
+
+main(): () =
+    let x = doot(500)
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "500500"
+    |> ignore
+
+[<Fact>]
+let ``Type inference should work correctly for ReadOnlySpan of a mutable array``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M(x: ReadOnlySpan<byte>): () = ()
+
+main(): () =
+    M(ReadOnlySpan(mutable [5;4;3;2;1]))
+    print("Hello World!")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+
+[<Fact>]
+let ``Should error as mismatch parameter for ReadOnlySpan/Span``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+M(inputMsgData: ReadOnlySpan<byte>): () =
+    let _ = Span<_>.op_Implicit(inputMsgData): ReadOnlySpan<byte>
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'Span<?T>' but is 'ReadOnlySpan<byte>'.",
+                """
+    let _ = Span<_>.op_Implicit(inputMsgData): ReadOnlySpan<byte>
+                                ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as mismatch parameter for ReadOnlySpan/Span 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+M(inputMsgData: ReadOnlySpan<byte>): () =
+    if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
+        ()
+
+main(): () =
+    ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'Span<?T>' but is 'ReadOnlySpan<byte>'.",
+                """
+    if (System.MemoryExtensions.SequenceEqual(inputMsgData, Span<_>.op_Implicit(inputMsgData)))
+                                                                                ^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+M(x: nint): () = ()
+
+main(): () =
+    let x = 1: byte
+    M(&&x)
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    M(&&x)
+      ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte 2``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+M(x: nint): bool = true
+
+main(): () =
+    let x = 1: byte
+    if (M(&&x))
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    if (M(&&x))
+          ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error as type mismatch against nint for getting native address of byte 3``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+M(x: nint): bool = true
+
+main(): () =
+    let x = 1: byte
+    if (M(&&x) == true)
+        ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Expected type 'nint' but is 'byte*'.",
+                """
+    if (M(&&x) == true)
+          ^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should get expected output when casting an inref to an nint``() =
+    let src =
+        """
+open System
+
+#[intrinsic("uint8")]
+alias byte
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("by_ref_read_only")]
+alias inref<T>
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("address_of")]
+(&)<T>(T): inref<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("unsafe_cast")]
+nint<T>(T*): nint
+
+#[intrinsic("unsafe_cast")]
+to_inref<T>(nint): inref<T>
+
+#[intrinsic("equal")]
+(==)(bool, bool): bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+M(x: nint): bool = 
+    let y1: byte = to_inref(x)
+    let y2: inref<byte> = &to_inref(x)
+    print(y1)
+    print(y2)
+    true
+
+main(): () =
+    let x = 5: byte
+    let x = &x
+    if (M(nint(&&x)) == true)
+        print("Hello World!")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "55Hello World!"
+    |> ignore
+
+[<Fact>]
+let ``char ToString() call should work``() =
+    let src =
+        """
+#[intrinsic("char16")]
+alias char
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let mutable x = 'a'
+    print(x.ToString())
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "a"
+    |> ignore
+
+[<Fact>]
+let ``Open static List``() =
+    let src =
+        """
+open static System.Collections.Generic.List<__oly_int32>
+
+class C
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let x: Enumerator = unchecked default
+    print("Hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello"
+    |> ignore
+
+[<Fact>]
+let ``Open static List 2``() =
+    let src =
+        """
+open static System.Collections.Generic.List<C>
+
+class C
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let x: Enumerator = unchecked default
+    print("Hello")
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello"
+    |> ignore
+
+[<Fact>]
+let ``C# abstract protected method can be overriden``() =
+    let csSrc =
+        """
+public abstract class Base
+{
+    protected abstract void M();
+}
+        """
+
+    let src =
+        """
+class A =
+    inherits Base
+
+    protected overrides M(): () = print("world")
+
+    PrintIt(): () = this.M()
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+    a.PrintIt()
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "helloworld"
+        )
+
+[<Fact>]
+let ``C# abstract protected method can be overriden 2 - generic``() =
+    let csSrc =
+        """
+public abstract class Base<T>
+{
+    protected abstract void M(T x);
+}
+        """
+
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+class A =
+    inherits Base<int32>
+
+    protected overrides M(x: int32): () = print(x)
+
+    PrintIt(): () = this.M(42)
+
+    new() = base()
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    let a = A()
+    print("hello")
+    a.PrintIt()
+        """
+    OlyWithCSharp csSrc src
+        (
+            fun c ->
+                c
+                |> withCompile
+                |> shouldRunWithExpectedOutput "hello42"
+        )
+
+[<Fact>]
+let ``Pointer should work from a value``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("native_ptr")]
+alias (*)<T>
+
+#[intrinsic("unsafe_address_of")]
+(&&)<T>(T): T*
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+Call(x: int32*): () = print("test")
+
+main(): () =
+    let mutable x = 1
+    Call(&&x)
+    """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "test"
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function for a try catch``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+class NewException<T> =
+    inherits System.Exception
+
+    public field c: C<T>
+
+    new(c: C<T>) = base("lorem ipsum") { c = c }
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    GetValue(): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        try
+            throw NewException(c)
+        catch (e: NewException<int32>) =>
+            print("nope")
+            c.GetValue()
+        catch (e: System.Exception) =>
+            print("we did it")
+            c.GetValue()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2we did itwe did it"
+    |> ignore
+
+[<Fact>]
+let ``Should do give the correct output for recursive local function for a try catch 2``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("add")]
+(+)(int32, int32): int32
+
+#[intrinsic("throw")]
+(throw)<TResult>(System.Exception): TResult
+
+class NewException<T> =
+    inherits System.Exception
+
+    public field c: C<T>
+
+    new(c: C<T>) = base("lorem ipsum") { c = c }
+
+class C<T> =
+
+    new(_x: T) =
+        this { }
+
+    GetValue(): T = unchecked default
+
+main(): () =
+    let mutable i = 0
+    let f() =
+        let g() =
+            i <- i + 1
+            if (i == 1)
+                f()
+            else
+                print(i)
+                unchecked default
+        let y = g()
+        let c = C(y)
+        try
+            throw NewException(c)
+            c.GetValue()
+        catch (e: NewException<int32>) =>
+            print("nope")
+            c.GetValue()
+        catch (e: System.Exception) =>
+            print("we did it")
+            c.GetValue()
+    let _ = f<()>()
+        """
+    Oly src
+    |> withCompile
+    |> shouldRunWithExpectedOutput "2we did itwe did it"
+    |> ignore
+
+[<Fact>]
+let ``Should compile enum and be able to use HasFlag``() =
+    """
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+#[System.Flags]
+enum VulkanRenderPassFlags =
+    | None              = 0b000
+    | ClearColor        = 0b001
+    | ClearDepthStencil = 0b010
+    | ClearAll          = 0b011
+
+main(): () =
+    let flags = VulkanRenderPassFlags.ClearColor
+    print(flags.HasFlag(VulkanRenderPassFlags.ClearColor))
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "True"
+    |> ignore
+
+[<Fact>]
+let ``Should choose the right overload for animalFunc``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+x_map<A, B>(xs: A[], f: A -> B): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    let stuff = x_map(xs, x -> animalFunc(x))
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 2 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+x_map<A, B>(xs: A[], f: A -> B): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    let stuff = x_map(xs, animalFunc)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 3``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 4 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 5 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 6 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal, y: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 7``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<T, U>(arr: T[], f: scoped T -> U): U[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    unchecked default
+
+map<A, B>(f: A -> B, xs: A[], bogus: string): B[] =
+    unchecked default
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    unchecked default
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(x -> animalFunc(x), xs)
+    print("Hello World!")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "Hello World!"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 8 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 9 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+   
+[<Fact>]
+let ``Should choose the right overload for animalFunc 10 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Dog): string = "doot"
+
+animalFunc(x: Animal, y: Animal): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 11 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal, y: Animal, z: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "zoot"
+    |> ignore
+    
+[<Fact>]
+let ``Should choose the right overload for animalFunc 12 - partial application``() =
+    """
+open System.Collections.Generic
+
+#[intrinsic("string16")]
+alias string
+
+#[intrinsic("get_element")]
+(`[]`)<T>(T[], index: __oly_int32): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+map<A, B>(f: A -> B, xs: A[]): B[] =
+    [f(unchecked default)]
+
+map<A, B>(f: (A, A) -> B, xs: A[]): B[] =
+    [f(unchecked default, unchecked default)]
+
+abstract default class Animal
+
+class Dog =
+    inherits Animal
+
+animalFunc(x: Animal): string = "doot"
+
+animalFunc(x: Dog, y: Dog): string = "zoot"
+
+main(): () =
+    let dog = Dog()
+    let xs = [dog]
+    let result = map(animalFunc, xs)
+    print(result[0])
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+
+[<Fact>]
+let ``Unsafe cast object to type variable with export``() =
+    """
+#[export]
+module Program
+
+#[intrinsic("unsafe_cast")]
+unsafeCast<T>(__oly_base_object): T
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+class Dog
+
+M<T>(x: __oly_base_object): T =
+    unsafeCast<T>(x)
+
+main(): () =
+    let dog = Dog()
+    let _x = M<__oly_base_object>(dog)
+    print("doot")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore
+
+[<Fact>]
+let ``Unsafe cast object to type variable with export 2``() =
+    """
+namespace Program
+
+#[open]
+module Helpers =
+
+    #[intrinsic("unsafe_cast")]
+    unsafeCast<T>(__oly_base_object): T
+
+    #[intrinsic("print")]
+    print(__oly_base_object): ()
+
+#[export]
+class Dog
+
+#[export]
+module Main =
+    M<T>(x: __oly_base_object): T =
+        unsafeCast<T>(x)
+
+    main(): () =
+        let dog = Dog()
+        let _x = M<__oly_base_object>(dog)
+        print("doot")
+    """
+    |> Oly
+    |> withCompile
+    |> shouldRunWithExpectedOutput "doot"
+    |> ignore

@@ -4,7 +4,7 @@ open System.IO
 open System.Text
 open Oly.Metadata
 open Oly.Runtime
-open Oly.Runtime.Interpreter
+open Oly.Emitters.Interpreter
 open Oly.Core
 open Xunit
 
@@ -12,12 +12,12 @@ let globalSetup() =
     ()
 
 let createEmitter(asm: OlyILAssembly) =
-    InterpreterRuntimeEmitter()
+    InterpreterRuntimeEmitter(new StringWriter())
 
 let configureRuntime(vm: OlyRuntime<InterpreterType, InterpreterFunction, InterpreterField>) =
     ()
 
-let emitterWrite(emitter: InterpreterRuntimeEmitter) =
+let emitterWrite(emitter: InterpreterRuntimeEmitter, _isDebuggable) =
     emitter.Run(ImArray.empty)
     let output = emitter.StandardOut
     let ms = new MemoryStream()

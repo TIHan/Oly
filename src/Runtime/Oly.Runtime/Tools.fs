@@ -36,10 +36,10 @@ type DummyEmitter(onEmitBody) =
         member this.EmitExternalType(externalPlatform, externalPath, externalName, enclosing, kind, flags, name, tyParCount) =
             DummyType(name)
 
-        member this.EmitField(enclosingTy, flags, name, ty, attrs, constValueOpt) =
+        member this.EmitFieldDefinition(enclosingTy, flags, name, ty, index, attrs, constValueOpt) =
             DummyField(name)
 
-        member this.EmitFieldInstance(enclosingTy, field) =
+        member this.EmitFieldReference(enclosingTy, field) =
             field
 
         member this.EmitFunctionBody(body, _, func) =
@@ -55,6 +55,7 @@ type DummyEmitter(onEmitBody) =
             formalFunc
 
         member this.EmitTypeArray(elementTy, rank, kind) = DummyType("array")
+        member this.EmitTypeFixedArray(elementTy, length, kind) = DummyType("fixed_array")
         member this.EmitTypeBaseObject() = DummyType("base_object")
         member this.EmitTypeBool() = DummyType("bool")
         member this.EmitTypeByRef(arg1, arg2) = DummyType("by_ref")
@@ -62,6 +63,8 @@ type DummyEmitter(onEmitBody) =
         member this.EmitTypeDefinition(enclosing, kind, flags, name, tyParCount) = 
             DummyType(name)
         member this.EmitTypeDefinitionInfo(_, enclosing, kind, flags, name, tyPars, extends, implements, attrs, runtimeTyOpt) = 
+            ()
+        member this.OnTypeDefinitionEmitted(_) =
             ()
         member this.EmitTypeFloat32() = DummyType("float32")
         member this.EmitTypeFloat64() = DummyType("float64")
@@ -84,7 +87,7 @@ type DummyEmitter(onEmitBody) =
         member this.EmitTypeUInt64() = DummyType("uint64")
         member this.EmitTypeUInt8() = DummyType("uint8")
         member this.EmitTypeUnit() = DummyType("unit")
-        member this.EmitTypeUtf16() = DummyType("utf16")
+        member this.EmitTypeString16() = DummyType("string16")
         member this.EmitTypeVariable(index, enclosingTyParCount) = DummyType("variable")
         member this.EmitTypeVoid() = DummyType("void")
 
@@ -161,7 +164,7 @@ type DummyLocalManager(ilAsm: OlyILAssembly) =
     member this.GetLocals() = ilLocals |> ImArray.ofSeq
 
 let createEntityDefinitionHandle (ilAsm: OlyILAssembly) =
-    ilAsm.NextEntityDefinition()
+    ilAsm.NextEntityDefinitionHandle()
 
 let createType ilAsm ilEntDefHandle ilKind name ilFuncDefHandles ilFieldDefHandles =
     addEntity ilAsm ilEntDefHandle ilKind name ImArray.empty ilFuncDefHandles ilFieldDefHandles
@@ -249,7 +252,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
         match ilEnclosingTy with
         | OlyILTypeEntity(ilEntInst) ->
             let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandle)
-            OlyILFieldReference(OlyILEnclosing.Entity(ilEntInst), ilFieldDef.NameHandle, ilFieldDef.Type)
+            OlyILFieldReference(OlyILEnclosing.Entity(ilEntInst), ilFieldDef.NameHandle)
         | _ ->
             failwith "Expected entity type."
 

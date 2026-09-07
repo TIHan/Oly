@@ -38,7 +38,7 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
                 if func.Parameters.Length <> 2 then false
                 else
                     let parTy = func.Parameters[0].Type
-                    func.Parameters[1].Type.IsInteger &&
+                    func.Parameters[1].Type.IsAnyInteger_ste &&
                     (areTypesEqual func.ReturnType parTy)
 
             | WellKnownFunction.BitwiseNot ->
@@ -105,26 +105,26 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.AddressOf ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    not func.Parameters[0].Type.IsByRef_t &&
-                    func.ReturnType.IsByRef_t
+                    not func.Parameters[0].Type.IsAnyByRef_ste &&
+                    func.ReturnType.IsAnyByRef_ste
 
             | WellKnownFunction.UnsafeAddressOf ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    not func.Parameters[0].Type.IsByRef_t &&
-                    func.ReturnType.IsNativePtr_t
+                    not func.Parameters[0].Type.IsAnyByRef_ste &&
+                    func.ReturnType.IsNativePtr_ste
 
             | WellKnownFunction.FromAddress ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    (func.Parameters[0].Type.IsByRef_t || func.Parameters[0].Type.IsNativePtr_t) &&
-                    not func.ReturnType.IsByRef_t
+                    (func.Parameters[0].Type.IsAnyByRef_ste || func.Parameters[0].Type.IsNativePtr_ste) &&
+                    not func.ReturnType.IsAnyByRef_ste
 
             | WellKnownFunction.LoadNullPtr ->
                 // REVIEW: Does LoadNullPtr need a type-parameter?
                 if not func.Parameters.IsEmpty || func.TypeParameters.Length <> 1 then false
                 else
-                    func.ReturnType.IsAnyPtr
+                    func.ReturnType.IsAnyPtr_ste
 
             | WellKnownFunction.GetTupleElement ->
                 if func.Parameters.Length <> 1 || func.TypeParameters.Length <> 2 then false
@@ -135,40 +135,59 @@ let Validate(wkf: WellKnownFunction, func: IFunctionSymbol) =
             | WellKnownFunction.GetArrayLength ->
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
-                    func.ReturnType.IsInteger
+                    func.Parameters[0].Type.IsAnyNonFixedArray_ste &&
+                    func.ReturnType.IsAnyInteger_ste
 
             | WellKnownFunction.GetArrayElement ->
-                // TODO: Handle multi-dimensional arrays.
-                if func.Parameters.Length < 2 then false
+                if func.Parameters.Length > 0 then
+                    let par1Ty = func.Parameters[0].Type
+                    if par1Ty.IsAnyByRef_ste then
+                        par1Ty.FirstTypeArgument.IsAnyFixedArray_ste &&
+                        func.Parameters[1].Type.IsAnyInteger_ste &&
+                        (
+                            areTypesEqual func.ReturnType par1Ty.FirstTypeArgument.FirstTypeArgument ||
+                            (func.ReturnType.IsAnyByRef_ste && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument.FirstTypeArgument)
+                        )
+                    else                  
+                        // TODO: Handle multi-dimensional arrays.
+                        if func.Parameters.Length < 2 then false
+                        else
+                            par1Ty.IsAnyNonFixedArray_ste &&
+                            func.Parameters[1].Type.IsAnyInteger_ste &&
+                            (
+                                areTypesEqual func.ReturnType par1Ty.FirstTypeArgument ||
+                                (func.ReturnType.IsAnyByRef_ste && areTypesEqual func.ReturnType.FirstTypeArgument par1Ty.FirstTypeArgument)
+                            )
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
-                    func.Parameters[1].Type.IsInteger &&
-                    (
-                        areTypesEqual func.ReturnType func.Parameters[0].Type.TypeArguments[0] ||
-                        (func.ReturnType.IsByRef_t && areTypesEqual func.ReturnType.TypeArguments[0] func.Parameters[0].Type.TypeArguments[0])
-                    )
+                    false
 
             | WellKnownFunction.SetArrayElement ->
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length < 3 then false
                 else
-                    func.Parameters[0].Type.IsAnyArray &&
-                    func.Parameters[1].Type.IsInteger &&
+                    let isPar1Valid =
+                        let par1Ty = func.Parameters[0].Type
+                        if par1Ty.IsAnyByRef_ste then
+                            par1Ty.FirstTypeArgument.IsAnyFixedArray_ste
+                        else
+                            par1Ty.IsAnyNonFixedArray_ste
+                    isPar1Valid &&
+                    func.Parameters[1].Type.IsAnyInteger_ste &&
                     (areTypesEqual func.ReturnType TypeSymbol.Unit)
 
             | WellKnownFunction.NewMutableArray ->
                 // TODO: Handle multi-dimensional arrays.
                 if func.Parameters.Length <> 1 then false
                 else
-                    func.Parameters[0].Type.IsInteger &&
-                    func.ReturnType.IsMutableArray_t
+                    func.Parameters[0].Type.IsAnyInteger_ste &&
+                    func.ReturnType.IsAnyNonFixedMutableArray_ste
 
             | WellKnownFunction.LoadFunctionPtr ->
-                if func.TypeParameters.Length <> 3 then false
-                else
-                    // TODO: Add better validation.
+                // TODO: Add better validation.
+                if func.TypeParameters.Length >= 2 && func.TypeParameters.Length <= 3 then 
                     true
+                else
+                    false
 
             | WellKnownFunction.NewRefCell
             | WellKnownFunction.LoadRefCellContents
@@ -194,7 +213,7 @@ let UnsafeCast =
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Cast None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_unsafe_cast" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.UnsafeCast None false
 
 let addFunc =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("add"))
@@ -404,9 +423,9 @@ let importAttrFunc =
     let tyPars = ImArray.empty
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "platform", TypeSymbol.Utf16, false)
-            createLocalParameterValue(ImArray.empty, "path", TypeSymbol.Utf16, false)
-            createLocalParameterValue(ImArray.empty, "name", TypeSymbol.Utf16, false)
+            createLocalParameterValue(ImArray.empty, "platform", TypeSymbol.String16, false)
+            createLocalParameterValue(ImArray.empty, "path", TypeSymbol.String16, false)
+            createLocalParameterValue(ImArray.empty, "name", TypeSymbol.String16, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.Unit
     createFunctionValue EnclosingSymbol.RootNamespace attrs "import" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Import None false
@@ -434,7 +453,7 @@ let AddressOf =
         seq {
             createLocalParameterValue(ImArray.empty, "", tyPars.[0].AsType, false)
         } |> ImArray.ofSeq
-    let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read)
+    let returnTy = TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.ReadOnly)
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_address_of" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.AddressOf None false
 
 let UnsafeAddressOf =
@@ -458,7 +477,7 @@ let FromAddress =
         } |> ImArray.ofSeq
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.Read), false)
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.CreateByRef(tyPars.[0].AsType, ByRefKind.ReadOnly), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars.[0].AsType
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_from_address" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.FromAddress None false
@@ -494,16 +513,29 @@ let LoadFunctionPtr =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
     let tyPars =
         seq {
-            TypeParameterSymbol("TFunctionPtr", 0, 0, false, TypeParameterKind.Function 0, ref ImArray.empty)
-            TypeParameterSymbol("TReturn", 1, 0, false, TypeParameterKind.Function 1, ref ImArray.empty)
-            TypeParameterSymbol("TParameters", 2, 0, true, TypeParameterKind.Function 2, ref ImArray.empty)
+            TypeParameterSymbol("TFunctionPtr", 0, 0, TypeParameterFlags.None, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TReturn", 1, 0, TypeParameterFlags.None, TypeParameterKind.Function 1, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 2, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 2, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[2].AsType, tyPars[1].AsType, FunctionKind.Normal), false)
         } |> ImArray.ofSeq
     let returnTy = tyPars[0].AsType
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    let func1 = createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("load_function_ptr"))
+    let tyPars =
+        seq {
+            TypeParameterSymbol("TFunctionPtr", 0, 0, TypeParameterFlags.None, TypeParameterKind.Function 0, ref ImArray.empty)
+            TypeParameterSymbol("TParameters", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 1, ref ImArray.empty)
+        } |> ImArray.ofSeq
+    let pars =
+        seq {
+            createLocalParameterValue(ImArray.empty, "", TypeSymbol.Function(tyPars[1].AsType, TypeSymbol.Unit, FunctionKind.Normal), false)
+        } |> ImArray.ofSeq
+    let returnTy = tyPars[0].AsType
+    let func2 = createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_function_ptr" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.LoadFunctionPtr None false
+    FunctionGroupSymbol.CreateIfPossible(ImArray.createTwo func1 func2): IFunctionSymbol
 
 let NewRefCell =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("new_ref_cell"))
@@ -545,22 +577,24 @@ let StoreRefCellContents =
     let returnTy = TypeSymbol.Unit
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_store_ref_cell_contents" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.StoreRefCellContents None false
 
+/// TODO: Rename to 'LoadTupleItem'.
 let LoadTupleElement =
-    // __oly_load_tuple_element<N, T...>(__oly_tuple<T...>): T...[N] where N: constant __oly_int32
-    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("get_tuple_element"))
+    // __oly_load_tuple_element<N, T...>(__oly_tuple<T...>): T...[N] where N: constant __oly_int32 /// TODO: Rename to 'get_tuple_item'.
+    let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("get_tuple_element")) /// TODO: Rename to 'get_tuple_item'.
     let tyParNConstrs =
-        ConstraintSymbol.ConstantType(Lazy.CreateFromValue TypeSymbol.Int32)
+        ConstraintSymbol.ConstantType(LazyValue.FromValue TypeSymbol.Int32)
         |> ImArray.createOne
     let tyPars =
         seq {
             TypeParameterSymbol("N", 0, 0, TypeParameterKind.Function 0, ref tyParNConstrs)
-            TypeParameterSymbol("T", 1, 0, true, TypeParameterKind.Function 1, ref ImArray.empty)
+            TypeParameterSymbol("T", 1, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 1, ref ImArray.empty)
         } |> ImArray.ofSeq
     let pars =
         seq {
             createLocalParameterValue(ImArray.empty, "", TypeSymbol.Tuple(ImArray.createOne tyPars[1].AsType, ImArray.empty), false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.DependentIndexer(tyPars[0].AsType, tyPars[1].AsType)
+    /// TODO: Rename to '__oly_load_tuple_item'.
     createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_load_tuple_element" tyPars pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.GetTupleElement None false
 
 let PrintFunction =
@@ -574,9 +608,13 @@ let PrintFunction =
 
 let IgnoreFunction =
     let attrs = ImArray.createOne(AttributeSymbol.Intrinsic("ignore"))
+    let tyPars =
+        seq {
+            TypeParameterSymbol("T", 0, 0, TypeParameterFlags.Variadic, TypeParameterKind.Function 0, ref(ImArray.createOne ConstraintSymbol.Scoped))
+        } |> ImArray.ofSeq
     let pars =
         seq {
-            createLocalParameterValue(ImArray.empty, "", TypeSymbol.BaseObject, false)
+            createLocalParameterValue(ImArray.empty, "", tyPars[0].AsType, false)
         } |> ImArray.ofSeq
     let returnTy = TypeSymbol.Unit
-    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_ignore" ImArray.empty pars returnTy MemberFlags.None FunctionFlags.None WellKnownFunction.Ignore None false
+    createFunctionValue EnclosingSymbol.RootNamespace attrs "__oly_ignore" tyPars pars returnTy MemberFlags.None FunctionFlags.UnmanagedAllocationOnly WellKnownFunction.Ignore None false

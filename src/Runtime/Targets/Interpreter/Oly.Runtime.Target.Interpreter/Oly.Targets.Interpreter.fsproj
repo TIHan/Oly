@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Configurations>Debug;Release;Checked</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="prelude_interpreter.olyx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Compile Include="InterpreterTarget.fs" />
+  </ItemGroup>
+
+  <ItemGroup />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler.Workspace\Oly.Compiler.Workspace.fsproj" />
+    <ProjectReference Include="..\..\..\..\Compiler\Oly.Compiler\Oly.Compiler.fsproj" />
+    <ProjectReference Include="..\..\..\..\Emitters\Interpreter\Oly.Emitters.Interpreter\Oly.Emitters.Interpreter.fsproj" />
+    <ProjectReference Include="..\..\..\Oly.Runtime\Oly.Runtime.fsproj" />
+    <ProjectReference Include="..\..\Oly.Runtime.Target.Core\Oly.Targets.Core.fsproj" />
+  </ItemGroup>
+
+</Project>

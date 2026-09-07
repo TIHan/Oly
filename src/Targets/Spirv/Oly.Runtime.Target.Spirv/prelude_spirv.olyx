@@ -1,0 +1,7 @@
+﻿#target "spirv: lib"
+#library
+
+#load "prelude.oly"
+#load "numerics_spirv.oly"
+
+namespace Oly.Prelude

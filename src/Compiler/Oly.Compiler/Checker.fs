@@ -12,85 +12,124 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SemanticDiagnostics
 open Oly.Compiler.Internal.SymbolEnvironments
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
-let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (freeInputTyVars: ResizeArray<_>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
+[<RequireQualifiedAccess>]
+type CheckExpressionMode =
+    | Flexible
+    | MostFlexible
+
+let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) replace (freeInputTyVars: ResizeArray<_>) (witnessArgLookup: Dictionary<int64, HashSet<WitnessSolution>>) (tyPars: ImmutableArray<TypeParameterSymbol>) =
     // TODO: Remove 'tyPars' as it is only used to check if it is empty or not.
+    
+    let solutionIdReplace = Dictionary()
+    let tyParReplace = Dictionary()
 
     let generalizedTyPars = ResizeArray()
     let mutable tyParIndex = env.benv.EnclosingTypeParameters.Length
-    let mutable nextTyParName = 'T'
-    let rec computeNextTyParName () =
-        if nextTyParName = 'z' then
+    let mutable nextTyParName = 'a'
+    let rec computeNextTyParName (possibleTyParName: char) =
+        if possibleTyParName = 'z' then
             env.diagnostics.Error("The function definition was unable to generalize type parameters.", 10, syntaxNode)
+            possibleTyParName
         else
-            let nextName =
-                let name = 
-                    if nextTyParName = 'S' then
-                        'a'
-                    else
-                        nextTyParName + char 1
-                if name > 'Z' then
-                    'A'
-                else
-                    name
-
-            match env.benv.TryFindTypeParameter (string nextName) with
+            match env.benv.TryFindTypeParameter (string possibleTyParName) with
             | Some _ ->
-                computeNextTyParName()
+                computeNextTyParName(possibleTyParName + char 1)
             | _ ->
-                nextTyParName <- nextName
+                possibleTyParName
+                
+    let newTyPar (tyParOpt: TypeParameterSymbol option) (solution: VariableSolutionSymbol) =
+        if tyPars.IsEmpty then
+            let arity =
+                match tyParOpt with
+                | Some(tyPar) -> tyPar.Arity
+                | _ -> 0
+
+            let witnessArgs =
+                match tyParOpt with
+                | Some tyPar ->
+                    match witnessArgLookup.TryGetValue(tyPar.Id) with
+                    | true, witnessArgs -> witnessArgs.ToImmutableArray()
+                    | _ -> ImArray.empty
+                | _ ->
+                    ImArray.empty
+
+            nextTyParName <- computeNextTyParName nextTyParName
+            let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
+
+            let oldConstrs =
+                match tyParOpt with
+                | None -> solution.Constraints |> ImArray.ofSeq
+                | Some tyPar -> tyPar.Constraints
+
+            let newConstrs =
+                oldConstrs
+                |> ImArray.choose (fun constr ->
+                    match constr with
+                    | ConstraintSymbol.Null
+                    | ConstraintSymbol.Struct
+                    | ConstraintSymbol.NotStruct
+                    | ConstraintSymbol.Unmanaged
+                    | ConstraintSymbol.Blittable
+                    | ConstraintSymbol.Scoped ->
+                        Some constr
+                    | ConstraintSymbol.ConstantType _
+                    | ConstraintSymbol.TraitType _
+                    | ConstraintSymbol.SubtypeOf _ ->
+                        None
+                )
+
+            // REVIEW: Do we care about the order of these constraints?
+            let newTyConstrs =
+                witnessArgs
+                |> ImArray.map (fun witnessArg ->
+                    match witnessArg.Constraint with
+                    | ConstraintSymbol.ConstantType(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.ConstantType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | ConstraintSymbol.TraitType(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.TraitType(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
+                        let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
+                        ConstraintSymbol.SubtypeOf(LazyValue<_>.FromValue(oldConstrTy.Value.Substitute(tyArgs)))
+                    | _ ->
+                        failwith "Unexpected constraint"
+                )
+
+            newTyPar.SetConstraints(newConstrs.AddRange(newTyConstrs))
+
+            if not solution.HasSolution then
+                solution.SetSolution(newTyPar.AsType)
+            else
+                let currentTyPar = solution.Solution.TryTypeParameter.Value
+                tyParReplace.Add(currentTyPar.Id, newTyPar.AsType)
+            solutionIdReplace.Add(solution.Id, newTyPar.AsType)
+            generalizedTyPars.Add(newTyPar)
+            tyParIndex <- tyParIndex + 1
+            nextTyParName <- computeNextTyParName nextTyParName
+        else
+            ()
+            if not solution.HasSolution then
+                env.diagnostics.Error(sprintf "Unable to infer the type. Be explicit i.e. 'x: int32'.", 6, syntaxNode)
 
     let addInferenceVariableTy ty =
         match stripTypeEquations ty with
         | TypeSymbol.InferenceVariable(tyParOpt, solution) 
         | TypeSymbol.HigherInferenceVariable(tyParOpt, _, _, solution) when not solution.HasSolution ->
-            if tyPars.IsEmpty then
-                let arity =
-                    match tyParOpt with
-                    | Some(tyPar) -> tyPar.Arity
-                    | _ -> 0
-
-                let newTyPar = TypeParameterSymbol(string nextTyParName, tyParIndex, arity, TypeParameterKind.Function tyParIndex, ref ImArray.empty)
-
-                // TODO: Prevent duplicate constraints.
-                // TODO: This may not handle the 'oldConstrEnt''s free type vars.
-                let oldConstrs =
-                    match tyParOpt with
-                    | None -> solution.Constraints |> ImArray.ofSeq
-                    | Some tyPar -> tyPar.Constraints
-
-                let newConstrs =
-                    oldConstrs
-                    |> ImArray.map (fun constr ->
-                        match constr with
-                        | ConstraintSymbol.Null
-                        | ConstraintSymbol.Struct
-                        | ConstraintSymbol.NotStruct
-                        | ConstraintSymbol.Unmanaged
-                        | ConstraintSymbol.Blittable
-                        | ConstraintSymbol.Scoped
-                        | ConstraintSymbol.ConstantType _ ->
-                            constr
-                        | ConstraintSymbol.SubtypeOf(oldConstrTy) ->
-                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                        | ConstraintSymbol.TraitType(oldConstrTy) ->
-                            let tyArgs = ImArray.createOne (mkSolvedInferenceVariableType newTyPar newTyPar.AsType)
-                            ConstraintSymbol.TraitType(Lazy<_>.CreateFromValue(oldConstrTy.Value.Substitute(tyArgs)))
-                    )
-
-                newTyPar.SetConstraints(newConstrs)
-
-                solution.Solution <- TypeSymbol.Variable(newTyPar)
-                generalizedTyPars.Add(newTyPar)
-                tyParIndex <- tyParIndex + 1
-                computeNextTyParName()
-            else
-                env.diagnostics.Error(sprintf "Unable to infer the type. Be explicit i.e. 'x: int32'.", 6, syntaxNode)
+            newTyPar tyParOpt solution
         | TypeSymbol.Variable(tyPar) when tyPar.Arity > 0 ->
             env.diagnostics.Error(sprintf "Unable to infer the type variable with an arity greater than zero.", 6, syntaxNode)
             ()
         | _ ->
+            match ty with
+            | TypeSymbol.InferenceVariable(tyParOpt, solution)
+                    when solution.HasSolution && ty.IsAnyVariable_ste && ty.IsVariableZeroArity_ste ->
+                newTyPar tyParOpt solution
+            | _ ->
+                ()
             ()
 
     freeInputTyVars
@@ -98,8 +137,7 @@ let createGeneralizedFunctionTypeParameters (env: SolverEnvironment) (syntaxNode
         addInferenceVariableTy ty
     )
 
-    generalizedTyPars
-    |> ImmutableArray.CreateRange
+    generalizedTyPars |> ImArray.ofSeq, solutionIdReplace, tyParReplace
 
 let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) =
     match ty.Enclosing with
@@ -128,17 +166,6 @@ let rec checkTypeScope (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ty:
     | _ ->
         true
 
-let checkFunctionType env (syntaxNode: OlySyntaxNode) (argExprs: BoundExpression imarray) (valueTy: TypeSymbol) =
-    match valueTy.TryGetFunctionWithParameters() with
-    | ValueSome(expectedArgTys, _) ->        
-        let argTysWithSyntax =
-            argExprs
-            |> ImArray.map (fun x -> (x.Type, x.FirstReturnExpression.Syntax))
-        solveFunctionInput env syntaxNode expectedArgTys argTysWithSyntax
-    | _ ->
-        if not valueTy.IsError_t then
-            env.diagnostics.Error(sprintf "Not a function.", 3, syntaxNode)
-
 // --------------------------------------------------------------------------------------------------
 
 [<Literal>]
@@ -164,8 +191,8 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         let mutable result =
             (ent.Fields)
             |> ImArray.forall (fun field ->
-                if field.IsInstance && field.Type.IsAnyStruct then
-                    match field.Type.TryEntity with
+                if field.IsInstance && field.Type.IsStruct_ste then
+                    match field.Type.TryEntityNoAlias with
                     | ValueSome(ent) ->
                         checkStructCycleInner ent hash
                     | _ ->
@@ -177,7 +204,7 @@ let rec private checkStructCycleInner (ent: EntitySymbol) (hash: Dictionary<_, _
         result
 
 let checkStructCycle env syntaxNode (ent: EntitySymbol) =
-    OlyAssert.True(ent.IsAnyStruct)
+    OlyAssert.True(ent.IsStruct)
 
     let mutable hash = Unchecked.defaultof<_>
     let usedPool = tryPopCheckStructCycleDictionary(&hash)
@@ -202,7 +229,7 @@ let checkStructCycle env syntaxNode (ent: EntitySymbol) =
 let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
     match stripTypeEquations ty with
     | TypeSymbol.Entity(ent) -> 
-        if ent.IsAnyStruct then
+        if ent.IsStruct then
             checkStructCycle env syntaxNode ent
         else
             true
@@ -230,7 +257,7 @@ let rec checkStructTypeCycle env syntaxNode (ty: TypeSymbol) =
 // --------------------------------------------------------------------------------------------------
 
 let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) (ent: EntitySymbol) =
-    if ent.IsAnyStruct then
+    if ent.IsStruct then
         checkStructCycle env syntaxNode ent
         |> ignore
 
@@ -251,15 +278,22 @@ let checkEntityConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType
                     env.diagnostics.Error($"Cannot use '{printType env.benv tyArg}' as a type constructor as it has type parameters with constraints.", 10, syntaxTy)
     )
 
-    let skipAmount = tyPars.Length - syntaxTys.Length
+    let witnesses =
+        tyPars
+        |> ImArray.map (fun tyPar ->
+            freshWitnessesWithTypeArguments ent.TypeArguments tyPar
+        )
+        |> ImArray.concat
 
     solveConstraints
         env
         skipUnsolved
         syntaxNode
         (if syntaxTys.IsEmpty then None else Some syntaxTys)
-        (tyArgs |> ImArray.skip skipAmount)
-        ImArray.empty (* type constructors do not support witnesses *)
+        tyPars
+        tyArgs
+        ConstraintSolverMode.ReportErrors
+        witnesses
 
 let checkTypeConstructor env syntaxNode skipUnsolved (syntaxTys: OlySyntaxType imarray) ty =
     match stripTypeEquations ty with
@@ -298,7 +332,7 @@ let rec checkTypeConstructorDepth env (syntaxNode: OlySyntaxNode) (syntaxTys: Ol
             // If the constraint type has any type parameter constructors, then we skip this check
             // as it has already failed elsewhere. We do not support further "higher-rank" types.
             | ValueSome(constrTy) when constrTy.TypeParameters |> ImArray.forall (fun x -> x.HasArity |> not) ->
-                if constrTy.IsTypeConstructor then
+                if constrTy.IsTypeConstructor_steea then
                     checkTypeConstructorDepth env syntaxNode syntaxTys (applyType constrTy tyArgs)
                 else
                     checkTypeConstructorDepth env syntaxNode ImArray.empty (actualType tyArgs constrTy)
@@ -316,6 +350,70 @@ and checkTypeConstructorDepthWithType env (syntaxTy: OlySyntaxType) ty =
             checkTypeConstructorDepth env syntaxName syntaxTyArgsRoot.Values ty
         | _ ->
             checkTypeConstructorDepth env syntaxName ImArray.empty ty
+    | OlySyntaxType.Function(syntaxInputTy, _, syntaxOutputTy) 
+    | OlySyntaxType.FunctionPtr(_, _, syntaxInputTy, _, syntaxOutputTy) 
+    | OlySyntaxType.ScopedFunction(_, syntaxInputTy, _, syntaxOutputTy) ->
+        match ty.TryAnyFunction with
+        | ValueSome(inputTy, outputTy) ->
+            let syntaxInputTy =
+                match syntaxInputTy with
+                | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+                    if syntaxTupleItemList.ChildrenOfType.Length = 1 then
+                        match syntaxTupleItemList.ChildrenOfType[0] with
+                        | OlySyntaxTupleElement.Type(syntaxInputTy)
+                        | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxInputTy) ->
+                            syntaxInputTy
+                        | _ ->
+                            syntaxInputTy
+                    else
+                        syntaxInputTy
+                | _ ->
+                    syntaxInputTy
+            let syntaxOutputTy =
+                match syntaxOutputTy with
+                | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+                    if syntaxTupleItemList.ChildrenOfType.Length = 1 then
+                        match syntaxTupleItemList.ChildrenOfType[0] with
+                        | OlySyntaxTupleElement.Type(syntaxOutputTy)
+                        | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxOutputTy) ->
+                            syntaxOutputTy
+                        | _ ->
+                            syntaxOutputTy
+                    else
+                        syntaxOutputTy
+                | _ ->
+                    syntaxOutputTy
+            checkTypeConstructorDepthWithType env syntaxInputTy inputTy
+            checkTypeConstructorDepthWithType env syntaxOutputTy outputTy
+        | _ ->
+            ()
+    | OlySyntaxType.Tuple(_, syntaxTupleItemList, _) ->
+        match ty.TryGetTupleItemTypes() with
+        | ValueSome(itemTys) ->
+            let syntaxTupleItems = syntaxTupleItemList.ChildrenOfType
+            (syntaxTupleItems, itemTys)
+            ||> ImArray.tryIter2 (fun syntaxTupleItem itemTy ->
+                match syntaxTupleItem with
+                | OlySyntaxTupleElement.Type(syntaxTy)
+                | OlySyntaxTupleElement.IdentifierWithTypeAnnotation(_, _, syntaxTy) ->
+                    checkTypeConstructorDepthWithType env syntaxTy itemTy
+                | _ ->
+                    ()
+            )
+        | _ ->
+            ()
+    | OlySyntaxType.Array(syntaxElementTy, _)
+    | OlySyntaxType.MutableArray(_, syntaxElementTy, _)
+    | OlySyntaxType.FixedArray(syntaxElementTy, _)
+    | OlySyntaxType.MutableFixedArray(_, syntaxElementTy, _) ->
+        match ty.TryGetArrayElementType() with
+        | ValueSome(elementTy) -> checkTypeConstructorDepthWithType env syntaxElementTy elementTy
+        | _ ->
+
+        match ty.TryGetFixedArrayElementType() with
+        | ValueSome(elementTy) -> checkTypeConstructorDepthWithType env syntaxElementTy elementTy
+        | _ -> ()
+
     | _ ->
         ()
 
@@ -361,15 +459,30 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 QueryMemberFlags.InstanceFunctionOverrides
             else
                 QueryMemberFlags.Static // TODO: StaticFunctionOverrides?
+
+        let checkOverrides (x: IFunctionSymbol) (func: IFunctionSymbol) =
+            // REVIEW: This is currently a limitation. A non-exported function overriding an exported/imported function
+            //         when they are only pulled together from an interface and base class, and vice versa, 
+            //         into one concrete class.
+            // Note: There are good number of tests that cover this.
+            // TODO: We should come up with a better error message describing what is going on.
+            if (func.IsImported || func.IsExported) && (not x.IsImported && not x.IsExported) then
+                subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
+            elif (not func.IsImported && not func.IsExported) && (x.IsImported || x.IsExported) then
+                subsumesType func.Enclosing.AsType x.Enclosing.AsType && areLogicalFunctionSignaturesEqual x func
+            else
+                areLogicalFunctionSignaturesEqual x func
         
         let possibleFuncs = 
             ty.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None, func.Name)
             |> Seq.filter (fun x ->
                 if x.Id <> func.Id then
                     if x.IsVirtual then
-                        match x.FunctionOverrides with
-                        | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
-                        | _ -> areLogicalFunctionSignaturesEqual x func
+                        let x =
+                            match x.FunctionOverrides with
+                            | Some overridenFunc -> overridenFunc
+                            | _ -> x
+                        checkOverrides x func
                     else
                         false
                 else
@@ -383,8 +496,10 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 |> Seq.filter (fun x ->
                     if x.IsVirtual then
                         match x.FunctionOverrides with
-                        | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
-                        | _ -> false
+                        | Some x ->
+                            checkOverrides x func
+                        | _ -> 
+                            false
                     else
                         false
                 )
@@ -393,7 +508,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 possibleFuncs
 
         let possibleFuncs =
-            if possibleFuncs.IsEmpty && func.Enclosing.IsInterface && not ty.IsInterface then
+            if possibleFuncs.IsEmpty && func.Enclosing.IsInterface && not ty.IsInterface_ste then
                 let enclosingTy = func.Enclosing.AsType
                 ty.AllImplements
                 |> ImArray.collect (fun x ->
@@ -425,22 +540,9 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
 and checkInterfaceDefinition (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (ent: EntitySymbol) =
     ent.Extends
     |> ImArray.iter (fun ty ->
-        if not ty.IsInterface then
+        if not ty.IsInterface_ste then
             env.diagnostics.Error(sprintf "Cannot inherit the construct '%s'." (printType env.benv ty), 10, syntaxNode)
     )
-
-and checkLambdaExpression (env: SolverEnvironment) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) (ty: TypeSymbol) =
-    if ty.IsError_t then ()
-    else
-        match ty.TryGetFunctionWithParameters() with
-        | ValueSome(argTys, returnTy) ->
-            let syntaxBody = body.Syntax
-            let argTysWithSyntax = pars |> ImArray.map (fun x -> (x.Type, syntaxBody))
-
-            solveFunctionInput env syntaxBody argTys argTysWithSyntax
-
-        | _ ->
-            OlyAssert.Fail("Expected a function type.")
 
 and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (syntax: OlySyntaxBinding) (binding: LocalBindingInfoSymbol) (rhsExpr: BoundExpression) (pars: ImmutableArray<ILocalParameterSymbol>) (body: BoundExpression) =
     let benv = env.benv
@@ -450,20 +552,22 @@ and private checkLambdaFunctionValueBindingAndAutoGeneralize env isStatic (synta
 
     // TODO: We do this even on non-local bindings because we may want to run the bodies of lambdas.
     //       Perhaps we could do this without having to go looking for inference variables.
-    let freeInputTyVars = rhsExpr.GetFreeInferenceVariables()
+    let freeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
 
     let funcFlags =
-        if value.IsLocal && isStatic then
+        if value.HasLocalEnclosing && isStatic then
             FunctionFlags.StaticLocal
         else
             FunctionFlags.None
     
-    if freeInputTyVars.Count > 0 && value.IsLocal then
-        let generalizedTyPars =
+    if freeInputTyVars.Count > 0 && value.HasLocalEnclosing then
+        let generalizedTyPars, _, _ =
             createGeneralizedFunctionTypeParameters
                 env
                 syntax
+                false
                 freeInputTyVars
+                witnessArgLookup
                 ImmutableArray.Empty
         let func = createFunctionValue value.Enclosing ImmutableArray.Empty value.Name generalizedTyPars pars returnTy MemberFlags.Private funcFlags WellKnownFunction.None None false
         let bindingInfo = BindingLocalFunction(func)
@@ -531,12 +635,39 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
             let fields = expr.GetThisSetInstanceFields()
             let fieldNames = fields |> ImArray.map (fun x -> x.Name)
     
-            let expectedFieldSet = HashSet(expectedFields |> Seq.filter (fun x -> not x.Type.IsError_t) |> Seq.map (fun x -> x.Name))
+            let expectedFieldSet = HashSet(expectedFields |> Seq.filter (fun x -> not x.Type.IsError_ste) |> Seq.map (fun x -> x.Name))
             expectedFieldSet.ExceptWith(fieldNames)
             expectedFieldSet
             |> Seq.sort
             |> Seq.iter (fun fieldName ->
-                env.diagnostics.Error($"'{fieldName}' is not initialized.", 10, expr.Syntax)
+                let syntaxNode =
+                    match expr.Syntax with
+                    | :? OlySyntaxExpression as syntaxExpr ->
+                        match syntaxExpr with
+                        | OlySyntaxExpression.Initialize(_, syntaxInitializer)
+                        | OlySyntaxExpression.UpdateRecord(_, _, syntaxInitializer) ->
+                            match syntaxInitializer with
+                            // Show an error on the curly bracket instead of the entire construct.
+                            // We have tests for this.
+                            | OlySyntaxInitializer.Initializer(syntaxLeftCurlyBracketToken, _, _) ->
+                                syntaxLeftCurlyBracketToken : OlySyntaxNode
+                            | _ ->
+                                unreached()
+                        | _ ->
+                            syntaxExpr
+                    | syntaxNode ->
+                        syntaxNode
+
+                // TODO: Mainly for robustness, we should not have to search all the fields like this. 
+                let field = expectedFields |> ImArray.find (fun x -> x.Name = fieldName)
+                if field.AssociatedFormalPropertyId.IsSome then
+                    let prop = 
+                        // TODO: Mainly for robustness, we should not have to search all the properties like this.
+                        enclosingTy.Formal.FindMostSpecificProperties(env.benv, QueryMemberFlags.Instance, QueryProperty.Intrinsic)
+                        |> Seq.find (fun x -> x.Id = field.AssociatedFormalPropertyId.Value)
+                    env.diagnostics.Error($"Property '{prop.Name}' is not initialized.", 10, syntaxNode)
+                else
+                    env.diagnostics.Error($"Field '{fieldName}' is not initialized.", 10, syntaxNode)
             )
 
             expr
@@ -548,14 +679,14 @@ and checkConstructorImplementation (env: SolverEnvironment) (thisValue: IValueSy
                     when value.IsFunction && value.IsInstanceConstructor && areEnclosingsEqual value.Enclosing enclosingTy.AsEntity.AsEnclosing ->
                 BoundExpression.Call(
                     syntaxInfo, 
-                    Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisValue)),
+                    Some(BoundExpression.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisValue)),
                     witnessArgs,
                     argExprs,
                     value,
                     isVirtual
                 )
             | _ ->
-                env.diagnostics.Error("Invalid return expression for constructor.", 10, expr.Syntax)
+                env.diagnostics.Error("Invalid return expression for constructor.", 10, expr.Syntax.BestSyntaxForReporting)
                 expr
 
     loop expr
@@ -574,7 +705,7 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
 
     let returnTy = 
         if firstReturnExpression.IsLambdaExpression then
-            match firstReturnExpression.Type.TryFunction with
+            match firstReturnExpression.Type.TryAnyFunction with
             | ValueSome(_, outputTy) -> outputTy
             | _ -> failwith "Expected a function type."
         else 
@@ -588,7 +719,8 @@ and private checkValueBinding (env: SolverEnvironment) (rhsExpr: BoundExpression
             match value.Type.TryGetFunctionWithParameters(), firstReturnExpression.Type.TryGetFunctionWithParameters() with
             | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
                 let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
-                solveFunctionInput env syntax argTys1 argTys2WithSyntax
+                ()
+              //  solveFunctionInput env syntax argTys1 argTys2WithSyntax
             | _, _ ->
                 solveTypes env syntax value.Type firstReturnExpression.Type
 
@@ -602,45 +734,59 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     let syntax = checkValueBinding env rhsExpr binding.Value
 
     // Auto-generalization
+    
+    let valueLookup = Dictionary<_, IValueSymbol>()
 
-    let bindingInfo2 =
+    let bindingInfo2, tyParReplace =
         match binding with
-        | BindingLocalFunction(func) when func.IsLocal ->
-            let freeInputTyVars = rhsExpr.GetFreeInferenceVariables()
+        | BindingLocalFunction(func) when func.HasLocalEnclosing ->
+            let possibleFreeInputTyVars, witnessArgLookup = rhsExpr.GetFreeInferenceVariables()
+            
+            let freeInputTyVars = ResizeArray()
+            for (id, ty) in possibleFreeInputTyVars do
+                let exists =
+                    func.TypeParameters
+                    |> ImArray.exists (fun x -> areTypesEqual x.AsType ty)
+                if not exists then
+                    freeInputTyVars.Add(struct(id, ty))
 
-            if freeInputTyVars.Count > 0 && binding.Value.IsLocal then
-                let generalizedTyPars = createGeneralizedFunctionTypeParameters env syntax freeInputTyVars func.TypeParameters
-                let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars func
-                BindingLocalFunction(generalizedFunc)
+            if freeInputTyVars.Count > 0 && binding.Value.HasLocalEnclosing then
+                let generalizedTyPars, solutionIdReplace, tyParReplace = createGeneralizedFunctionTypeParameters env syntax true freeInputTyVars witnessArgLookup func.TypeParameters
+                let generalizedFunc = createFunctionWithTypeParametersOfFunction generalizedTyPars solutionIdReplace func
+                valueLookup[func.Id] <- generalizedFunc
+                BindingLocalFunction(generalizedFunc), tyParReplace
             else
-                binding
+                binding, Dictionary()
         | BindingLocal(value) when not value.IsMutable ->
             match rhsExpr.Strip() with
             | BoundExpression.Lambda(_, lambdaFlags, _, parValues, body, _, _, _) ->
-                checkLambdaFunctionValueBindingAndAutoGeneralize env (lambdaFlags.HasFlag(LambdaFlags.Static)) syntaxBinding binding rhsExpr parValues body.Expression
+                checkLambdaFunctionValueBindingAndAutoGeneralize env (lambdaFlags.HasFlag(LambdaFlags.Static)) syntaxBinding binding rhsExpr parValues body.Expression, Dictionary()
             | _ ->
-                binding
+                binding, Dictionary()
         | _ ->
             match rhsExpr.Strip() with
             | BoundExpression.Lambda(body=bodyExpr) ->
                 // TODO: We do this even on non-local bindings because we may want to run the bodies of lambdas.
                 //       Perhaps we could do this without having to go looking for inference variables.
-                let _freeInputTyVars = bodyExpr.Expression.GetFreeInferenceVariables()
+                let _freeInputTyVars, _ = bodyExpr.Expression.GetFreeInferenceVariables()
                 ()
             | _ ->
                 ()
-            binding
+            binding, Dictionary()
 
     let rhsExpr2 =
         match bindingInfo2 with
         | BindingLocalFunction(func=func) ->
-            OlyAssert.True(func.IsLocal)
+            OlyAssert.True(func.HasLocalEnclosing)
             if not func.TypeParameters.IsEmpty then
                 // If the function has type parameters but the lambda expression does not, we probably generalized the function;
                 //     therefore, we need to create a new lambda expression with those type parameters.
                 match rhsExpr.Strip() with
-                | BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, body, _, _, _) when tyPars.IsEmpty ->
-                    BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, func.TypeParameters, parValues, body)
+                | BoundExpression.Lambda(syntaxInfo, lambdaFlags, tyPars, parValues, lazyBodyExpr, _, _, _) when tyPars.IsEmpty ->
+                    let bodyExpr = lazyBodyExpr.Expression
+                    let newBodyExpr = Substitution.substituteForAutoGeneralization(env.benv, bodyExpr, valueLookup, tyParReplace)
+                    let lazyBodyExpr = LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr)
+                    BoundExpression.CreateLambda(syntaxInfo, lambdaFlags, func.TypeParameters, parValues, lazyBodyExpr)
                 | _ ->
                     rhsExpr
             else
@@ -651,20 +797,40 @@ and checkLetBindingDeclarationAndAutoGeneralize (env: SolverEnvironment) (syntax
     if bindingInfo2.Value.IsFunction then
         match bindingInfo2.Type.TryGetFunctionWithParameters(), rhsExpr2.Type.TryGetFunctionWithParameters() with
         | ValueSome(argTys1, _), ValueSome(argTys2, _) ->
+            // TODO: Uh, what was this? Do we really need this? Can we remove it?
             let argTys2WithSyntax = argTys2 |> ImArray.map (fun x -> (x, syntax))
-            solveFunctionInput env syntax argTys1 argTys2WithSyntax
+            ()
+            //solveFunctionInput env syntax argTys1 argTys2WithSyntax
         | _ ->
             solveTypes env syntax bindingInfo2.Type rhsExpr2.Type
 
     bindingInfo2, rhsExpr2
 
-and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr: BoundExpression) =
+and private checkInferenceVariableTypeCycle (env: SolverEnvironment)  (syntax: OlySyntaxNode) (expectedTy: TypeSymbol) (ty: TypeSymbol) =
+    match expectedTy with
+    | TypeSymbol.InferenceVariable(_, solution) when not solution.HasSolution ->
+        let isCycle =
+            ty.TypeArguments
+            |> ImArray.exists (fun x -> 
+                match stripTypeEquations x with
+                | TypeSymbol.InferenceVariable(_, solution2) -> solution.Id = solution2.Id
+                | _ ->
+                    checkInferenceVariableTypeCycle env syntax expectedTy x
+                    false
+            )
+        if isCycle then
+            env.diagnostics.Error($"Detected a cycle in inference: '{printType env.benv expectedTy}' cannot be solved with '{printType env.benv ty}'.", 10, syntax)
+            solution.SetSolution(TypeSymbolError)
+    | _ ->
+        ()
+
+and checkExpressionType (env: SolverEnvironment) (mode: CheckExpressionMode) (expectedTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
 
-    if expectedTy.IsSolved && 
-       exprTy.IsSolved && 
-       not expectedTy.IsError_t && 
-       not exprTy.IsError_t && 
+    if expectedTy.IsSolved_ste && 
+       exprTy.IsSolved_ste && 
+       not expectedTy.IsError_ste && 
+       not exprTy.IsError_ste && 
        subsumesTypeInEnvironment env.benv expectedTy exprTy then
         let expectedTyArgs = expectedTy.TypeArguments
         let tyArgs =
@@ -684,43 +850,60 @@ and checkExpressionType (env: SolverEnvironment) (expectedTy: TypeSymbol) (expr:
     else
         // REVIEW: If either type is an error, then just solve it without subsumption 
         //         because subsumption skips solving if it sees an error type. We should *review* that logic.
-        if exprTy.IsError_t || expectedTy.IsError_t then
-            solveTypes env expr.Syntax expectedTy exprTy
+        if exprTy.IsError_ste || expectedTy.IsError_ste then
+            if env.reportTypeErrors then
+                solveTypes env expr.Syntax expectedTy exprTy
         else
-            solveTypesWithSubsumption env expr.Syntax expectedTy exprTy
+            checkInferenceVariableTypeCycle env expr.Syntax expectedTy exprTy
+            if mode.IsMostFlexible then
+                solveTypesWithSubsumptionWith env MostFlexible expr.Syntax expectedTy exprTy
+            else
+                solveTypesWithSubsumptionWith env Flexible expr.Syntax expectedTy exprTy
 
 and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     let reportError name syntax =
         env.diagnostics.Error(sprintf "'%s' is not mutable." name, 10, syntax)
+
+    let reportWriteOnlyError syntax =
+        env.diagnostics.Error("Cannot read from a write-only address.", 10, syntax)
+
+    let doesTypeNeedMutable (ty: TypeSymbol) =
+        ty.IsStruct_ste && not ty.IsAnyVariable_ste && not ty.IsError_ste
+
+    let doesValueNeedMutable (value: IValueSymbol) =
+        ((not value.IsMutable && doesTypeNeedMutable value.Type) || value.Type.IsReadOnlyByRefOfStruct_ste) && not value.IsInvalid
     
-    let rec checkCall syntax (receiverOpt: BoundExpression option) (value: IValueSymbol) =
+    let rec checkCall syntaxOfFuncCall (receiverOpt: BoundExpression option) (value: IValueSymbol) =
         match receiverOpt with
-        | Some receiver when (value.Enclosing.IsAnyStruct || value.Enclosing.IsWitnessShape) ->
-            if not value.IsReadOnly then
-                if check value.Enclosing.IsWitnessShape receiver |> not then
-                    env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntax)
+        | Some receiver ->
+            if receiver.Type.IsWriteOnlyByRef_ste then
+                reportWriteOnlyError receiver.Syntax
+            elif (value.Enclosing.IsTypeExtensionExtendingStruct || value.Enclosing.IsStruct || value.Enclosing.IsWitnessShape) then
+                if value.IsMutable then
+                    if check receiver |> not then
+                        env.diagnostics.Error(sprintf "Function call '%s' is not read-only and cannot be called on an immutable struct instance." value.Name, 10, syntaxOfFuncCall)
         | _ ->
             ()
 
-    and checkAddressOf isWitnessShape (receiver: BoundExpression) =
+    and checkAddressOf (receiver: BoundExpression) =
         match receiver with
         | BoundExpression.Call(value=value;args=args) 
                 when value.IsAddressOf ->
-            check isWitnessShape args.[0]
+            check args.[0]
         | _ ->
             true
 
-    and check (isWitnessShape: bool) (receiver: BoundExpression) : bool =
+    and check (receiver: BoundExpression) : bool =
         match receiver with
         | BoundExpression.Value(value=value) ->
-            if ((not value.IsMutable && (value.Type.IsAnyStruct || (isWitnessShape && not value.Type.IsReadWriteByRef))) || value.Type.IsReadOnlyByRef) && not value.IsInvalid then
+            if doesValueNeedMutable value then
                 reportError value.Name receiver.SyntaxNameOrDefault
                 false
             else
                 true
         | BoundExpression.GetField(receiver=receiver;field=field) ->
-            if check false receiver then
-                if field.Type.IsAnyStruct && not field.IsMutable && not field.IsInvalid then
+            if check receiver then
+                if doesValueNeedMutable field then
                     reportError field.Name receiver.SyntaxNameOrDefault
                     false
                 else
@@ -737,28 +920,28 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
             true
 
         | BoundExpression.Sequential(expr2=expr2) ->
-            check false expr2
+            check expr2
 
         | _ ->
-            checkAddressOf isWitnessShape receiver
+            checkAddressOf receiver
 
     match expr with
     | BoundExpression.SetValue(value=value;rhs=rhs) ->
-        checkExpressionType env value.Type rhs
-        if not value.IsMutable && not value.IsInvalid then
+        checkExpressionType env CheckExpressionMode.Flexible value.Type rhs
+        if doesValueNeedMutable value then
             reportError value.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetField(receiver=receiver;field=field;rhs=rhs) ->
-        checkExpressionType env field.Type rhs
-        if check false receiver then
-            if not field.IsMutable && not field.IsInvalid then
+        checkExpressionType env CheckExpressionMode.Flexible field.Type rhs
+        if check receiver then
+            if doesValueNeedMutable field then
                 reportError field.Name expr.SyntaxNameOrDefault
 
     | BoundExpression.SetContentsOfAddress(lhs=lhsExpr) ->
-        if not lhsExpr.Type.IsReadWriteByRef then
+        if not lhsExpr.Type.IsReadWriteByRef_ste && not lhsExpr.Type.IsWriteOnlyByRef_ste then
             env.diagnostics.Error("Cannot set contents of a read-only address.", 10, lhsExpr.Syntax)  
 
-    | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop;rhs=rhs) ->
+    | BoundExpression.SetProperty(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;prop=prop) ->
         match prop.Setter with
         | Some(setter) ->
             checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt setter
@@ -775,6 +958,10 @@ and checkReceiverOfExpression (env: SolverEnvironment) (expr: BoundExpression) =
     | BoundExpression.Call(syntaxInfo=syntaxInfo;receiverOpt=receiverOpt;value=value) ->
         checkCall syntaxInfo.SyntaxNameOrDefault receiverOpt value
 
+    | BoundExpression.GetField(receiver=receiverExpr) ->
+        if receiverExpr.Type.IsWriteOnlyByRef_ste then
+            reportWriteOnlyError expr.Syntax
+
     | _ ->
         ()
 
@@ -783,27 +970,45 @@ and checkFunctionConstraints
         skipUnsolved
         syntaxNode 
         (syntaxEnclosingTyArgsOpt: OlySyntaxType imarray option) 
+        enclosingTyPars
         enclosingTyArgs
         syntaxFuncTyArgsOpt
+        funcTyPars
         funcTyArgs
+        mode
         (witnessArgs: WitnessSolution imarray) =
-    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyArgs syntaxFuncTyArgsOpt funcTyArgs witnessArgs
+    solveFunctionConstraints env skipUnsolved syntaxNode syntaxEnclosingTyArgsOpt enclosingTyPars enclosingTyArgs syntaxFuncTyArgsOpt funcTyPars funcTyArgs mode witnessArgs
 
-and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: BoundExpression) =
+and checkConstraintsFromCallExpression diagnostics pass (mode: ConstraintSolverMode) (expr: BoundExpression) =
     match expr with
     | BoundExpression.Call(syntaxInfo, _, witnessArgs, _, value, _) ->
-        // We cannot check constraints and witness for function groups, so skip it.
+        // We cannot check constraints and witnesses for function groups, so skip it.
         if value.IsFunctionGroup then ()
         else
 
         match syntaxInfo.TryEnvironment with
         | Some benv ->
 
-            checkStructTypeCycle 
-                (SolverEnvironment.Create(diagnostics, benv, pass))
-                syntaxInfo.SyntaxNameOrDefault
-                value.Type
-            |> ignore
+            if value.AllTypeParameterCount = 0 then ()
+            else
+
+            if witnessArgs.IsEmpty && mode.IsAttempt then ()
+            else
+
+            let allSolved =
+                value.Type.IsAllInnerSolved_ste &&
+                witnessArgs
+                |> ImArray.forall (fun x -> x.HasSolution)
+
+            if allSolved && mode.IsAttempt then ()
+            else
+
+            if mode.IsReportErrors then
+                checkStructTypeCycle 
+                    (SolverEnvironment.Create(diagnostics, benv, pass))
+                    syntaxInfo.SyntaxNameOrDefault
+                    value.Type
+                |> ignore
 
             let syntaxTyArgsOpt =
                 let syntaxTyArgs =
@@ -857,96 +1062,20 @@ and checkConstraintsFromCallExpression diagnostics skipUnsolved pass (expr: Boun
 
             checkFunctionConstraints 
                 (SolverEnvironment.Create(diagnostics, benv, pass)) 
-                skipUnsolved
+                mode.IsAttempt
                 syntaxNode 
                 syntaxEnclosingTyArgsOpt
+                value.Enclosing.TypeParameters
                 enclosingTyArgs
                 syntaxFuncTyArgsOpt
+                value.TypeParameters
                 funcTyArgs
+                mode
                 witnessArgs
         | _ ->
             ()
     | _ ->
         OlyAssert.Fail("Expected 'Call' expression.")
-
-and checkArgumentsFromCallExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Call(syntaxInfo, _, _, argExprs, value, _) ->
-        OlyAssert.False(value.IsFunctionGroup)
-
-        let syntaxNode =
-            match syntaxInfo.Syntax with
-            | :? OlySyntaxExpression as syntax ->
-                match syntax with
-                | OlySyntaxExpression.Call(syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.InfixCall(_, syntax, _) -> syntax :> OlySyntaxNode
-                | OlySyntaxExpression.PrefixCall(syntax, _) -> syntax :> OlySyntaxNode
-                | _ -> syntax :> OlySyntaxNode
-            | syntax ->
-                syntax
-
-        let valueTy = value.LogicalType
-
-        (argExprs, valueTy.FunctionArgumentTypes)
-        ||> ImArray.tryIter2 (fun argExpr expectedTy ->
-            match argExpr with
-            | BoundExpression.Lambda(body=body) ->
-                OlyAssert.True(body.HasExpression)
-                match expectedTy.TryFunction with
-                | ValueSome(_, expectedTy) ->
-                    body.Expression.ForEachReturningTargetExpression(fun expr ->
-                        checkExpressionType env expectedTy expr
-                    )
-                | _ ->
-                    ()
-            | _ ->
-                ()
-        )
-
-        if value.Enclosing.IsAbstract && value.IsConstructor && not value.IsBase then
-            env.diagnostics.Error(sprintf "The constructor call is not allowed as the enclosing type '%s' is abstract." (printEnclosing env.benv value.Enclosing), 10, syntaxNode)
-
-        if not isReturnable && value.IsInstanceConstructor && value.IsBase then
-            env.diagnostics.Error("The base constructor call is only allowed as the last expression of a branch.", 10, syntaxNode)
-    | _ ->
-        OlyAssert.Fail("Expected 'Call' expression.")
-
-and checkImmediateLambdaExpression env (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Lambda(_, _, _, parValues, lazyBodyExpr, lazyTy, _, _) ->
-        if not lazyBodyExpr.HasExpression then
-            lazyBodyExpr.Run()
-            checkLambdaExpression env parValues lazyBodyExpr.Expression lazyTy.Type
-    | _ ->
-        OlyAssert.Fail("Expected 'Lambda' expression.")
-
-/// This checks the expression to verify its correctness.
-/// It does not check all expressions under the expression.
-/// TODO: Remove this, we should do the specific checks in the binding functions as part of the binder...
-and checkImmediateExpression (env: SolverEnvironment) isReturnable (expr: BoundExpression) =
-    match expr with
-    | BoundExpression.Call(value=value) when not value.IsFunctionGroup ->
-        checkArgumentsFromCallExpression env isReturnable expr
-
-    | BoundExpression.Sequential(_, expr1, _, _) ->
-        match expr1 with
-        | BoundExpression.Lambda _ ->
-            checkImmediateLambdaExpression env expr1
-        | _ ->
-            ()
-        solveTypes env (expr1.GetValidUserSyntax()) TypeSymbol.Unit expr1.Type
-
-    | BoundExpression.GetProperty(prop=prop) ->
-        // We can have a GetProperty expression even if the property does not have a getter.
-        // The reason is because we initially bind to a GetProperty before potentially turning it into a SetProperty.
-        if prop.Getter.IsSome then
-            checkReceiverOfExpression env expr
-
-    | BoundExpression.Lambda _ ->
-        checkImmediateLambdaExpression env expr
-
-    | _ ->
-        ()
 
 let checkStaticContextForFreeLocals env (expr: BoundExpression) (pars: ILocalParameterSymbol imarray) =
     let freeLocals = 
@@ -971,37 +1100,6 @@ let checkLocalLambdaKind env (bodyExpr: BoundExpression) (pars: ILocalParameterS
     if isStatic then
         checkStaticContextForFreeLocals env bodyExpr pars
 
-let freshenAndCheckValue env (argExprsOpt: BoundExpression imarray voption) (syntaxNode: OlySyntaxNode) (value: IValueSymbol) : IValueSymbol =
-    let argExprs = (match argExprsOpt with ValueSome argExprs -> argExprs | _ -> ImArray.empty)
-
-    let valueTy = value.LogicalType
-
-    if not value.IsFunction && valueTy.IsQuantifiedFunction then 
-        let tyPars = valueTy.TypeParameters
-        if tyPars.IsEmpty then
-            failwith "Expected type parameters for a quantified function type."
-
-        let freshTy = freshenType env.benv tyPars ImmutableArray.Empty valueTy
-
-        let value2 = 
-            if value.IsMutable then
-                createMutableLocalValue value.Name freshTy
-            else
-                createLocalValue value.Name freshTy
-        if argExprsOpt.IsSome then
-            checkFunctionType env syntaxNode argExprs value2.LogicalType
-        value2 :> IValueSymbol
-    else
-        if value.Enclosing.TypeParameters.IsEmpty && value.TypeParameters.IsEmpty then
-            if argExprsOpt.IsSome then
-                checkFunctionType env syntaxNode argExprs valueTy
-            value
-        else
-            let value2 = freshenValue env.benv value
-            if argExprsOpt.IsSome then
-                checkFunctionType env syntaxNode argExprs value2.LogicalType
-            value2
-
 let checkTypes (env: SolverEnvironment) syntaxNode (expectedTy: TypeSymbol) (ty: TypeSymbol) =
     solveTypes env syntaxNode expectedTy ty
 
@@ -1015,7 +1113,7 @@ let checkParameter (env: SolverEnvironment) (syntaxNode: OlySyntaxNode) (func: I
     |> ImArray.iter (fun attr ->
         match attr with
         | AttributeSymbol.Inline(inlineArg) ->
-            if par.Type.IsAnyFunction && not par.Type.IsNativeFunctionPtr_t then
+            if par.Type.IsAnyFunction_ste && not par.Type.IsNativeFunctionPtr_ste then
                 match inlineArg with
                 | InlineArgumentSymbol.None ->
                     if not func.IsInline then

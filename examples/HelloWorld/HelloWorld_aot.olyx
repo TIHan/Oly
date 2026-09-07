@@ -1,0 +1,6 @@
+#target "dotnet: net10.0"
+
+#property "publish" "aot"
+
+main(): () =
+    print("Hello World!")

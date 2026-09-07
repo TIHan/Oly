@@ -42,7 +42,7 @@ let dumpTypeSymbol (ty: TypeSymbol) =
 
 let dumpEntitySymbol (ent: EntitySymbol) =
     if ent.IsLocal then
-        ent.Name + "__" + ent.Formal.Id.ToString()
+        ent.Name + "__" + ent.FormalId.ToString()
     else
         ent.Name
 
@@ -62,13 +62,13 @@ let dumpyTypeParameters (tyPars: TypeParameterSymbol imarray) =
 
 let dumpFunctionSymbol (func: IFunctionSymbol) =
     if func.TypeParameters.IsEmpty then
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             func.Name + "__" + func.Formal.Id.ToString()
         else
             func.Name
     else
         let tyArgs = func.TypeArguments |> ImArray.map dumpTypeSymbol |> String.concat ", "
-        if func.IsLocal then
+        if func.HasLocalEnclosing then
             func.Name + $"<{tyArgs}>" + "__" + func.Formal.Id.ToString()
         else
             func.Name + $"<{tyArgs}>"
@@ -106,7 +106,7 @@ let dumpConstantSymbol (constant: ConstantSymbol) =
         "true"
     | ConstantSymbol.False ->
         "false"
-    | ConstantSymbol.Utf16 value ->
+    | ConstantSymbol.String16 value ->
         "\"" + value + "\""
     | ConstantSymbol.TypeVariable(tyPar) ->
         dumpTypeParameter tyPar
@@ -226,7 +226,7 @@ let dumpExpression indentAmount (expr: E) =
                     "LOAD_TUPLE_ITEM"
                 | _ ->
                     let name =
-                        if value.IsLocal then
+                        if value.HasLocalEnclosing then
                             if value.Name = "" then
                                 $"__v{value.Formal.Id}"
                             else
@@ -236,7 +236,7 @@ let dumpExpression indentAmount (expr: E) =
                     $"CALL `{name}`"
             | _ ->
                 let name =
-                    if value.IsLocal then
+                    if value.HasLocalEnclosing then
                         if value.Name = "" then
                             $"__v{value.Formal.Id}"
                         else
@@ -258,7 +258,7 @@ let dumpExpression indentAmount (expr: E) =
 
     | E.Value(_, value) ->
         let name =
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 if value.Name = "" then
                     $"__v{value.Formal.Id}"
                 else

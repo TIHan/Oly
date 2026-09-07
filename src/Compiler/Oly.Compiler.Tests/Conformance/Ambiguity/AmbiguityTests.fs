@@ -3,6 +3,7 @@
 open Xunit
 open TestUtilities
 open Oly.Compiler
+open Oly.Core
 
 [<Fact>]
 let ``Should compile 1``() =
@@ -47,7 +48,7 @@ let ``Should compile 3``() =
 class Test =
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
 
 Test() : () = ()
         """
@@ -98,7 +99,7 @@ class Test =
     field x: __oly_int32
     field x: __oly_int32
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
@@ -120,7 +121,7 @@ class Test =
     
     x() : ()
 
-    new() = { x = 1 }
+    new() = this { x = 1 }
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
@@ -237,7 +238,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -259,7 +260,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -281,7 +282,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -304,7 +305,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -327,7 +328,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -350,7 +351,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test(f: () -> Wrapper<() -> __oly_int32>): () = ()
@@ -373,7 +374,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<() -> T>): () = ()
@@ -396,7 +397,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<() -> T>): () = ()
@@ -418,7 +419,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -441,7 +442,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -463,7 +464,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -486,7 +487,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -508,7 +509,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -531,7 +532,7 @@ class Wrapper<T> =
 
     field Value: T
 
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 test(f: () -> Wrapper<__oly_int32>): () = ()
 test<T>(f: () -> Wrapper<T>): () = ()
@@ -555,7 +556,7 @@ alias int32
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -574,13 +575,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("Type parameter '?T' was unable to be inferred.",
-            """
-    test(None())
-         ^^^^
-"""
-        )
-        ("'test' has ambiguous functions.",
+        ("'test' has ambiguous functions. Candidates:
+    static test(option: Option<int32>): ()
+    static test(option: Option<Option<int32>>): ()",
             """
     test(None())
     ^^^^
@@ -595,10 +592,10 @@ let ``Indexer operator example with struct byref and mutable byrefs``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -622,10 +619,10 @@ let ``Indexer operator example with struct byref and mutable byrefs 2``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -649,10 +646,10 @@ let ``Indexer operator example with struct byref and mutable byrefs 3``() =
         """
 module TestModule
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 struct Test<T> where T: struct =
@@ -679,7 +676,7 @@ module TestModule
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -700,10 +697,12 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Some' has ambiguous functions.",
+        ("'Some' has ambiguous functions. Candidates:
+    pattern Some<T>(value: Option<T>): __oly_bool
+    pattern Some<T>(value: Option<T>): T",
             """
     | Some(x) => ()
-      ^^^^^^^
+      ^^^^
 """
         )
     ]
@@ -719,7 +718,7 @@ alias void
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("native_ptr")]
@@ -869,7 +868,7 @@ nuint(void*): nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -993,7 +992,7 @@ nuint(void*): nuint
 #[intrinsic("bool")]
 alias bool
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("char16")]
@@ -1067,7 +1066,9 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
+        ("'op_Multiply' has ambiguous functions. Candidates:
+    static op_Multiply(x: Matrix, y: Vector3): Matrix
+    static op_Multiply(x: Vector3, y: Matrix): Vector3",
             """
     let f(x, y) = op_Multiply(x, y)
                   ^^^^^^^^^^^
@@ -1095,7 +1096,7 @@ extension Ops =
 
     static op_Multiply(x: Vector3, y: Matrix): Vector3 = default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -1103,13 +1104,10 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
-            """
-    let f(x, y) = multiply<_, _, _, object>(x, y)
-                                    ^^^^^^
-"""
-        )
-        ("'op_Multiply' has ambiguous functions.",
+        ("Solving shape function 'static op_Multiply(T1, T2): T3' has ambiguity from witnesses:
+    extension Ops = 
+        static op_Multiply(x: Matrix, y: Vector3): Matrix
+        static op_Multiply(x: Vector3, y: Matrix): Vector3",
             """
     let f(x, y) = multiply<_, _, _, object>(x, y)
                                     ^^^^^^
@@ -1141,7 +1139,7 @@ extension Ops2 =
 
     static op_Multiply(x: Vector3, y: Matrix): Vector3 = default
 
-multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: { static op_Multiply(T1, T2): T3 } =
+multiply<T1, T2, T3, W>(x: T1, y: T2): T3 where W: trait { static op_Multiply(T1, T2): T3 } =
     W.op_Multiply(x, y)
 
 main() : () =
@@ -1149,13 +1147,9 @@ main() : () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'op_Multiply' has ambiguous functions.",
-            """
-    let f(x, y) = multiply<_, _, _, object>(x, y)
-                                    ^^^^^^
-"""
-        )
-        ("'op_Multiply' has ambiguous functions.",
+        ("Solving shape function 'static op_Multiply(T1, T2): T3' has ambiguity from witnesses:
+    extension Ops
+    extension Ops2",
             """
     let f(x, y) = multiply<_, _, _, object>(x, y)
                                     ^^^^^^
@@ -1180,10 +1174,10 @@ alias uint32
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1246,6 +1240,9 @@ alias (*)<T>
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
 test(): () = ()
 
 main(): () =
@@ -1299,10 +1296,13 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("load_function_ptr")]
+(&&)<TFunctionPtr, TParameters...>(TParameters... -> ()): TFunctionPtr
+
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1336,10 +1336,10 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1373,10 +1373,10 @@ alias bool
 #[intrinsic("load_function_ptr")]
 (&&)<TFunctionPtr, TReturn, TParameters...>(TParameters... -> TReturn): TFunctionPtr
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("native_ptr")]
@@ -1416,13 +1416,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("Unable to infer type at this location.",
-            """
-    t.Test(123)
-           ^^^
-"""
-        )
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(x: T): ()
+    Test(x: U): ()",
             """
     t.Test(123)
       ^^^^
@@ -1515,7 +1511,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(): ()
+    Test(): ()",
             """
     a.Test()
       ^^^^
@@ -1542,7 +1540,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: { Test(): () } = ()
+test<T>(t: T): () where T: trait { Test(): () } = ()
 
 main(): () =
     let a = A()
@@ -1550,7 +1548,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1586,7 +1586,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("'Test' has ambiguous functions. Candidates:
+    Test(): ()
+    Test(): ()",
             """
     a.Test()
       ^^^^
@@ -1616,7 +1618,7 @@ extension AExtension2 =
 
     Test(): () = ()
 
-test<T>(t: T): () where T: { Test(): () } = ()
+test<T>(t: T): () where T: trait { Test(): () } = ()
 
 main(): () =
     let a = A()
@@ -1624,7 +1626,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1662,7 +1666,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1700,7 +1706,9 @@ main(): () =
         """
     Oly src
     |> withErrorHelperTextDiagnostics [
-        ("'Test' has ambiguous functions.",
+        ("Solving shape function 'Test(): ()' has ambiguity from witnesses:
+    extension AExtension
+    extension AExtension2",
             """
     test(a)
     ^^^^
@@ -1771,12 +1779,12 @@ module M
 let ``UnsafeCast should be in scope over Cast``() =
     """
 #[intrinsic("cast")]
-Cast<T>(__oly_object): T
+Cast<T>(__oly_base_object): T
 
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
     AsImmutable<T>(arr: mutable T[]): T[] =
         Cast(arr)
@@ -1792,7 +1800,7 @@ module Unsafe =
 let ``UnsafeCast should be in scope over Cast 2``() =
     """
 #[intrinsic("cast")]
-Cast<T>(__oly_object): T
+Cast<T>(__oly_base_object): T
 
 #[intrinsic("cast")]
 Cast<T>(__oly_int32): T
@@ -1800,7 +1808,7 @@ Cast<T>(__oly_int32): T
 module Unsafe =
 
     #[intrinsic("unsafe_cast")]
-    Cast<T>(__oly_object): T
+    Cast<T>(__oly_base_object): T
 
     #[intrinsic("unsafe_cast")]
     Cast<T>(__oly_int32): T
@@ -2006,7 +2014,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2039,7 +2047,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2061,8 +2069,8 @@ module AutoOpenedExtension =
 main(): () =
     ~^~TestM(1)
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("AutoOpenedExtension", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("AutoOpenedExtension", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 8``() =
@@ -2070,7 +2078,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2092,8 +2100,8 @@ TestM(x: int32): () = ()
 main(): () =
     ~^~TestM(1)
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 9``() =
@@ -2101,7 +2109,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2124,8 +2132,8 @@ TestM(x: string): () = ()
 main(): () =
     ~^~TestM("")
         """
-    let symbol = getSymbolByCursor2 src2 src1
-    Assert.Equal("B", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor2 src2 src1
+    Assert.Equal("B", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
 
 [<Fact>]
 let ``Choose the ambiguous function that was defined in the same compilation unit 10``() =
@@ -2133,7 +2141,7 @@ let ``Choose the ambiguous function that was defined in the same compilation uni
         """
 module Test.A
 
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias string
 
 #[intrinsic("int32")]
@@ -2168,8 +2176,48 @@ TestM(x: string): () = ()
 main(): () =
     ~^~TestM("")
         """
-    let symbol = getSymbolByCursor3 src3 src2 src1
-    Assert.Equal("C", symbol.AsValue.Enclosing.TryType.Value.Name)
+    let symbolInfo = getSymbolByCursor3 src3 src2 src1
+    Assert.Equal("C", symbolInfo.Symbol.AsValue.Enclosing.TryType.Value.Name)
+
+[<Fact>]
+let ``Should error with ambiguity for TestM``() =
+    let src3 =
+        """
+module Test.A
+
+TestM(): () = ()
+        """
+
+    let src2 =
+        """
+module Test.B
+
+TestM(): () = ()
+        """
+
+    let src1 =
+        """
+module Test.C
+
+open static Test.A
+open static Test.B
+
+main(): () =
+    TestM()
+        """
+
+    OlyThree src1 src2 src3
+    |> withErrorHelperTextDiagnostics [
+        ("'TestM' has ambiguous functions. Candidates:
+    static TestM(): ()
+    static TestM(): ()",
+            """
+    TestM()
+    ^^^^^
+"""
+        )
+    ]
+    |> ignore
 
 [<Fact>]
 let ``Should properly infer lambda argument against overloads``() =
@@ -2188,7 +2236,7 @@ class B =
 M(xs: A[], f: A -> ()): () = ()
 M(xs: B[], f: B -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -2216,7 +2264,7 @@ class B =
 M(xs: A[], f: A -> ()): () = ()
 M<T>(xs: T[], f: T -> ()): () = ()
 
-Consume(o: __oly_object): () = ()
+Consume(o: __oly_base_object): () = ()
 
 main(): () =
     let xs1 = []: A[]
@@ -2232,8 +2280,8 @@ let ``Should properly infer the array initializer correctly``() =
     let src =
         """
 main(): () =
-    let xs1 = [1;2;3]: __oly_object[]
-    let xs2 = mutable [1;2;3]: mutable __oly_object[]
+    let xs1 = [1;2;3]: __oly_base_object[]
+    let xs2 = mutable [1;2;3]: mutable __oly_base_object[]
         """
     Oly src
     |> shouldCompile
@@ -2249,8 +2297,1334 @@ class A =
 main(): () =
     let a = A()
 
-    let xs1 = [a.V;a.V;a.V]: __oly_object[]
-    let xs2 = mutable [a.V;a.V;a.V]: mutable __oly_object[]
+    let xs1 = [a.V;a.V;a.V]: __oly_base_object[]
+    let xs2 = mutable [a.V;a.V;a.V]: mutable __oly_base_object[]
         """
     Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should properly infer the tuple initializer correctly``() =
+    let src =
+        """
+class A =
+
+    V: __oly_int32 get = 1
+
+main(): () =
+    let a = A()
+
+    let xs1 = (a.V, a.V, a.V): (__oly_base_object, __oly_base_object, __oly_base_object)
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Namespace with same class name should fail``() =
+    let src1 =
+        """
+namespace N
+
+class A // src1
+        """
+
+    let src2 =
+        """
+namespace N
+
+class A // src2
+        """
+
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'A' already exists across compilation units.",
+            """
+class A // src1
+      ^
+"""
+        )
+        ("'A' already exists across compilation units.",
+            """
+class A // src2
+      ^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Two compilation units under the same module name should fail``() =
+    let src1 =
+        """
+module M // src1
+        """
+
+    let src2 =
+        """
+module M // src2
+        """
+
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics [
+        ("'M' already exists across compilation units.",
+            """
+module M // src1
+       ^
+"""
+        )
+        ("'M' already exists across compilation units.",
+            """
+module M // src2
+       ^
+"""
+        )
+    ]
+    |> ignore
+
+[<Fact>]
+let ``Namespace with same class name from a reference should not fail``() =
+    let src1 =
+        """
+namespace N
+
+class A // src1
+        """
+
+    let src2 =
+        """
+namespace N
+
+class A // src2
+        """
+
+    OlyWithRef src1 src2
+    |> shouldCompile
+
+[<Fact>]
+let ``Class name with the same name as the property should resolve correctly when accessing the property``() =
+    let src =
+        """
+class InputDataKind =
+
+    InputDataKind: __oly_int32 get, set = 0
+
+main(): () =
+    let x = InputDataKind()
+    let y: __oly_int32 = x.InputDataKind
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+interface IArgs<T>
+
+CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs> =
+    unchecked default
+
+CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs> =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class A =
+    implements IArgs<EventArgs>
+
+M(): () =
+    let _result =
+        CreateEventHandler<A, _>(
+            args -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            args -> args.Value
+            ^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs>
+    static CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs>",
+                """
+        CreateEventHandler<A, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint 2``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+interface IArgs<T>
+
+CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs> =
+    unchecked default
+
+CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs> =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class A =
+    implements IArgs<EventArgs>
+
+M(): () =
+    let _result: A =
+        CreateEventHandler(
+            args -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            args -> args.Value
+            ^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs>(f: TArgs -> bool): H where H: IArgs<TArgs>
+    static CreateEventHandler<H, TArgs>(f: TArgs -> ()): H where H: IArgs<TArgs>",
+                """
+        CreateEventHandler(
+        ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint shape``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result =
+        CreateEventHandler<EventHandler, _, _>(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            (_sender, args) -> args.Value
+            ^^^^^^^^^^^^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler<EventHandler, _, _>(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint shape 2``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result: EventHandler =
+        CreateEventHandler(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Unable to solve parameter types for the lambda expression. Use explicit type annotations.",
+                """
+            (_sender, args) -> args.Value
+            ^^^^^^^^^^^^^^^
+"""
+            )
+            ("'CreateEventHandler' has ambiguous functions. Candidates:
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }
+    static CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> ()): H where H: { new(obj, nint); Invoke(obj, TArgs): TReturn }",
+                """
+        CreateEventHandler(
+        ^^^^^^^^^^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Should error for the lambda when solving the constraint shape 3``() =
+    let src =
+        """
+#[intrinsic("base_object")]
+alias obj
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("native_int")]
+alias nint
+
+#[intrinsic("print")]
+print(obj): ()
+
+CreateEventHandler<H, TArgs, TReturn>(f: (obj, TArgs) -> TReturn): H 
+        where H: { new(obj, nint); Invoke(obj, TArgs): TReturn } =
+    unchecked default
+
+class EventArgs =
+
+    Value: bool get = true
+
+class EventHandler =
+
+    new(o: obj, n: nint) = this { }
+
+    Invoke(_o: obj, _args: EventArgs): bool = true
+
+M(): () =
+    let _result =
+        CreateEventHandler(
+            (_sender, args) -> args.Value
+        )
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Member 'Value' does not exist on type '?'.",
+                """
+            (_sender, args) -> args.Value
+                                    ^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Regression - inference chose incorrect subtraction for overload``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("uint32")]
+alias uint32
+
+#[intrinsic("subtract")]
+(-)(int32, int32): int32
+
+#[intrinsic("multiply")]
+(*)(int32, int32): int32
+
+#[intrinsic("subtract")]
+(-)(uint32, uint32): uint32
+
+#[intrinsic("multiply")]
+(*)(uint32, uint32): uint32
+
+#[open]
+newtype FrameNumber =
+    field Value: int32
+
+    static (-)(n1: FrameNumber, n2: FrameNumber): FrameNumber =
+        unchecked default
+
+M(index: int32): () =
+    let _wut = index - 64 * 1
+        """
+    Oly src
+    |> shouldCompile
+
+[<Fact>]
+let ``Lambda should be inferred correctly``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+findIndex<T>(xs: T[], f: T -> bool): int32 =
+    0
+
+findIndex<T>(xs: T[], f: (int32, T) -> bool): int32 =
+    0
+
+class C
+
+M(): () =
+    let xs = [C()]
+    let _result = findIndex(xs, (_i, _c) -> false)
+        """
+    Oly src
+    |> withCompile
+
+[<Fact>]
+let ``Scoped lambda should be inferred correctly 2``() =
+    let src =
+        """
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+findIndex<T>(xs: T[], f: scoped T -> bool): int32 =
+    0
+
+findIndex<T>(xs: T[], f: scoped (int32, T) -> bool): int32 =
+    0
+
+class C
+
+M(): () =
+    let xs = [C()]
+    let _result = findIndex(xs, (_i, _c) -> false)
+        """
+    Oly src
+    |> withCompile
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 2``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+extension =
+    inherits CoolNamespace.int32
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 3``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+module M1 =
+    extension =
+        inherits int32
+        implements ITest
+
+        Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+module M2 = 
+    extension =
+        inherits CoolNamespace.int32
+        implements CoolNamespace.ITest
+
+        Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 4``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+extension =
+    inherits CoolNamespace.int32
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Anonymous type extension must be declared in the same assembly as the type it is extending or all its interfaces.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 5``() =
+    let src = 
+        """
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+interface ITest2 =
+    inherits ITest
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits int32
+    implements ITest2
+
+    Test(): () = ()
+        """
+    Oly src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 6``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+interface ITest2 =
+    inherits CoolNamespace.ITest
+
+extension =
+    inherits CoolNamespace.int32
+    implements ITest2
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 7``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+
+interface ITest =
+
+    Test(): ()
+
+module M1 =
+    extension =
+        inherits int32
+        implements ITest
+
+        Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+interface ITest2 =
+    inherits CoolNamespace.ITest
+
+module M2 = 
+    extension =
+        inherits CoolNamespace.int32
+        implements ITest2
+
+        Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+            ("Type 'int32' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+    extension =
+    ^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail of ambiguous type extension definitions 8 - generic``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+class C<T>
+
+interface ITest =
+
+    Test(): ()
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace SomeOtherNamespace
+
+extension<T> =
+    inherits CoolNamespace.C<T>
+    implements CoolNamespace.ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Type 'C<T>' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+            ("Type 'C<T>' already has an existing anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the interface declaration``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+#[intrinsic("int32")]
+alias int32
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+
+extension =
+    inherits int32
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C
+
+extension =
+    inherits C
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 2 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 3 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should succeed as the assembly of the interface implementation is in the same assembly as the extending type declaration 4 - generic``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_uint32>
+    implements ITest
+
+    Test(): () = ()
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> shouldCompile
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail as C<__oly_int32> and C<T> are conflicting``() =
+    let refSrc = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+        """
+
+    let src =
+        """
+namespace SomeOtherNamespace
+
+open CoolNamespace
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyWithRef refSrc src
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types 'C<__oly_int32>' and 'C<T>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Anonymous type extension should fail as C<__oly_int32> and C<T> are conflicting 2``() =
+    let src1 = 
+        """
+namespace CoolNamespace
+
+interface ITest =
+
+    Test(): ()
+
+class C<T>
+
+extension =
+    inherits C<__oly_int32>
+    implements ITest
+
+    Test(): () = ()
+        """
+
+    let src2 =
+        """
+namespace CoolNamespace
+
+extension<T> =
+    inherits C<T>
+    implements ITest
+
+    Test(): () = ()
+        """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Types 'C<__oly_int32>' and 'C<T>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension =
+^^^^^^^^^
+"""
+            )
+            ("Types 'C<T>' and 'C<__oly_int32>' conflict with an anonymous extension implementation of interface 'ITest'.",
+                """
+extension<T> =
+^^^^^^^^^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<()>.C>
+open static Modu<Modu<T>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 2 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<T>.C>
+open static Modu<Modu<()>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 3``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_int32>.C>
+open static Modu<Modu<T>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 4 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<T>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 5``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_base_object>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 6 - swap order``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<__oly_int32>.C>
+open static Modu<Modu<__oly_base_object>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Open static declaration of generic types for two has this ambiguity behavior 7 - with unit``() =
+    let src1 = """
+module Modu<TDog>
+
+class C
+    """
+    let src2 = """
+module M<T>
+
+open static Modu<Modu<()>.C>
+open static Modu<Modu<__oly_int32>.C>
+
+Test(): () =
+    let _c = C()
+    """
+    OlyTwo src1 src2
+    |> withErrorHelperTextDiagnostics
+        // REVIEW: Constructors look the same... but there is ambiguity. We should show the fully qualified name.
+        [
+            ("'__oly_ctor' has ambiguous functions. Candidates:
+    new(): C
+    new(): C",
+                """
+    let _c = C()
+             ^
+"""
+            )
+        ]
+    |> ignore
+
+[<Fact>]
+let ``Overload for generic array shbould succeed when an overload uses object``() =
+    """
+M2<T>(x: T[]): () = ()
+M2<T>(x: __oly_base_object[]): () = ()
+
+M<T>(x: T[]): () =
+    M2(x)
+    """
+    |> Oly
+    |> shouldCompile
+
+[<Fact>]
+let ``Overload for generic array shbould succeed when an overload uses object 2``() =
+    """
+M2<T>(x: T -> ()): () = ()
+M2<T>(x: __oly_base_object -> ()): () = ()
+
+M<T>(x: T -> ()): () =
+    M2(x)
+    """
+    |> Oly
     |> shouldCompile

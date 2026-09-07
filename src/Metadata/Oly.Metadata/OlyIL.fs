@@ -1,8 +1,65 @@
 ﻿namespace rec Oly.Metadata
 
 open System
-open System.Collections.Concurrent
+open System.Collections.Generic
 open Oly.Core
+
+[<RequireQualifiedAccess>]
+module OlySpecialNames =
+
+    [<Literal>]
+    let Constructor = "__oly_ctor"
+
+    [<Literal>]
+    let StaticConstructor = "__oly_static_ctor"
+
+    [<Literal>]
+    let Getter = "__oly_get"
+
+    [<Literal>]
+    let Setter = "__oly_set"
+
+    [<Literal>]
+    let PatternGuard = "__oly_guard"
+
+[<RequireQualifiedAccess>]
+module OlyQuotedName =
+
+    let AppendQuotedName (name: string) (builder: Text.StringBuilder) =
+        let hasNonAlphaNumeric = System.Text.RegularExpressions.Regex.IsMatch(name, @"\W")
+        if hasNonAlphaNumeric then
+            builder.Append("`") |> ignore
+            builder.Append(name) |> ignore
+            builder.Append("`") |> ignore
+        else
+            builder.Append(name) |> ignore
+
+[<RequireQualifiedAccess>]
+module OlyFullyQualifiedTypeName =
+
+    type NamespacePart = NamespacePart of name: string * next: Part
+    type TypePart = 
+        | TypePart of name: string * tyParCount: int * next: TypePart
+
+    type Part =
+        | End
+        | Namespace of NamespacePart
+        | Type of TypePart
+
+    //let ToParts(fullyQualifiedTypeName: string) =
+    //    if fullyQualifiedTypeName.StartsWith('`') then
+    //        let mutable count = 0
+    //        let rec scan i =
+    //            match fullyQualifiedTypeName[i] with
+    //            | '`' -> 
+    //                if fullyQualifiedTypeName.Length - 1 = i then
+    //                    i
+    //                else
+    //                    match fullyQualifiedTypeName[i + 1] with
+    //                    | '.' ->
+    //                        i
+    //                    | '^' ->
+    //    let index = fullyQualifiedTypeName.IndexOf('.')
 
 type OlyILTableKind =
     | String
@@ -84,19 +141,22 @@ type OlyILEntityKind =
 
 [<Flags>]
 type OlyILEntityFlags =
-    | None         = 0x00000000
-                   
-    | Public       = 0x00000000
-    | Internal     = 0x00000001
-    | Private      = 0x00000002
-    | AccessorMask = 0x00000007
-                   
-    | Abstract     = 0x00000100
-    | Final        = 0x00001000
-    | AutoOpen     = 0x00010000
-    | Nullable     = 0x00100000
+    | None              = 0x000000000UL
+                        
+    | Public            = 0x000000000UL
+    | Internal          = 0x000000001UL
+    | Private           = 0x000000002UL
+    | AccessorMask      = 0x000000007UL
+                        
+    | Abstract          = 0x000000100UL
+    | Final             = 0x000001000UL
+    | AutoOpen          = 0x000010000UL // frontend hint
+    | Nullable          = 0x000100000UL
+                        
+    | Scoped            = 0x001000000UL
 
-    | Scoped       = 0x01000000
+    | AttributeImporter = 0x010000000UL // frontend hint
+    | Anonymous         = 0x100000000UL // frontend hint
 
 [<Flags>]
 type OlyILMemberFlags =
@@ -127,11 +187,11 @@ type OlyILFunctionFlags =
     /// Runtime only cares about this flag if the enclosing type is a struct or shape, and the function is an instance member and not a constructor,
     ///     otherwise, it will ignore it.
     | Mutable                       = 0x000100
-    | Pure                          = 0x000200
-    | RequiresExplicitTypeArguments = 0x001000
-    | ParameterLess                 = 0x010000
+    | Pure                          = 0x000200 // frontend hint? not implemented at all, but should the runtime also have it?
+    | RequiresExplicitTypeArguments = 0x001000 // frontend hint
+    | ParameterLess                 = 0x010000 // frontend hint
 
-    | UnmanagedAllocationOnly       = 0x1000000
+    | UnmanagedAllocationOnly       = 0x1000000 // frontend hint? for now, but could we also have the runtime verify it?
 
 [<Flags>]
 type OlyILFieldFlags =
@@ -148,7 +208,7 @@ type OlyILCallingConvention =
   | VarArgs   = 5uy
   | Blittable = 9uy
 
-[<Struct;NoEquality;NoComparison>]
+[<NoEquality;NoComparison>]
 type OlyILEntityReference(enclosing: OlyILEnclosing, nameHandle: OlyILStringHandle, tyParCount: int) =
 
     member _.Enclosing = enclosing
@@ -213,6 +273,10 @@ type OlyILEntityDefinition =
         match this with
         | OlyILEntityDefinition(propDefs=propDefs) -> propDefs
 
+    member this.PatternDefinitionHandles =
+        match this with
+        | OlyILEntityDefinition(patDefs=patDefs) -> patDefs
+
     member this.Extends =
         match this with
         | OlyILEntityDefinition(extends=extends) -> extends
@@ -271,21 +335,34 @@ type OlyILEntityInstance =
     | OlyILEntityInstance of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle * tyArgs: OlyILType imarray
     | OlyILEntityConstructor of defOrRefHandle: OlyILEntityDefinitionOrReferenceHandle
 
+    // We define these dummies to trick the F# compiler to use tags for equality.
+    | DoNotCallDummy1
+    | DoNotCallDummy2
+    | DoNotCallDummy3
+    | DoNotCallDummy4
+    | DoNotCallDummy5
+
     member this.DefinitionOrReferenceHandle =
         match this with
         | OlyILEntityInstance(defOrRefHandle=defOrRefHandle)
         | OlyILEntityConstructor(defOrRefHandle=defOrRefHandle) -> defOrRefHandle
+        | _ -> unreached()
 
     member this.TypeArguments =
         match this with
         | OlyILEntityInstance(tyArgs=tyArgs) -> tyArgs
         | OlyILEntityConstructor _ -> ImArray.empty
+        | _ -> unreached()
 
     member this.AsType = OlyILTypeEntity(this)
 
 [<NoEquality;NoComparison>]
 type OlyILParameter =
-    | OlyILParameter of name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
+    | OlyILParameter of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
+
+    member this.Attributes =
+        match this with
+        | OlyILParameter(attrs=attrs) -> attrs
 
     member this.NameHandle =
         match this with
@@ -339,6 +416,11 @@ type OlyILEnclosing =
     | Witness of ty: OlyILType * abstractEntInst: OlyILEntityInstance
     | Namespace of path: OlyILStringHandle imarray * identity: OlyILAssemblyIdentity
 
+    member this.IsWitness_t =
+        match this with
+        | Witness _ -> true
+        | _ -> false
+
     member this.TypeArgumentCount =
         match this with
         | Entity(OlyILEntityInstance(_, tyArgs)) -> tyArgs.Length
@@ -355,7 +437,7 @@ type OlyILFunctionSpecification =
         callConv: OlyILCallingConvention *
         name: OlyILStringHandle * 
         tyPars: OlyILTypeParameter imarray * 
-        pars: OlyILParameter imarray * 
+        pars: OlyILParameter imarray *
         returnTy: OlyILType with
 
     member this.IsInstance =
@@ -505,7 +587,7 @@ type OlyILConstant =
     | False
     | Array of elementTy: OlyILType * value: OlyILConstant imarray
     | Char16 of value: char
-    | Utf16 of value: string
+    | String16 of value: string
     | TypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | External of funcInst: OlyILFunctionInstance * returnTy: OlyILType
 
@@ -525,7 +607,7 @@ type OlyILConstant =
         | False -> OlyILTypeBool
         | Array(elementTy, _) -> OlyILTypeArray(elementTy, 1, OlyILArrayKind.Immutable)
         | Char16 _ -> OlyILTypeChar16
-        | Utf16 _ -> OlyILTypeUtf16
+        | String16 _ -> OlyILTypeString16
         | TypeVariable(index, kind) -> OlyILTypeVariable(index, kind)
         | External(_, ilTy) -> ilTy
 
@@ -611,13 +693,13 @@ type OlyILPatternDefinition =
         match this with
         | OlyILPatternDefinition(guardDefHandleOpt=guardDefHandleOpt) -> guardDefHandleOpt
 
+    member this.Attributes =
+        match this with
+        | OlyILPatternDefinition(attrs=attrs) -> attrs
+
 [<NoEquality;NoComparison>]
 type OlyILFieldReference =
-    | OlyILFieldReference of enclosing: OlyILEnclosing * name: OlyILStringHandle * ty: OlyILType
-
-    member this.Type =
-        match this with
-        | OlyILFieldReference(ty=ty) -> ty
+    | OlyILFieldReference of enclosing: OlyILEnclosing * name: OlyILStringHandle
 
     member this.GetEnclosingType() =
         match this with
@@ -630,7 +712,8 @@ type OlyILFieldReference =
 [<RequireQualifiedAccess>]
 type OlyILByRefKind =
     | ReadWrite
-    | Read
+    | ReadOnly
+    | WriteOnly
 
 [<RequireQualifiedAccess>]
 type OlyILArrayKind =
@@ -663,22 +746,23 @@ type OlyILType =
     | OlyILTypeFloat64
     | OlyILTypeBool
     | OlyILTypeChar16
-    | OlyILTypeUtf16
+    | OlyILTypeString16
 
-    | OlyILTypeByRef of OlyILType * kind: OlyILByRefKind
+    | OlyILTypeByRef of elementTy: OlyILType * kind: OlyILByRefKind
 
     | OlyILTypeEntity of entInst: OlyILEntityInstance
     | OlyILTypeForAll of tyPars: OlyILTypeParameter imarray * ty: OlyILType
 
     | OlyILTypeTuple of elementTys: OlyILType imarray * elementNames: OlyILStringHandle imarray
     | OlyILTypeRefCell of ty: OlyILType
-    /// TODO: Add parameter type names.
+
     | OlyILTypeFunction of parTys: OlyILType imarray * returnTy: OlyILType * kind: OlyILFunctionKind
     | OlyILTypeNativeInt
     | OlyILTypeNativeUInt
     | OlyILTypeNativePtr of elementTy: OlyILType
     | OlyILTypeNativeFunctionPtr of cc: OlyILCallingConvention * argTys: OlyILType imarray * returnTy: OlyILType
     | OlyILTypeArray of elementTy: OlyILType * rank: int * kind: OlyILArrayKind
+    | OlyILTypeFixedArray of elementTy: OlyILType * lengthTy: OlyILType * kind: OlyILArrayKind
     | OlyILTypeVariable of index: int32 * kind: OlyILTypeVariableKind
     | OlyILTypeHigherVariable of index: int32 * tyInst: OlyILType imarray * kind: OlyILTypeVariableKind
     | OlyILTypeConstantInt32 of value: int32
@@ -709,7 +793,7 @@ type OlyILType =
         | OlyILTypeFloat64
         | OlyILTypeBool
         | OlyILTypeChar16
-        | OlyILTypeUtf16 
+        | OlyILTypeString16 
         | OlyILTypeTuple _
         | OlyILTypeConstantInt32 _
         | OlyILTypeVariable _ 
@@ -720,6 +804,7 @@ type OlyILType =
         | OlyILTypeNativeFunctionPtr(_, argTys, returnTy) -> argTys.Add(returnTy)
         | OlyILTypeNativePtr(ty) -> ImArray.createOne ty
         | OlyILTypeArray(ty, _, _) -> ImArray.createOne ty
+        | OlyILTypeFixedArray(ty, lengthTy, _) -> ImArray.createTwo ty lengthTy
         | OlyILTypeRefCell(ty) -> ImArray.createOne ty
         | OlyILTypeEntity(entRef) -> entRef.TypeArguments
         | OlyILTypeForAll _ -> ImArray.empty
@@ -731,48 +816,6 @@ type OlyILType =
         match this with
         | OlyILTypeFunction _ -> true
         | _ -> false
-
-    // 0 - 63 reserved for built-in types
-    member this.FormalId =
-        match this with
-        | OlyILTypeVoid -> 0
-        | OlyILTypeUnit -> 1
-        | OlyILTypeInt8 -> 2
-        | OlyILTypeUInt8 -> 3
-        | OlyILTypeInt16 -> 4
-        | OlyILTypeUInt16 -> 5
-        | OlyILTypeInt32 -> 6
-        | OlyILTypeUInt32 -> 7
-        | OlyILTypeInt64 -> 8
-        | OlyILTypeUInt64 -> 9
-        | OlyILTypeFloat32 -> 10
-        | OlyILTypeFloat64 -> 11
-        | OlyILTypeBool -> 12
-        | OlyILTypeChar16 -> 13
-        | OlyILTypeUtf16 -> 14
-        | OlyILTypeTuple _ -> 15
-        | OlyILTypeRefCell _ -> 16
-        | OlyILTypeFunction _ -> 17
-        | OlyILTypeArray _ -> 18
-        | OlyILTypeBaseObject -> 19
-        | OlyILTypeConstantInt32 _ -> 20
-        | OlyILTypeVariable _ -> 21
-        | OlyILTypeHigherVariable _ -> 22
-        | OlyILTypeByRef(_, kind) ->
-            match kind with
-            | OlyILByRefKind.Read ->
-                23
-            | OlyILByRefKind.ReadWrite ->
-                24
-        | OlyILTypeNativeInt -> 25
-        | OlyILTypeNativeUInt -> 26
-        | OlyILTypeNativePtr _ -> 27
-        | OlyILTypeNativeFunctionPtr _ -> 28
-        | OlyILTypeDependentIndexer _ -> 29
-        | OlyILTypeForAll _ -> 30
-        | OlyILTypeInvalid _ -> 31
-        | OlyILTypeModified _ -> 32
-        | OlyILTypeEntity(ilEntInst) -> 64 + ilEntInst.DefinitionOrReferenceHandle.Index
 
     member this.IsBuiltIn =
         match this with
@@ -792,7 +835,7 @@ type OlyILType =
         | OlyILTypeFloat64
         | OlyILTypeBool
         | OlyILTypeChar16
-        | OlyILTypeUtf16
+        | OlyILTypeString16
         | OlyILTypeTuple _
         | OlyILTypeFunction _
         | OlyILTypeRefCell _
@@ -806,6 +849,7 @@ type OlyILType =
         | OlyILTypeNativePtr _
         | OlyILTypeNativeFunctionPtr _
         | OlyILTypeArray _
+        | OlyILTypeFixedArray _
         | OlyILTypeDependentIndexer _ 
         | OlyILTypeForAll _ -> true
         | OlyILTypeEntity _ -> false          
@@ -892,7 +936,6 @@ type OlyILOperation =
 
     | Print of arg: OlyILExpression
     | Throw of arg: OlyILExpression * resultTy: OlyILType
-    | Cast of arg: OlyILExpression * resultTy: OlyILType
 
     | Store of n: int32 * arg: OlyILExpression
     | StoreArgument of n: int32 * arg: OlyILExpression
@@ -908,6 +951,7 @@ type OlyILOperation =
     | StoreArrayElement of receiver: OlyILExpression * indexArgs: OlyILExpression imarray * arg: OlyILExpression
     | LoadArrayLength of receiver: OlyILExpression
 
+    /// TODO: Rename to 'LoadTupleItem'.
     | LoadTupleElement of arg: OlyILExpression * index: int32
 
     | LoadFunction of OlyILFunctionInstance * arg: OlyILExpression
@@ -919,9 +963,12 @@ type OlyILOperation =
     | NewTuple of tyInst: OlyILType imarray * args: OlyILExpression imarray * names: OlyILStringHandle imarray
     | NewArray of elementTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewMutableArray of elementTy: OlyILType * sizeArg: OlyILExpression
+    | NewFixedArray of elementTy: OlyILType * lengthTy: OlyILType * kind: OlyILArrayKind * args: OlyILExpression imarray
     | NewRefCell of ty: OlyILType * arg: OlyILExpression
 
+    | Cast of arg: OlyILExpression * castToTy: OlyILType
     | Witness of body: OlyILExpression * witnessArg: OlyILType * ty: OlyILType
+
     | Ignore of arg: OlyILExpression
 
 [<Sealed>]
@@ -930,7 +977,7 @@ type OlyILDebugSource(path: OlyPath) =
     member _.Path = path
 
 [<Struct>]
-type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startLine: int, startColumn: int, endLine: int, endColumn: int) =
+type OlyILDebugSourceTextRange private (debugSourceHandle: OlyILDebugSourceHandle, startLine: int, startColumn: int, endLine: int, endColumn: int) =
 
     member _.DebugSourceHandle = debugSourceHandle
     member _.StartLine = startLine
@@ -940,6 +987,13 @@ type OlyILDebugSourceTextRange(debugSourceHandle: OlyILDebugSourceHandle, startL
 
     static member Empty =
         OlyILDebugSourceTextRange(OlyILTableIndex(OlyILTableKind.DebugSource, -1), 0, 0, 0, 0)
+
+    static member Create(debugSourceHandle: OlyILDebugSourceHandle, startLine, startColumn, endLine, endColumn) =
+#if DEBUG || CHECKED
+        if startLine = 0 && startColumn = 0 && endLine = 0 && endColumn = 0 && not debugSourceHandle.IsNil then
+            OlyAssert.Fail("Expected debug source handle to be nil.")
+#endif
+        OlyILDebugSourceTextRange(debugSourceHandle, startLine, startColumn, endLine, endColumn)
 
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
@@ -955,15 +1009,11 @@ type OlyILExpression =
     | Operation of textRange: OlyILDebugSourceTextRange * op: OlyILOperation
     | IfElse of conditionExpr: OlyILExpression * trueTargetExpr: OlyILExpression * falseTargetExpr: OlyILExpression
     | Sequential of expr1: OlyILExpression * expr2: OlyILExpression
-    
-    /// Cannot be used in a non-imperative context.
-    /// TODO: The check for "non-imperative" context is not implemented.
     | While of conditionExpr: OlyILExpression * bodyExpr: OlyILExpression
-
     | Try of bodyExpr: OlyILExpression * catchCases: OlyILCatchCase imarray * finallyBodyExprOpt: OlyILExpression option
 
 // Not concurrency safe.
-type private Table<'Value>(kind: OlyILTableKind) =
+type private Table<'Value when 'Value : not struct>(kind: OlyILTableKind) =
 
     let mutable nextIndex = 0
     let mutable state = Array.zeroCreate<'Value> 10
@@ -973,28 +1023,29 @@ type private Table<'Value>(kind: OlyILTableKind) =
         nextIndex <- nextIndex + 1
         index
 
+    member this.TryGet(tableIndex: OlyILTableIndex, outValue: outref<'Value>) =
+#if DEBUG || CHECKED
+        if tableIndex.Kind <> kind then
+            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
+#endif
+        if tableIndex.Index >= state.Length then
+            false
+        else
+            let value = state[tableIndex.Index]
+            if isNull(value: obj) then
+                false
+            else
+                outValue <- value
+                true
+
     member this.Get(tableIndex: OlyILTableIndex) =
+#if DEBUG || CHECKED
         if tableIndex.Kind <> kind then
             failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
         if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
             failwithf "Unable to find an entry into the table '%A'." kind
+#endif
         state.[tableIndex.Index]
-
-    member this.TryGet(tableIndex: OlyILTableIndex) =
-        if tableIndex.Kind <> kind then
-            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
-        if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
-            None
-        else
-            Some(state.[tableIndex.Index])
-
-    member this.Contains(tableIndex: OlyILTableIndex) =
-        if tableIndex.Kind <> kind then
-            failwithf "Invalid kind: %A. Expected: %A" tableIndex.Kind kind
-        if tableIndex.Index < 0 || tableIndex.Index >= nextIndex then
-            false
-        else
-            true
 
     member this.Next() =
         let index = this.NextIndex()
@@ -1055,25 +1106,13 @@ type OlyILAssemblyIdentity =
             this.Name.Equals(o.Name, StringComparison.OrdinalIgnoreCase) &&
             this.Key.Equals(o.Key)
 
-[<Sealed>]
-type OlyILEntityDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILFunctionDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILFieldDefinitionDocumentation() = class end
-
-[<Sealed>]
-type OlyILPropertyDefinitionDocumentation() = class end
-
 // Read-only Thread safe, but be careful writing multiple entries at the same time.
 [<NoComparison;ReferenceEquality>]
 type OlyILAssembly =
     private {
-        entDefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
-        entRefSet: ConcurrentDictionary<string, ConcurrentDictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
-        funcDefSet: ConcurrentDictionary<OlyILEntityDefinitionHandle, ConcurrentDictionary<string, ConcurrentDictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
+        entDefSet: Dictionary<string, Dictionary<OlyILEntityDefinitionHandle, byte>> // this is a helper, not serialized
+        entRefSet: Dictionary<string, Dictionary<OlyILEntityReferenceHandle, byte>> // this is a helper, not serialized
+        funcDefSet: Dictionary<OlyILEntityDefinitionHandle, Dictionary<string, Dictionary<OlyILFunctionDefinitionHandle, byte>>> // this is a helper, not serialized
 
         // Signature metadata.
         identity: OlyILAssemblyIdentity
@@ -1090,10 +1129,10 @@ type OlyILAssembly =
         primitiveTypes: ResizeArray<(OlyILType * OlyILEntityDefinitionHandle)>
 
         // Documentation metadata.
-        entDefDocs: Table<OlyILEntityDefinitionDocumentation>
-        funcDefDocs: Table<OlyILFunctionDefinitionDocumentation>
-        fieldDefDocs: Table<OlyILFieldDefinitionDocumentation>
-        propDefDocs: Table<OlyILPropertyDefinitionDocumentation>
+        entDefDocs: Table<string>
+        funcDefDocs: Table<string>
+        fieldDefDocs: Table<string>
+        propDefDocs: Table<string>
 
         // Debug metadata.
         dbgSrcs: Table<OlyILDebugSource>
@@ -1131,7 +1170,7 @@ type OlyILAssembly =
                 match this.entDefSet.TryGetValue(name) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.entDefSet.[name] <- handles
                     handles
             handles[handle] <- 0uy       
@@ -1143,7 +1182,7 @@ type OlyILAssembly =
                 match this.entRefSet.TryGetValue(name) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.entRefSet.[name] <- handles
                     handles
             handles[handle] <- 0uy 
@@ -1156,7 +1195,7 @@ type OlyILAssembly =
                 match this.funcDefSet.TryGetValue(entDefHandle) with
                 | true, handles -> handles
                 | _ ->
-                    let handles = ConcurrentDictionary()
+                    let handles = Dictionary()
                     this.funcDefSet.[entDefHandle] <- handles
                     handles
 
@@ -1164,7 +1203,7 @@ type OlyILAssembly =
                 match handles.TryGetValue(name) with
                 | true, funcHandles -> funcHandles
                 | _ ->
-                    let funcHandles = ConcurrentDictionary()
+                    let funcHandles = Dictionary()
                     handles[name] <- funcHandles
                     funcHandles
 
@@ -1180,7 +1219,7 @@ type OlyILAssembly =
         this.SetEntityDefinitionLookup(handle, entDef)
         handle
 
-    member this.NextEntityDefinition() : OlyILEntityDefinitionHandle =
+    member this.NextEntityDefinitionHandle() : OlyILEntityDefinitionHandle =
         this.entDefs.Next()
 
     member this.SetEntityDefinition(handle: OlyILEntityDefinitionHandle, entDef: OlyILEntityDefinition) =
@@ -1209,22 +1248,16 @@ type OlyILAssembly =
         this.funcBodies.Add(funcBody)
 
     member this.GetStringOrEmpty(handle: OlyILStringHandle) : string =
-        if handle.IsNil && handle.Kind = OlyILTableKind.String then
+        if handle.IsNil then
             System.String.Empty
         else
             this.strings.Get(handle)
 
     member this.GetEntityDefinition(handle: OlyILEntityDefinitionHandle) : OlyILEntityDefinition =
-        if handle.Kind = OlyILTableKind.EntityDefinition then
-            this.entDefs.Get(handle)
-        else
-            failwith "Incorrect table kind."
+        this.entDefs.Get(handle)
 
     member this.GetEntityReference(handle: OlyILEntityReferenceHandle) : OlyILEntityReference =
-        if handle.Kind = OlyILTableKind.EntityReference then
-            this.entRefs.Get(handle)
-        else
-            failwith "Incorrect table kind."
+        this.entRefs.Get(handle)
 
     member this.GetFunctionSpecification(handle: OlyILFunctionSpecificationHandle): OlyILFunctionSpecification =
         this.funcSpecs.Get(handle)
@@ -1249,9 +1282,6 @@ type OlyILAssembly =
 
     member this.AddPatternDefinition(patDef) =
         this.patDefs.Add(patDef)
-
-    member this.HasFunctionBody(handle: OlyILFunctionBodyHandle) =
-        this.funcBodies.Contains(handle)
 
     member this.EntityDefinitions: (OlyILEntityDefinitionHandle * OlyILEntityDefinition) seq =
         this.entDefs.Values
@@ -1287,14 +1317,6 @@ type OlyILAssembly =
         | _ -> ImArray.empty
 
     member this.FindFunctionDefinitions(entDefHandle: OlyILEntityDefinitionHandle, name: string) =
-        //let entDef = this.GetEntityDefinition(entDefHandle)
-        //entDef.FunctionHandles
-        //|> ImArray.filter (fun handle ->
-        //    let funcDef = this.GetFunctionDefinition(handle)
-        //    let funcSpec = this.GetFunctionSpecification(funcDef.SpecificationHandle)
-        //    let name2 = this.GetStringOrEmpty(funcSpec.NameHandle)
-        //    name2 = name
-        //)
         match this.funcDefSet.TryGetValue(entDefHandle) with
         | true, handles ->
             match handles.TryGetValue(name) with
@@ -1325,12 +1347,22 @@ type OlyILAssembly =
             else
                 let ilEntRef = this.GetEntityReference(ilDefOrRefHandle)
                 this.GetAssemblyIdentity(ilEntRef)
+        | _ ->
+            unreached()
+
+    member this.SetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle, doc: string) =
+        this.entDefDocs.Set(ilEntDefHandle, doc)
+
+    member this.TryGetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle) =
+        match this.entDefDocs.TryGet(ilEntDefHandle) with
+        | true, ilEntDefDoc -> ValueSome ilEntDefDoc
+        | _ -> ValueNone
 
     static member Create(name, stamp, isDebuggable) =
         let asm = {
-            entDefSet = ConcurrentDictionary()
-            entRefSet = ConcurrentDictionary()
-            funcDefSet = ConcurrentDictionary()
+            entDefSet = Dictionary()
+            entRefSet = Dictionary()
+            funcDefSet = Dictionary()
 
             strings = Table(OlyILTableKind.String)
             entRefs = Table(OlyILTableKind.EntityReference)
@@ -1393,9 +1425,6 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
     member this.GetPatternDefinition(handle: OlyILPatternDefinitionHandle) =
         ilAsm.GetPatternDefinition(handle)
 
-    member this.HasFunctionBody(handle: OlyILFunctionBodyHandle) =
-        ilAsm.HasFunctionBody(handle)
-
     member this.EntityDefinitions: (OlyILEntityDefinitionHandle * OlyILEntityDefinition) seq =
         ilAsm.EntityDefinitions
 
@@ -1423,70 +1452,57 @@ type OlyILReadOnlyAssembly internal (ilAsm: OlyILAssembly) =
     member this.GetAssemblyIdentity(ilEntInst: OlyILEntityInstance) =
         ilAsm.GetAssemblyIdentity(ilEntInst)
 
-    member private this.GetQualifiedNameForDefinition(ilEntDefHandle: OlyILEntityDefinitionHandle, builder: System.Text.StringBuilder) =
-        let ilEntDef = this.GetEntityDefinition(ilEntDefHandle)
-        let ilTyParCount = ilEntDef.TypeParameters.Length
-        match ilEntDef.Enclosing with
-        | OlyILEnclosing.Witness _ ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Namespace(path, _) ->
-            path
-            |> ImArray.iteri (fun i x ->
-                builder.Append(this.GetStringOrEmpty(x)) |> ignore
-                if i <> (path.Length - 1) then
-                    builder.Append(".") |> ignore
-            )
-            builder.Append("::") |> ignore
-
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
-            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
-
-        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
-            OlyAssert.Fail("Invalid IL.")
-                
-        builder.Append("::") |> ignore
-        builder.Append(this.GetStringOrEmpty(ilEntDef.NameHandle)) |> ignore
-        if ilTyParCount > 0 then
-            builder.Append("````" + ilTyParCount.ToString()) |> ignore
-
-    member private this.GetQualifiedNameForReference(ilEntRefHandle: OlyILEntityReferenceHandle, builder: System.Text.StringBuilder) =
-        let ilEntRef = this.GetEntityReference(ilEntRefHandle)
-        let ilTyParCount = ilEntRef.TypeParameterCount
-        match ilEntRef.Enclosing with
-        | OlyILEnclosing.Witness _ ->
-            OlyAssert.Fail("Invalid IL.")
-
-        | OlyILEnclosing.Namespace(path, _) ->
-            path
-            |> ImArray.iteri (fun i x ->
-                builder.Append(this.GetStringOrEmpty(x)) |> ignore
-                if i <> (path.Length - 1) then
-                    builder.Append(".") |> ignore
-            )
-            builder.Append("::") |> ignore
-
-        | OlyILEnclosing.Entity(OlyILEntityInstance(ilEntDefOrRefHandle, _)) ->
-            this.GetQualifiedName(ilEntDefOrRefHandle, builder)
-
-        | OlyILEnclosing.Entity(OlyILEntityConstructor _) ->
-            OlyAssert.Fail("Invalid IL.")
-                
-        builder.Append("::") |> ignore
-        builder.Append(this.GetStringOrEmpty(ilEntRef.NameHandle)) |> ignore
-        if ilTyParCount > 0 then
-            builder.Append("````" + ilTyParCount.ToString()) |> ignore
-
     member private this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, builder: System.Text.StringBuilder) =
-        if ilEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
-            this.GetQualifiedNameForReference(ilEntDefOrRefHandle, builder)
-        else
-            this.GetQualifiedNameForDefinition(ilEntDefOrRefHandle, builder)
+        let rec loop (ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle): unit =
+            let enclosing =
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).Enclosing
+                else
+                    ilAsm.GetEntityReference(ilEntDefOrRefHandle).Enclosing
+            match enclosing with
+            | OlyILEnclosing.Witness _ ->
+                builder.Append("$$$$") |> ignore
+            | OlyILEnclosing.Namespace(pathHandles, _) ->
+                pathHandles
+                |> ImArray.iteri (fun i handle ->
+                    let path = ilAsm.GetStringOrEmpty handle
+                    Oly.Metadata.OlyQuotedName.AppendQuotedName path builder
+                    if i <> pathHandles.Length - 1 then
+                        builder.Append(".") |> ignore
+                )
+                builder.Append("::") |> ignore
+            | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(ilEnclosingEntDefOrRefHandle, _))
+            | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityConstructor(ilEnclosingEntDefOrRefHandle)) ->
+                loop ilEnclosingEntDefOrRefHandle
+                builder.Append("+") |> ignore
+            | _ ->
+                failwith "Unexpected OlyILEnclosing"
+
+            let name = 
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetStringOrEmpty(ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).NameHandle)
+                else
+                    ilAsm.GetStringOrEmpty(ilAsm.GetEntityReference(ilEntDefOrRefHandle).NameHandle)
+
+            Oly.Metadata.OlyQuotedName.AppendQuotedName name builder
+            let tyParCount = 
+                if ilEntDefOrRefHandle.Kind.IsEntityDefinition then
+                    ilAsm.GetEntityDefinition(ilEntDefOrRefHandle).TypeParameters.Length
+                else
+                    ilAsm.GetEntityReference(ilEntDefOrRefHandle).TypeParameterCount
+            if tyParCount > 0 then
+                builder.Append("^") |> ignore
+                builder.Append(tyParCount) |> ignore
+
+        loop ilEntDefOrRefHandle
 
     member this.GetQualifiedName(ilEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
         let builder = System.Text.StringBuilder()
         this.GetQualifiedName(ilEntDefOrRefHandle, builder)
         builder.ToString()
+
+    member _.TryGetEntityDefinitionDocumentation(ilEntDefHandle: OlyILEntityDefinitionHandle) =
+        ilAsm.TryGetEntityDefinitionDocumentation(ilEntDefHandle)
 
 type OlyILAssembly with
 

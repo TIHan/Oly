@@ -1,0 +1,7 @@
+#target "dotnet: net8.0"
+#library
+
+#load "prelude.oly"
+#load "numerics_dotnet.oly"
+
+namespace Oly.Prelude

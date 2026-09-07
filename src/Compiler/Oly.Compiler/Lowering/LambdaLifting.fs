@@ -3,6 +3,7 @@ module internal rec Oly.Compiler.Internal.Lowering.LambdaLifting
 
 open System.Threading
 open System.Collections.Generic
+open System.Collections.Immutable
 open System.Collections.ObjectModel
 
 open Oly.Core
@@ -17,490 +18,105 @@ open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal
 open Oly.Compiler.Internal.SymbolEnvironments
-
-let substituteConstant(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, constant: ConstantSymbol) =
-    match constant with
-    | ConstantSymbol.Array(elementTy, elements) ->
-        let newElementTy = elementTy.Substitute(tyParLookup)
-        let newElements =
-            elements
-            |> ImArray.map (fun x -> substituteConstant(tyParLookup, constant))
-
-        // TODO: Perf/Memory - Check to see if we really need to create a new constant symbol here.
-        ConstantSymbol.Array(newElementTy, newElements)
-
-    | ConstantSymbol.TypeVariable(tyPar) ->
-        let newTyPar = tyPar.EmplaceSubstitute(tyParLookup)
-
-        if newTyPar.Id = tyPar.Id then
-            constant
-        else
-            ConstantSymbol.TypeVariable(newTyPar)
-
-    | ConstantSymbol.External(func) ->
-        let newFunc = func.Substitute(tyParLookup) :?> IFunctionSymbol
-
-        if areLogicalFunctionSignaturesEqual newFunc func then
-            constant
-        else
-            ConstantSymbol.External(newFunc)
-
-    | _ ->
-        constant
-
-let substituteLiteral(tyParLookup: IReadOnlyDictionary<int64, TypeSymbol>, literal: BoundLiteral) =
-    match literal with
-    | BoundLiteral.Constant(ConstantSymbol.Array(elementTy, elements)) ->
-        let newElementTy = elementTy.Substitute(tyParLookup)
-
-        if areTypesEqual newElementTy elementTy then
-            literal
-        else
-            BoundLiteral.Constant(ConstantSymbol.Array(newElementTy, elements))
-
-    | BoundLiteral.DefaultInference(ty, isUnchecked) ->
-        let newTy = ty.Substitute(tyParLookup)
-
-        if areTypesEqual newTy ty then
-            literal
-        else
-            BoundLiteral.DefaultInference(newTy, isUnchecked)
-
-    | BoundLiteral.NullInference(ty) ->
-        let newTy = ty.Substitute(tyParLookup)
-
-        if areTypesEqual newTy ty then
-            literal
-        else
-            BoundLiteral.NullInference(newTy)
-
-    | BoundLiteral.ConstantEnum(constant, enumTy) ->
-        let newConstant = substituteConstant(tyParLookup, constant)
-        let newEnumTy = enumTy.Substitute(tyParLookup)
-
-        // TODO: Perf/Memory - Check to see if we really need to create a new literal here.
-        BoundLiteral.ConstantEnum(newConstant, newEnumTy)
-
-    | BoundLiteral.NumberInference(lazyLiteral, ty) ->
-        match lazyLiteral.Value with
-        | Ok(literal) ->
-            let newLiteral = substituteLiteral(tyParLookup, literal)
-            let newTy = ty.Substitute(tyParLookup)
-
-            if newLiteral = literal && areTypesEqual newTy ty then
-                literal
-            else
-                BoundLiteral.NumberInference(Lazy.CreateFromValue(Ok(newLiteral)), newTy)
-        | _ ->
-            literal
-
-    | _ ->
-        literal          
-
-/// Substitutes type variables with the new types and values with new values in the entire expression.
-/// Some special rules:
-///     - TODO: Document special rules here. Such as if the old value was a local and the new value is a instance field, it handles this by calling handleReceiverExpr callback.
-let substitute
-        (
-            expr: E,
-            tyParLookup: Dictionary<int64, TypeSymbol>, 
-            valueLookup: Dictionary<int64, IValueSymbol>,
-            handleReceiverExpr: IValueSymbol -> E
-        ) =
-    let newExpr =
-        expr.Rewrite(
-            (fun origExpr ->
-                match origExpr with
-                | E.Lambda(syntaxInfo, lambdaFlags, tyPars, pars, lazyBodyExpr, _lambdaCachedTy, _lambdaFreeLocals, _lambdaFreeTyVars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) && not(lambdaFlags.HasFlag(LambdaFlags.Static)) ->
-                    
-                    let constrsList = ResizeArray()
-                    let newTyPars =
-                        tyPars
-                        |> ImArray.map (fun tyPar ->
-                            let constrs = ref tyPar.Constraints
-                            let newTyPar = TypeParameterSymbol(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.Kind, constrs)
-                            tyParLookup[tyPar.Id] <- newTyPar.AsType
-                            constrsList.Add(constrs)
-                            newTyPar
-                        )
-
-                    constrsList
-                    |> Seq.iter (fun constrs ->
-                        constrs.contents <-
-                            constrs.contents
-                            |> ImArray.map (fun constr ->
-                                constr.Substitute(tyParLookup)
-                            )
-                    )
-
-                    let newPars =
-                        pars
-                        |> ImArray.map (fun par ->
-                            // TODO: Do we need to worry about substituting within the attribute?
-                            let newPar = createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
-                            valueLookup[par.Id] <- newPar
-                            newPar
-                        )
-
-                    E.CreateLambda(syntaxInfo, lambdaFlags, newTyPars, newPars, lazyBodyExpr)
-
-                | BoundExpression.Let(syntaxInfo, bindingInfo, rhsExpr, bodyExpr) ->
-                    let newBindingInfo =
-                        match bindingInfo with
-                        | BindingLocal(value) ->
-                            OlyAssert.True(value.IsLocal)
-                            let newValue = 
-                                LocalSymbol(value.Name, value.Formal.Type.Substitute(tyParLookup), value.IsGenerated, value.IsMutable)
-
-                            valueLookup[value.Id] <- newValue
-
-                            BindingLocal(newValue)
-                        | BindingLocalFunction(func) ->
-                            // TODO: Handle type parameter constraints as they may have captured type variables we need to substitute.
-                            OlyAssert.True(func.IsFormal)
-                            OlyAssert.True(func.IsLocal)
-
-                            let name = func.Name
-                            let ty = func.Type.Substitute(tyParLookup)
-                            let valueFlags = func.ValueFlags
-                            let funcFlags = func.FunctionFlags
-
-                            let attrs =
-                                func.Attributes
-                                |> ImArray.map (fun attr ->
-                                    match attr with
-                                    | AttributeSymbol.Constructor(ctor, args, namedArgs, flags) ->
-                                        // TODO: Do we actually need to handle this?
-                                        attr
-                                    | _ ->
-                                        attr
-                                )
-
-                            let tyPars = func.TypeParameters // TODO: Substitute constraints?
-                            let tyArgs = func.TypeArguments
-                            let pars = func.Parameters // TODO: We must subsitute parameter types?
-
-                            let isMutable = valueFlags.HasFlag(ValueFlags.Mutable)
-
-                            let newFunc =
-                                FunctionSymbol(
-                                    EnclosingSymbol.Local,
-                                    attrs,
-                                    name,
-                                    ty,
-                                    pars,
-                                    tyPars,
-                                    tyArgs,
-                                    MemberFlags.None,
-                                    funcFlags,
-                                    FunctionSemantic.NormalFunction,
-                                    WellKnownFunction.None,
-                                    None,
-                                    isMutable
-                                )
-
-                            valueLookup[func.Id] <- newFunc
-
-                            BindingLocalFunction(newFunc)
-
-                    BoundExpression.Let(syntaxInfo, newBindingInfo, rhsExpr, bodyExpr)
-                | _ ->
-                    origExpr
-            ),
-            (fun origExpr ->
-                match origExpr with
-                | BoundExpression.GetField(syntaxInfo, receiverExpr, field) ->
-                    if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
-                        origExpr
-                    else
-                        let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
-                        E.GetField(syntaxInfo, receiverExpr, newField)
-
-                | BoundExpression.SetField(syntaxInfo, receiverExpr, field, rhsExpr) ->
-                    if areTypesEqual (stripByRef receiverExpr.Type) field.Enclosing.AsType then
-                        origExpr
-                    else
-                        let newField = (stripByRef receiverExpr.Type).FindField(field.Name)
-                        E.SetField(syntaxInfo, receiverExpr, newField, rhsExpr)
-
-                | BoundExpression.Literal(syntaxInfo, literal) ->
-                    let newLiteral = substituteLiteral(tyParLookup, literal)
-
-                    if newLiteral = literal then
-                        origExpr
-                    else
-                        BoundExpression.Literal(syntaxInfo, newLiteral)
-
-                | BoundExpression.Value(syntaxInfo, value) ->
-                    match valueLookup.TryGetValue value.Formal.Id with
-                    | true, newValue -> 
-
-                        let appliedNewValue = 
-                            if value.IsFunction then
-                                let tyPars =
-                                    // Special!
-                                    if value.IsLocal && not newValue.IsLocal then
-                                        newValue.TypeParameters
-                                    else
-                                        newValue.AllTypeParameters
-
-                                let allTyArgs =
-                                    (tyPars, value.AllTypeArguments)
-                                    ||> ImArray.map2 (fun tyPar tyArg ->
-                                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                                    )
-                                newValue.Formal.Substitute(allTyArgs)
-                            else
-                                newValue
-
-                        let valueExpr =
-                            // Special!
-                            if value.IsLocal && newValue.IsInstance then
-                                if newValue.IsFunction then
-                                    OlyAssert.True(value.Type.IsAnyFunction)
-                                    OlyAssert.False(newValue.IsConstructor)
-                                    OlyAssert.True(newValue.Enclosing.IsClosure)
-                                    OlyAssert.True(value.Type.IsAnyFunction)
-                                    handleReceiverExpr newValue
-                                else
-                                    OlyAssert.True(newValue.IsField)
-                                    let getFieldExpr =
-                                        BoundExpression.GetField(
-                                            syntaxInfo, 
-                                            (
-                                                (handleReceiverExpr newValue)
-                                            ),
-                                            appliedNewValue :?> IFieldSymbol
-                                        )
-                                    // Special!
-                                    if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
-                                        WellKnownExpressions.FromAddress getFieldExpr
-                                    else
-                                        getFieldExpr                                      
-                            else
-                                let valueExpr = BoundExpression.Value(syntaxInfo, appliedNewValue)
-                                // Special!
-                                if newValue.Type.IsByRef_t && not value.Type.IsByRef_t then
-                                    WellKnownExpressions.FromAddress valueExpr
-                                else
-                                    valueExpr
-
-                        valueExpr
-                    | _ ->
-                        let appliedValue = 
-                            if value.IsFunction then
-                                let allTyArgs =
-                                    (value.AllTypeParameters, value.AllTypeArguments) 
-                                    ||> ImArray.map2 (fun tyPar tyArg -> 
-                                        mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                                    )
-                                value.Formal.Substitute(allTyArgs)
-                            else
-                                value
-                        BoundExpression.Value(syntaxInfo, appliedValue)
-
-                | BoundExpression.SetValue(syntaxInfo, value, rhsExpr) ->
-                    match valueLookup.TryGetValue value.Formal.Id with
-                    | true, newValue ->
-
-                        let tyPars =
-                            // Special!
-                            if value.IsLocal && not newValue.IsLocal then
-                                newValue.TypeParameters
-                            else
-                                newValue.AllTypeParameters
-
-                        let allTyArgs =
-                            (tyPars, value.AllTypeArguments)
-                            ||> ImArray.map2 (fun tyPar tyArg ->
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                            )
-
-                        let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
-
-                        // Special!
-                        if appliedNewValue.Type.IsByRef_t && not value.Type.IsByRef_t then
-                            match appliedNewValue with
-                            | :? IFieldSymbol as appliedNewField ->
-                                BoundExpression.SetContentsOfAddress(
-                                    syntaxInfo, 
-                                    BoundExpression.GetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField),
-                                    rhsExpr
-                                )
-                            | _ ->
-                                BoundExpression.SetContentsOfAddress(
-                                    syntaxInfo, 
-                                    BoundExpression.CreateValue(syntaxInfo.Syntax.Tree, appliedNewValue),
-                                    rhsExpr
-                                )
-                        else
-                            match appliedNewValue with
-                            | :? IFieldSymbol as appliedNewField ->
-                                BoundExpression.SetField(syntaxInfo, handleReceiverExpr newValue, appliedNewField, rhsExpr)
-                            | _ ->
-                                BoundExpression.SetValue(syntaxInfo, appliedNewValue, rhsExpr)
-                    | _ ->
-                        let allTyArgs =
-                            (value.AllTypeParameters, value.AllTypeArguments) 
-                            ||> ImArray.map2 (fun tyPar tyArg -> 
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                            )
-
-                        let appliedValue = value.Formal.Substitute(allTyArgs)
-                        BoundExpression.SetValue(syntaxInfo, appliedValue, rhsExpr)
-
-                | BoundExpression.Call(syntaxInfo, receiverOpt, witnessArgs, argExprs, value, isVirtualCall) ->
-                    let subbedWitnessArgs = 
-                        WitnessSolution.EmplaceSubstitute(
-                            witnessArgs,
-                            tyParLookup
-                        )
-
-                    match valueLookup.TryGetValue value.Formal.Id with
-                    | true, newValue ->
-
-                        let closureInvokeOpt =
-                            // Special!
-                            if newValue.Type.IsClosure then
-                                newValue.Type.GetClosureInvoke()
-                                |> Some
-                            else
-                                None
-
-                        let receiverOpt =
-                            match receiverOpt with
-                            // Special!
-                            | None when newValue.IsInstanceNotConstructor ->
-                                Some(handleReceiverExpr newValue)
-                            | _ ->
-                                if newValue.Type.IsClosure then
-                                    BoundExpression.Value(syntaxInfo, newValue)
-                                    |> Some
-                                else
-                                    receiverOpt
-
-                        let tyPars =
-                            // Special!
-                            if value.IsLocal && not newValue.IsLocal then
-                                newValue.TypeParameters
-                            else
-                                // Special!
-                                match closureInvokeOpt with
-                                | Some closureInvoke ->
-                                    closureInvoke.TypeParameters
-                                | _ ->
-                                    newValue.AllTypeParameters
-
-                        let allTyArgs =
-                            (tyPars, value.AllTypeArguments)
-                            ||> ImArray.map2 (fun tyPar tyArg ->
-                                mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                            )
-
-                        match closureInvokeOpt with
-                        // Special!
-                        | Some closureInvoke ->
-                            let allTyArgs2 =
-                                (closureInvoke.Formal.Enclosing.TypeParameters, newValue.Type.TypeArguments)
-                                ||> ImArray.map2 (fun tyPar tyArg ->
-                                    mkSolvedInferenceVariableType tyPar (tyArg.Substitute(tyParLookup))
-                                )
-                            let allTyArgs = allTyArgs.AddRange(allTyArgs2)
-                            let appliedClosureInvoke = closureInvoke.Formal.Substitute(allTyArgs)
-
-                            let newArgExprs =
-                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedClosureInvoke)
-
-                            BoundExpression.Call(
-                                syntaxInfo,
-                                receiverOpt,
-                                subbedWitnessArgs,
-                                newArgExprs,
-                                appliedClosureInvoke,
-                                isVirtualCall
-                            )
-                        | _ ->
-                            let appliedNewValue = newValue.Formal.Substitute(allTyArgs)
-
-                            let newArgExprs =
-                                if appliedNewValue.Type.IsTypeVariable then
-                                    argExprs
-                                else
-                                    BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedNewValue)
-
-                            BoundExpression.Call(
-                                syntaxInfo,
-                                receiverOpt,
-                                subbedWitnessArgs,
-                                newArgExprs,
-                                appliedNewValue,
-                                isVirtualCall
-                            )
-                    | _ ->
-                        let allTyArgs =
-                            (value.AllTypeParameters, value.AllTypeArguments) 
-                            ||> ImArray.map2 (fun tyPar tyArg -> 
-                                let newTyArg = tyArg.Substitute(tyParLookup)
-                                // REVIEW: This is a little curious, but perhaps it is ok.
-                                if tyPar.HasArity then
-                                    mkSolvedInferenceVariableType tyPar newTyArg.Formal
-                                else
-                                    mkSolvedInferenceVariableType tyPar newTyArg
-                            )
-                        
-                        let appliedValue = 
-                            let appliedValue = value.Formal.Substitute(allTyArgs)
-                            match value.Enclosing with
-                            | EnclosingSymbol.Witness(concreteTy, tyExt) ->
-                                let concreteTy = concreteTy.Substitute(tyParLookup)
-                                let tyExt = tyExt.Substitute(tyParLookup)
-                                appliedValue.WithEnclosing(EnclosingSymbol.Witness(concreteTy, tyExt))
-                            | _ ->
-                                appliedValue
-
-                        let newArgExprs =
-                            if appliedValue.Type.IsTypeVariable then
-                                argExprs
-                            else
-                                BoundExpression.TryImplicitCalls_LoadFunction(argExprs, appliedValue)
-
-                        BoundExpression.Call(
-                            syntaxInfo,
-                            receiverOpt,
-                            subbedWitnessArgs,
-                            newArgExprs,
-                            appliedValue,
-                            isVirtualCall
-                        )
-
-                | _ ->
-                    origExpr
-            ),
-            fun expr ->
-                match expr with
-                | E.EntityDefinition _ 
-                | E.MemberDefinition _ -> false
-                | _ -> true
-        )
-
-    newExpr
-
-let substituteValues
-    (expr, substitutions: (int64 * IValueSymbol) imarray)
-    =
-    let valueLookup = Dictionary()
-    substitutions
-    |> ImArray.iter (fun (id, value) ->
-        valueLookup[id] <- value
-    )
-    substitute(expr, Dictionary(), valueLookup, fun _ -> OlyAssert.Fail("handleReceiverExpr"))
-
-let canRewrite (expr: E) =
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
+open Oly.Compiler.Internal.Substitution
+
+let checkLocals (localScope: ImmutableHashSet<int64>) (expr: E) =
     match expr with
-    | E.EntityDefinition _
-    | E.MemberDefinition _ -> false
-    | E.Let(bindingInfo=bindingInfo) -> not bindingInfo.Value.IsStaticLocalFunction
-    | _ -> true
+    | E.Let(_, bindingInfo, rhsExpr, bodyExpr) ->
+        checkLocals localScope rhsExpr
+        let localScope = 
+            if bindingInfo.Value.HasLocalEnclosingAndIsNotStaticLocalFunction then
+                localScope.Add(bindingInfo.Value.Id)
+            else
+                localScope
+        checkLocals localScope bodyExpr
+
+    | E.IfElse(_, conditionExpr, trueTargetExpr, falseTargetExpr, _) ->
+        checkLocals localScope conditionExpr
+        checkLocals localScope trueTargetExpr
+        checkLocals localScope falseTargetExpr
+
+    | E.While(_, conditionExpr, bodyExpr) ->
+        checkLocals localScope conditionExpr
+        checkLocals localScope bodyExpr
+
+    | E.Sequential(_, expr1, expr2, _) ->
+        checkLocals localScope expr1
+        checkLocals localScope expr2
+
+    | E.Call(receiverOpt=receiverExprOpt;args=argExprs;value=value) ->
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+        match receiverExprOpt with
+        | Some receiverExpr ->
+            checkLocals localScope receiverExpr
+        | _ ->
+            ()
+
+        argExprs
+        |> ImArray.iter (checkLocals localScope)
+
+    | E.Value(value=value) ->
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+    | E.EntityDefinition(body=bodyExpr) ->
+        checkLocals ImmutableHashSet.Empty bodyExpr
+
+    | E.SetContentsOfAddress(lhs=lhsExpr;rhs=rhsExpr) ->
+        checkLocals localScope lhsExpr
+        checkLocals localScope rhsExpr
+
+    | E.SetValue(value=value;rhs=rhsExpr) ->
+        if value.HasLocalEnclosingAndIsNotStaticLocalFunction && not(localScope.Contains(value.Formal.Id)) then
+            OlyAssert.Fail("Local out of scope")
+
+        checkLocals localScope rhsExpr
+
+    | E.Typed(body=bodyExpr) ->
+        checkLocals localScope bodyExpr
+
+    | E.NewTuple(_, argExprs, _)
+    | E.NewArray(_, _, argExprs, _) ->
+        argExprs
+        |> ImArray.iter (checkLocals localScope)
+
+    | E.Witness(_, _, _, bodyExpr, _, _) ->
+        checkLocals localScope bodyExpr
+
+    | E.Try(bodyExpr=bodyExpr;finallyBodyExprOpt=finallyBodyExprOpt) ->
+        checkLocals localScope bodyExpr
+
+        match finallyBodyExprOpt with
+        | Some finallyBodyExpr ->
+            checkLocals localScope finallyBodyExpr
+        | _ ->
+            ()
+
+    | E.GetField(receiver=receiverExpr) ->
+        checkLocals localScope receiverExpr
+
+    | E.SetField(_, receiverExpr, _, rhsExpr, _) ->
+        checkLocals localScope receiverExpr
+        checkLocals localScope rhsExpr
+
+    | E.Lambda(pars=pars;body=lazyBodyExpr) ->
+        let localScope =
+            (localScope, pars)
+            ||> ImArray.fold (fun localScope par ->
+                localScope.Add(par.Id)
+            )
+
+        checkLocals localScope lazyBodyExpr.Expression
+
+    | E.MemberDefinition(_, BoundBinding.Implementation(rhs=rhsExpr)) ->
+        checkLocals ImmutableHashSet.Empty rhsExpr
+
+    | _ ->
+        ()      
 
 [<NoEquality;NoComparison>]
 type cenv =
@@ -508,6 +124,7 @@ type cenv =
         g: g
         tree: BoundTree
         genNameNumber: int ref
+        mutable inExportContext: bool
         mutable enclosingTyPars: TypeParameterSymbol imarray
         mutable funcTyPars: TypeParameterSymbol imarray
     }
@@ -517,7 +134,7 @@ type cenv =
         this.genNameNumber.contents <- this.genNameNumber.contents + 1
         "__oly_closure_" + string newId
 
-let createClosureConstructor (freeLocals: IValueSymbol imarray) (fields: IFieldSymbol imarray) (closure: EntitySymbol) =
+let createClosureConstructor cenv (freeLocals: IValueSymbol imarray) (fields: IFieldSymbol imarray) (closure: EntitySymbol) =
     Assert.ThrowIfNot(freeLocals.Length = fields.Length)
 
     let thisCtorPar = createThisValue "" true true (closure.ToInstantiation())
@@ -532,11 +149,17 @@ let createClosureConstructor (freeLocals: IValueSymbol imarray) (fields: IFieldS
 
     let ctorFlags = FunctionFlags.Constructor
 
+    let attrs =
+        if cenv.inExportContext then
+            ImArray.createOne AttributeSymbol.Export
+        else
+            ImArray.empty
+
     let ctor = 
         createFunctionValue 
             closure.AsEnclosing
-            ImArray.empty
-            "__oly_ctor"
+            attrs
+            Oly.Metadata.OlySpecialNames.Constructor
             ImArray.empty
             ctorPars
             (applyType closure.AsType closure.TypeArguments)
@@ -555,15 +178,15 @@ let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary
         let invokePars =
             pars
             |> ImArray.map (fun par ->
-                OlyAssert.True(par.Type.IsSolved)
-                OlyAssert.False(par.Type.IsError_t)
+                OlyAssert.True(par.Type.IsSolved_ste)
+                OlyAssert.False(par.Type.IsError_ste)
                 createLocalParameterValue(par.Attributes, par.Name, par.Type.Substitute(tyParLookup), par.IsMutable)
             )
         let returnTy =
-            match funcTy.TryFunction with
+            match funcTy.TryAnyFunction with
             | ValueSome(_, returnTy) -> 
-                OlyAssert.True(returnTy.IsSolved)
-                OlyAssert.False(returnTy.IsError_t)
+                OlyAssert.True(returnTy.IsSolved_ste)
+                OlyAssert.False(returnTy.IsError_ste)
                 returnTy.Substitute(tyParLookup)
             | _ -> 
                 failwith "Expected function type."
@@ -625,23 +248,24 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
         |> ROMem.toImArray
     
     let thisPar = createThisValue "" true true (closure.ToInstantiation())
-    let thisExpr = E.CreateValue(syntaxTree, thisPar)
+    let thisExpr = E.CreateGeneratedValue(syntaxTree.DummyNode, thisPar)
     
     let setFieldExprs =
         (closure.Fields, ctorLocalPars)
         ||> ImArray.map2 (fun field localPar ->
             E.SetField(
-                BoundSyntaxInfo.Generated(syntaxTree),
+                BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
                 thisExpr,
                 field,
-                E.CreateValue(syntaxTree, localPar)
+                E.CreateGeneratedValue(syntaxTree.DummyNode, localPar),
+                isCtorInit = true
             )
         )
 
     let baseObjectCtorCall =
         match cenv.g.BaseObjectConstructor with
         | Some(baseCtor) when not closure.IsScoped ->
-            E.Call(BoundSyntaxInfo.Generated(syntaxTree),
+            E.Call(BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
                 Some thisExpr,
                 ImArray.empty,
                 ImArray.empty,
@@ -649,22 +273,22 @@ let createClosureConstructorMemberDefinitionExpression (cenv: cenv) (ctor: Funct
                 CallFlags.None
             )
         | _ ->
-            E.None(BoundSyntaxInfo.Generated(syntaxTree))
+            E.None(BoundSyntaxInfo.Generated(syntaxTree.DummyNode))
 
     let exprs =
         setFieldExprs
         |> ImArray.prependOne baseObjectCtorCall
     
     let ctorRhs =
-        E.CreateLambda(
-            syntaxTree,
+        E.CreateGeneratedLambda(
+            syntaxTree.DummyNode,
             LambdaFlags.None,
             ctor.TypeParameters,
             ((ImArray.createOne thisPar).AddRange(ctorLocalPars)),
-            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateSequential(syntaxTree, exprs))
+            LazyExpression.CreateNonLazy(None, fun _ -> E.CreateGeneratedSequential(syntaxTree, exprs))
         )
     
-    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree.DummyNode)
     E.MemberDefinition(
         syntaxInfo,
         BoundBinding.Implementation(
@@ -695,14 +319,14 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         valueLookup[par.Id] <- invokePar
     )
 
-    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+    let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree.DummyNode)
 
     let thisPar = invoke.Parameters[0]
-    let thisExpr = E.CreateValue(syntaxTree, thisPar)
+    let thisExpr = E.CreateGeneratedValue(syntaxTree.DummyNode, thisPar)
 
     let invokeRhs =
         let newBodyExpr =
-            substitute(
+            substituteForLambdaLifting(
                 bodyExpr,
                 tyParLookup, 
                 valueLookup,
@@ -726,26 +350,32 @@ let createClosureInvokeMemberDefinitionExpression (cenv: cenv) (bindingInfoOpt: 
         )
     )
 
-let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (extraInst: TypeSymbol imarray) (ctor: IFunctionSymbol) =
+let createClosureConstructorCallExpression (cenv: cenv) (freeLocals: IValueSymbol imarray) (freeTyVars: TypeParameterSymbol imarray) (ctor: IFunctionSymbol) =
     Assert.ThrowIfNot(ctor.Formal = ctor)
     Assert.ThrowIfNot(ctor.IsConstructor)
 
     let syntaxTree = cenv.tree.SyntaxTree
 
-    let ctor = ctor.ApplyConstructor((freeTyVars |> ImArray.map (fun x -> x.AsType)).AddRange(extraInst))
+    let ctor = ctor.ApplyConstructor((freeTyVars |> ImArray.map (fun x -> x.AsType)))
+
+    let ctorArgTys =
+        ctor.LogicalType.FunctionArgumentTypes
         
     let ctorArgExprs =
-        freeLocals
-        |> ImArray.map (fun x -> 
-            if x.IsMutable then
-                WellKnownExpressions.AddressOfMutable (E.CreateValue(syntaxTree, x))
+        (freeLocals, ctorArgTys)
+        ||> ImArray.map2 (fun x argTy -> 
+            if not x.Type.IsAnyByRef_ste && argTy.IsAnyByRef_ste then
+                if argTy.IsReadOnlyByRef_ste then
+                   WellKnownExpressions.AddressOf (E.CreateGeneratedValue(syntaxTree.DummyNode, x))
+                else
+                   WellKnownExpressions.AddressOfMutable (E.CreateGeneratedValue(syntaxTree.DummyNode, x))   
             else
-                E.CreateValue(syntaxTree, x)
+                E.CreateGeneratedValue(syntaxTree.DummyNode, x)
         )
 
     let callCtorExpr =
         E.Call(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
             None,
             ImArray.empty,
             ctorArgExprs,
@@ -767,7 +397,6 @@ type ClosureInfo =
         TypeParameterLookup: Dictionary<int64, TypeSymbol>
         LambdaBodyExpression: E
         BindingInfo: (LocalBindingInfoSymbol) option
-        ExtraTypeArguments: TypeSymbol imarray
     }
 
 let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) origExpr =
@@ -814,6 +443,12 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             else
                 EntityFlags.Final
 
+        let entFlags =
+            if cenv.inExportContext then
+                entFlags ||| EntityFlags.Exported
+            else
+                entFlags
+
         let extends =
             if lambdaFlags.HasFlag(LambdaFlags.Scoped) then
                 match cenv.g.ImplicitExtendsForStruct with
@@ -824,11 +459,14 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         
         let closureBuilder = 
             EntitySymbolBuilder.CreateClosure(
-                Some cenv.tree.Assembly, 
+                cenv.tree.Assembly, 
                 EnclosingSymbol.Local, 
                 name,
                 entFlags
             )
+
+        if cenv.inExportContext then
+            closureBuilder.SetAttributes(CompilerPass.LambdaLifting, ImArray.createOne (AttributeSymbol.Export))
 
         closureBuilder.SetExtends(LambdaLifting, extends)
         
@@ -838,9 +476,7 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let closureTyPars = 
             freeTyVars
             |> ImArray.mapi (fun i x -> 
-                // TODO: Handle constraints.
-                let constrs = x.Constraints
-                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.IsVariadic, TypeParameterKind.Type, ref constrs)
+                let tyPar = TypeParameterSymbol(x.Name, i, x.Arity, x.Flags, TypeParameterKind.Type, ref ImArray.empty)
                 tyParLookup[x.Id] <- tyPar.AsType
                 closureTyParLookup[x.Id] <- tyPar.AsType
                 tyPar
@@ -849,13 +485,12 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         let invokeTyPars =
             tyPars
             |> ImArray.mapi (fun i x ->
-                // TODO: Handle constraints.
-                let tyPar = TypeParameterSymbol(x.Name, closureTyPars.Length + i, x.Arity, x.IsVariadic, TypeParameterKind.Function i, ref ImArray.empty)
+                let tyPar = TypeParameterSymbol(x.Name, closureTyPars.Length + i, x.Arity, x.Flags, TypeParameterKind.Function i, ref ImArray.empty)
                 tyParLookup[x.Id] <- tyPar.AsType
                 tyPar
             )
 
-        let attrs =
+        let invokeAttrs =
             match bindingInfoOpt with
             | Some(bindingInfo) ->
                 match bindingInfo.Value with
@@ -866,9 +501,16 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             | _ ->
                 ImArray.empty
 
+        let invokeAttrs =
+            if cenv.inExportContext then
+                invokeAttrs.Add(AttributeSymbol.Export)
+            else
+                invokeAttrs
+
         let funcTy = origExpr.Type
         let bodyExpr = lazyBodyExpr.Expression
 
+        // Handle constraints
         (freeTyVars.AddRange(tyPars), (closureTyPars.AddRange(invokeTyPars)))
         ||> ImArray.iter2 (fun (oldTyPar: TypeParameterSymbol) (newTyPar: TypeParameterSymbol) ->
             let constrs =
@@ -880,36 +522,6 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
         )
 
         // ------------------------------------------------------------------------
-
-        // This will add extra type parameters with constraints to a type function.
-        // We do this to potentially allow captured closures to inline themselves if they can.
-        // The inline optimization is handled in the runtime and looks for a specific pattern with
-        // type arguments of a type function which can be replaced by a closure type.
-        let extraTyPars, extraTyParsLookup =
-            let extraTyPars =
-                let mutable index = closureTyPars.Length
-                freeLocals
-                |> ImArray.choosei (fun i x ->
-                    if x.IsMutable then
-                        None
-                    else
-                        match stripTypeEquations x.Type with
-                        | TypeSymbol.Function(kind=FunctionKind.Normal) ->
-                            let constr = ConstraintSymbol.SubtypeOf(Lazy<_>.CreateFromValue(x.Type.Substitute(tyParLookup)))
-                            let constrs = ImArray.createOne constr |> ref
-                            let tyPar = TypeParameterSymbol("__oly_" + i.ToString(), index, 0, false, TypeParameterKind.Type, constrs)
-                            index <- index + 1
-                            Some(KeyValuePair(i, tyPar))
-                        | _ ->
-                            None
-                )
-            (
-                (extraTyPars |> ImArray.map (fun x -> x.Value)),
-                extraTyPars
-                |> Dictionary
-            )
-
-        let closureTyPars = closureTyPars.AddRange(extraTyPars)
         
         let funcTy = funcTy.Substitute(closureTyParLookup)        
         closureBuilder.SetTypeParameters(Pass0, closureTyPars)
@@ -933,17 +545,28 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 let name = checkFieldName name i
 
                 let field =
-                    let fieldTy = 
-                        match extraTyParsLookup.TryGetValue(i) with
-                        | true, tyPar -> tyPar.AsType
-                        | _ -> x.Type.Substitute(closureTyParLookup)
+                    let fieldTy = x.Type.Substitute(closureTyParLookup)
                     let fieldTy =
-                        if x.IsMutable then
-                            TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
+                        if closureBuilder.Entity.IsScoped && not x.Type.IsAnyByRef_ste then
+                            if x.IsMutable then
+                                TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadWrite)
+
+                            // For struct types, do not get the address.
+                            // We mainly do this to keep optimizations working for inlining functions
+                            // when scoped lambda capture other scoped lambdas.
+                            // REVIEW: We should just create a byref type as a stress test and fix the optimizations in the runtime.
+                            elif fieldTy.IsStruct_ste then
+                                fieldTy
+
+                            // TODO: We technically do not need to create read-only byrefs.
+                            //       But we do as there is a quirk in DOTNET that causes memory corruption if we use the GC type instead of a byref handle.
+                            else
+                                TypeSymbol.CreateByRef(fieldTy, ByRefKind.ReadOnly)
                         else
+                            OlyAssert.False(x.IsMutable)
                             fieldTy
 
-                    if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped then
+                    if not closureBuilder.Entity.IsScoped && fieldTy.IsScoped_ste then
                         failwith "Cannot capture a value whose type is scoped in a closure."
 
                     createFieldValue
@@ -973,18 +596,10 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
             | Some(bindingInfo) -> bindingInfo.Value.Name
             | _ -> "Invoke"                    
         
-        let ctor = createClosureConstructor freeLocals fields closureBuilder.Entity
-        let invoke = createClosureInvoke invokeName lambdaFlags tyParLookup attrs pars invokeTyPars funcTy closureBuilder.Entity
+        let ctor = createClosureConstructor cenv freeLocals fields closureBuilder.Entity
+        let invoke = createClosureInvoke invokeName lambdaFlags tyParLookup invokeAttrs pars invokeTyPars funcTy closureBuilder.Entity
         
         closureBuilder.SetFunctions(Pass2, [ctor;invoke] |> ImArray.ofSeq)
-
-        let extraTyArgs =
-            extraTyParsLookup
-            |> Seq.sortBy (fun x -> x.Key)
-            |> Seq.map (fun x ->
-                freeLocals[x.Key].Type
-            )
-            |> ImArray.ofSeq
 
         let info =
             {
@@ -997,7 +612,6 @@ let createClosure (cenv: cenv) (bindingInfoOpt: LocalBindingInfoSymbol option) o
                 TypeParameterLookup = tyParLookup
                 LambdaBodyExpression = bodyExpr
                 BindingInfo = bindingInfoOpt
-                ExtraTypeArguments = extraTyArgs
             }
 
         toClosureExpression cenv info
@@ -1019,15 +633,15 @@ let toClosureExpression cenv (info: ClosureInfo) =
     let ctorDefExpr = createClosureConstructorMemberDefinitionExpression cenv ctor
     let invokeDefExpr = createClosureInvokeMemberDefinitionExpression cenv bindingInfoOpt freeLocals pars tyParLookup invoke bodyExpr
         
-    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars info.ExtraTypeArguments ctor
+    let ctorCallExpr = createClosureConstructorCallExpression cenv freeLocals freeTyVars ctor
 
     let syntaxTree = cenv.tree.SyntaxTree   
-    E.CreateSequential(syntaxTree,
+    E.CreateGeneratedSequential(syntaxTree,
         [
             // Closure definition
             E.CreateEntityDefinition(
-                BoundSyntaxInfo.Generated(syntaxTree),
-                E.CreateSequential(ctorDefExpr, invokeDefExpr),
+                BoundSyntaxInfo.Generated(syntaxTree.DummyNode),
+                E.CreateGeneratedSequential(ctorDefExpr, invokeDefExpr),
                 closure
             )
 
@@ -1037,8 +651,8 @@ let toClosureExpression cenv (info: ClosureInfo) =
     )
 
 [<Sealed>]
-type LambdaLiftingRewriterCore(cenv: cenv) =
-    inherit BoundTreeRewriterCore()
+type LambdaLiftingRewriter(cenv: cenv) =
+    inherit BoundTreeRewriteVisitor()
 
     let makeLambdaBound expr =
         match expr with
@@ -1047,7 +661,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
         | _ ->
             OlyAssert.Fail("Expected lambda expression")
 
-    override this.Rewrite(origExpr) =
+    override this.Postorder(origExpr) =
         match origExpr with
         | E.Lambda(syntaxInfo=syntaxInfo;flags=lambdaFlags;tyPars=tyPars;pars=pars) when not(lambdaFlags.HasFlag(LambdaFlags.Bound)) ->
             let newExpr = 
@@ -1056,7 +670,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     let local = createTemporaryValue origExpr.Type
 
                     let returnTy =
-                        match local.Type.TryFunction with
+                        match local.Type.TryAnyFunction with
                         | ValueSome(_, returnTy) -> returnTy
                         | _ -> OlyAssert.Fail("Expected function type")
 
@@ -1087,19 +701,52 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
         | _ ->
             origExpr
 
-    override this.PreorderRewrite(origExpr) =
+    override this.Preorder(origExpr, visit) =
         match origExpr with
+        | E.EntityDefinition(syntaxInfo, bodyExpr, ent) ->
+            let prevEnclosingTyPars = cenv.enclosingTyPars
+            cenv.enclosingTyPars <- ent.TypeParameters
+            let newBodyExpr = visit(bodyExpr)
+            cenv.enclosingTyPars <- prevEnclosingTyPars
+            if newBodyExpr = bodyExpr then
+                BoundExpressionVisitResult.Visited(origExpr)
+            else
+                BoundExpressionVisitResult.Visited(E.EntityDefinition(syntaxInfo, newBodyExpr, ent))
+
         | E.MemberDefinition(syntaxInfo, binding) ->
             match binding with
-            | BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, rhsExpr) when bindingInfo.Value.IsFunction ->
+            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
                 match bindingInfo with
-                | BindingFunction _ 
-                | BindingPattern _ -> ()
-                | _ -> OlyAssert.Fail("Invalid member binding")
+                | BindingFunction(func)
+                | BindingPattern(_, func) ->
+                    let bodyExpr = lazyBodyExpr.Expression
 
-                E.MemberDefinition(syntaxInfo, BoundBinding.Implementation(syntaxInfoImpl, bindingInfo, makeLambdaBound rhsExpr))
+                    let prevFuncTyPars = cenv.funcTyPars
+                    let prevInExportContext = cenv.inExportContext
+                    cenv.funcTyPars <- func.TypeParameters
+                    if func.IsExported then
+                        cenv.inExportContext <- true
+                    let newBodyExpr = visit(bodyExpr)
+                    cenv.funcTyPars <- prevFuncTyPars
+                    cenv.inExportContext <- prevInExportContext
+                    
+                    if newBodyExpr = bodyExpr then
+                        BoundExpressionVisitResult.Visited(origExpr)
+                    else
+                        E.MemberDefinition(syntaxInfo,
+                            BoundBinding.Implementation(
+                                syntaxInfoBinding,
+                                bindingInfo,
+                                E.Lambda(syntaxInfoLambda, flags, tyPars, pars, LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr), cachedLambdaTy, freeLocals, freeVars)
+                            )
+                        )
+                        |> BoundExpressionVisitResult.Visited
+
+                | _ ->
+                    BoundExpressionVisitResult.Continue(origExpr)
+
             | _ ->
-                origExpr
+                BoundExpressionVisitResult.Continue(origExpr)
 
         | E.Let(syntaxInfo, bindingInfo, (E.Lambda(flags=lambdaFlags) as rhsExpr), bodyExpr) when bindingInfo.Value.IsFunction ->
             match bindingInfo with
@@ -1129,7 +776,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                             let parTy =
                                 let parTy = x.Type.Substitute(tyParLookup)
                                 if x.IsMutable then
-                                    OlyAssert.False(x.Type.IsByRef_t)
+                                    OlyAssert.False(x.Type.IsAnyByRef_ste)
                                     TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
                                 else
                                     parTy
@@ -1143,7 +790,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 let parTy =
                                     let parTy = x.Type.Substitute(tyParLookup)
                                     if x.IsMutable then
-                                        OlyAssert.False(x.Type.IsByRef_t)
+                                        OlyAssert.False(x.Type.IsAnyByRef_ste)
                                         TypeSymbol.ByRef(parTy, ByRefKind.ReadWrite)
                                     else
                                         parTy
@@ -1180,7 +827,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     valueLookup[func.Id] <- newFunc
 
                     let newLambdaBodyExpr =
-                        substitute(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
+                        substituteForLambdaLifting(lazyLambdaBodyExpr.Expression, tyParLookup, valueLookup, fun _ -> failwith "unexpected receiver")
 
                     let newLazyLambdaBodyExpr =
                         LazyExpression.CreateNonLazy(lazyLambdaBodyExpr.TrySyntax, fun _ -> newLambdaBodyExpr)
@@ -1205,7 +852,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     let newBodyExpr = 
                         let newArgExprs =
                             freeLocals
-                            |> ImArray.map (fun x -> E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), x))
+                            |> ImArray.map (fun x -> E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), x))
                         bodyExpr.Rewrite(fun expr ->
                             match expr with
                             | E.Value(syntaxInfo, value) when value.Formal.Id = func.Id ->
@@ -1217,9 +864,12 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                     match newFunc.Type.TryGetFunctionWithParameters() with
                                     | ValueSome(parTys, _) ->
                                         (parTys, argExprs)
-                                        ||> ImArray.map2 (fun parTy argExpr ->
-                                            if parTy.IsReadWriteByRef && not argExpr.Type.IsByRef_t then
-                                                AddressOfMutable argExpr
+                                        ||> ImArray.map2 (fun parTy argExpr -> 
+                                            if parTy.IsAnyByRef_ste && not argExpr.Type.IsAnyByRef_ste then
+                                                if parTy.IsReadOnlyByRef_ste then
+                                                    AddressOf argExpr
+                                                else
+                                                    AddressOfMutable argExpr
                                             else
                                                 argExpr
                                         )
@@ -1231,7 +881,7 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                                 expr
                         )
 
-                    E.Let(syntaxInfo, BindingLocalFunction(newFunc), newRhsExpr, newBodyExpr)
+                    BoundExpressionVisitResult.Continue(E.Let(syntaxInfo, BindingLocalFunction(newFunc), newRhsExpr, newBodyExpr))
                 | _ ->
                     OlyAssert.Fail("Expected lambda expression")
             else
@@ -1247,8 +897,8 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
 
                 let newBindingInfo = BindingLocal(local)
 
-                let newRhsExpr = substituteValues(newRhsExpr, ImArray.createOne (value.Id, local))
-                let newBodyExpr = substituteValues(bodyExpr, ImArray.createOne (value.Id, local))
+                let newRhsExpr = substituteValuesForLambdaLifting(newRhsExpr, ImArray.createOne (value.Id, local))
+                let newBodyExpr = substituteValuesForLambdaLifting(bodyExpr, ImArray.createOne (value.Id, local))
 
                 E.Let(
                     syntaxInfo,
@@ -1256,63 +906,27 @@ type LambdaLiftingRewriterCore(cenv: cenv) =
                     newRhsExpr,
                     newBodyExpr
                 )
+                |> BoundExpressionVisitResult.Continue
 
         | _ ->
-            origExpr
-
-[<Sealed>]
-type Rewriter(cenv: cenv, core) =
-    inherit BoundTreeRewriter(core)
-
-    override this.Rewrite(expr) =
-        match expr with
-        | E.EntityDefinition(ent=ent) ->
-            let prevEnclosingTyPars = cenv.enclosingTyPars
-            cenv.enclosingTyPars <- ent.TypeParameters
-            let result = base.Rewrite(expr)
-            cenv.enclosingTyPars <- prevEnclosingTyPars
-            result
-
-        | E.MemberDefinition(syntaxInfo, binding) ->
-            match binding with
-            | BoundBinding.Implementation(syntaxInfoBinding, bindingInfo, E.Lambda(syntaxInfoLambda, flags, tyPars, pars, lazyBodyExpr, cachedLambdaTy, freeLocals, freeVars)) ->
-                match bindingInfo with
-                | BindingFunction(func) when func.TypeParameters.Length > 0 ->
-                    let bodyExpr = lazyBodyExpr.Expression
-
-                    let prevFuncTyPars = cenv.funcTyPars
-                    cenv.funcTyPars <- func.TypeParameters
-                    let newBodyExpr = base.Rewrite(bodyExpr)
-                    cenv.funcTyPars <- prevFuncTyPars
-                    
-                    if newBodyExpr = bodyExpr then
-                        expr
-                    else
-                        E.MemberDefinition(syntaxInfo,
-                            BoundBinding.Implementation(
-                                syntaxInfoBinding,
-                                bindingInfo,
-                                E.Lambda(syntaxInfoLambda, flags, tyPars, pars, LazyExpression.CreateNonLazy(None, fun _ -> newBodyExpr), cachedLambdaTy, freeLocals, freeVars)
-                            )
-                        )
-
-                | _ ->
-                    base.Rewrite(expr)
-            | _ ->
-                base.Rewrite(expr)
-            
-        | _ ->
-            base.Rewrite(expr)
+            BoundExpressionVisitResult.Continue(origExpr)
 
 let Lower (g: g) (tree: BoundTree) =
     let cenv =
         {
             g = g
+            inExportContext = false
             enclosingTyPars = ImArray.empty
             funcTyPars = ImArray.empty
             tree = tree
             genNameNumber = ref 0
         }
 
-    let rewriter = Rewriter(cenv, LambdaLiftingRewriterCore(cenv))
-    tree.UpdateRoot(rewriter.RewriteRoot(tree.Root))
+    let tree = tree.UpdateRoot(tree.Root.Visit(LambdaLiftingRewriter(cenv)))
+#if DEBUG || CHECKED
+    match tree.Root with
+    | BoundRoot.Global(body=bodyExpr)
+    | BoundRoot.Namespace(body=bodyExpr) ->
+        checkLocals ImmutableHashSet.Empty bodyExpr
+#endif
+    tree

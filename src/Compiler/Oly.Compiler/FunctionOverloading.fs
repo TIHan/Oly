@@ -54,7 +54,7 @@ let private canScore (func: IFunctionSymbol) =
 
     if argTys.IsEmpty then
         None
-    elif argTys.Length = 1 && argTys[0].IsAnyFunction then
+    elif argTys.Length = 1 && argTys[0].IsAnyFunction_ste then
         Some(argTys)
     else
         let rec exists (tys: TypeSymbol imarray) =
@@ -103,7 +103,7 @@ let private filterFunctionsForOverloadingByMostGenericArgumentTypes (funcs: IFun
                 score 0 inputTy
             specificScore
     )
-    |> Seq.sortByDescending (fun x -> fst x)
+    |> Seq.sortBy (fun x -> fst x)
     |> Seq.tryHead
     |> Option.map (fun x -> snd x |> ImArray.ofSeq)
     |> Option.defaultValue ImArray.empty
@@ -115,27 +115,39 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
     let rec computeWeight (currentRigidWeight, currentWeight) (expectedTy: TypeSymbol) (ty: TypeSymbol) : struct(int * int) =
         let expectedTy = stripTypeEquationsAndBuiltIn expectedTy
         let ty = stripTypeEquationsAndBuiltIn ty
-        if ((ty.IsSolved || (ty.IsEagerInferenceVariable_t && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
-            let currentWeight = currentWeight + 1
-            let currentRigidWeight =
-                if UnifyTypes Rigid expectedTy.Formal ty.Formal then
-                    currentRigidWeight + 1
-                else
-                    currentRigidWeight
-            if expectedTy.LogicalTypeParameterCount = ty.LogicalTypeParameterCount then
-                let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount) |> ImArray.ofSeq
-                let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount) |> ImArray.ofSeq
 
-                OlyAssert.Equal(expectedTyArgs.Length, tyArgs.Length)
-
-                (struct(currentRigidWeight, currentWeight), expectedTyArgs, tyArgs)
-                |||> ImArray.fold2 (fun (struct(currentRigidWeight, currentWeight)) expectedTy ty ->
-                    computeWeight (currentRigidWeight, currentWeight) expectedTy ty
-                )
-            else
-                (currentRigidWeight, currentWeight + expectedTy.LogicalTypeParameterCount)
+        // Error does not necessarily mean there was an error, this could be coming from the return type of a FunctionGroup.
+        if ty.IsError_ste then
+            (currentRigidWeight, currentWeight)
         else
-            (0, 0)
+            if ((ty.IsSolved_ste || (ty.IsEagerInferenceVariable_ste && (not skipEager))) && UnifyTypes Generalizable expectedTy ty) then
+                let currentWeight = currentWeight + 1
+                let currentRigidWeight =
+                    if (areTypesEqual expectedTy.Formal ty.Formal) || 
+                            (ty.IsAnyVariable_ste && (expectedTy.IsBaseObject_ste || expectedTy.IsAnyVariable_ste)) then
+                        // If the current rigid weight is zero, we are at the top-level of a type (not looking at type arguments).
+                        // This is a special case when we are not at the top-level and the expected type is a base object, we do not
+                        // increment the weight by one.
+                        if currentRigidWeight > 0 && expectedTy.IsBaseObject_ste && ty.IsAnyVariable_ste then
+                            currentRigidWeight
+                        else
+                            currentRigidWeight + 1
+                    else
+                        currentRigidWeight
+                if expectedTy.LogicalTypeParameterCount = ty.LogicalTypeParameterCount then
+                    let expectedTyArgs = expectedTy.TypeArguments |> Seq.skip (expectedTy.TypeParameters.Length - expectedTy.LogicalTypeParameterCount) |> ImArray.ofSeq
+                    let tyArgs = ty.TypeArguments |> Seq.skip (ty.TypeParameters.Length - ty.LogicalTypeParameterCount) |> ImArray.ofSeq
+
+                    OlyAssert.Equal(expectedTyArgs.Length, tyArgs.Length)
+
+                    (struct(currentRigidWeight, currentWeight), expectedTyArgs, tyArgs)
+                    |||> ImArray.fold2 (fun (struct(currentRigidWeight, currentWeight)) expectedTy ty ->
+                        computeWeight (currentRigidWeight, currentWeight) expectedTy ty
+                    )
+                else
+                    (currentRigidWeight, currentWeight)
+            else
+                (currentRigidWeight, currentWeight)
     
     let mapArgTys (func: IFunctionSymbol) (argTys: TypeSymbol imarray) =
         OlyAssert.Equal(func.LogicalParameterCount, argTys.Length)
@@ -153,7 +165,7 @@ let private filterFunctionsForOverloadingByWeight skipEager resArgs (returnTyOpt
             )
             
         match returnTyOpt with
-        | Some returnTy when returnTy.IsSolved ->
+        | Some returnTy when returnTy.IsSolved_ste ->
             let struct(rigidWeight, weight) = computeWeight (0, 0) func.ReturnType returnTy
             currentRigidWeight <- currentRigidWeight + rigidWeight
             currentWeight <- currentWeight + weight
@@ -223,9 +235,9 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 (func.LogicalParameters, argTys.AsMemory())
                 ||> ROMem.forall2 (fun par argTy ->
                     match argTy.TryGetFunctionWithParameters() with
-                    | ValueSome(argTys, _) when par.Type.IsAnyFunction -> 
+                    | ValueSome(argTys, _) when par.Type.IsAnyFunction_ste -> 
                         match par.Type.TryGetFunctionWithParameters() with
-                        | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicTypeVariable ->
+                        | ValueSome(parTys, _) when parTys.Length = 1 && parTys[0].IsVariadicVariable_ste ->
                             // Variadic variables will always return true.
                             true
                         | _ ->
@@ -246,7 +258,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
         | ResolutionArguments.NotAFunctionCall -> ImArray.empty
         | ResolutionArguments.Any ->
             match returnTyOpt with
-            | Some returnTy when returnTy.IsSolved ->
+            | Some returnTy when returnTy.IsSolved_ste ->
                 funcs
                 |> ImArray.filter (fun func ->
                     subsumesTypeWith Generalizable returnTy func.ReturnType
@@ -257,7 +269,7 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
             funcs
             |> ImArray.filter (fun func ->
                 match returnTyOpt with
-                | Some returnTy when returnTy.IsSolved ->
+                | Some returnTy when returnTy.IsSolved_ste ->
                     subsumesTypeWith Generalizable returnTy func.ReturnType &&
                     checkArgTys func argTys
                 | _ ->
@@ -269,15 +281,15 @@ let private filterFunctionsForOverloadingPhase4 resArgs (returnTyOpt: TypeSymbol
                 areGeneralizedTypesEqual funcTy func.LogicalType
             )
 
-    let funcs2 =
+    let newFuncs =
         if funcs2.IsEmpty then
             funcs
         else
             funcs2
 
-    if funcs2.Length = 1 then funcs2
+    if newFuncs.Length = 1 then newFuncs
     else
-        funcs2
+        newFuncs
 
 let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (funcs: IFunctionSymbol imarray): _ imarray =
     if funcs.Length <= 1 then funcs
@@ -300,7 +312,11 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
                             TypeSymbol.Function(inputTy, outputTy, FunctionKind.Normal)
                         | parTy ->
                             parTy
-                    subsumesTypeWith rigidity parTy argTy
+                    match parTy, stripTypeEquations argTy with
+                    | TypeSymbol.Function(parInputTy, parOutputTy, _), TypeSymbol.Function(argInputTy, argOutputTy, _) ->
+                        subsumesTypeWith rigidity parOutputTy argOutputTy && UnifyFunctionInputType rigidity parInputTy argInputTy
+                    | _ ->
+                        subsumesTypeWith rigidity parTy argTy
                 )
         )
 
@@ -309,7 +325,7 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
         | ResolutionArguments.NotAFunctionCall -> ImArray.empty
         | ResolutionArguments.Any -> 
             match returnTyOpt with
-            | Some returnTy when returnTy.IsSolved ->
+            | Some returnTy when returnTy.IsSolved_ste ->
                 funcs
                 |> ImArray.filter (fun func ->
                     UnifyTypes rigidity returnTy func.ReturnType
@@ -329,23 +345,15 @@ let private filterFunctionsForOverloadingPhase3 (resArgs: ResolutionArguments) (
             )
 
     let specificFuncs =
-        let specificFuncs2 = findSpecificFuncs IntegerGeneralizable
-        if specificFuncs2.IsEmpty then       
-            let specificFuncs3 = findSpecificFuncs NumberGeneralizable
-            if specificFuncs3.IsEmpty then
-                findSpecificFuncs Generalizable
-            else
-                specificFuncs3
-        else
-            specificFuncs2
+        findSpecificFuncs Generalizable
 
-    let funcs =
+    let newFuncs =
         if specificFuncs.IsEmpty then
             funcs
         else
             specificFuncs
 
-    filterFunctionsForOverloadingPhase4 resArgs returnTyOpt funcs
+    filterFunctionsForOverloadingPhase4 resArgs returnTyOpt newFuncs
 
 /// Overloading Phase 2:
 ///     Optionally filters candidates by return type.
@@ -355,7 +363,7 @@ let private filterFunctionsForOverloadingPhase2 (returnTyOpt: TypeSymbol option)
     else
 
     match returnTyOpt with
-    | Some returnTy when returnTy.IsSolved ->
+    | Some returnTy when returnTy.IsSolved_ste ->
         let results =
             candidates
             |> ImArray.filter (fun func ->
@@ -383,7 +391,7 @@ let private filterFunctionsForOverloadingPhase1 (benv: BoundEnvironment) resTyAr
                 if func.IsConstructor then
                     match func.Enclosing with
                     | EnclosingSymbol.Entity(ent) ->
-                        func.Enclosing.TypeParameters.Length - benv.GetEnclosingTypeArguments(ent.Id).Length
+                        func.Enclosing.TypeParameters.Length - benv.GetEnclosingTypeArguments(ent.FormalId).Length
                     | _ ->
                         func.Enclosing.TypeParameters.Length
                 else
@@ -426,18 +434,20 @@ let filterFunctionsForOverloadingPart2 (resArgs: ResolutionArguments) (returnTyO
 /// Overloading Part 3:
 ///     Handles ambiguity for generics by using scores.
 let filterFunctionsForOverloadingPart3 skipEager (resArgs: ResolutionArguments) (returnTyOpt: TypeSymbol option) (candidates: IFunctionSymbol imarray) =
-    let funcs = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
+    let filteredFuncs = filterFunctionsForOverloadingByWeight skipEager resArgs None candidates
 
-    if returnTyOpt.IsSome then
-        let funcs =
-            filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt funcs
-            |> filterFunctionsForOverloadingFinalPhase
-        if funcs.IsEmpty then
-            candidates
+    let funcs =
+        if returnTyOpt.IsSome then
+            let funcs =
+                filterFunctionsForOverloadingByWeight skipEager resArgs returnTyOpt filteredFuncs
+                |> filterFunctionsForOverloadingFinalPhase
+            if funcs.IsEmpty then
+                candidates
+            else
+                funcs
         else
-            funcs
-    else
-        if funcs.IsEmpty then
-            candidates
-        else
-            funcs
+            if filteredFuncs.IsEmpty then
+                candidates
+            else
+                filteredFuncs
+    funcs

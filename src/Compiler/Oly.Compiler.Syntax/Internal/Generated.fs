@@ -2,6 +2,10 @@
 [<AutoOpen>]
 module internal rec Oly.Compiler.Syntax.Internal.Generated
 
+#nowarn "3535"
+
+#nowarn "3536"
+
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxAccessor =
     | Public
@@ -24,6 +28,8 @@ type SyntaxAccessor =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -70,6 +76,9 @@ type SyntaxAccessor =
                 0
 
         member _.Tag = 0
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 0
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAccessor =
@@ -105,6 +114,8 @@ type SyntaxName =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -151,6 +162,9 @@ type SyntaxName =
                 fullWidth
 
         member _.Tag = 1
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 1
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxName =
@@ -169,6 +183,8 @@ type SyntaxBlittable =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -189,6 +205,9 @@ type SyntaxBlittable =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 2
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 2
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBlittable =
@@ -209,6 +228,8 @@ type SyntaxBlittableOptional =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -234,6 +255,9 @@ type SyntaxBlittableOptional =
                 0
 
         member _.Tag = 3
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 3
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBlittableOptional =
@@ -296,6 +320,8 @@ type SyntaxAttribute =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -396,6 +422,9 @@ type SyntaxAttribute =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 4
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 4
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAttribute =
@@ -408,7 +437,7 @@ type SyntaxHashAttribute =
     | HashAttribute
         of
         hashToken: SyntaxToken *
-        brackets: SyntaxAttribute SyntaxBrackets *
+        brackets: SyntaxAttribute SyntaxSeparatorList SyntaxBrackets *
         fullWidth: int
 
     interface ISyntaxNode with
@@ -416,6 +445,8 @@ type SyntaxHashAttribute =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -437,6 +468,9 @@ type SyntaxHashAttribute =
                 fullWidth
 
         member _.Tag = 5
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 5
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxHashAttribute =
@@ -457,6 +491,8 @@ type SyntaxAttributes =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -482,6 +518,9 @@ type SyntaxAttributes =
                 0
 
         member _.Tag = 6
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 6
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxAttributes =
@@ -533,6 +572,8 @@ type SyntaxConstraint =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -619,6 +660,9 @@ type SyntaxConstraint =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 7
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 7
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxConstraint =
@@ -644,6 +688,8 @@ type SyntaxConstraintClause =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -674,6 +720,9 @@ type SyntaxConstraintClause =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 8
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 8
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxConstraintClause =
@@ -704,6 +753,8 @@ type SyntaxTypeParameters =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -741,6 +792,9 @@ type SyntaxTypeParameters =
                 0
 
         member _.Tag = 9
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 9
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeParameters =
@@ -768,6 +822,8 @@ type SyntaxTypeConstructor =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -799,6 +855,9 @@ type SyntaxTypeConstructor =
                 fullWidth
 
         member _.Tag = 10
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 10
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeConstructor =
@@ -826,6 +885,8 @@ type SyntaxTupleElement =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -862,12 +923,58 @@ type SyntaxTupleElement =
                 (x :> ISyntaxNode).FullWidth
 
         member _.Tag = 11
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 11
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTupleElement =
 
     [<Literal>]
     let Tag = 11
+
+[<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
+type SyntaxFixedArrayLength =
+    | Expression
+        of
+        expr: SyntaxExpression
+
+    interface ISyntaxNode with
+
+        member this.IsTerminal = false
+
+        member this.IsToken = false
+
+        member this.IsTriviaToken = false
+
+        member this.IsError = false
+
+        member this.GetSlot(index) =
+            match this with
+            | Expression(expr) ->
+                match index with
+                | 0 -> expr :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+
+        member this.SlotCount =
+            match this with
+            | Expression _ -> 1
+
+        member this.FullWidth =
+            match this with
+            | Expression(x) ->
+                (x :> ISyntaxNode).FullWidth
+
+        member _.Tag = 12
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 12
+        static member StaticInnerTag = Tags.Terminal
+
+[<RequireQualifiedAccess>]
+module SyntaxFixedArrayLength =
+
+    [<Literal>]
+    let Tag = 12
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxType =
@@ -903,6 +1010,17 @@ type SyntaxType =
         mutableToken: SyntaxToken *
         elementTy: SyntaxType *
         brackets: SyntaxToken SyntaxList SyntaxBrackets *
+        fullWidth: int
+    | FixedArray
+        of
+        elementTy: SyntaxType *
+        brackets: SyntaxFixedArrayLength SyntaxBrackets *
+        fullWidth: int
+    | MutableFixedArray
+        of
+        mutableToken: SyntaxToken *
+        elementTy: SyntaxType *
+        brackets: SyntaxFixedArrayLength SyntaxBrackets *
         fullWidth: int
     | Shape
         of
@@ -949,6 +1067,8 @@ type SyntaxType =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = match this with | Error _ -> true | _ -> false
 
         member this.GetSlot(index) =
@@ -982,6 +1102,17 @@ type SyntaxType =
                 | 1 -> brackets :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | MutableArray(mutableToken, elementTy, brackets, _) ->
+                match index with
+                | 0 -> mutableToken :> ISyntaxNode
+                | 1 -> elementTy :> ISyntaxNode
+                | 2 -> brackets :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | FixedArray(elementTy, brackets, _) ->
+                match index with
+                | 0 -> elementTy :> ISyntaxNode
+                | 1 -> brackets :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | MutableFixedArray(mutableToken, elementTy, brackets, _) ->
                 match index with
                 | 0 -> mutableToken :> ISyntaxNode
                 | 1 -> elementTy :> ISyntaxNode
@@ -1038,6 +1169,8 @@ type SyntaxType =
             | VariadicIndexer _ -> 5
             | Array _ -> 2
             | MutableArray _ -> 3
+            | FixedArray _ -> 2
+            | MutableFixedArray _ -> 3
             | Shape _ -> 1
             | WildCard _ -> 1
             | Function _ -> 3
@@ -1061,6 +1194,10 @@ type SyntaxType =
                 fullWidth
             | MutableArray(fullWidth=fullWidth) ->
                 fullWidth
+            | FixedArray(fullWidth=fullWidth) ->
+                fullWidth
+            | MutableFixedArray(fullWidth=fullWidth) ->
+                fullWidth
             | Shape(x) ->
                 (x :> ISyntaxNode).FullWidth
             | WildCard(x) ->
@@ -1078,13 +1215,16 @@ type SyntaxType =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 12
+        member _.Tag = 13
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 13
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxType =
 
     [<Literal>]
-    let Tag = 12
+    let Tag = 13
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMutability =
@@ -1099,6 +1239,8 @@ type SyntaxMutability =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1123,13 +1265,16 @@ type SyntaxMutability =
             | None _ ->
                 0
 
-        member _.Tag = 13
+        member _.Tag = 14
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 14
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMutability =
 
     [<Literal>]
-    let Tag = 13
+    let Tag = 14
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxParameter =
@@ -1155,6 +1300,8 @@ type SyntaxParameter =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -1193,13 +1340,16 @@ type SyntaxParameter =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 14
+        member _.Tag = 15
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 15
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxParameter =
 
     [<Literal>]
-    let Tag = 14
+    let Tag = 15
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeArguments =
@@ -1217,6 +1367,8 @@ type SyntaxTypeArguments =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1243,13 +1395,16 @@ type SyntaxTypeArguments =
             | Empty _ ->
                 0
 
-        member _.Tag = 15
+        member _.Tag = 16
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 16
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeArguments =
 
     [<Literal>]
-    let Tag = 15
+    let Tag = 16
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxParameters =
@@ -1267,6 +1422,8 @@ type SyntaxParameters =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1293,13 +1450,16 @@ type SyntaxParameters =
             | Empty _ ->
                 0
 
-        member _.Tag = 16
+        member _.Tag = 17
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 17
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxParameters =
 
     [<Literal>]
-    let Tag = 16
+    let Tag = 17
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxLambdaKind =
@@ -1314,6 +1474,8 @@ type SyntaxLambdaKind =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1338,13 +1500,16 @@ type SyntaxLambdaKind =
             | None _ ->
                 0
 
-        member _.Tag = 17
+        member _.Tag = 18
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 18
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLambdaKind =
 
     [<Literal>]
-    let Tag = 17
+    let Tag = 18
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxReturnTypeAnnotation =
@@ -1361,6 +1526,8 @@ type SyntaxReturnTypeAnnotation =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1386,13 +1553,16 @@ type SyntaxReturnTypeAnnotation =
             | None _ ->
                 0
 
-        member _.Tag = 18
+        member _.Tag = 19
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 19
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxReturnTypeAnnotation =
 
     [<Literal>]
-    let Tag = 18
+    let Tag = 19
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxFunctionName =
@@ -1411,6 +1581,8 @@ type SyntaxFunctionName =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1439,13 +1611,16 @@ type SyntaxFunctionName =
             | Parenthesis(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 19
+        member _.Tag = 20
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 20
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxFunctionName =
 
     [<Literal>]
-    let Tag = 19
+    let Tag = 20
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxBindingDeclaration =
@@ -1492,6 +1667,8 @@ type SyntaxBindingDeclaration =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -1568,13 +1745,16 @@ type SyntaxBindingDeclaration =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 20
+        member _.Tag = 21
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 21
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBindingDeclaration =
 
     [<Literal>]
-    let Tag = 20
+    let Tag = 21
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxPropertyBinding =
@@ -1593,6 +1773,8 @@ type SyntaxPropertyBinding =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1617,13 +1799,16 @@ type SyntaxPropertyBinding =
             | Binding(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 21
+        member _.Tag = 22
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 22
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxPropertyBinding =
 
     [<Literal>]
-    let Tag = 21
+    let Tag = 22
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxGuardBinding =
@@ -1648,6 +1833,8 @@ type SyntaxGuardBinding =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1681,13 +1868,16 @@ type SyntaxGuardBinding =
             | Signature(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 22
+        member _.Tag = 23
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 23
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxGuardBinding =
 
     [<Literal>]
-    let Tag = 22
+    let Tag = 23
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxBinding =
@@ -1723,6 +1913,8 @@ type SyntaxBinding =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1777,13 +1969,16 @@ type SyntaxBinding =
             | PatternWithGuard(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 23
+        member _.Tag = 24
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 24
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxBinding =
 
     [<Literal>]
-    let Tag = 23
+    let Tag = 24
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxLet =
@@ -1800,6 +1995,8 @@ type SyntaxLet =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1822,13 +2019,16 @@ type SyntaxLet =
             | Binding(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 24
+        member _.Tag = 25
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 25
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLet =
 
     [<Literal>]
-    let Tag = 24
+    let Tag = 25
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationKind =
@@ -1881,6 +2081,8 @@ type SyntaxTypeDeclarationKind =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -1981,13 +2183,16 @@ type SyntaxTypeDeclarationKind =
             | Newtype(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 25
+        member _.Tag = 26
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 26
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationKind =
 
     [<Literal>]
-    let Tag = 25
+    let Tag = 26
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxLiteral =
@@ -2027,7 +2232,7 @@ type SyntaxLiteral =
     | Char16
         of
         valueToken: SyntaxToken
-    | Utf16
+    | String16
         of
         valueToken: SyntaxToken
     | Null
@@ -2053,6 +2258,8 @@ type SyntaxLiteral =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2106,7 +2313,7 @@ type SyntaxLiteral =
                 match index with
                 | 0 -> valueToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Utf16(valueToken) ->
+            | String16(valueToken) ->
                 match index with
                 | 0 -> valueToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
@@ -2146,7 +2353,7 @@ type SyntaxLiteral =
             | Float64 _ -> 1
             | Bool _ -> 1
             | Char16 _ -> 1
-            | Utf16 _ -> 1
+            | String16 _ -> 1
             | Null _ -> 1
             | Default _ -> 1
             | UncheckedDefault _ -> 2
@@ -2179,7 +2386,7 @@ type SyntaxLiteral =
                 (x :> ISyntaxNode).FullWidth
             | Char16(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | Utf16(x) ->
+            | String16(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Null(x) ->
                 (x :> ISyntaxNode).FullWidth
@@ -2192,13 +2399,16 @@ type SyntaxLiteral =
             | Real(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 26
+        member _.Tag = 27
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 27
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxLiteral =
 
     [<Literal>]
-    let Tag = 26
+    let Tag = 27
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxFieldPattern =
@@ -2217,6 +2427,8 @@ type SyntaxFieldPattern =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -2245,13 +2457,16 @@ type SyntaxFieldPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 27
+        member _.Tag = 28
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 28
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxFieldPattern =
 
     [<Literal>]
-    let Tag = 27
+    let Tag = 28
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxNamedArgument =
@@ -2267,6 +2482,8 @@ type SyntaxNamedArgument =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2288,13 +2505,16 @@ type SyntaxNamedArgument =
             | NamedArgument(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 28
+        member _.Tag = 29
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 29
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxNamedArgument =
 
     [<Literal>]
-    let Tag = 28
+    let Tag = 29
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxArguments =
@@ -2313,6 +2533,8 @@ type SyntaxArguments =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2340,13 +2562,16 @@ type SyntaxArguments =
             | Empty _ ->
                 0
 
-        member _.Tag = 29
+        member _.Tag = 30
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 30
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxArguments =
 
     [<Literal>]
-    let Tag = 29
+    let Tag = 30
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxElseIfOrElseExpression =
@@ -2374,6 +2599,8 @@ type SyntaxElseIfOrElseExpression =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2414,13 +2641,16 @@ type SyntaxElseIfOrElseExpression =
             | None(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 30
+        member _.Tag = 31
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 31
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxElseIfOrElseExpression =
 
     [<Literal>]
-    let Tag = 30
+    let Tag = 31
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxCatchOrFinallyExpression =
@@ -2448,6 +2678,8 @@ type SyntaxCatchOrFinallyExpression =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2488,13 +2720,16 @@ type SyntaxCatchOrFinallyExpression =
             | None(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 31
+        member _.Tag = 32
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 32
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxCatchOrFinallyExpression =
 
     [<Literal>]
-    let Tag = 31
+    let Tag = 32
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationPremodifier =
@@ -2519,6 +2754,8 @@ type SyntaxValueDeclarationPremodifier =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2566,13 +2803,16 @@ type SyntaxValueDeclarationPremodifier =
             | New(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 32
+        member _.Tag = 33
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 33
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPremodifier =
 
     [<Literal>]
-    let Tag = 32
+    let Tag = 33
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationPostmodifier =
@@ -2585,6 +2825,8 @@ type SyntaxValueDeclarationPostmodifier =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2604,13 +2846,16 @@ type SyntaxValueDeclarationPostmodifier =
             | Mutable(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 33
+        member _.Tag = 34
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 34
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationPostmodifier =
 
     [<Literal>]
-    let Tag = 33
+    let Tag = 34
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxValueDeclarationKind =
@@ -2640,6 +2885,8 @@ type SyntaxValueDeclarationKind =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -2699,13 +2946,16 @@ type SyntaxValueDeclarationKind =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 34
+        member _.Tag = 35
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 35
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxValueDeclarationKind =
 
     [<Literal>]
-    let Tag = 34
+    let Tag = 35
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxExtends =
@@ -2725,6 +2975,8 @@ type SyntaxExtends =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2757,13 +3009,16 @@ type SyntaxExtends =
             | Empty _ ->
                 0
 
-        member _.Tag = 35
+        member _.Tag = 36
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 36
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxExtends =
 
     [<Literal>]
-    let Tag = 35
+    let Tag = 36
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxImplements =
@@ -2780,6 +3035,8 @@ type SyntaxImplements =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2805,13 +3062,16 @@ type SyntaxImplements =
             | Empty _ ->
                 0
 
-        member _.Tag = 36
+        member _.Tag = 37
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 37
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxImplements =
 
     [<Literal>]
-    let Tag = 36
+    let Tag = 37
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationCase =
@@ -2833,6 +3093,8 @@ type SyntaxTypeDeclarationCase =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2863,13 +3125,16 @@ type SyntaxTypeDeclarationCase =
             | EnumCase(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 37
+        member _.Tag = 38
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 38
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationCase =
 
     [<Literal>]
-    let Tag = 37
+    let Tag = 38
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationBody =
@@ -2880,14 +3145,14 @@ type SyntaxTypeDeclarationBody =
         caseList: SyntaxTypeDeclarationCase SyntaxList *
         bodyExpr: SyntaxExpression *
         fullWidth: int
-    | None
-        of unit
 
     interface ISyntaxNode with
 
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2900,28 +3165,26 @@ type SyntaxTypeDeclarationBody =
                 | 2 -> caseList :> ISyntaxNode
                 | 3 -> bodyExpr :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | None _ ->
-                failwith "invalid slot"
 
         member this.SlotCount =
             match this with
             | Body _ -> 4
-            | None _ -> 0
 
         member this.FullWidth =
             match this with
             | Body(fullWidth=fullWidth) ->
                 fullWidth
-            | None _ ->
-                0
 
-        member _.Tag = 38
+        member _.Tag = 39
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 39
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationBody =
 
     [<Literal>]
-    let Tag = 38
+    let Tag = 39
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxTypeDeclarationName =
@@ -2934,12 +3197,16 @@ type SyntaxTypeDeclarationName =
         operatorToken: SyntaxToken *
         rightParenToken: SyntaxToken *
         fullWidth: int
+    | Anonymous
+        of unit
 
     interface ISyntaxNode with
 
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -2955,11 +3222,14 @@ type SyntaxTypeDeclarationName =
                 | 1 -> operatorToken :> ISyntaxNode
                 | 2 -> rightParenToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
+            | Anonymous _ ->
+                failwith "invalid slot"
 
         member this.SlotCount =
             match this with
             | Identifier _ -> 1
             | Parenthesis _ -> 3
+            | Anonymous _ -> 0
 
         member this.FullWidth =
             match this with
@@ -2967,14 +3237,19 @@ type SyntaxTypeDeclarationName =
                 (x :> ISyntaxNode).FullWidth
             | Parenthesis(fullWidth=fullWidth) ->
                 fullWidth
+            | Anonymous _ ->
+                0
 
-        member _.Tag = 39
+        member _.Tag = 40
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 40
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxTypeDeclarationName =
 
     [<Literal>]
-    let Tag = 39
+    let Tag = 40
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxPattern =
@@ -3009,6 +3284,8 @@ type SyntaxPattern =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -3068,13 +3345,16 @@ type SyntaxPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 40
+        member _.Tag = 41
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 41
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxPattern =
 
     [<Literal>]
-    let Tag = 40
+    let Tag = 41
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchGuard =
@@ -3093,6 +3373,8 @@ type SyntaxMatchGuard =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3120,13 +3402,16 @@ type SyntaxMatchGuard =
             | None _ ->
                 0
 
-        member _.Tag = 41
+        member _.Tag = 42
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 42
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchGuard =
 
     [<Literal>]
-    let Tag = 41
+    let Tag = 42
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchPattern =
@@ -3151,6 +3436,8 @@ type SyntaxMatchPattern =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = match this with | Error _ -> true | _ -> false
 
@@ -3193,13 +3480,16 @@ type SyntaxMatchPattern =
             | Error(x) ->
                 (x :> ISyntaxNode).FullWidth
 
-        member _.Tag = 42
+        member _.Tag = 43
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 43
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchPattern =
 
     [<Literal>]
-    let Tag = 42
+    let Tag = 43
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxMatchClause =
@@ -3217,6 +3507,8 @@ type SyntaxMatchClause =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3240,25 +3532,21 @@ type SyntaxMatchClause =
             | MatchClause(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 43
+        member _.Tag = 44
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 44
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxMatchClause =
 
     [<Literal>]
-    let Tag = 43
+    let Tag = 44
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
-type SyntaxConstructType =
-    | Anonymous
+type SyntaxInitializer =
+    | Initializer
         of
-        leftCurlyBracketToken: SyntaxToken *
-        fieldPatList: SyntaxFieldPattern SyntaxSeparatorList *
-        rightCurlyBracketToken: SyntaxToken *
-        fullWidth: int
-    | Named
-        of
-        name: SyntaxName *
         leftCurlyBracketToken: SyntaxToken *
         fieldPatList: SyntaxFieldPattern SyntaxSeparatorList *
         rightCurlyBracketToken: SyntaxToken *
@@ -3270,43 +3558,38 @@ type SyntaxConstructType =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = false
 
         member this.GetSlot(index) =
             match this with
-            | Anonymous(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
+            | Initializer(leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
                 match index with
                 | 0 -> leftCurlyBracketToken :> ISyntaxNode
                 | 1 -> fieldPatList :> ISyntaxNode
                 | 2 -> rightCurlyBracketToken :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Named(name, leftCurlyBracketToken, fieldPatList, rightCurlyBracketToken, _) ->
-                match index with
-                | 0 -> name :> ISyntaxNode
-                | 1 -> leftCurlyBracketToken :> ISyntaxNode
-                | 2 -> fieldPatList :> ISyntaxNode
-                | 3 -> rightCurlyBracketToken :> ISyntaxNode
-                | _ -> failwith "invalid slot"
 
         member this.SlotCount =
             match this with
-            | Anonymous _ -> 3
-            | Named _ -> 4
+            | Initializer _ -> 3
 
         member this.FullWidth =
             match this with
-            | Anonymous(fullWidth=fullWidth) ->
-                fullWidth
-            | Named(fullWidth=fullWidth) ->
+            | Initializer(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 44
+        member _.Tag = 45
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 45
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
-module SyntaxConstructType =
+module SyntaxInitializer =
 
     [<Literal>]
-    let Tag = 44
+    let Tag = 45
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxCompilationUnit =
@@ -3338,6 +3621,8 @@ type SyntaxCompilationUnit =
         member this.IsTerminal = false
 
         member this.IsToken = false
+
+        member this.IsTriviaToken = false
 
         member this.IsError = false
 
@@ -3381,13 +3666,16 @@ type SyntaxCompilationUnit =
             | AnonymousModule(fullWidth=fullWidth) ->
                 fullWidth
 
-        member _.Tag = 45
+        member _.Tag = 46
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 46
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxCompilationUnit =
 
     [<Literal>]
-    let Tag = 45
+    let Tag = 46
 
 [<RequireQualifiedAccess;NoComparison;ReferenceEquality>]
 type SyntaxExpression =
@@ -3448,11 +3736,6 @@ type SyntaxExpression =
         name: SyntaxName *
         arg: SyntaxExpression *
         fullWidth: int
-    | Throw
-        of
-        throwToken: SyntaxToken *
-        arg: SyntaxExpression *
-        fullWidth: int
     | Indexer
         of
         lhsExpr: SyntaxExpression *
@@ -3464,14 +3747,16 @@ type SyntaxExpression =
     | Literal
         of
         lit: SyntaxLiteral
-    | CreateRecord
-        of
-        constructTy: SyntaxConstructType
     | UpdateRecord
         of
         expr: SyntaxExpression *
         withToken: SyntaxToken *
-        constructTy: SyntaxConstructType *
+        init: SyntaxInitializer *
+        fullWidth: int
+    | Initialize
+        of
+        expr: SyntaxExpression *
+        init: SyntaxInitializer *
         fullWidth: int
     | If
         of
@@ -3564,6 +3849,8 @@ type SyntaxExpression =
 
         member this.IsToken = false
 
+        member this.IsTriviaToken = false
+
         member this.IsError = match this with | Error _ -> true | _ -> false
 
         member this.GetSlot(index) =
@@ -3625,11 +3912,6 @@ type SyntaxExpression =
                 | 0 -> name :> ISyntaxNode
                 | 1 -> arg :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | Throw(throwToken, arg, _) ->
-                match index with
-                | 0 -> throwToken :> ISyntaxNode
-                | 1 -> arg :> ISyntaxNode
-                | _ -> failwith "invalid slot"
             | Indexer(lhsExpr, brackets, _) ->
                 match index with
                 | 0 -> lhsExpr :> ISyntaxNode
@@ -3643,15 +3925,16 @@ type SyntaxExpression =
                 match index with
                 | 0 -> lit :> ISyntaxNode
                 | _ -> failwith "invalid slot"
-            | CreateRecord(constructTy) ->
-                match index with
-                | 0 -> constructTy :> ISyntaxNode
-                | _ -> failwith "invalid slot"
-            | UpdateRecord(expr, withToken, constructTy, _) ->
+            | UpdateRecord(expr, withToken, init, _) ->
                 match index with
                 | 0 -> expr :> ISyntaxNode
                 | 1 -> withToken :> ISyntaxNode
-                | 2 -> constructTy :> ISyntaxNode
+                | 2 -> init :> ISyntaxNode
+                | _ -> failwith "invalid slot"
+            | Initialize(expr, init, _) ->
+                match index with
+                | 0 -> expr :> ISyntaxNode
+                | 1 -> init :> ISyntaxNode
                 | _ -> failwith "invalid slot"
             | If(ifToken, leftParenToken, predicateExpr, rightParenToken, target, elseIfOrElseExpr, _) ->
                 match index with
@@ -3752,12 +4035,11 @@ type SyntaxExpression =
             | Call _ -> 2
             | InfixCall _ -> 3
             | PrefixCall _ -> 2
-            | Throw _ -> 2
             | Indexer _ -> 2
             | Name _ -> 1
             | Literal _ -> 1
-            | CreateRecord _ -> 1
             | UpdateRecord _ -> 3
+            | Initialize _ -> 2
             | If _ -> 6
             | Try _ -> 3
             | Match _ -> 5
@@ -3794,17 +4076,15 @@ type SyntaxExpression =
                 fullWidth
             | PrefixCall(fullWidth=fullWidth) ->
                 fullWidth
-            | Throw(fullWidth=fullWidth) ->
-                fullWidth
             | Indexer(fullWidth=fullWidth) ->
                 fullWidth
             | Name(x) ->
                 (x :> ISyntaxNode).FullWidth
             | Literal(x) ->
                 (x :> ISyntaxNode).FullWidth
-            | CreateRecord(x) ->
-                (x :> ISyntaxNode).FullWidth
             | UpdateRecord(fullWidth=fullWidth) ->
+                fullWidth
+            | Initialize(fullWidth=fullWidth) ->
                 fullWidth
             | If(fullWidth=fullWidth) ->
                 fullWidth
@@ -3833,11 +4113,14 @@ type SyntaxExpression =
             | None _ ->
                 0
 
-        member _.Tag = 46
+        member _.Tag = 47
+        member _.InnerTag = Tags.Terminal
+        static member StaticTag = 47
+        static member StaticInnerTag = Tags.Terminal
 
 [<RequireQualifiedAccess>]
 module SyntaxExpression =
 
     [<Literal>]
-    let Tag = 46
+    let Tag = 47
 

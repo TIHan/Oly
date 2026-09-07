@@ -2,44 +2,23 @@
 
 open Oly.Core
 open Oly.Compiler.Syntax
+open Oly.Compiler
 open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.BoundTreePatterns
 
 let UnsafeCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
-    let syntaxTree = expr.Syntax.Tree
     let argExprs = [|expr|] |> ImArray.ofSeq
     let func = (freshenValue benv WellKnownFunctions.UnsafeCast).AsFunction
     UnifyTypes TypeVariableRigidity.Flexible func.ReturnType castToType |> ignore
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, func, CallFlags.None)
-
-let ImplicitCast benv (expr: BoundExpression) castToType =
-    let exprTy = expr.Type
-    if exprTy.IsEnum then
-        match exprTy.AsEntityNoAlias.TryEnumUnderlyingType with
-        | Some(runtimeTy) when areTypesEqual runtimeTy castToType ->
-            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        | _ ->
-            expr
-    else
-        expr
-
-let ExplicitCast benv (expr: BoundExpression) (castToType: TypeSymbol) =
-    if castToType.IsEnum then
-        let exprTy = expr.Type
-        match castToType.AsEntityNoAlias.TryEnumUnderlyingType with
-        | Some(runtimeTy) when areTypesEqual runtimeTy exprTy ->
-            Oly.Compiler.Internal.WellKnownExpressions.UnsafeCast benv expr castToType
-        | _ ->
-            expr
-    else
-        expr
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr.Syntax), None, ImArray.empty, argExprs, func, CallFlags.None)
 
 let Ignore (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let argExprs = ImArray.createOne expr
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.IgnoreFunction, CallFlags.None)
+    let ignoreFunc = WellKnownFunctions.IgnoreFunction
+    let ignoreFunc = actualValue ignoreFunc.Enclosing (ImArray.createOne expr.Type) ignoreFunc
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr.Syntax), None, ImArray.empty, argExprs, ignoreFunc, CallFlags.None)
 
 let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr2: BoundExpression) =
     if not (obj.ReferenceEquals(syntaxInfo.Syntax.Tree, expr2.Syntax.Tree)) then
@@ -48,49 +27,33 @@ let EqualWithSyntax (syntaxInfo: BoundSyntaxInfo) (expr1: BoundExpression) (expr
     BoundExpression.Call(syntaxInfo, None, ImArray.empty, argExprs, WellKnownFunctions.equalFunc, CallFlags.None)
 
 let Equal (expr1: BoundExpression) (expr2: BoundExpression) =
-    EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax.Tree)) expr1 expr2 
+    EqualWithSyntax (BoundSyntaxInfo.Generated(expr1.Syntax)) expr1 expr2 
 
 let NotEqual (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.notEqualFunc, CallFlags.None)
 
 let And (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.andFunc, CallFlags.None)
 
 let Or (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
     let argExprs = [|expr1;expr2|] |> ImArray.ofSeq
-    BoundExpression.Call(BoundSyntaxInfo.Generated(syntaxTree), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, CallFlags.None)
+    BoundExpression.Call(BoundSyntaxInfo.Generated(expr1.Syntax), None, ImArray.empty, argExprs, WellKnownFunctions.orFunc, CallFlags.None)
 
 let LogicalAnd (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-    BoundExpression.IfElse(BoundSyntaxInfo.Generated(syntaxTree), expr1, expr2, BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue), TypeSymbol.Bool)
+    BoundExpression.IfElse(BoundSyntaxInfo.Generated(expr1.Syntax), expr1, expr2, BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue), TypeSymbol.Bool)
 
 let LogicalOr (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-    BoundExpression.IfElse(BoundSyntaxInfo.Generated(syntaxTree), expr1, BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue), expr2, TypeSymbol.Bool)
+    BoundExpression.IfElse(BoundSyntaxInfo.Generated(expr1.Syntax), expr1, BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue), expr2, TypeSymbol.Bool)
 
 let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let tyArgs =
         (TypeSymbol.ConstantInt32(elementIndex), elementTy)
         ||> ImArray.createTwo
     let argExprs = [|expr|] |> ImArray.ofSeq
     BoundExpression.Call(
-        BoundSyntaxInfo.Generated(syntaxTree), 
+        BoundSyntaxInfo.Generated(expr.Syntax), 
         None, 
         ImArray.empty, 
         argExprs,
@@ -99,23 +62,19 @@ let LoadTupleElement (elementIndex: int) (elementTy: TypeSymbol) (expr: BoundExp
     )
 
 let InlineAnd (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-
     let trueTargetExpr =
         BoundExpression.IfElse(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(expr1.Syntax),
             expr2,
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue),
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse),
             TypeSymbol.Bool
         )
         
-    let falseTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse)
+    let falseTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse)
 
     BoundExpression.IfElse(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        BoundSyntaxInfo.Generated(expr1.Syntax),
         expr1,
         trueTargetExpr,
         falseTargetExpr,
@@ -123,44 +82,78 @@ let InlineAnd (expr1: BoundExpression) (expr2: BoundExpression) =
     )
 
 let InlineOr (expr1: BoundExpression) (expr2: BoundExpression) =
-    let syntaxTree = expr1.Syntax.Tree
-    if not (obj.ReferenceEquals(syntaxTree, expr2.Syntax.Tree)) then
-        failwith "Expected same syntax tree."
-
-    let trueTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue)
+    let trueTargetExpr = BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue)
 
     let falseTargetExpr =
         BoundExpression.IfElse(
-            BoundSyntaxInfo.Generated(syntaxTree),
+            BoundSyntaxInfo.Generated(expr1.Syntax),
             expr2,
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralTrue),
-            BoundExpression.Literal(BoundSyntaxInfo.Generated(syntaxTree), BoundLiteralFalse),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralTrue),
+            BoundExpression.Literal(BoundSyntaxInfo.Generated(expr1.Syntax), BoundLiteralFalse),
             TypeSymbol.Bool
         )
 
     BoundExpression.IfElse(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        BoundSyntaxInfo.Generated(expr1.Syntax),
         expr1,
         trueTargetExpr,
         falseTargetExpr,
         TypeSymbol.Bool
     )
 
-/// TODO: This is kinda of bad. What do we actually want to pass here? What if the 'value' is not formal? What does that mean?
-let private createGeneratedCallExpression syntaxTree (value: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+let private createCallExpression syntaxInfo (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+    OlyAssert.True(formalValue.IsFormal)
+    let value =
+        let tyArgs =
+            (formalValue.TypeParameters, tyArgs)
+            ||> ImArray.map2 (fun tyPar tyArg -> 
+#if DEBUG || CHECKED
+                match tyArg.TryImmediateTypeParameter with
+                | ValueSome(tyPar2) ->
+                    OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
+                | _ ->
+                    ()
+#endif
+                mkSolvedInferenceVariableType tyPar tyArg
+            )
+        formalValue.Apply(tyArgs)
     BoundExpression.Call(
-        BoundSyntaxInfo.Generated(syntaxTree),
+        syntaxInfo,
         None,
         witnessArgs,
         args,
-        actualValue value.Enclosing tyArgs value.Formal,
+        value,
+        isVirtualCall
+    )
+
+let private createGeneratedCallExpression (syntaxNode: OlySyntaxNode) (formalValue: IValueSymbol) (tyArgs: TypeArgumentSymbol imarray) witnessArgs args isVirtualCall =
+    OlyAssert.True(formalValue.IsFormal)
+    let value =
+        let tyArgs =
+            (formalValue.TypeParameters, tyArgs)
+            ||> ImArray.map2 (fun tyPar tyArg -> 
+#if DEBUG || CHECKED
+                match tyArg.TryImmediateTypeParameter with
+                | ValueSome(tyPar2) ->
+                    OlyAssert.NotEqual(tyPar.Id, tyPar2.Id)
+                | _ ->
+                    ()
+#endif
+                mkSolvedInferenceVariableType tyPar tyArg
+            )
+        formalValue.Apply(tyArgs)
+    BoundExpression.Call(
+        BoundSyntaxInfo.Generated(syntaxNode),
+        None,
+        witnessArgs,
+        args,
+        value,
         isVirtualCall
     )
 
 let LoadFunction (receiverExpr: BoundExpression) (expr: BoundExpression) funcTy =
-    let syntaxTree = expr.Syntax.Tree
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.LoadFunction
         (ImArray.createOne funcTy)
         ImArray.empty
@@ -168,9 +161,8 @@ let LoadFunction (receiverExpr: BoundExpression) (expr: BoundExpression) funcTy 
         CallFlags.None
 
 let LoadStaticFunction (expr: BoundExpression) funcTy =
-    let syntaxTree = expr.Syntax.Tree
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.LoadStaticFunction
         (ImArray.createOne funcTy)
         ImArray.empty
@@ -178,10 +170,9 @@ let LoadStaticFunction (expr: BoundExpression) funcTy =
         CallFlags.None
 
 let NewRefCell (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     createGeneratedCallExpression
-        syntaxTree
+        expr.Syntax
         WellKnownFunctions.NewRefCell
         (ImArray.createOne exprTy)
         ImArray.empty
@@ -189,12 +180,11 @@ let NewRefCell (expr: BoundExpression) =
         CallFlags.None
 
 let LoadRefCellContents (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     match exprTy.TryGetReferenceCellElement with
     | ValueSome elementTy ->
         createGeneratedCallExpression
-            syntaxTree
+            expr.Syntax
             WellKnownFunctions.LoadRefCellContents
             (ImArray.createOne elementTy)
             ImArray.empty
@@ -203,13 +193,13 @@ let LoadRefCellContents (expr: BoundExpression) =
     | _ ->
         failwith "Invalid expression."
 
-let StoreRefCellContents (receiver: BoundExpression) (rhs: BoundExpression) =
+let StoreRefCellContents syntaxInfo (receiver: BoundExpression) (rhs: BoundExpression) =
     let syntaxTree = rhs.Syntax.Tree
     let refCellArgTy = receiver.Type
     match refCellArgTy.TryGetReferenceCellElement with
     | ValueSome elementTy ->
-        createGeneratedCallExpression
-            syntaxTree
+        createCallExpression
+            syntaxInfo
             WellKnownFunctions.StoreRefCellContents
             (ImArray.createOne elementTy)
             ImArray.empty
@@ -219,12 +209,11 @@ let StoreRefCellContents (receiver: BoundExpression) (rhs: BoundExpression) =
         failwith "Invalid expression."
 
 let FromAddress (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
     match exprTy.TryByReferenceElementType with
     | ValueSome elementTy ->
         createGeneratedCallExpression
-            syntaxTree
+            expr.Syntax
             WellKnownFunctions.FromAddress
             (ImArray.createOne elementTy)
             ImArray.empty
@@ -234,9 +223,8 @@ let FromAddress (expr: BoundExpression) =
         failwith "Invalid expression."
 
 let rec AutoDereferenceIfPossible (expr: BoundExpression) =
-    let syntaxTree = expr.Syntax.Tree
     let exprTy = expr.Type
-    if exprTy.IsByRef_t then
+    if exprTy.IsAnyByRef_ste then
         // We want to dereference non-generated expressions.
         match expr with
         | BoundExpression.Value _ 
@@ -245,7 +233,7 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
 
         | BoundExpression.Call(value=value) when not value.IsAddressOf ->
             let value = createLocalBridgeValue exprTy
-            let syntaxInfo = BoundSyntaxInfo.Generated(syntaxTree)
+            let syntaxInfo = BoundSyntaxInfo.Generated(expr.Syntax)
             BoundExpression.Let(
                 syntaxInfo,
                 BindingLocal(value),
@@ -257,20 +245,11 @@ let rec AutoDereferenceIfPossible (expr: BoundExpression) =
     else
         expr
 
-and AutoDereferenceReceiverIfPossible (expr: BoundExpression) =
-    let exprTy = expr.Type
-    match exprTy.TryByReferenceElementType with
-    // If the receiver's type is a struct or a type parameter, we do not want to dereference.
-    | ValueSome elementTy when elementTy.IsAnyStruct || elementTy.IsTypeVariable ->
-        expr
-    | _ ->
-        AutoDereferenceIfPossible expr
-
 /// Creates a 'Call' expression to get the address
 /// based on the given expression. Expression type is a read/write ByRef type.
 let AddressOf (expr: BoundExpression) =
     createGeneratedCallExpression
-        expr.Syntax.Tree
+        expr.Syntax
         WellKnownFunctions.AddressOf
         (ImArray.createOne expr.Type)
         ImArray.empty
@@ -281,7 +260,7 @@ let AddressOf (expr: BoundExpression) =
 /// based on the given expression. Expression type is a read/write ByRef type.
 let AddressOfMutable (expr: BoundExpression) =
     createGeneratedCallExpression
-        expr.Syntax.Tree
+        expr.Syntax
         WellKnownFunctions.AddressOfMutable
         (ImArray.createOne expr.Type)
         ImArray.empty
@@ -290,93 +269,100 @@ let AddressOfMutable (expr: BoundExpression) =
 
 let private AddressOfReceiverIfPossibleAux isMutable (enclosingTy: TypeSymbol) (expr: BoundExpression) =
     let exprTy = expr.Type
-    if (exprTy.IsAnyStruct && (enclosingTy.IsAnyStruct || enclosingTy.IsTypeExtendingAStruct)) || exprTy.IsTypeVariable then
-        if exprTy.IsByRef_t then
-            failwith "Invalid expression."
-        else
-            match expr with
-            // Cannot take the address of a constant.
-            | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
-                if value.IsReadOnly && not exprTy.IsTypeVariable then
-                    AddressOf expr
+    if (exprTy.IsStruct_ste && (enclosingTy.IsTypeExtensionExtendingStruct_ste || enclosingTy.IsStruct_ste)) || exprTy.IsAnyVariable_ste then
+        match expr with
+        // Cannot take the address of a constant.
+        | BoundExpression.Value(value=value) when not value.IsFieldConstant -> 
+            if value.IsImmutable && not exprTy.IsAnyVariable_ste then
+                AddressOf expr
+            else
+                if isMutable then
+                    AddressOfMutable expr
                 else
-                    if isMutable then
-                        AddressOfMutable expr
-                    else
-                        expr
-            | BoundExpression.GetField(syntaxInfo, receiver, field) -> 
-                let expr = 
-                    if field.Enclosing.IsType then
-                        let newReceiver = AddressOfReceiverIfPossibleAux isMutable receiver.Type receiver
-                        if newReceiver = receiver then
-                            expr
-                        else
-                            BoundExpression.GetField(syntaxInfo, newReceiver, field)
-                    else
-                        expr
-
-                if field.Enclosing.IsNewtype then
-                    // Cannot take the address of a field from a newtype.
                     expr
-                elif exprTy.IsTypeVariable then
-                    if isMutable then
-                        AddressOfMutable expr
-                    else
+        | BoundExpression.GetField(syntaxInfo, receiver, field) ->
+            let expr = 
+                if field.Enclosing.IsType then
+                    let newReceiver = AddressOfReceiverIfPossibleAux isMutable receiver.Type receiver
+                    if newReceiver = receiver then
                         expr
-                elif field.IsReadOnly then
-                    AddressOf expr
+                    else
+                        BoundExpression.GetField(syntaxInfo, newReceiver, field)
                 else
-                    match stripTypeEquations receiver.Type with
-                    | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsAnyStruct ->
-                        match kind with
-                        | ByRefKind.ReadWrite -> 
-                            if isMutable then
-                                AddressOfMutable expr
-                            else
-                                expr
-                        | ByRefKind.Read -> 
-                            AddressOf expr
-                    | _ ->
-                        if field.IsMutable then
-                            if isMutable then
-                                AddressOfMutable expr
-                            else
-                                expr
-                        else
-                            AddressOf expr
-            | GetArrayElement(expr1, _) ->
-                let expr1Ty = expr1.Type
-                match stripTypeEquations expr1Ty with
-                | TypeSymbol.Array(_, _, kind) ->
+                    expr
+
+            if exprTy.IsAnyVariable_ste then
+                if isMutable then
+                    AddressOfMutable expr
+                else
+                    expr
+            elif field.IsImmutable then
+                AddressOf expr
+            else
+                match stripTypeEquations receiver.Type with
+                | TypeSymbol.ByRef(elementTy, kind) when elementTy.IsStruct_ste ->
                     match kind with
-                    | ArrayKind.Immutable ->
-                        AddressOf expr
-                    | ArrayKind.Mutable ->
+                    | ByRefKind.ReadWrite
+                    | ByRefKind.WriteOnly -> 
                         if isMutable then
                             AddressOfMutable expr
                         else
                             expr
+                    | ByRefKind.ReadOnly -> 
+                        AddressOf expr
                 | _ ->
-                    failwith "should not happen"
-            | AutoDereferenced(expr2) ->
-                expr2
+                    if field.IsMutable then
+                        if isMutable then
+                            AddressOfMutable expr
+                        else
+                            expr
+                    else
+                        AddressOf expr
+        | GetArrayElement(expr1, _) ->
+            let expr1Ty = expr1.Type
+            match stripTypeEquations expr1Ty with
+            | TypeSymbol.Array(_, _, kind)
+            | TypeSymbol.FixedArray( _, _, kind) ->
+                match kind with
+                | ArrayKind.Immutable ->
+                    AddressOf expr
+                | ArrayKind.Mutable ->
+                    if isMutable then
+                        AddressOfMutable expr
+                    else
+                        expr
             | _ ->
-                if isMutable then
-                    let expr2, _ = createMutableLocalDeclarationReturnExpression expr
-                    match expr2 with
-                    | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
-                        BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOfMutable bodyExpr)
-                    | _ ->
-                        failwith "should not happen"
-                else
-                    let expr2, _ = createLocalDeclarationReturnExpression expr
-                    match expr2 with
-                    | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
-                        BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOf bodyExpr)
-                    | _ ->
-                        failwith "should not happen"
+                unreached()
+        | AutoDereferenced(expr2) ->
+            expr2
+        | _ ->
+            if isMutable then
+                let expr2, _ = createMutableLocalDeclarationReturnExpression expr
+                match expr2 with
+                | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
+                    BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOfMutable bodyExpr)
+                | _ ->
+                    unreached()
+            else
+                let expr2, _ = createLocalDeclarationReturnExpression expr
+                match expr2 with
+                | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
+                    BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOf bodyExpr)
+                | _ ->
+                    unreached()
     else
-        expr
+        // This prevents an inref of T to not mutate the reference.
+        // inref T -> deref T -> byref T
+        match exprTy.TryByReferenceElementType with
+        | ValueSome(exprElementTy) when exprTy.IsReadOnlyByRef_ste && (enclosingTy.IsAnyVariable_ste && areTypesEqual enclosingTy exprElementTy) ->
+            let newExpr, _ = createMutableLocalDeclarationReturnExpression (FromAddress expr)
+            match newExpr with
+            | BoundExpression.Let(syntaxInfo, value, rhsExpr, bodyExpr) ->
+                BoundExpression.Let(syntaxInfo, value, rhsExpr, AddressOfMutable bodyExpr)
+            | _ ->
+                unreached()
+        | _ ->
+            expr
 
 let AddressOfReceiverIfPossible enclosingTy expr =
     AddressOfReceiverIfPossibleAux true enclosingTy expr

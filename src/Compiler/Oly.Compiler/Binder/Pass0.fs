@@ -1,36 +1,73 @@
-﻿[<AutoOpen>]
+﻿[<RequireQualifiedAccess>]
 module internal rec Oly.Compiler.Internal.Binder.Pass0
-
-open System.Collections.Immutable
 
 open Oly.Core
 open Oly.Compiler
 open Oly.Compiler.Syntax
-open Oly.Compiler.Internal.Binder
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolBuilders
-open Oly.Compiler.Internal.BoundTree
-open Oly.Compiler.Internal.BoundTreeExtensions
+open Oly.Compiler.Internal.PrettyPrint
+open Oly.Compiler.Internal.Binder.EarlyAttributes
+
+let private bindAccessorAsEntityFlags (cenv: cenv) (enclosing: EnclosingSymbol) (syntaxAccessor: OlySyntaxAccessor) =
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Internal _
+    | OlySyntaxAccessor.Public _
+    | OlySyntaxAccessor.Private _
+    | OlySyntaxAccessor.Protected _ -> 
+        if enclosing.IsLocal then
+            cenv.diagnostics.Error("Locally declared types cannot have an access modifier.", 10, syntaxAccessor)
+    | _ -> 
+        ()
+
+    match syntaxAccessor with
+    | OlySyntaxAccessor.Internal _ -> EntityFlags.Internal
+    | OlySyntaxAccessor.Public _ -> EntityFlags.Public
+    | OlySyntaxAccessor.Private _ -> EntityFlags.Private
+    | OlySyntaxAccessor.Protected _ -> 
+        cenv.diagnostics.Error("Types cannot be declared as 'protected'.", 10, syntaxAccessor)
+        EntityFlags.None
+    | _ ->
+        if cenv.config.AccessorBehavior.IsPrivateByDefault then
+            if enclosing.IsLocal then
+                EntityFlags.Internal
+            else
+                // Default is private.
+                EntityFlags.Private
+        else
+            if enclosing.IsLocal then
+                EntityFlags.Internal
+            else
+                // Default is public.
+                EntityFlags.Public
 
 let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
-    let flags =
-        if attributesContainOpen attrs then
+    (flags, attrs)
+    ||> ImArray.fold (fun flags attr ->
+        match attr with
+        | AttributeSymbol.Open ->
             flags ||| EntityFlags.AutoOpen
-        else
-            flags
-
-    let flags =
-        if attributesContainNull attrs then
+        | AttributeSymbol.Null ->
             flags ||| EntityFlags.Nullable
-        else
+        | AttributeSymbol.Export ->
+            flags ||| EntityFlags.Exported
+        | AttributeSymbol.Import _ ->
+            flags ||| EntityFlags.Imported
+        | AttributeSymbol.Intrinsic("importer") ->
+            flags ||| EntityFlags.AttributeImporter
+        | _ ->
             flags
+    )
 
-    flags
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
+(********************************************************************************************************************************************************************************************)
 
 /// Pass 0 - Type definition with type parameters.
-let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdent: OlySyntaxToken) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) =
+let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlySyntaxAttributes) (syntaxAccessor: OlySyntaxAccessor) syntaxTyKind (syntaxIdentOpt: OlySyntaxToken option) (syntaxTyPars: OlySyntaxTypeParameters) syntaxTyDefBody (entities: EntitySymbolBuilder imarray) docText =
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
-    let attrs = bindAttributes cenv env false syntaxAttrs
+    let attrs = bindEarlyAttributes cenv env syntaxAttrs
 
     let flags, kind =
         match syntaxTyKind with
@@ -49,7 +86,9 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
         | _ ->
             raise(InternalCompilerException())
 
-    let flags = flags ||| (bindAccessorAsEntityFlags cenv env syntaxAccessor)
+    let enclosing = currentEnclosing env
+
+    let flags = flags ||| (bindAccessorAsEntityFlags cenv enclosing syntaxAccessor)
 
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
@@ -62,13 +101,35 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
 
     let flags = processAttributesForEntityFlags flags attrs
 
-    let enclosing = currentEnclosing env
+    let name =
+        match syntaxIdentOpt with
+        | Some syntaxIdent -> syntaxIdent.ValueText
+        | _ -> AnonymousEntityName
 
-    let entBuilder = EntitySymbolBuilder.Create(Some cenv.asm, enclosing, syntaxIdent.ValueText, flags, kind)
+    let syntaxNode =
+        match syntaxIdentOpt with
+        | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+        | _ -> syntaxTyKind
+
+    let flags =
+        if name = AnonymousEntityName then
+            if kind = EntityKind.TypeExtension then 
+                if flags &&& EntityFlags.AutoOpen = EntityFlags.AutoOpen then
+                    cenv.diagnostics.Error($"Anonymous type extension is implicitly open. Remove '#[open]'.", 10, syntaxNode)
+                    flags ||| EntityFlags.Anonymous
+                else
+                    flags ||| EntityFlags.AutoOpen ||| EntityFlags.Anonymous
+            else
+                cenv.diagnostics.Error($"Type declaration must have a name.", 10, syntaxNode)
+                flags ||| EntityFlags.Anonymous
+        else
+            flags
+
+    let entBuilder = EntitySymbolBuilder.Create(env.currentAsm, enclosing, name, flags, kind, docText)
     let ent = entBuilder.Entity
 
     OlyAssert.True(ent.TypeParameters.IsEmpty)
-    let _, tyPars = bindTypeParameters cenv env false syntaxTyPars.Values
+    let _, tyPars = bindTypeParameters cenv env ent.Enclosing false syntaxTyPars.Values
 
     let tyPars =
         if ent.Enclosing.IsLocalEnclosing then
@@ -77,15 +138,15 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
                 match tyPar.Kind with
                 | TypeParameterKind.Function _ ->
                     // Handles generic local type definitions.
-                    tyPar.CreateHiddenLink(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.IsVariadic, TypeParameterKind.Type)
+                    tyPar.CreateHiddenLink(tyPar.Name, tyPar.Index, tyPar.Arity, tyPar.Flags, TypeParameterKind.Type)
                 | _ ->
                     tyPar
             )
         else
             tyPars
 
-    if OlySyntaxFacts.IsOperator syntaxIdent.ValueText && tyPars.Length <> 1 then
-        cenv.diagnostics.Error("Postfix type operators must only have a single type parameter.", 10, syntaxIdent)
+    if OlySyntaxFacts.IsOperator name && tyPars.Length <> 1 then
+        cenv.diagnostics.Error("Postfix type operators must only have a single type parameter.", 10, syntaxNode)
 
     // If the entity has free type parameters/variables, then we add them to the definition.
     entBuilder.SetTypeParameters(cenv.pass, tyPars)
@@ -94,22 +155,38 @@ let bindTypeDeclarationPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs:
     let env1, envWithEnclosing =
         match intrinsicTyOpt with
         | Some intrinsicTy when kind = EntityKind.Alias ->
-            entBuilder.SetExtends(cenv.pass, ImArray.createOne intrinsicTy)
+            entBuilder.SetExtends(cenv.pass, ImArray.createOne (applyType intrinsicTy ent.TypeArguments))
         | _ ->
             ()
             
-        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)    
+        env, env.SetEnclosing(ent.AsEnclosing).SetEnclosingTypeParameters(tyPars)
 
-    let _, (nestedEnts: EntitySymbolBuilder imarray) = bindTypeDeclarationBodyPass0 cenv envWithEnclosing syntaxIdent entBuilder ImArray.empty syntaxTyDefBody
+    if ent.IsExported && (not ent.Enclosing.IsExported && not ent.Enclosing.TypeParameters.IsEmpty) then
+        let syntaxNode =
+            match syntaxIdentOpt with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyKind
+        cenv.diagnostics.Error($"Type '{printEntity env.benv ent}' is exported and not valid because its enclosing type '{printEnclosing env.benv ent.Enclosing}' is not exported and has type parameters.", 10, syntaxNode)
+
+    let _, (nestedEnts: EntitySymbolBuilder imarray) = 
+        let syntaxNode =
+            match syntaxIdentOpt with
+            | Some syntaxIdent -> syntaxIdent: OlySyntaxNode
+            | _ -> syntaxTyKind
+        bindTypeDeclarationBody cenv envWithEnclosing syntaxNode entBuilder ImArray.empty syntaxTyDefBody
 
     entBuilder.SetEntities(cenv.pass, nestedEnts)
 
-    recordEntityDeclaration cenv ent syntaxIdent
+    match syntaxIdentOpt with
+    | Some syntaxIdent ->
+        recordEntityDeclaration cenv ent syntaxIdent
+    | _ ->
+        ()
 
     env1, entities.Add(entBuilder), entBuilder
 
 /// Pass 0 - Gather all type definitions.
-let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
+let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) (syntaxNode: OlySyntaxNode) (entBuilder: EntitySymbolBuilder) (entities: EntitySymbolBuilder imarray) (syntaxEntDefBody: OlySyntaxTypeDeclarationBody) =
     let env = env.SetResolutionMustSolveTypes()
 
     let ent = entBuilder.Entity
@@ -117,13 +194,6 @@ let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
     let env = env.SetAccessorContext(ent)  
 
     match syntaxEntDefBody with
-    | OlySyntaxTypeDeclarationBody.None _ ->
-
-        if ent.IsEnum then
-            cenv.diagnostics.Error("Enum declaration must specify one or more cases.", 10, syntaxNode)
-
-        env, entities
-
     | OlySyntaxTypeDeclarationBody.Body(syntaxExtends, syntaxImplements, syntaxCaseList, syntaxExpr) ->
         let syntaxCases = syntaxCaseList.ChildrenOfType
 
@@ -150,22 +220,22 @@ let bindTypeDeclarationBodyPass0 (cenv: cenv) (env: BinderEnvironment) (syntaxNo
             | _ -> 
                 cenv.diagnostics.Error("Alias declarations do not support member declarations.", 10, syntaxNode)
           
-        bindTopLevelExpressionPass0 cenv env entities syntaxExpr
+        bindTopLevelExpression cenv env entities syntaxExpr
 
     | _ ->
         raise(InternalCompilerUnreachedException())
 
 /// Pass 0 - Gather all type definitions.
-let bindTopLevelExpressionPass0 (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) =
+let bindTopLevelExpression (cenv: cenv) (env: BinderEnvironment) (entities: EntitySymbolBuilder imarray) (syntaxExpr: OlySyntaxExpression) =
     cenv.ct.ThrowIfCancellationRequested()
 
     match syntaxExpr with
     | OlySyntaxExpression.Sequential(syntaxExpr1, syntaxExpr2) ->
-        let env1, entities = bindTopLevelExpressionPass0 cenv env entities syntaxExpr1
-        bindTopLevelExpressionPass0 cenv env1 entities syntaxExpr2
+        let env1, entities = bindTopLevelExpression cenv env entities syntaxExpr1
+        bindTopLevelExpression cenv env1 entities syntaxExpr2
 
     | OlySyntaxExpression.TypeDeclaration(syntaxAttrs, syntaxAccessor, syntaxTyKind, syntaxTyDefName, syntaxTyPars, _, _, syntaxTyDefBody) ->
-        let env1, entities, _ = bindTypeDeclarationPass0 cenv env syntaxAttrs syntaxAccessor syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities
+        let env1, entities, _ = bindTypeDeclaration cenv env syntaxAttrs syntaxAccessor syntaxTyKind syntaxTyDefName.Identifier syntaxTyPars syntaxTyDefBody entities (syntaxExpr.GetLeadingCommentText())
         env1, entities
 
     | OlySyntaxExpression.OpenDeclaration _ 

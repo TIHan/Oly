@@ -11,13 +11,15 @@ open Oly.Compiler.Internal.BoundTreePatterns
 open Oly.Compiler.Internal.BoundTreeExtensions
 open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 
 let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSymbol) (rhsExprOpt: E option) mainExpr =
     match bindingInfo with
     | BindingProperty(_, prop) ->
         let backingField = prop.BackingField.Value
         let expr =
-            E.CreateSequential(syntaxInfo.Syntax.Tree,
+            E.CreateGeneratedSequential(syntaxInfo.Syntax.Tree,
                 [
                     yield mainExpr
 
@@ -55,8 +57,8 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                             if getter.IsInstance then
                                                 E.GetField(
                                                     syntaxInfo,
-                                                    E.CreateValue(
-                                                        syntaxInfo.Syntax.Tree,
+                                                    E.CreateGeneratedValue(
+                                                        syntaxInfo.Syntax,
                                                         pars[0]
                                                     ),
                                                     backingField
@@ -67,7 +69,7 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                                     backingField
                                                 )
                                     ),
-                                    LazyExpressionType(syntaxInfo.Syntax.Tree),
+                                    LazyExpressionType(syntaxInfo.Syntax),
                                     ref ValueNone,
                                     ref ValueNone
                                 )
@@ -95,27 +97,28 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
                                             if setter.IsInstance then
                                                 E.SetField(
                                                     syntaxInfo,
-                                                    E.CreateValue(
-                                                        syntaxInfo.Syntax.Tree,
+                                                    E.CreateGeneratedValue(
+                                                        syntaxInfo.Syntax,
                                                         pars[0]
                                                     ),
                                                     backingField,
-                                                    E.CreateValue(
-                                                        syntaxInfo.Syntax.Tree,
+                                                    E.CreateGeneratedValue(
+                                                        syntaxInfo.Syntax,
                                                         pars[1]
-                                                    )
+                                                    ),
+                                                    isCtorInit = false
                                                 )
                                             else
                                                 E.SetValue(
                                                     syntaxInfo,
                                                     backingField,
-                                                    E.CreateValue(
-                                                        syntaxInfo.Syntax.Tree,
+                                                    E.CreateGeneratedValue(
+                                                        syntaxInfo.Syntax,
                                                         pars[0]
                                                     )
                                                 )
                                     ),
-                                    LazyExpressionType(syntaxInfo.Syntax.Tree),
+                                    LazyExpressionType(syntaxInfo.Syntax),
                                     ref ValueNone,
                                     ref ValueNone
                                 )
@@ -129,20 +132,20 @@ let lowerAutoProperty (syntaxInfo: BoundSyntaxInfo) (bindingInfo: BindingInfoSym
     | _ ->
         mainExpr
 
-let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
+let rec lower (ct: CancellationToken) (origExpr: E) =
     ct.ThrowIfCancellationRequested()
     match origExpr with
     // Logical And/Or calls transform to IfElse expressions
     | AndCall(syntaxInfo, expr1, expr2) ->
-        E.IfElse(syntaxInfo, expr1, expr2, E.CreateLiteral(syntaxTree, BoundLiteralFalse), TypeSymbol.Bool)
-        |> lower ct syntaxTree
+        E.IfElse(syntaxInfo, expr1, expr2, E.CreateGeneratedLiteral(syntaxInfo.Syntax, BoundLiteralFalse), TypeSymbol.Bool)
+        |> lower ct
     | OrCall(syntaxInfo, expr1, expr2) ->
-        E.IfElse(syntaxInfo, expr1, E.CreateLiteral(syntaxTree, BoundLiteralTrue), expr2, TypeSymbol.Bool)
-        |> lower ct syntaxTree
+        E.IfElse(syntaxInfo, expr1, E.CreateGeneratedLiteral(syntaxInfo.Syntax, BoundLiteralTrue), expr2, TypeSymbol.Bool)
+        |> lower ct
 
     // Sequential normalization
     | E.Sequential(_, E.Sequential(_, expr1, expr2, semantic1), expr3, semantic2) when semantic1 = semantic2 ->
-        E.CreateSequential(
+        E.CreateGeneratedSequential(
             [
                 expr1
                 expr2
@@ -150,21 +153,14 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
             expr3
         )
 
-    | E.Typed(body=bodyExpr) ->
-        bodyExpr
-
-    // LoadFunctionPtr lambda removal
-    // Removes the wrapping lambda if this is a LoadFunctionPtr.
-    // LoadFunctionPtr will now have a direct argument of the function value.
-    | LoadFunctionPtrOfLambdaWrappedFunctionCall(syntaxInfo, funcLoadFunctionPtr, syntaxInfoFunc, func) ->
-        E.Call(
-            syntaxInfo,
-            None,
-            ImArray.empty,
-            ImArray.createOne(E.Value(syntaxInfoFunc, func)),
-            funcLoadFunctionPtr,
-            CallFlags.None
-        )
+    | E.Typed(body=bodyExpr;ty=ty) ->
+        match bodyExpr with
+        | E.Lambda(cachedLambdaTy=lambdaTy) ->
+            OlyAssert.True(areTypesEqual lambdaTy.Type ty)
+            bodyExpr
+        | _ ->
+            origExpr
+            
 
     // Auto-properties
     | E.MemberDefinition(binding=BoundBinding.Signature(syntaxInfo, bindingInfo)) when bindingInfo.Value.Enclosing.IsClassOrStructOrModuleOrNewtype && bindingInfo.Value.IsAutoProperty ->
@@ -174,7 +170,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
 #if DEBUG || CHECKED
     | E.MemberDefinition(binding=binding) ->
-        Assert.ThrowIf(binding.Info.Value.IsLocal)
+        Assert.ThrowIf(binding.Info.Value.HasLocalEnclosing)
         origExpr
 #endif
 
@@ -201,11 +197,11 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
         match field.Constant with
         | ValueSome constant ->
-            if field.Type.IsEnum then
+            if field.Type.IsEnum_ste then
                 E.Literal(syntaxInfo, BoundLiteral.ConstantEnum(constant, field.Type))
             else
                 let literal = constant.ToLiteral()
-                E.CreateLiteral(syntaxTree, literal)
+                E.CreateGeneratedLiteral(syntaxInfo.Syntax, literal)
         | _ ->
             origExpr
 
@@ -305,7 +301,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
                     let receiverOpt =
                         if func.IsInstance then
-                            E.CreateValue(syntaxTree, parValues[0])
+                            E.CreateGeneratedValue(syntaxInfo.Syntax, parValues[0])
                             |> Some
                         else
                             None
@@ -314,12 +310,12 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         if func.IsInstance then
                             parValues.RemoveAt(0)
                             |> ImArray.map (fun x ->
-                                E.CreateValue(syntaxTree, x)
+                                E.CreateGeneratedValue(syntaxInfo.Syntax, x)
                             )
                         else
                             parValues
                             |> ImArray.map (fun x ->
-                                E.CreateValue(syntaxTree, x)
+                                E.CreateGeneratedValue(syntaxInfo.Syntax, x)
                             )
 
                     let isVirtualCall =
@@ -330,7 +326,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
                     let callExpr =
                         E.Call(
-                            BoundSyntaxInfo.Generated(syntaxTree),
+                            BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                             receiverOpt,
                             ImArray.empty,
                             argExprs,
@@ -339,18 +335,18 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         )
 
                     E.Lambda(
-                        BoundSyntaxInfo.Generated(syntaxTree),
+                        BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                         LambdaFlags.None,
                         tyPars,
                         pars,
                         (LazyExpression.CreateNonLazy(None, fun _ -> callExpr)),
-                        LazyExpressionType(syntaxTree),
+                        LazyExpressionType(syntaxInfo.Syntax),
                         ref ValueNone,
                         ref ValueNone
                     )
 
-                E.MemberDefinition(BoundSyntaxInfo.Generated(syntaxTree),
-                    BoundBinding.Implementation(BoundSyntaxInfo.Generated(syntaxTree),
+                E.MemberDefinition(BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
+                    BoundBinding.Implementation(BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                         bindingInfo,
                         rhsExpr
                     )
@@ -362,9 +358,9 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
             origExpr
         else
             let newBodyExpr =
-                E.CreateSequential(
+                E.CreateGeneratedSequential(
                     bodyExpr,
-                    E.CreateSequential(syntaxTree, valueDeclExprs)
+                    E.CreateGeneratedSequential(syntaxInfo.Syntax.Tree, valueDeclExprs)
                 )
             E.CreateEntityDefinition(syntaxInfo, newBodyExpr, ent)
 
@@ -391,7 +387,7 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                 let fieldBindings =
                     exprs
                     |> ImArray.choose (function
-                        | E.MemberDefinition(binding=binding) when binding.Info.Value.IsField && not binding.Info.Value.IsLocal ->
+                        | E.MemberDefinition(binding=binding) when binding.Info.Value.IsField && not binding.Info.Value.HasLocalEnclosing ->
                             Some binding
                         | _ ->
                             None
@@ -399,10 +395,10 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
                 if ctor.IsInstance then
                     let thisPar = ctor.Parameters.[0]
-                    let thisExpr = E.CreateValue(syntaxInfo.Syntax.Tree, thisPar)
+                    let thisExpr = E.CreateGeneratedValue(syntaxInfo.Syntax, thisPar)
                     let newBodyExpr =
                         let firstExprOpt =
-                            if ent.Extends.IsEmpty || ent.IsNewtype || ent.IsAnyStruct then None
+                            if ent.Extends.IsEmpty || ent.IsNewtype || ent.IsStruct then None
                             else
                                 let baseTy = ent.Extends.[0]
                                 let baseTy =
@@ -415,16 +411,16 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                                         | _ -> baseTy
                                     | _ ->
                                         baseTy
-                                match baseTy.TryEntity with
+                                match baseTy.TryEntityNoAlias with
                                 | ValueSome(baseEnt) ->
                                     let baseDefaultInstanceCtorOpt =
-                                        createBaseInstanceConstructors "" baseEnt
+                                        createBaseInstanceConstructors baseEnt
                                         |> ImArray.tryFind (fun x -> x.IsInstanceConstructor && x.LogicalParameterCount = 0)
 
                                     match baseDefaultInstanceCtorOpt with
                                     | Some(baseDefaultInstanceCtor) ->
                                         Some(E.Call(
-                                            BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree),
+                                            BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                                             (Some(thisExpr)),
                                             ImArray.empty,
                                             ImArray.empty,
@@ -438,20 +434,21 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
                         let ctorBodyExpr =
                             if ent.IsNewtype then
-                                let syntaxInfoGenerated = BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)
+                                let syntaxInfoGenerated = BoundSyntaxInfo.Generated(syntaxInfo.Syntax)
                                 E.SetField(
                                     syntaxInfoGenerated,
                                     thisExpr,
                                     (ent.GetInstanceFields()[0]),
-                                    E.CreateValue(syntaxInfoGenerated, ctor.Parameters[1])
+                                    E.CreateValue(syntaxInfoGenerated, ctor.Parameters[1]),
+                                    isCtorInit = true
                                 )
                             else
-                                (E.None(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)), fieldBindings)
+                                (E.None(BoundSyntaxInfo.Generated(syntaxInfo.Syntax)), fieldBindings)
                                 ||> ImArray.foldBack (fun expr fieldBinding ->
                                     match fieldBinding with
                                     | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when field.IsInstance ->
-                                        E.CreateSequential(
-                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), thisExpr, field, rhsExpr),
+                                        E.CreateGeneratedSequential(
+                                            E.SetField(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), thisExpr, field, rhsExpr, isCtorInit = true),
                                             expr
                                         )
                                     | _ ->
@@ -461,22 +458,22 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         let ctorBodyExpr =
                             match firstExprOpt with
                             | Some(firstExpr) ->
-                                E.CreateSequential(firstExpr, ctorBodyExpr)
+                                E.CreateGeneratedSequential(firstExpr, ctorBodyExpr)
                             | _ ->
                                 ctorBodyExpr
 
                         let lazyCtorBodyExpr = LazyExpression.CreateNonLazy(None, fun _ -> ctorBodyExpr)
 
                         let ctorRhsExpr =
-                            E.CreateLambda(
-                                syntaxInfo.Syntax.Tree,
+                            E.CreateGeneratedLambda(
+                                syntaxInfo.Syntax,
                                 LambdaFlags.None,
                                 ctor.TypeParameters,
                                 ctor.Parameters,
                                 lazyCtorBodyExpr
                             )
-                        E.CreateSequential(
-                            E.CreateFunctionDefinition(ctor, ctorRhsExpr),
+                        E.CreateGeneratedSequential(
+                            E.CreateGeneratedFunctionDefinition(ctor, ctorRhsExpr),
                             bodyExpr
                         )
 
@@ -484,12 +481,12 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                 else
                     let newBodyExpr =
                         let ctorBodyExpr =
-                            (E.None(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree)), fieldBindings)
+                            (E.None(BoundSyntaxInfo.Generated(syntaxInfo.Syntax)), fieldBindings)
                             ||> ImArray.foldBack (fun expr fieldBinding ->
                                 match fieldBinding with
                                 | BoundBinding.Implementation(bindingInfo=BindingField(field=field); rhs=rhsExpr) when not field.IsInstance ->
-                                    E.CreateSequential(
-                                        E.SetValue(BoundSyntaxInfo.Generated(syntaxInfo.Syntax.Tree), field, rhsExpr),
+                                    E.CreateGeneratedSequential(
+                                        E.SetValue(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), field, rhsExpr),
                                         expr
                                     )
                                 | _ ->
@@ -501,15 +498,15 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
                         let lazyCtorBodyExpr = LazyExpression.CreateNonLazy(None, fun _ -> ctorBodyExpr)
 
                         let ctorRhsExpr =
-                            E.CreateLambda(
-                                syntaxInfo.Syntax.Tree,
+                            E.CreateGeneratedLambda(
+                                syntaxInfo.Syntax,
                                 LambdaFlags.None,
                                 ctor.TypeParameters,
                                 ImArray.empty,
                                 lazyCtorBodyExpr
                             )
-                        E.CreateSequential(
-                            E.CreateFunctionDefinition(ctor, ctorRhsExpr),
+                        E.CreateGeneratedSequential(
+                            E.CreateGeneratedFunctionDefinition(ctor, ctorRhsExpr),
                             bodyExpr
                         )
                     newBodyExpr
@@ -527,16 +524,16 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
     // Implicit copy for read-only by-ref to non-read-only by-ref.
     | E.Call(syntaxInfo, Some(receiverArgExpr), witnessArgs, logicalArgExprs, value, isVirtualCall) when value.IsFunction ->
         let firstParTy = value.AsFunction.Parameters[0].Type
-        if not firstParTy.IsReadOnlyByRef then
+        if not firstParTy.IsReadOnlyByRef_ste then
             let receiverArgExprTy = receiverArgExpr.Type
-            if receiverArgExprTy.IsReadOnlyByRef then
+            if receiverArgExprTy.IsReadOnlyByRef_ste then
                 let copy = createMutableLocalGeneratedValue "implicitCopy" (receiverArgExprTy.GetByReferenceElementType())
                 let copyExpr =
                     E.Let(
-                        BoundSyntaxInfo.Generated(syntaxTree),
+                        BoundSyntaxInfo.Generated(syntaxInfo.Syntax),
                         BindingLocal(copy),
                         WellKnownExpressions.FromAddress(receiverArgExpr),
-                        WellKnownExpressions.AddressOfMutable(E.Value(BoundSyntaxInfo.Generated(syntaxTree), copy))
+                        WellKnownExpressions.AddressOfMutable(E.Value(BoundSyntaxInfo.Generated(syntaxInfo.Syntax), copy))
                     )
                 E.Call(syntaxInfo, Some(copyExpr), witnessArgs, logicalArgExprs, value, isVirtualCall)
             else
@@ -549,5 +546,5 @@ let rec lower (ct: CancellationToken) syntaxTree (origExpr: E) =
 
 let Lower (ct: CancellationToken) (boundTree: BoundTree) =
     boundTree.RewriteExpression(fun origExpr ->
-        lower ct boundTree.SyntaxTree origExpr
+        lower ct origExpr
     )

@@ -1,0 +1,384 @@
+namespace olycli
+
+open System
+open System.IO
+open System.Text
+open System.Threading
+open System.ComponentModel
+open System.Security.Cryptography
+open Spectre.Console
+open Spectre.Console.Cli
+open Errata
+open Microsoft.FSharp.Core
+open Oly.Core
+open Oly.Core.IO
+open Oly.LanguageServer
+
+open static Oly.Core.Tracing
+
+enum LogVerbosity =
+    | Quiet
+    | Normal
+    | Detailed
+
+class LogInfoFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Detailed =>
+            AnsiConsole.WriteLine(msg)
+        | LogVerbosity.Normal =>
+            if (msg.StartsWith("[Compilation]"))
+                AnsiConsole.WriteLine(msg)
+        | _ =>
+            ()
+        null
+
+class LogWarnFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Normal
+        | LogVerbosity.Detailed =>
+            ()
+         //   AnsiConsole.MarkupLine("[yellow]{0}[/]", mutable [Spectre.Console.StringExtensions.EscapeMarkup(msg)])
+        | _ =>
+            ()
+        null
+
+class LogErrorFunc =
+    inherits FSharpFunc<string, Unit>
+
+    private Verbosity: LogVerbosity get
+    new(verbosity: LogVerbosity) = base() { Verbosity = verbosity }
+
+    overrides Invoke(msg: string): Unit =
+        match (this.Verbosity)
+        | LogVerbosity.Normal
+        | LogVerbosity.Detailed =>
+            ()
+          //  AnsiConsole.MarkupLine("[red]{0}[/]", mutable [StringExtensions.EscapeMarkup(msg)])
+        | _ =>
+            ()
+        null
+
+private module VersionHelpers =
+
+    GetVersionText(): string =
+        let exePath = Path.GetDirectoryName(Environment.ProcessPath)
+        File.ReadAllText(Path.Combine(exePath, "version.txt"))
+
+#[export]
+class DefaultCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("--version", false)]
+        #[Description("Display Oly version in use.")]
+        Version: bool get, set = false
+
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
+        if (settings.Version)
+            AnsiConsole.WriteLine(VersionHelpers.GetVersionText())
+        0
+
+
+#[export]
+class BuildCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-c|--configuration", false)]
+        #[DefaultValue("Debug")]
+        Configuration: string get, set = "Debug"
+
+        #[CommandOption("-v|--verbosity", false)]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
+        #[CommandArgument(0, "<project-file>")]
+        ProjectFile: string get, set = String.Empty
+
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+
+        let mutable projectPath = OlyPath.Create(settings.ProjectFile)
+        let mutable results = olylib.Oly.Build(settings.Configuration, projectPath, CancellationToken.None).Result.Value
+        if (results.IsOk)
+            AnsiConsole.MarkupLine("[green]Build Successful[/]: {0}", mutable [results.ResultValue.Path.ToString()] )
+            0
+        else
+            let repo = InMemorySourceRepository()
+            let report = Report(repo)
+            let mutable diags = results.ErrorValue
+            For(diags.Length,
+                i ->
+                    let diag = diags[i]
+                    if (diag.IsError)
+                        let locationLabel =
+                            Label(
+                                let path =
+                                    if (diag.SyntaxTree === null)
+                                        projectPath.ToString()
+                                    else
+                                        diag.SyntaxTree.Value.Path.ToString()
+                                repo.Register(path, File.ReadAllText(path))
+                                path,
+                                TextSpan(diag.TextSpan.Start, diag.TextSpan.End),
+                                diag.Message
+                            )
+                        locationLabel.Color <- Color.Red
+                        let newDiag =
+                            DiagnosticExtensions.WithCode(
+                                Diagnostic.Error(diag.Message), diag.CodePrefix + diag.Code.ToString("D4")
+                            )
+                        let newDiag =
+                            DiagnosticExtensions.WithColor(newDiag, Color.Red)
+                        report.Diagnostics.Add(
+                            DiagnosticExtensions.WithColor(
+                                DiagnosticExtensions.WithLabel(
+                                    newDiag,
+                                    locationLabel
+                                ),
+                                Color.Red
+                            )
+                        )
+            )
+            report.Render(AnsiConsole.Console, null)
+            AnsiConsole.WriteLine()
+            AnsiConsole.MarkupLine("[red]Build Failed[/]")
+            1
+
+#[export]
+class CleanCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-v|--verbosity", false)]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+        olylib.Oly.Clean(Environment.CurrentDirectory)
+        0
+
+private module InstallHelpers =
+
+    GetRunScriptFilePath(installPath: string): string =
+        if (OperatingSystem.IsWindows())
+            Path.Combine(installPath.ToString(), "oly.bat")
+        else
+            Path.Combine(installPath.ToString(), "oly")
+
+    InstallCore(exePath: string, installPath: string, runScriptFilePath: string): () =
+        CreateInstallDirectoryIfNeeded(installPath)
+
+        let installBinPath = GetInstallBinPath(installPath)
+        DeleteInstallBinDirectoryIfNeeded(installBinPath)
+
+        let _ = Directory.CreateDirectory(installBinPath)
+        OlyIO.CopyDirectory(exePath, installBinPath)
+
+        if (OperatingSystem.IsWindows())
+            ModifyPathIfNeededWindows(installPath)
+            WriteRunScriptWindows(runScriptFilePath)
+        else if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+            ModifyPathIfNeededUnix(installPath)
+            WriteRunScriptUnix(runScriptFilePath)
+        else
+            throw NotSupportedException(Environment.OSVersion.VersionString + " not supported.")
+
+    Install(exePath: string, olyInstallPath: string, runScriptFilePath: string): () =
+        AnsiConsole.Status()
+            .Start("Installing Oly...",
+                ctx ->
+                    Thread.Sleep(1000)
+                    try
+                        InstallCore(exePath, olyInstallPath, runScriptFilePath)
+                        AnsiConsole.MarkupLine("[bold green]Oly installed[/]: " + olyInstallPath)
+                    catch (ex: Exception) =>
+                        fail("Failed to install Oly. Reason: " + ex.Message)
+            )
+
+    private CreateInstallDirectoryIfNeeded(installPath: string): () =
+        try
+            let _ = Directory.CreateDirectory(installPath)
+        catch (_ex: Exception) => ()
+        if (!Directory.Exists(installPath))
+            fail("Unable to create installation directory. Check permissions.")
+
+    private GetInstallBinPath(installPath: string): string =
+        Path.Combine(installPath, "bin")
+
+    private AssertBinFilesNotBeingUsed(installBinPath: string): () =
+        let options = EnumerationOptions()
+        options.RecurseSubdirectories <- true
+        ForEach(Directory.EnumerateFiles(installBinPath, "*.*", options),
+            file ->
+                let mutable file = OlyPath.Create(file)
+                try
+                    let stream = FileStream(file.ToString(), FileMode.Open, FileAccess.Read, FileShare.None)
+                    stream.Dispose()
+                catch (ex: Exception) =>
+                    let normalizedFile =
+                        if (OperatingSystem.IsWindows())
+                            file.ToString().Replace('/', '\\')
+                        else
+                            file.ToString()
+                    fail("File '" + normalizedFile + "' is in use.")
+        )
+
+    private DeleteInstallBinDirectoryIfNeeded(installBinPath: string): () =
+        // Sanity check to ensure we only delete files in the '.oly' directory.
+        if (!installBinPath.Contains(".oly"))
+            fail("Invalid installation directory.")
+        if (Directory.Exists(installBinPath))
+            AssertBinFilesNotBeingUsed(installBinPath)
+            Directory.Delete(installBinPath, true)
+
+    private ModifyPathIfNeededWindows(installPath: string): () =
+        let envVarTarget = EnvironmentVariableTarget.User
+        let paths = Environment.GetEnvironmentVariable("PATH", envVarTarget)
+        if (paths === unchecked default)
+            fail("PATH not found.")
+
+        let paths = paths.Split(mutable [';'])
+
+        let mutable exists = false
+        let mutable olyInstallPath = OlyPath.Create(installPath)
+        ForEach(paths,
+            path ->
+                let path = OlyPath.Create(path)
+                if (OlyPath.Equals(olyInstallPath, path))
+                    exists <- true
+        )
+
+        if (!exists)
+            let normalizedInstallPath = olyInstallPath.ToString().Replace('/', '\\')
+            let paths = String.Join(';', paths) + ";" + normalizedInstallPath
+            Environment.SetEnvironmentVariable("PATH", paths, envVarTarget)
+            let _ = OlyTrace.LogWarning.Invoke("PATH modified")
+
+    private ModifyPathIfNeededUnix(installPath: string): () =
+        let shellConfigPath =
+            if (OperatingSystem.IsMacOS())
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".zshrc"
+                )
+            else
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".bashrc"
+                )
+
+        // IMPORTANT: If this text changes, then it will make re-installing problematic as we will not be able to detect
+        //            an already modified shell config.
+        let exportTxt = "# Added by Oly\nexport PATH=\"$PATH:" + installPath + "\""
+        let txt = File.ReadAllText(shellConfigPath)
+
+        if (!txt.Contains(exportTxt))
+            File.WriteAllText(shellConfigPath, txt + exportTxt)
+            let _ = OlyTrace.LogWarning.Invoke("'" + shellConfigPath + "'" + " modified\n")
+
+    private WriteRunScriptWindows(runScriptFilePath: string): () =
+        let bat = "@\"%~dp0\\bin\\oly.exe\" %*"
+        File.WriteAllText(runScriptFilePath, bat)
+
+    private WriteRunScriptUnix(runScriptFilePath: string): () =
+        let shell = "SCRIPT_DIR=$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\n$SCRIPT_DIR/bin/oly \"$@\" "
+        File.WriteAllText(runScriptFilePath, shell)
+        let mode = File.GetUnixFileMode(runScriptFilePath)
+        File.SetUnixFileMode(runScriptFilePath, mode | UnixFileMode.UserExecute)
+
+#[export]
+class InstallCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+        #[CommandOption("-v|--verbosity", false)]
+        #[DefaultValue("normal")]
+        Verbosity: LogVerbosity get, set = LogVerbosity.Normal
+
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
+        OlyTrace.Log <- LogInfoFunc(settings.Verbosity)
+        OlyTrace.LogWarning <- LogWarnFunc(settings.Verbosity)
+        OlyTrace.LogError <- LogErrorFunc(settings.Verbosity)
+
+        try
+            let exePath = Path.GetDirectoryName(Environment.ProcessPath)
+            if (false && exePath.Contains(".oly"))
+                let _ = OlyTrace.LogWarning.Invoke("This binary of Oly is already installed.")
+            else
+                let userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                let installPath = Path.Combine(userPath, ".oly/").Replace('\\', '/')
+                if (!Directory.Exists(installPath))
+                    let _ = Directory.CreateDirectory(installPath)
+                let runScriptPath = InstallHelpers.GetRunScriptFilePath(installPath)
+
+                if (File.Exists(runScriptPath))
+                    if (AnsiConsole.Confirm("Oly already installed. Re-install?", false))
+                        InstallHelpers.Install(exePath, installPath, runScriptPath)
+
+                else if (AnsiConsole.Confirm("Install Oly to: " + installPath, true))
+                    InstallHelpers.Install(exePath, installPath, runScriptPath)
+
+        catch (ex: Exception) =>
+            let _ = OlyTrace.LogError.Invoke(ex.Message)
+
+        0
+
+private module LspHelpers =
+
+    CreateEventHandler<H, TArgs, TReturn>(f: (object, TArgs) -> TReturn): H
+            where H: { new(object, nint); Invoke(object, TArgs): TReturn } =
+        let handle: Func<object, TArgs, TReturn> = Unsafe.As(f)
+        H(handle.Target, handle.Method.MethodHandle.GetFunctionPointer())
+
+#[export]
+class LspCommand =
+    inherits Command<Settings>
+
+    class Settings =
+        inherits CommandSettings
+
+    protected overrides Execute(context: CommandContext, settings: Settings, ct: CancellationToken): int32 =
+        try
+            // This is needed because the 'deps.json' doesn't seem to include 'Microsoft.VisualStudio.Threading.dll'.
+            let handler: ResolveEventHandler =
+                LspHelpers.CreateEventHandler(
+                    (_, args) ->
+                        if (args.Name.Contains("Microsoft.VisualStudio.Threading"))
+                            let dir = Path.GetDirectoryName(Environment.ProcessPath)
+                            let file = Path.Combine(dir, "Microsoft.VisualStudio.Threading.dll")
+                            System.Reflection.Assembly.LoadFile(file)
+                        else
+                            null
+                )
+            let _ = AppDomain.CurrentDomain.add_AssemblyResolve(handler)
+
+            OlyLanguageServer.run(mutable [])
+        catch (ex: Exception) =>
+            AnsiConsole.Write(ex.ToString())
+            1

@@ -1,8 +1,9 @@
-﻿namespace Oly.Runtime.Target.DotNet
+﻿namespace Oly.Targets.DotNet
 
 open System
 open System.IO
 open System.Diagnostics
+open System.Diagnostics.CodeAnalysis
 open System.Reflection
 open System.Threading
 open System.Reflection.PortableExecutable
@@ -12,13 +13,14 @@ open System.Collections.Concurrent
 open System.Collections.Immutable
 
 open Oly.Core
+open Oly.Core.IO
 open Oly.Metadata
 open Oly.Compiler
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
-open Oly.Runtime.Clr.Emitter
+open Oly.Emitters.DotNet
 
 open Microsoft.Build.Framework
 open Microsoft.CodeAnalysis
@@ -26,42 +28,233 @@ open Microsoft.CodeAnalysis.Text
 open Microsoft.CodeAnalysis.MSBuild
 open Microsoft.CodeAnalysis.CSharp
 
-open Oly.Runtime.Target.DotNet.MSBuild
+open Oly.Targets.DotNet.MSBuild
+open Oly.Targets.Core
 
-[<AutoOpen>]
-module private Helpers2 =
+[<RequireQualifiedAccess>]
+module DotNetDiagnostic =
 
-    let rec copyDir srcDir dstDir =
-        let dir = DirectoryInfo(srcDir)
-    
-        // Cache directories before we start copying
-        let dirs = dir.GetDirectories()
+    [<Literal>]
+    let CodePrefixDOTNET = "DOTNET"
 
-        // Create the destination directory
-        Directory.CreateDirectory(dstDir) |> ignore
+[<RequireQualifiedAccess>]
+module ERROR =
 
-        // Get the files in the source directory and copy to the destination directory
-        for file in dir.GetFiles() do
-            let targetFilePath = Path.Combine(dstDir, file.Name)
-            let targetFile = FileInfo(targetFilePath)
-            if targetFile.Exists then
-                if file.LastWriteTimeUtc > targetFile.LastWriteTimeUtc then                  
-                    file.CopyTo(targetFilePath, true) |> ignore
+    let createUnableToResolveReferences (ex: Exception) =
+        Debug.WriteLine(ex)
+        OlyDiagnostic.CreateError($"Unable to resolve references: {ex.Message}", DotNetDiagnostic.CodePrefixDOTNET, 500)
+
+    let createUnableToFindPrimaryAssembly () =
+        OlyDiagnostic.CreateError("Unable to find primary assembly.", DotNetDiagnostic.CodePrefixDOTNET, 501)
+
+    let createUnableToFindConsoleAssembly () =
+        OlyDiagnostic.CreateError("Unable to find console assembly.", DotNetDiagnostic.CodePrefixDOTNET, 502)
+
+[<RequireQualifiedAccess>]
+module private P =
+
+    [<Literal>]
+    let publish = "publish"
+
+    [<RequireQualifiedAccess>]
+    module publishv =
+
+        [<Literal>]
+        let none = "none"
+
+        [<Literal>]
+        let standalone = "standalone"
+
+        [<Literal>]
+        let r2r = "r2r"
+
+        [<Literal>]
+        let aot = "aot"
+
+    [<Literal>]
+    let icon = "icon"
+
+// this must be public for serialization to work
+[<Sealed;Serializable>]
+type ProjectBuildInfoJsonFriendly [<System.Text.Json.Serialization.JsonConstructor>]
+        (targetName: string, projectPath: string, outputPath: string, references: string array, filesToCopy: string array, dependencyTimeStamp: DateTime, isExe: bool, publishKind: string) =
+
+    member _.TargetName = targetName
+    member _.ProjectPath = projectPath
+    member _.OutputPath = outputPath
+    member _.References = references
+    member _.FilesToCopy = filesToCopy
+    member _.DependencyTimeStamp = dependencyTimeStamp
+    member _.IsExe = isExe
+    member _.PublishKind = publishKind
+
+module private DotNet =
+
+    let private defaultCs = """static class Program
+{
+    static void Main()
+    {
+    }
+}"""
+
+    let createMainCs call = $"""static class Program
+{{
+    static void Main(string[] args)
+    {{
+        {call}
+    }}
+}}"""
+
+    let getBuildInfo 
+            projectName
+            (projectDir: OlyPath)
+            (cacheDir: OlyPath) 
+            (configName: string) 
+            (isExe: bool) 
+            (msbuildTargetInfo: MSBuildTargetInfo)
+            fileReferences 
+            dotnetProjectReferences 
+            dotnetPackages 
+            (ct: CancellationToken) =
+        backgroundTask {
+            let cachedBuildInfoJson = cacheDir.Join($"__oly_cached_build_info.json")
+
+            let build() = backgroundTask {
+                let msbuild = MSBuild()
+                let! result = msbuild.CreateAndBuildProjectAsync(defaultCs, projectDir, cacheDir, projectName, configName, isExe, msbuildTargetInfo, fileReferences, dotnetProjectReferences, dotnetPackages, ct)
+                let resultJsonFriendly =
+                    ProjectBuildInfoJsonFriendly(
+                        msbuildTargetInfo.TargetName,
+                        result.ProjectPath.ToString(),
+                        result.OutputPath,
+                        result.References |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
+                        result.FilesToCopy |> Seq.map (fun x -> x.ToString()) |> Seq.toArray,
+                        result.DependencyTimeStamp,
+                        result.IsExe,
+                        msbuildTargetInfo.PublishKind.ToString()
+                    )
+
+                do! Json.SerializeAsFileAsync(cachedBuildInfoJson, resultJsonFriendly, ct)
+                return result
+            }
+
+            if File.Exists(cachedBuildInfoJson.ToString()) then
+                try
+                    let! resultJsonFriendly = Json.DeserializeFromFileAsync<ProjectBuildInfoJsonFriendly>(cachedBuildInfoJson, ct)
+
+                    let isValid =
+                        resultJsonFriendly.TargetName = msbuildTargetInfo.TargetName &&
+                        resultJsonFriendly.References
+                        |> Array.forall File.Exists
+
+                    if isValid then
+                        let (dependencyTimeStamp, dependencyPath) = MSBuild.GetDependencyTimeStamp dotnetProjectReferences
+                        let hasDependencyChanged = resultJsonFriendly.DependencyTimeStamp <> dependencyTimeStamp
+                        let hasIsExeChanged = resultJsonFriendly.IsExe <> isExe
+                        let hasPublishKindChanged = MSBuildPublishKind.Parse(resultJsonFriendly.PublishKind) <> msbuildTargetInfo.PublishKind
+
+                        if hasDependencyChanged || hasIsExeChanged || hasPublishKindChanged then
+                            if hasDependencyChanged then
+                                OlyTrace.Log($"[MSBuild] Dependency changed: {dependencyPath}")
+                            OlyTrace.Log($"[MSBuild] Cache is invalid. Rebuilding...")
+                            return! build()
+                        else
+                            OlyTrace.Log($"[MSBuild] Using cached DotNet assembly resolution: {cachedBuildInfoJson}")
+                            return 
+                                {
+                                    TargetName = resultJsonFriendly.TargetName
+                                    ProjectPath = OlyPath.Create(resultJsonFriendly.ProjectPath)
+                                    OutputPath = resultJsonFriendly.OutputPath
+                                    References = resultJsonFriendly.References |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                                    FilesToCopy = resultJsonFriendly.FilesToCopy |> Seq.map (OlyPath.Create) |> ImArray.ofSeq
+                                    ReferenceNames =
+                                        (ImmutableHashSet.Empty, resultJsonFriendly.References)
+                                        ||> Array.fold (fun s r ->
+                                            s.Add(Path.GetFileName(r))
+                                        )
+                                    DependencyTimeStamp = resultJsonFriendly.DependencyTimeStamp
+                                    IsExe = resultJsonFriendly.IsExe
+                                }
+                    else
+                        OlyTrace.Log($"[MSBuild] Cache is invalid. Rebuilding...")
+                        return! build()
+                with
+                | ex ->
+                    Debug.WriteLine(ex)
+                    OlyTrace.Log($"[MSBuild] Cache is invalid and encountered an error: {ex.Message}")
+                    return! build()
             else
-                file.CopyTo(targetFilePath) |> ignore
+                return! build()
+        }
 
-        for subDir in dirs do
-            let newDestinationDir = Path.Combine(dstDir, subDir.Name)
-            copyDir subDir.FullName newDestinationDir
+    let publish
+            call
+            projectName
+            (projectDir: OlyPath)
+            (outputPath: OlyPath) 
+            (configName: string) 
+            (isExe: bool) 
+            msbuildTargetInfo
+            referenceInfos 
+            projReferenceInfos 
+            packageInfos 
+            (ct: CancellationToken) =
+        backgroundTask {
+            let msbuild = MSBuild()
+            let! result = msbuild.CreateAndBuildProjectAsync(createMainCs call, projectDir, outputPath, projectName, configName, isExe, msbuildTargetInfo, referenceInfos, projReferenceInfos, packageInfos, ct)
+            return result
+        }
 
-module private DotNetReferences =
+    let createMSBuildTargetInfo targetName (properties: OlyProjectProperties) =
+        let mutable msbuildTargetInfo = { TargetName = targetName; PublishKind = MSBuildPublishKind.JIT; Icon = None }
 
-    let getDotNetInfo (cacheDir: OlyPath) (isExe: bool) (targetName: string) referenceInfos projReferenceInfos packageInfos (ct: CancellationToken) =
-        let msbuild = MSBuild()
-        msbuild.CreateAndBuildProjectAsync("__oly_placeholder", cacheDir, isExe, targetName, referenceInfos, projReferenceInfos, packageInfos, ct)
+        match properties.TryGetValue P.publish with
+        | Some(propertyValue: string) ->
+            let publishKind =
+                match propertyValue with
+                | P.publishv.standalone -> MSBuildPublishKind.Standalone
+                | P.publishv.r2r -> MSBuildPublishKind.ReadyToRun
+                | P.publishv.aot -> MSBuildPublishKind.NativeAOT
+                | P.publishv.none -> MSBuildPublishKind.JIT
+                | _ -> failwith "Invalid 'publish' value."
+            msbuildTargetInfo <- { msbuildTargetInfo with PublishKind = publishKind }
+        | _ ->
+            ()
 
-type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb: bool) =
+        match properties.TryGetValue P.icon with
+        | Some(iconPath: string) ->
+            msbuildTargetInfo <- { msbuildTargetInfo with Icon = Some iconPath }
+        | _ ->
+            ()
+
+        msbuildTargetInfo
+
+type DotNetTarget internal (platformName: string, copyReferences: bool) =
     inherit OlyBuild(platformName)
+
+    static let propertyDefinitions =
+        seq {
+            KeyValuePair(P.publish,
+                { 
+                    OlyProjectPropertyDefinition.IsExecutableOnly = true
+                    OlyProjectPropertyDefinition.Type = 
+                        OlyProjectPropertyType.String(Some(
+                            seq {
+                                P.publishv.none
+                                P.publishv.standalone
+                                P.publishv.r2r
+                                P.publishv.aot
+                            }
+                            |> ImmutableHashSet.CreateRange
+                        ))
+                })
+            KeyValuePair(P.icon,
+                { 
+                    OlyProjectPropertyDefinition.IsExecutableOnly = true;
+                    OlyProjectPropertyDefinition.Type = OlyProjectPropertyType.FilePath
+                })
+        }
+        |> ImmutableDictionary.CreateRange
 
     let gate = obj ()
 
@@ -92,8 +285,16 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     let referenceChanged = Event<OlyPath>()
 
+    let directoryWatcherEquality =
+        { new IEqualityComparer<OlyPath * string> with
+            member _.GetHashCode (obj: OlyPath * string): int = 
+               (fst obj).GetHashCode()
+            member _.Equals ((path1, filter1): OlyPath * string, (path2, filter2): OlyPath * string): bool = 
+                path1 = path2 && filter1 = filter2
+        }
+
     let dirGate = obj()
-    let directoryWatchers = ConcurrentDictionary<OlyPath * string, FileSystemWatcher>()
+    let directoryWatchers = ConcurrentDictionary<OlyPath * string, FileSystemWatcher>(directoryWatcherEquality)
     let addDirectoryWatcher (dir: OlyPath) (filter: string) =
         // fast route
         match directoryWatchers.TryGetValue((dir, filter)) with
@@ -131,8 +332,6 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
 
     let netInfos = ConcurrentDictionary<OlyPath, ProjectBuildInfo>()
 
-    let frameworkRefs = ConcurrentDictionary<string, ProjectBuildInfo>()
-
     static member CompileCSharp(name: string, src: string, references: OlyPath imarray, ct: CancellationToken) =
         let references = 
             references
@@ -162,30 +361,13 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
     abstract GetReferenceAssemblyName : OlyPath -> string
     default _.GetReferenceAssemblyName(path) =
         let pathStr = path.ToString()
-        Path.GetFileNameWithoutExtension(pathStr)   
-
-    override this.OnBeforeReferencesImportedAsync(projPath: OlyPath, targetInfo: OlyTargetInfo, ct: System.Threading.CancellationToken): System.Threading.Tasks.Task<unit> =
-        backgroundTask {
-            match frameworkRefs.TryGetValue targetInfo.Name with
-            | true, netInfo ->
-                netInfos[projPath] <- netInfo
-                ()
-            | _ ->
-                let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name ImArray.empty ImArray.empty ImArray.empty ct
-                netInfos[projPath] <- netInfo
-                frameworkRefs[targetInfo.Name] <- netInfo
-                return ()
-        }
-
-    override this.OnAfterReferencesImported() =
-        ()
+        Path.GetFileNameWithoutExtension(pathStr)
 
     override _.IsValidTargetName _ = true 
 
     override _.CanImportReference path = 
         let isValid =
-            let ext = OlyPath.GetExtension(path)
+            let ext = path.GetExtension()
             ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
             ext.Equals(".cs", StringComparison.OrdinalIgnoreCase) ||
             ext.EndsWith("proj", StringComparison.OrdinalIgnoreCase)
@@ -197,29 +379,30 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
         else
             false
 
-    override this.ImportReferenceAsync(projPath, targetInfo, path, ct) =
+    override this.ImportReferenceAsync(projPath, targetInfo, projectFile, ct) =
         backgroundTask {
             let netInfo = netInfos[projPath]
             try
-                let pathStr = path.ToString()
-                let dir = OlyPath.GetDirectory(path)
-                let name = this.GetReferenceAssemblyName(path)
+                let pathStr = projectFile.ToString()
+                let dir = projectFile.GetDirectory()
+                let name = this.GetReferenceAssemblyName(projectFile)
                 let ext = Path.GetExtension(pathStr).ToLower()
 
                 let isTransitive =
                     // This is ok to check because, at this point, 'netInfo' only has framework references.
                     // We do not want to make the framework references transitive for dotnet.
-                    not(netInfo.ReferenceNames.Contains(OlyPath.GetFileName(path)))
+                    not(netInfo.ReferenceNames.Contains(projectFile.GetFileName()))
 
-                match assemblyCache.TryGetValue(path) with
+                match assemblyCache.TryGetValue(projectFile) with
                 | true, (path, version, ilAsm, _) -> 
                     let compRef = OlyCompilationReference.Create(path, version, ilAsm)
                     return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
                 | _ ->
                     if ext.Equals(".cs") then
-                        // TODO: Remove ".cs" as an acceptable reference to import. We should only rely on ".csproj" or ".*proj" files.
-                        let cacheDir = this.GetAbsoluteCacheDirectory(path)
-                        let! netInfo = DotNetReferences.getDotNetInfo cacheDir false targetInfo.Name [] [] [] ct
+                        let scratchDir = this.GetProjectScratchDirectory(targetInfo, projectFile)
+                        let cacheDir = this.GetProjectCacheDirectory(targetInfo, projectFile)
+                        let msbuildTargetInfo = { TargetName = targetInfo.Name; PublishKind = MSBuildPublishKind.JIT; Icon = None }
+                        let! netInfo = DotNet.getBuildInfo (Path.GetFileNameWithoutExtension(ext)) scratchDir cacheDir targetInfo.ProjectConfiguration.Name false msbuildTargetInfo [] [] [] ct
                         let references = 
                             netInfo.References
                             |> ImArray.map (fun x -> PortableExecutableReference.CreateFromFile(x.ToString()) :> MetadataReference)
@@ -238,15 +421,15 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                         if result.Success then
                             ms.Position <- 0L
                             let ilAsm = Importer.Import(comp.AssemblyName, ms)
-                            let compRef = addAssemblyReference path ilAsm
+                            let compRef = addAssemblyReference projectFile ilAsm
                             addDirectoryWatcher dir ("*" + ext)
 
                             ms.Position <- 0L
                             lock csOutputsGate (fun () ->
-                                match csOutputs.TryGetValue path with
+                                match csOutputs.TryGetValue projectFile with
                                 | true, ms -> ms.Dispose()
                                 | _ -> ()
-                                csOutputs.[path] <- ms
+                                csOutputs.[projectFile] <- ms
                             )
 
                             return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
@@ -259,7 +442,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                     else
                         use fs = File.OpenRead(pathStr)
                         let ilAsm = Importer.Import(name, fs)
-                        let compRef = addAssemblyReference path ilAsm
+                        let compRef = addAssemblyReference projectFile ilAsm
                         addDirectoryWatcher dir ("*" + ext)
                         return Result.Ok(OlyImportedReference(compRef, isTransitive) |> Some)
             with
@@ -267,37 +450,62 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                 return Result.Error(ex.ToString())
         }
 
-    override this.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos: OlyPackageInfo imarray, ct: CancellationToken) =
+    override this.ResolveReferencesAsync(projPath, targetInfo, referenceInfos, packageInfos: OlyPackageInfo imarray, properties, ct: CancellationToken) =
         backgroundTask {
             ct.ThrowIfCancellationRequested()
             try
-                let projReferenceInfos =
+                let dotnetProjectReferences =
                     referenceInfos
                     |> ImArray.filter (fun x -> x.Path.EndsWith("proj"))
                     |> ImArray.map (fun x -> x.Path.ToString())
-                let referenceInfos =
+                let fileReferences =
                     referenceInfos
                     |> ImArray.filter (fun x -> x.Path.EndsWith("proj") |> not)
                     |> ImArray.map (fun x -> x.Path.ToString())
-                let packageInfos =
+                let dotnetPackages =
                     packageInfos 
                     |> ImArray.map (fun x -> x.Text)
-                let cacheDir = this.GetAbsoluteCacheDirectory(projPath)
-                let! netInfo = DotNetReferences.getDotNetInfo cacheDir targetInfo.IsExecutable targetInfo.Name referenceInfos projReferenceInfos packageInfos ct
+                let scratchDir = this.GetProjectScratchDirectory(targetInfo, projPath)
+                let cacheDir = this.GetProjectCacheDirectory(targetInfo, projPath)
+                let msbuildTargetInfo = DotNet.createMSBuildTargetInfo targetInfo.Name properties
+                let! netInfo = DotNet.getBuildInfo (projPath.GetFileNameWithoutExtension()) scratchDir cacheDir targetInfo.ProjectConfiguration.Name targetInfo.IsExecutable msbuildTargetInfo fileReferences dotnetProjectReferences dotnetPackages ct
                 netInfos[projPath] <- netInfo
                 return OlyReferenceResolutionInfo(netInfo.References, netInfo.FilesToCopy, ImArray.empty)
             with
             | ex ->
-                let diag = OlyDiagnostic.CreateError($"Unable to resolve references: {ex.Message}")
+                let diag = ERROR.createUnableToResolveReferences ex
                 return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.createOne diag)
         }
 
+    override this.GetProjectPropertyDefinitions (_targetInfo: OlyTargetInfo): ImmutableDictionary<string,OlyProjectPropertyDefinition> = 
+        propertyDefinitions
+
+    [<DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof<ProjectBuildInfoJsonFriendly>)>]
     override this.BuildProjectAsync(proj, ct) = backgroundTask {
         ct.ThrowIfCancellationRequested()
+
+        let diags = proj.GetDiagnostics(ct)
+        if diags |> ImArray.exists (fun x -> x.IsError) then
+            return Error(diags)
+        else
+
+        let analyzerTask =
+            // This is to make the happy path of successful compilations
+            // faster as we can run the analyzers in the background
+            // while we are compiling to IL.
+            // TODO: Add a way to cancel this sooner.
+            System.Threading.Tasks.Task.Factory.StartNew(fun () ->
+                let diags = proj.GetAnalyzerDiagnostics(ct)
+                if diags |> ImArray.exists (fun x -> x.IsError) then
+                    Error(diags)
+                else
+                    Ok()
+            )
+
         let comp = proj.Compilation
         let asm = comp.GetILAssembly(ct)
         match asm with
-        | Error diags -> return Error(diags)
+        | Error _ -> return Error(proj.GetDiagnostics(ct))
         | Ok asm ->
 
         let netInfo = netInfos[proj.Path]
@@ -382,14 +590,22 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             )
 
         match primaryAssemblyOpt with
-        | None -> return Error(OlyDiagnostic.CreateError("Unable to find primary assembly.") |> ImArray.createOne)
+        | None -> return Error(ERROR.createUnableToFindPrimaryAssembly() |> ImArray.createOne)
         | Some primaryAssembly ->
 
         match consoleAssemblyOpt with
-        | None -> return Error(OlyDiagnostic.CreateError("Unable to find console assembly.") |> ImArray.createOne)
+        | None -> return Error(ERROR.createUnableToFindConsoleAssembly() |> ImArray.createOne)
         | Some consoleAssembly ->
 
-        let emitter = OlyRuntimeClrEmitter(asm.Name, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
+        let msbuildTargetInfo = DotNet.createMSBuildTargetInfo proj.TargetInfo.Name proj.Properties
+
+        let asmName =
+            if msbuildTargetInfo.IsPublish then
+                asm.Name + "__oly_internal"
+            else
+                asm.Name
+
+        let emitter = OlyRuntimeClrEmitter(asmName, asm.EntryPoint.IsSome, primaryAssembly, consoleAssembly)
         let runtime = OlyRuntime(emitter)
 
         let refDiags = ImArray.builder()
@@ -404,16 +620,20 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             return Error(refDiags.ToImmutable())
         else
 
+        match! analyzerTask with
+        | Error diags -> return Error(diags)
+        | _ ->
+
         runtime.ImportAssembly(asm.ToReadOnly())
 
         runtime.InitializeEmitter()
 
-        if asm.EntryPoint.IsSome then
-            runtime.EmitEntryPoint()
-        else
-            runtime.EmitAheadOfTime()
+        match OlyTarget.CheckedEmit(asm.EntryPoint.IsSome, proj, runtime, ct) with
+        | Some(diag) -> return Error(ImArray.createOne diag)
+        | _ ->
         
-        let outputPath = this.GetAbsoluteBinDirectory(proj.Path)
+        let outputPath = this.GetProjectBinDirectory(proj.TargetInfo, proj.Path)
+        try Directory.Delete(outputPath.ToString(), true) with | _ -> ()
         let dirInfo = outputPath.ToDirectoryInfo()
         dirInfo.Create()
         let outputPath = outputPath.ToString()
@@ -422,7 +642,7 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             proj.CopyFileInfos
             |> ImArray.iter (fun info ->
                 let file = FileInfo(info.Path.ToString())
-                let destFile = FileInfo(Path.Combine(outputPath, OlyPath.GetFileName(info.Path)))
+                let destFile = FileInfo(Path.Combine(outputPath, info.Path.GetFileName()))
 
                 if destFile.Exists then
                     if file.LastWriteTimeUtc <> destFile.LastWriteTimeUtc then
@@ -434,35 +654,112 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
                     |> ignore
             )
 
-        let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
-        transitiveRefProjs
-        |> ImArray.iter copyFilesFromProject
-        copyFilesFromProject proj
+        let copyFiles() =
+            let transitiveRefProjs = proj.Solution.GetTransitiveProjectReferencesFromProject(proj.Path, ct)
+            transitiveRefProjs
+            |> ImArray.iter copyFilesFromProject
+            copyFilesFromProject proj
 
         if copyReferences then
-            let deps = netInfo.DepsJson.Replace("__oly_placeholder/1.0.0", comp.AssemblyName + "/0.0.0").Replace("__oly_placeholder", comp.AssemblyName)
-            let depsPath = Path.Combine(outputPath, comp.AssemblyName + ".deps.json")
-            File.WriteAllText(depsPath, deps)
+            if msbuildTargetInfo.IsPublish then
+                // TODO: This really needs some massive cleanup.
 
-            if asm.EntryPoint.IsSome then
-                match netInfo.RuntimeconfigJson with
-                | Some runtimeConfig ->
-                    let runtimeconfigPath = Path.Combine(outputPath, comp.AssemblyName + ".runtimeconfig.json")               
-                    File.WriteAllText(runtimeconfigPath, runtimeConfig)
-                | _ ->
-                    ()
+                let dotnetProjectReferences = ImArray.empty
+                let fileReferences =
+                    proj.Compilation.References
+                    |> ImArray.choose (fun r ->
+                        if r.Path.EndsWith(".dll") then
+                            Some(r.Path.ToString())
+                        else
+                            None
+                    )
+                let dotnetPackages = ImArray.empty
+                let cacheDir = this.GetProjectCacheDirectory(proj.TargetInfo, proj.Path)
 
-            let exePath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
-            let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
+                let dllPath = Path.Combine(cacheDir.ToString(), comp.AssemblyName + "__oly_internal.dll")
+                let pdbPath = Path.Combine(outputPath, comp.AssemblyName + "__oly_internal.pdb")
+                let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
+                let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
+                emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
+                dllFile.Close()
+                copyFiles()
 
-            copyDir netInfo.OutputPath outputPath
+                let projectName = proj.Path.GetFileNameWithoutExtension()
 
-            let exeFile = new System.IO.FileStream(exePath, IO.FileMode.Create)
-            let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
-            emitter.Write(exeFile, pdbFile, asm.IsDebuggable)
-            exeFile.Close()
-            pdbFile.Close()
-            return Ok exePath
+                let entryPoint = (runtime : Oly.Runtime.CodeGen.IOlyVirtualMachine<_, _, _>).TryGetEntryPoint().Value
+
+                let call = 
+                    let m = entryPoint.AsDefinition
+                    let text = m.enclosingTyHandle.FullyQualifiedName + "." + m.name
+                    if m.Parameters.IsEmpty then
+                        text + "();"
+                    else
+                        text + "(args);"
+
+                let! _ =
+                    match msbuildTargetInfo.PublishKind with
+                    | MSBuildPublishKind.Standalone ->
+                        OlyTrace.Log($"[Compilation] Compiling Standalone...")
+                    | MSBuildPublishKind.ReadyToRun ->
+                        OlyTrace.Log($"[Compilation] Compiling ReadyToRun...")
+                    | MSBuildPublishKind.NativeAOT ->
+                        OlyTrace.Log($"[Compilation] Compiling NativeAOT...")
+                    | _ ->
+                        ()
+
+                    let scratchDir = this.GetProjectScratchDirectory(proj.TargetInfo, proj.Path).Join("publish")
+                    Directory.CreateDirectory(scratchDir.ToString()) |> ignore
+                    DotNet.publish 
+                        call
+                        projectName
+                        scratchDir
+                        (OlyPath.Create(outputPath))
+                        proj.TargetInfo.ProjectConfiguration.Name 
+                        proj.TargetInfo.IsExecutable 
+                        msbuildTargetInfo 
+                        (fileReferences.Add(dllPath))
+                        dotnetProjectReferences 
+                        dotnetPackages 
+                        ct
+
+                let exePath = 
+                    if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) then
+                        Path.Combine(outputPath, projectName + ".exe")
+                    else
+                        Path.Combine(outputPath, projectName)
+
+                return Ok(OlyProgram(OlyPath.Create(exePath), 
+                    fun args -> 
+                        use p = new ExternalProcess(exePath, String.Join(' ', args))
+                        let result = p.RunAsync(CancellationToken.None).Result
+                        if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                            failwith result.Errors
+                        else
+                            result.Output
+                ))
+
+            else
+                let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
+                let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
+
+                OlyIO.CopyDirectory(netInfo.OutputPath, outputPath)
+
+                let dllFile = new System.IO.FileStream(dllPath, IO.FileMode.Create)
+                let pdbFile = new System.IO.FileStream(pdbPath, IO.FileMode.Create)
+                emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
+                dllFile.Close()
+                pdbFile.Close()
+
+                copyFiles()
+                return Ok(OlyProgram(OlyPath.Create(dllPath), 
+                    fun args ->
+                        use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))
+                        let result = p.RunAsync(CancellationToken.None).Result
+                        if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                            failwith result.Errors
+                        else
+                            result.Output
+                ))
         else
             let dllPath = Path.Combine(outputPath, comp.AssemblyName + ".dll")
             let pdbPath = Path.Combine(outputPath, comp.AssemblyName + ".pdb")
@@ -471,14 +768,110 @@ type DotNetTarget internal (platformName: string, copyReferences: bool, emitPdb:
             emitter.Write(dllFile, pdbFile, asm.IsDebuggable)
             dllFile.Close()
             pdbFile.Close()
-            return Ok dllPath
+
+            copyFiles()
+            return Ok(OlyProgram(OlyPath.Create(dllPath), 
+                fun args -> 
+                    use p = new ExternalProcess("dotnet", dllPath + " " + String.Join(' ', args))
+                    let result = p.RunAsync(CancellationToken.None).Result
+                    if not(System.String.IsNullOrWhiteSpace(result.Errors)) then
+                        failwith result.Errors
+                    else
+                        result.Output
+            ))
         }
 
-    override _.GetImplicitExtendsForStruct() = Some "System.ValueType"
+    override _.GetImplicitExtendsForStruct() = Some "System::ValueType"
 
-    override _.GetImplicitExtendsForEnum() = Some "System.Enum"
+    override _.GetImplicitExtendsForEnum() = Some "System::Enum"
+
+    override _.GetAnalyzerDiagnostics(_targetInfo, boundModel: OlyBoundModel, ct: CancellationToken): OlyDiagnostic imarray = 
+        let diagnostics = OlyDiagnosticLogger.CreateWithPrefix(DotNetDiagnostic.CodePrefixDOTNET)
+
+        let analyzeSymbol (symbolInfo: OlySymbolUseInfo) =
+            // UnmanagedCallersOnly
+            if symbolInfo.Symbol.IsFunction && symbolInfo.IsCallee then
+                symbolInfo.Symbol.AsValue.ForEachAttribute(
+                    fun attr ->
+                        if attr.Name = "UnmanagedCallersOnlyAttribute" then
+                            diagnostics.Error("Cannot call an 'UnmanagedCallersOnly' function.", 10, symbolInfo.Syntax)
+                )
+
+            if (symbolInfo.Syntax.IsDefinition || symbolInfo.Syntax.IsCompilationUnit) && symbolInfo.Symbol.IsExported && symbolInfo.Symbol.IsType then
+                let ty = symbolInfo.Symbol.AsType
+                let subModel = symbolInfo.SubModel
+
+                let funcGroups =
+                    ty.Functions
+                    |> Seq.filter (fun x ->
+                        if x.IsConstructor then
+                            x.Enclosing.TryType.Value.IsSimilarTo(ty)
+                        else
+                            true
+                    )
+                    |> Seq.groupBy (fun x -> (x.Name, x.TypeParameterCount, x.Parameters.Length, x.IsStatic))
+                    |> Seq.choose (fun (_, funcs) ->
+                        let funcs = funcs |> ImArray.ofSeq
+                        if funcs.Length <= 1 then
+                            None
+                        else
+                            Some(funcs)
+                    )
+                    |> ImArray.ofSeq
+
+                funcGroups
+                |> ImArray.iter (fun funcs ->
+                    funcs
+                    |> ImArray.iter (fun func ->
+                        funcs
+                        |> ImArray.iter (fun func2 ->
+                            if obj.ReferenceEquals(func, func2) then ()
+                            else
+                                let mutable allParsAreSame = true
+                                (func.Parameters, func2.Parameters)
+                                ||> ImArray.iter2 (fun par1 par2 ->
+                                    if not(par1.Type.IsEqualTo(par2.Type)) then
+                                        if not par1.Type.IsByRef || not par2.Type.IsByRef then
+                                            allParsAreSame <- false     
+                                )
+
+                                match func.ReturnType, func2.ReturnType with
+                                | Some(returnTy1), Some(returnTy2) ->
+                                    if not(returnTy1.IsEqualTo(returnTy2)) then
+                                        if not returnTy1.IsByRef || not returnTy2.IsByRef then
+                                            allParsAreSame <- false
+                                    elif func.Parameters.IsEmpty then
+                                        allParsAreSame <- false
+                                | _ ->
+                                    allParsAreSame <- false
+
+                                if allParsAreSame then
+                                    let location = func.TryGetDefinitionLocation(boundModel, ct)
+                                    match location with
+                                    | Some(loc) ->
+                                        let textRange = loc.GetTextRange(ct)
+                                        let syntaxNode =
+                                            match loc.SyntaxTree.TryFindNode(textRange, ct) with
+                                            | Some syntaxNode -> syntaxNode
+                                            | _ -> symbolInfo.Syntax
+                                        diagnostics.Error($"Unable to disambiguate types on function '{subModel.GetSignatureText(func)}'.", 10, syntaxNode)
+                                    | _ ->
+                                        diagnostics.Error($"Unable to disambiguate types on function '{subModel.GetSignatureText(func)}'.", 10, symbolInfo.Syntax)
+                        )
+                    )
+                )
+
+        match boundModel.TryGetAnonymousModuleSymbol(ct) with
+        | Some symbol ->
+            analyzeSymbol symbol.UntypedInfo
+        | _ ->
+            ()
+
+        boundModel.ForEachSymbol(boundModel.SyntaxTree.GetRoot(ct), analyzeSymbol, ct)
+
+        diagnostics.GetDiagnostics()
 
     new (?copyReferences: bool) =
         let copyReferences =
             defaultArg copyReferences true
-        DotNetTarget("dotnet", copyReferences, true)
+        DotNetTarget("dotnet", copyReferences)

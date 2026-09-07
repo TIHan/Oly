@@ -45,8 +45,10 @@ type OlyToken =
 
     member this.IsAnyDirective =
         match this.node.Internal.RawToken with
+        | DirectiveFlag _
         | Directive _
-        | ConditionalDirective _ -> 
+        | ConditionalDirective _
+        | PropertyDirective _ -> 
             true
         | _ ->
             false
@@ -60,10 +62,83 @@ type OlyToken =
 
     member this.TryConditionalDirectiveText =
         match this.node.Internal.RawToken with
-        | ConditionalDirective(hashIfToken, bodyText, hashEndToken) -> 
-            ValueSome(hashIfToken.ValueText, bodyText, hashEndToken.ValueText)
+        | ConditionalDirective(prevtoken, bodyText, token) -> 
+            ValueSome(prevtoken.ValueText, bodyText, token.ValueText)
         | _ ->
             ValueNone
+
+    member this.TryPropertyDirectiveText =
+        match this.node.Internal.RawToken with
+        | PropertyDirective(_, _, _, propertyNameToken, _, propertyValueToken) -> 
+            ValueSome(propertyNameToken.ValueText, propertyValueToken.ValueText)
+        | _ ->
+            ValueNone
+
+
+    /// Get sub-tokens that are effectively immediate descendant tokens
+    /// that make up the given token.
+    member this.GetSubTokens() =
+        // TODO: Handle other tokens that have sub-tokens.
+        match this.node.Internal.RawToken with
+        | Directive(hashToken, token, whitespaceToken, valueToken) ->
+            let textSpan = this.TextSpan
+            let hashTokenSpan = OlyTextSpan.Create(textSpan.Start, hashToken.Width)
+            let tokenSpan = OlyTextSpan.Create(hashTokenSpan.End, token.Width)
+            let whitespaceTokenSpan = OlyTextSpan.Create(tokenSpan.End, whitespaceToken.Width)
+            let valueTokenSpan = OlyTextSpan.Create(whitespaceTokenSpan.End, valueToken.Width)
+
+            let tree = this.Tree
+            let node = this.node
+            let inline convert (token: Token, textSpan: OlyTextSpan) =
+                let token = SyntaxToken.Token(token)
+                OlySyntaxToken(tree, textSpan.Start, node, token)
+
+            let builder = ImArray.builderWithSize 4
+            builder.Add(convert(hashToken, hashTokenSpan))
+            builder.Add(convert(token, tokenSpan))
+            builder.Add(convert(whitespaceToken, whitespaceTokenSpan))
+            builder.Add(convert(valueToken, valueTokenSpan))
+            builder.MoveToImmutable()
+
+        | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) -> 
+            let textSpan = this.TextSpan
+            let hashTokenSpan = OlyTextSpan.Create(textSpan.Start, hashToken.Width)
+            let propertyTokenSpan = OlyTextSpan.Create(hashTokenSpan.End, propertyToken.Width)
+            let whitespaceToken1Span = OlyTextSpan.Create(propertyTokenSpan.End, whitespaceToken1.Width)
+            let propertyNameTokenSpan = OlyTextSpan.Create(whitespaceToken1Span.End, propertyNameToken.Width)
+            let whitespaceToken2Span = OlyTextSpan.Create(propertyNameTokenSpan.End, whitespaceToken2.Width)
+            let propertyValueTokenSpan = OlyTextSpan.Create(whitespaceToken2Span.End, propertyValueToken.Width)
+
+            let tree = this.Tree
+            let node = this.node
+            let inline convert (token: Token, textSpan: OlyTextSpan) =
+                let token = SyntaxToken.Token(token)
+                OlySyntaxToken(tree, textSpan.Start, node, token)
+
+            let builder = ImArray.builderWithSize 6
+            builder.Add(convert(hashToken, hashTokenSpan))
+            builder.Add(convert(propertyToken, propertyTokenSpan))
+            builder.Add(convert(whitespaceToken1, whitespaceToken1Span))
+            builder.Add(convert(propertyNameToken, propertyNameTokenSpan))
+            builder.Add(convert(whitespaceToken2, whitespaceToken2Span))
+            builder.Add(convert(propertyValueToken, propertyValueTokenSpan))
+            builder.MoveToImmutable()
+        | _ ->
+            ImArray.empty
+
+    member this.TryGetSubToken(position: int, ?skipTrivia: bool): OlyToken option =
+        let skipTrivia = defaultArg skipTrivia true
+
+        let subTokens = this.GetSubTokens()
+        subTokens
+        |> ImArray.tryPick (fun subToken ->
+            if subToken.IsTrivia && skipTrivia then
+                Some(subToken.TryGetToken().Value)
+            elif subToken.TextSpan.Contains(position) then
+                Some(subToken.TryGetToken().Value)
+            else
+                None
+        )
 
     member this.TryStringLiteralText = this.node.Internal.RawToken.TryStringLiteralText
 
@@ -211,6 +286,64 @@ type OlyToken =
     member this.IsIdentifierOrOperatorOrKeyword =
         this.node.Internal.RawToken.IsIdentifierOrOperatorOrKeyword
 
+    member this.TryPreviousTokenBySubToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
+        let predicate = defaultArg predicate (fun _ -> true)
+        let skipTrivia = defaultArg skipTrivia true
+        let ct = defaultArg ct CancellationToken.None
+        let origNode = this.Node
+
+        let node = origNode
+        match node.Parent with
+        | null -> ValueNone
+        | parentNode ->
+            // Try to get previous token for a sub-token.
+            if parentNode.IsToken then
+                let thisToken = this
+                let parentNode = parentNode :> obj :?> OlySyntaxToken
+                let parentToken = parentNode.TryGetToken().Value
+                match parentNode.Internal with
+                | SyntaxToken.Token(token)
+                | SyntaxToken.TokenWithTrivia(_, token, _) when token.IsPropertyDirective ->
+                    let found =
+                        let subTokens = parentToken.GetSubTokens()
+                        let mutable i = 0
+                        subTokens
+                        |> ImArray.tryPick (fun subToken ->
+                            let result =
+                                match subToken.TryGetToken() with
+                                | Some(subToken) when subToken.TextSpan = thisToken.TextSpan && subToken.Tree = thisToken.Tree ->
+                                    if i = 0 then
+                                        match parentToken.TryPreviousToken(predicate, skipTrivia, ct) with
+                                        | ValueSome(result) -> Some(result)
+                                        | ValueNone -> None
+                                    else
+                                        let mutable result = None
+                                        for j = i - 1 downto 0 do
+                                            if result.IsNone then
+                                                let prevToken = subTokens[j].TryGetToken().Value
+                                                if predicate prevToken then
+                                                    if prevToken.IsTrivia then
+                                                        if not skipTrivia then
+                                                            result <- Some(prevToken)
+                                                    else
+                                                        result <- Some(prevToken)
+                                        result
+                                | _ -> 
+                                    None
+                            i <- i + 1
+                            result
+                        )
+
+                    match found with
+                    | Some(found) ->
+                        ValueSome(found)
+                    | _ ->
+                        ValueNone
+                | _ ->
+                    ValueNone
+            else
+                ValueNone
+
     member this.TryPreviousToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
         let predicate = defaultArg predicate (fun _ -> true)
         let skipTrivia = defaultArg skipTrivia true
@@ -228,19 +361,49 @@ type OlyToken =
                 | Some index ->
                     match index with
                     | 0 ->
-                        loop parentNode
+                        loop(parentNode)
                     | _ ->
                         let tokenOpt = 
                             tokens 
-                            |> Seq.take (index) 
+                            |> Seq.take index
                             |> Seq.filter (fun x -> if skipTrivia && x.IsTrivia then false else predicate x)
                             |> Seq.tryLast
                         match tokenOpt with
                         | Some token -> ValueSome token
-                        | _ -> loop parentNode
+                        | _ -> loop(parentNode)
                 | _ ->
                     ValueNone
-        loop origNode
+        loop(origNode)
+
+    member this.TryNextToken(?predicate: OlyToken -> bool, ?skipTrivia: bool, ?ct: CancellationToken) : OlyToken voption =
+        let predicate = defaultArg predicate (fun _ -> true)
+        let skipTrivia = defaultArg skipTrivia true
+        let ct = defaultArg ct CancellationToken.None
+        let origNode = this.Node
+        let isTrivia = this.IsTrivia
+
+        let rec loop (node: OlySyntaxNode) =
+            match node.Parent with
+            | null -> ValueNone
+            | parentNode ->
+                let tokens = parentNode.GetDescendantTokens(skipTrivia = skipTrivia && not isTrivia, ct = ct)
+                let indexOpt = tokens |> Seq.tryFindIndex (fun x -> obj.ReferenceEquals(x.Node, origNode))
+                match indexOpt with
+                | Some index ->
+                    if index = tokens.Length - 1 then
+                        loop(parentNode)
+                    else
+                        let tokenOpt = 
+                            tokens 
+                            |> Seq.skip (index + 1) 
+                            |> Seq.filter (fun x -> if skipTrivia && x.IsTrivia then false else predicate x)
+                            |> Seq.tryHead
+                        match tokenOpt with
+                        | Some token -> ValueSome token
+                        | _ -> loop(parentNode)
+                | _ ->
+                    ValueNone
+        loop(origNode)
 
 [<Sealed;DebuggerDisplay("{Path}")>]
 type internal OlySyntaxTreeImplementation(path, getSourceText: CancellationToken -> IOlySourceText, version, parsingOptions: OlyParsingOptions) as this =
@@ -394,18 +557,18 @@ module OlySyntaxTreeExtensions =
             match this with
             | OlySyntaxAttributes.Attributes(hashAttrList) ->
                 hashAttrList.ChildrenOfType
-                |> ImArray.choose (fun x ->
+                |> ImArray.collect (fun x ->
                     match x with
                     | OlySyntaxHashAttribute.HashAttribute(_, brackets) ->
                         // TODO: This is a little weird. We should add a OlySyntaxBrackets active pattern.
                         if brackets.Children.Length <> 3 then
-                            None
+                            ImArray.empty
                         else
                             match brackets.Children.[1] with
-                            | :? OlySyntaxAttribute as attr -> Some attr
-                            | _ -> None
+                            | :? OlySyntaxSeparatorList<OlySyntaxAttribute> as attrList -> attrList.ChildrenOfType
+                            | _ -> ImArray.empty
                     | _ ->
-                        None
+                        ImArray.empty
                 )
             | _ ->
                 ImArray.empty
@@ -470,7 +633,7 @@ module OlySyntaxTreeExtensions =
             | _ -> 
                 failwith "Invalid syntax binding."
 
-    type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode> with
+    type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode and 'T : not struct> with
 
         member this.TryFindIndexByPosition(position) =
             match this.InternalNode with
@@ -499,12 +662,20 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 None
 
+        member this.IsNewToken =
+            match this.InternalNode with
+            | :? SyntaxToken as token -> token.RawToken = Token.New
+            | _ -> false
+
         member this.IsDummy: bool =
-            if obj.ReferenceEquals(this.Tree.DummyNode, this) then true
+            if obj.ReferenceEquals(this, this.Tree.DummyNode) then
+                true
             else
-                match this.InternalNode with
-                | :? SyntaxToken as token -> token.IsDummy
-                | _ -> false
+                if this.InternalNode.IsToken then
+                    let mutable node = this.InternalNode
+                    System.Runtime.CompilerServices.Unsafe.As<_, SyntaxToken>(&node).IsDummy
+                else
+                    false
 
         member this.IsParenthesisExpression =
             match this.InternalNode with
@@ -626,8 +797,33 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxBindingDeclaration -> true
             | _ -> false
 
+        member this.IsBinding =
+            match this.InternalNode with
+            | :? SyntaxBinding -> true
+            | _ -> false
+
+        member this.IsAnyNewLine =
+            match this.InternalNode with
+            | :? SyntaxToken as token ->
+                match token.RawToken with
+                | Token.NewLine
+                | Token.CarriageReturn
+                | Token.CarriageReturnNewLine -> true
+                | _ -> false
+            | _ ->
+                false
+
         member this.IsError =
             this.InternalNode.IsError
+
+        member this.IsConditionalDirective =
+            match this.InternalNode with
+            | :? SyntaxToken as node ->
+                match node.RawToken with
+                | Token.ConditionalDirective _ -> true
+                | _ -> false
+            | _ ->
+                false
 
         member this.IsFunctionBindingDeclaration =
             match this.InternalNode with
@@ -689,24 +885,10 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxExpression -> true
             | _ -> false
 
-        member this.TryGetParent(?ct: CancellationToken) =
-            let ct = defaultArg ct CancellationToken.None
-            this.Parent
-
-        member this.TryGetParent<'T when 'T :> OlySyntaxNode>(?ct: CancellationToken) =
-            let ct = defaultArg ct CancellationToken.None
-            match this.Parent with
-            | :? 'T as x -> Some x
-            | _ ->  None
-
-        /// If possible, returns the root name if there is any.
-        /// Otherwise, returns the same given node.
-        member this.GetRootNameIfPossible() =
-            match this.Parent with
-            | :? OlySyntaxName as name ->
-                name.GetRootNameIfPossible()
-            | _ ->
-                this
+        member this.IsPropertyBinding =
+            match this.InternalNode with
+            | :? SyntaxPropertyBinding -> true
+            | _ -> false
 
         /// If possible, returns a plausible OlySyntaxName if it exists as one of the immediate children of the given node.
         /// Otherwise, returns the same given node.
@@ -724,10 +906,9 @@ module OlySyntaxTreeExtensions =
             | _ ->
                 this
 
-        member this.TryGetParentExpression(?ignoreSequentialExpr: bool, ?ct: CancellationToken) =
-            let ignoreSequentialExpr = defaultArg ignoreSequentialExpr false
-            let ct = defaultArg ct CancellationToken.None
-            match this.TryGetParent(ct) with
+        member this.TryGetParentExpression(ignoreSequentialExpr: bool, ct: CancellationToken) =
+            ct.ThrowIfCancellationRequested()
+            match this.Parent with
             | null -> None
             | parentNode ->
                 match parentNode.InternalNode with
@@ -740,9 +921,57 @@ module OlySyntaxTreeExtensions =
                 | _ ->
                     parentNode.TryGetParentExpression(ignoreSequentialExpr, ct)
 
-        member this.GetDescendantTokens(?skipTrivia: bool, ?ct: CancellationToken) : OlyToken imarray =
+        member this.TryFindParent<'T when 'T :> OlySyntaxNode>(ct: CancellationToken) =
+            ct.ThrowIfCancellationRequested()
+            match this.Parent with
+            | null -> None
+            | parentNode ->
+                match parentNode with
+                | :? 'T as x -> Some x
+                | _ -> parentNode.TryFindParent<'T>(ct)
+
+
+        /// TODO: Rename to 'IsPossiblyDefinition'.
+        member this.IsDefinition =
+            match this with
+            | :? OlySyntaxToken as token 
+                    when 
+                    token.Internal.IsIdentifierOrOperator 
+                    || token.Internal.RawToken = Token.New
+                    || token.Internal.RawToken = Token.Field ->
+                match this.Parent with
+                | :? OlySyntaxTypeDeclarationName
+                | :? OlySyntaxFunctionName
+                | :? OlySyntaxBindingDeclaration
+                | :? OlySyntaxPropertyBinding -> true
+                | _ ->
+                    match this.TryFindParent(CancellationToken.None) with
+                    | Some(pat: OlySyntaxPattern) ->
+                        let rec isDef (pat: SyntaxPattern) =
+                            match pat with
+                            | SyntaxPattern.Name(name) when name.LastIdentifier.RawToken.ValueText = token.Internal.RawToken.ValueText ->
+                                true
+                            | SyntaxPattern.Function(patArgs=patArgs) 
+                            | SyntaxPattern.Parenthesis(patArgs=patArgs) ->
+                                patArgs.Values
+                                |> Seq.exists isDef
+                            | _ -> 
+                                false
+                        match pat.Parent with
+                        | :? OlySyntaxParameter
+                        | :? OlySyntaxLet ->
+                            isDef pat.Internal
+                        | _ -> 
+                            false
+                    | _ ->
+                        false
+            | _ ->
+                false
+
+        member this.GetDescendantTokens(?skipTrivia: bool, ?filter: OlySyntaxToken -> bool, ?ct: CancellationToken) : OlyToken imarray =
             let skipTrivia = defaultArg skipTrivia true
             let ct = defaultArg ct CancellationToken.None
+            let filter = defaultArg filter (fun _ -> true)
 
             let res = ImArray.builder()
             let rec loop (node: OlySyntaxNode) =
@@ -753,7 +982,8 @@ module OlySyntaxTreeExtensions =
                         node.Children
                         |> ImArray.iter loop
 
-                    res.Add(OlyToken(node))
+                    if filter node then
+                        res.Add(OlyToken(node))
                 | _ ->
                     node.Children
                     |> ImArray.iter loop
@@ -862,7 +1092,7 @@ module OlySyntaxTreeExtensions =
             else
                 false
 
-        member this.TryGetToken() =
+        member this.TryGetToken(): OlyToken option =
             match this with
             | :? OlySyntaxToken as node -> Some(OlyToken(node))
             | _ -> None
@@ -888,7 +1118,7 @@ module OlySyntaxTreeExtensions =
         member this.IsInReturnTypeAnnotation =
             if this.IsReturnTypeAnnotation then true
             else
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> parent.IsInReturnTypeAnnotation
 
@@ -896,7 +1126,7 @@ module OlySyntaxTreeExtensions =
             match this.InternalNode with
             | :? SyntaxPattern -> true
             | _ ->
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> parent.IsInPattern
 
@@ -905,7 +1135,7 @@ module OlySyntaxTreeExtensions =
             | :? SyntaxMatchClause -> true
             | :? SyntaxMatchGuard -> false           
             | _ ->
-                match this.TryGetParent() with
+                match this.Parent with
                 | null -> false
                 | parent -> 
                     match parent.InternalNode with
@@ -928,15 +1158,44 @@ module OlySyntaxTreeExtensions =
         member this.GetFullTextRange(ct) =
             this.Tree.GetSourceText(ct).GetTextRange(this.FullTextSpan)
 
+        member private this.GetCommentText(childIndex: int) =
+            let childNode = this.Children[childIndex]
+            match childNode.InternalNode with
+            | :? SyntaxToken as childToken ->
+                match childToken with
+                | SyntaxToken.TokenWithTrivia(nextTrivia, triviaToken, _) when triviaToken.IsPossibleNewLine && nextTrivia.IsComment ->
+                    nextTrivia.ValueText
+                | _ ->
+                    String.Empty
+            | _ ->
+                String.Empty
+
+        member this.GetLeadingCommentText() =
+            match this with
+            | :? OlySyntaxToken as node ->
+                if node.Children.IsEmpty then
+                    String.Empty
+                else
+                    node.GetCommentText(node.Children.Length - 1)
+            | _ ->
+                if this.Children.IsEmpty then
+                    String.Empty
+                else
+                    // TODO: Can we do this without allocating an option?
+                    match this.Children |> ImArray.tryFind (fun x -> not x.Children.IsEmpty) with
+                    | Some nextNode -> nextNode.GetLeadingCommentText()
+                    | _ -> String.Empty
+
+        /// TODO: This is a weird and doesn't match how we do GetLeadingCommentText
         member this.GetLeadingTrivia() =
             match this with
             | :? OlySyntaxToken as node ->
-                if not node.Children.IsEmpty then
+                if node.Children.IsEmpty then
+                    ImArray.empty
+                else
                     let childNode = node.Children[0]
                     let childNodes = childNode.GetLeadingTrivia()
                     childNodes.Add(childNode)
-                else
-                    ImArray.empty
             | _ ->
                 if this.Children.Length > 0 then
                     this.Children.[0].GetLeadingTrivia()
@@ -1050,8 +1309,10 @@ module OlySyntaxTreeExtensions =
                 match syntax with
                 | :? OlySyntaxExpression as syntaxExpr ->
                     match syntaxExpr with
-                    | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDeclName, _, _, _, _) ->
-                        syntaxTyDeclName
+                    | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDeclName, _, _, _, _) ->
+                        match syntaxTyDeclName.Identifier with
+                        | Some _ -> syntaxTyDeclName
+                        | _ -> syntaxTyDeclKind
                     | OlySyntaxExpression.ValueDeclaration(_, _, _, _, _, syntaxBinding) ->
                         match syntaxBinding.TryGetBindingDeclaration() with
                         | ValueSome(syntaxBindingDecl) ->
@@ -1065,6 +1326,12 @@ module OlySyntaxTreeExtensions =
                             syntaxBinding
                     | OlySyntaxExpression.Sequential(syntaxExpr1, _) ->
                         find syntaxExpr1
+                    | OlySyntaxExpression.None _ ->
+                        // None doesn't have syntax, so look at its parent.
+                        if syntaxExpr.HasParent then
+                            find syntaxExpr.Parent
+                        else
+                            syntaxExpr
                     | _ ->
                         syntaxExpr
                 | syntaxNode ->
@@ -1078,6 +1345,9 @@ module OlySyntaxTreeExtensions =
 
         member this.IsNew =
             this.Internal.RawToken = Token.New
+
+        member this.IsIs =
+            this.Internal.RawToken = Token.Is
 
         member this.IsTrueToken =
             this.Internal.RawToken = Token.True
@@ -1100,7 +1370,17 @@ module OlySyntaxTreeExtensions =
             | OlySyntaxName.Parenthesis _ -> this
             | OlySyntaxName.Generic(name, _) -> name.LastName
             | OlySyntaxName.Qualified(_, _, tail) -> tail.LastName
+            | _ -> 
+                failwith "Invalid syntax name."
 
+        member this.LastGenericNameIfPossible =
+            match this with
+            | OlySyntaxName.Identifier _
+            | OlySyntaxName.Parenthesis _
+            | OlySyntaxName.Generic(OlySyntaxName.Identifier _, _) 
+            | OlySyntaxName.Generic(OlySyntaxName.Parenthesis _, _) -> this
+            | OlySyntaxName.Generic(name, _) -> name.LastGenericNameIfPossible
+            | OlySyntaxName.Qualified(_, _, tail) -> tail.LastGenericNameIfPossible
             | _ -> 
                 failwith "Invalid syntax name."
 
@@ -1110,26 +1390,56 @@ module OlySyntaxTreeExtensions =
             | OlySyntaxName.Parenthesis(_, token, _) -> token
             | _ -> failwith "should not happen"
 
-        member this.AllNames =
+        member private this.AllNamesCore(builder: OlySyntaxName imarrayb) =
             match this with
             | OlySyntaxName.Qualified(head, _, tail) ->
-                head.AllNames @ tail.AllNames
+                head.AllNamesCore(builder)
+                tail.AllNamesCore(builder)
             | OlySyntaxName.Identifier _ 
             | OlySyntaxName.Generic _
             | OlySyntaxName.Parenthesis _ ->
-                [this]
+                builder.Add(this)
+
+            | _ ->
+                failwith "Invalid syntax name."
+
+        member this.AllNames =
+            match this with
+            | OlySyntaxName.Qualified _ ->
+                let builder = ImArray.builder()
+                this.AllNamesCore(builder)
+                builder.ToImmutable()
+            | OlySyntaxName.Identifier _ 
+            | OlySyntaxName.Generic _
+            | OlySyntaxName.Parenthesis _ ->
+                ImArray.createOne this
+
+            | _ ->
+                failwith "Invalid syntax name."
+
+        member private this.EnclosingNamesCore(builder: OlySyntaxName imarrayb) =
+            match this with
+            | OlySyntaxName.Qualified(head, _, tail) ->
+                head.AllNamesCore(builder)
+                tail.EnclosingNamesCore(builder)
+            | OlySyntaxName.Identifier _ 
+            | OlySyntaxName.Generic _
+            | OlySyntaxName.Parenthesis _ ->
+                ()
 
             | _ ->
                 failwith "Invalid syntax name."
 
         member this.EnclosingNames =
             match this with
-            | OlySyntaxName.Qualified(head, _, tail) ->
-                head.AllNames @ tail.EnclosingNames
+            | OlySyntaxName.Qualified _ ->
+                let builder = ImArray.builder()
+                this.EnclosingNamesCore(builder)
+                builder.ToImmutable()
             | OlySyntaxName.Identifier _ 
             | OlySyntaxName.Generic _
             | OlySyntaxName.Parenthesis _ ->
-                []
+                ImArray.empty
 
             | _ ->
                 failwith "Invalid syntax name."
@@ -1181,42 +1491,12 @@ module OlySyntaxTreeExtensions =
             let builder = ImArray.builder()
             let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
                 match expr with
-                | OlySyntaxExpression.TypeDeclaration(_, _, _, syntaxTyDefName, _, _, _, _) ->
-                    builder.Add(syntaxTyDefName.Identifier)
-                    cont(FakeUnit)
-                | OlySyntaxExpression.Sequential(expr1, expr2) ->
-                    f expr1 (fun FakeUnit ->
-                        f expr2 cont
-                    )
-                | _ ->
-                    cont(FakeUnit)
-
-            this.Children
-            |> ImArray.iter (function
-                | :? OlySyntaxExpression as expr ->
-                    f expr id |> ignore
-                | _ ->
-                    ()
-            )
-
-            builder.ToImmutable()
-
-        member this.GetMemberDeclarations() =
-            let builder = ImArray.builder()
-            let rec f (expr: OlySyntaxExpression) cont : FakeUnit =
-                match expr with
-                | OlySyntaxExpression.ValueDeclaration(syntaxAttrs, _, _, _, _, syntaxBinding) ->
-                    let rec addBinding syntaxBinding =
-                        match syntaxBinding with
-                        | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
-                        | OlySyntaxBinding.Signature(syntaxBindingDecl)
-                        | OlySyntaxBinding.Property(syntaxBindingDecl, _)
-                        | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
-                        | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
-                            builder.Add(syntaxAttrs, syntaxBindingDecl)
-                        | _ ->
-                            ()
-                    addBinding syntaxBinding
+                | OlySyntaxExpression.TypeDeclaration(_, _, syntaxTyDeclKind, syntaxTyDefName, _, _, _, _) ->
+                    match syntaxTyDefName.Identifier with
+                    | Some syntaxIdent ->
+                        builder.Add(syntaxIdent: OlySyntaxNode)
+                    | _ ->
+                        builder.Add(syntaxTyDeclKind)
                     cont(FakeUnit)
                 | OlySyntaxExpression.Sequential(expr1, expr2) ->
                     f expr1 (fun FakeUnit ->
@@ -1237,11 +1517,12 @@ module OlySyntaxTreeExtensions =
 
     type OlySyntaxTypeDeclarationName with
 
-        member this.Identifier =
+        member this.Identifier: OlySyntaxToken option =
             match this with
-            | OlySyntaxTypeDeclarationName.Identifier(ident) -> ident
-            | OlySyntaxTypeDeclarationName.Parenthesis(_, operator, _) -> operator
-            | _ -> failwith "Invalid identifier."
+            | OlySyntaxTypeDeclarationName.Identifier(ident) -> Some ident
+            | OlySyntaxTypeDeclarationName.Parenthesis(_, operator, _) -> Some operator
+            | OlySyntaxTypeDeclarationName.Anonymous -> None
+            | _ -> unreached()
 
     type OlySyntaxName with
 
@@ -1328,6 +1609,25 @@ module OlySyntaxTreeExtensions =
                     | _ ->
                         ValueNone
                 tryGet syntaxBinding
+
+            | :? OlySyntaxPropertyBinding as syntaxPropBinding ->
+                let rec tryGet syntaxBinding =
+                    match syntaxBinding with
+                    | OlySyntaxBinding.Implementation(syntaxBindingDecl, _, _)
+                    | OlySyntaxBinding.Signature(syntaxBindingDecl)
+                    | OlySyntaxBinding.Property(syntaxBindingDecl, _) 
+                    | OlySyntaxBinding.PropertyWithDefault(syntaxBindingDecl, _, _, _)
+                    | OlySyntaxBinding.PatternWithGuard(syntaxBindingDecl, _) ->
+                        ValueSome syntaxBindingDecl
+                    | _ ->
+                        ValueNone
+
+                match syntaxPropBinding with
+                | OlySyntaxPropertyBinding.Binding(_, _, _, _, _, syntaxBinding) ->
+                    tryGet syntaxBinding
+                | _ ->
+                    ValueNone
+                   
             | _ ->
                 ValueNone
 
@@ -1590,7 +1890,6 @@ module OlySyntaxDiffs =
 
             let rec checkTyDeclBody (syntaxTyDeclBody1: OlySyntaxTypeDeclarationBody) (syntaxTyDeclBody2: OlySyntaxTypeDeclarationBody) =
                 match syntaxTyDeclBody1, syntaxTyDeclBody2 with
-                | OlySyntaxTypeDeclarationBody.None _, OlySyntaxTypeDeclarationBody.None _ -> true
                 | OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr1), OlySyntaxTypeDeclarationBody.Body(_, _, _, syntaxExpr2) ->
                     checkExpr syntaxExpr1 syntaxExpr2
                 | _ ->
@@ -1611,3 +1910,19 @@ module OlySyntaxDiffs =
                     false
             | _ ->
                 false
+
+[<AutoOpen>]
+module OlySyntaxFormatter =
+
+    type OlySyntaxName with
+
+        member this.Format(ct: CancellationToken): OlySyntaxName =
+            match this with
+            | OlySyntaxName.Identifier(identToken) ->
+                let leadingTrivia = identToken.GetLeadingTrivia()
+                if leadingTrivia.IsEmpty then
+                    this
+                else
+                    OlySyntaxName(this.Tree, this.FullTextSpan.Start, this.Parent, this.Internal)
+            | _ ->
+                this

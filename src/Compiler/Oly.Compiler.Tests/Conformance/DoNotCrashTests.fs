@@ -59,10 +59,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -142,7 +142,7 @@ module TestModule
 #[null]
 class Option<T> =
     public field Value: T
-    new(value: T) = { Value = value }
+    new(value: T) = this { Value = value }
 
 Some<T>(value: T): Option<T> =
     Option(value)
@@ -489,6 +489,12 @@ module Array =
               ^
 """
         )
+        ("Expected type 'mutable U[]' but is '()'.",
+        """
+        while (
+        ^^^^^^^
+"""
+        )
     ]
 
 [<Fact>]
@@ -503,10 +509,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -618,10 +624,10 @@ alias int32
 #[intrinsic("set_element")]
 (`[]`)<T>(mutable T[], index: int32, T): ()
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -663,10 +669,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -702,10 +708,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -729,7 +735,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -816,10 +822,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#intrinsic("by_ref_read_write")]
+#intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -843,7 +849,7 @@ alias bool
 getLength<T>(mutable T[]): int32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 module Array =
 
@@ -964,10 +970,10 @@ module Oly.Entities
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("bool")]
@@ -1166,10 +1172,10 @@ print(object): ()
 #[intrinsic("int32")]
 alias int32
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
-#[intrinsic("by_ref_read")]
+#[intrinsic("by_ref_read_only")]
 alias inref<T>
 
 #[intrinsic("address_of")]
@@ -1260,7 +1266,7 @@ getResult(x: ITest): int32 =
     x.test()
     
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
     
 main(): () =
     let result = getResult(cast<ITest>123))
@@ -1276,7 +1282,7 @@ open extension Int32TestExtension
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
     
 interface ITest =
@@ -1294,7 +1300,7 @@ getResult2(x: byref<int32>): int32 =
     getResult(cast<ITest>x))
     
 #[intrinsic("cast")]
-cast<T>(__oly_object): T
+cast<T>(__oly_base_object): T
     
 main(): () =
     let result = getResult(cast<ITest>(123))
@@ -1559,7 +1565,7 @@ alias int32
 alias float32
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("get_tuple_element")]
 GetTupleElement<N, T...>__oly_tuple<T...>): T...[N] where N: constant int32
@@ -1578,7 +1584,7 @@ let ``Test 42``() =
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
     
 #[intrinsic("float32")]
@@ -1624,7 +1630,7 @@ let ``Test 43``() =
 #[intrinsic("int32")]
 alias int32
     
-#[intrinsic("utf16")]
+#[intrinsic("string16")]
 alias utf16
     
 #[intrinsic("float32")]
@@ -1677,7 +1683,7 @@ main(): () =
 let ``Test 44``() =
     """
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 #[intrinsic("int32")]
 alias int32

@@ -75,6 +75,11 @@ type SyntaxToken with
         | SyntaxToken.Token(token=token) 
         | SyntaxToken.TokenWithTrivia(token=token) -> token.IsIdentifierToken || token.IsKeyword
 
+    member this.IsComment =
+        match this with
+        | SyntaxToken.Token(token=token) 
+        | SyntaxToken.TokenWithTrivia(token=token) -> token.IsComment
+
 type SyntaxName with
 
     member this.Path =

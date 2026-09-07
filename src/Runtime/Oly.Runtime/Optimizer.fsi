@@ -8,12 +8,13 @@ open Oly.Runtime.CodeGen.Patterns
 
 val OptimizeFunctionBody<'Type, 'Function, 'Field> :
     tryGetFunctionBody: (RuntimeFunction -> OlyIRFunctionBody<'Type, 'Function, 'Field> option) ->
-    emitFunction: ((RuntimeFunction * RuntimeFunction) -> 'Function) ->
+    emitFunction: (RuntimeFunction -> 'Function) ->
     emitType: (RuntimeType -> 'Type) ->
-    func: RuntimeFunction -> 
     irArgFlags: OlyIRLocalFlags [] ->
     irLocalFlags: OlyIRLocalFlags [] ->
     E<'Type, 'Function, 'Field> -> 
     GenericContext ->
     irTier: OlyIRFunctionTier ->
+    enclosingTyName: string ->
+    funcName: string ->
     OlyIRFunctionBody<'Type, 'Function, 'Field>

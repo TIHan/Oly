@@ -137,12 +137,12 @@ interface Monad<M<_>, M2<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 class Maybe2<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeMonadExtension<T> =
     inherits Maybe<T>
@@ -170,12 +170,12 @@ interface Monad<M<_>, M2<_>> =
 class Maybe<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 class Maybe2<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension MaybeExtension<T> =
     inherits Maybe<T>
@@ -320,7 +320,7 @@ interface Test2<T<_>> where T<_> : Test =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension Int32Extension =
     inherits __oly_int32
@@ -350,7 +350,7 @@ extension Int32Extension =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 interface Test2<T<_>> where T<_> : Test =
 
@@ -384,7 +384,7 @@ interface Test2<T<_>> where T<_> : Test =
 class TestType<T> =
     public field value: T
 
-    new(value: T) = { value = value }
+    new(value: T) = this { value = value }
 
 extension TestTypeExtension<T> =
     inherits TestType<T>
@@ -407,7 +407,7 @@ extension Int32Extension =
     |> ignore
 
 [<Fact>]
-let ``Resolve type inference on the + operator``() =
+let ``Resolve type inference on the + operator NOW PASSES``() =
     let src =
         """
 interface Add<T1, T2, T3> =
@@ -423,11 +423,7 @@ f<T, U>(x: T) : U where T : Add<T, __oly_int16, U> = x + 1
         """
 
     Oly src
-    |> withErrorDiagnostics
-        [
-           "Type instantiation 'T' is missing the constraint 'Add<T, __oly_int32, U>'."
-        ]
-    |> ignore
+    |> shouldCompile
 
 [<Fact>]
 let ``Interface implementation has correct symbols``() =
@@ -662,7 +658,7 @@ open extension TestAddExtension
 class Test =
 
     field x: __oly_int32
-    new(x: __oly_int32) = { x = x }
+    new(x: __oly_int32) = this { x = x }
 
     add(x: __oly_int32, y: __oly_int32) : __oly_int32 = y
 
@@ -723,6 +719,12 @@ class Add<T1, T2> =
     Oly src
     |> withErrorHelperTextDiagnostics
         [
+            ("Cannot implement non-interfaces.",
+                """
+class Add<T1, T2> =
+      ^^^
+"""
+            )
             ("'Add<T1, T2>' is recursively implementing itself.",
                 """
     implements Add<T1, T2>
@@ -747,7 +749,7 @@ interface IComponent<N, T> where N: constant int32 where T: unmanaged =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("The function 'static GetValue(): int32' cannot find a function to override.",
                 """
     static overrides GetValue(): int32 = N
                      ^^^^^^^^
@@ -766,10 +768,10 @@ interface IB =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("TODO.",
+            ("Interfaces cannot implement interfaces.",
                 """
-    implements IA
-    ^^^^^^^^^^^^^
+interface IB =
+          ^^
 """
             )
         ]
@@ -791,7 +793,7 @@ class A =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("'ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+            ("'M' type parameter constraints do not match its overriden function.\nExpected: M<T>(): () where T: trait ISee\nActual: M<T>(): () where T: ISee",
                 """
     M<T>(): () where T: ISee = ()
     ^
@@ -816,10 +818,71 @@ class A =
     |> Oly
     |> withErrorHelperTextDiagnostics
         [
-            ("'trait ISee' constraint does not exist on the overriden function's type parameter 'T'.",
+            ("'M' type parameter constraints do not match its overriden function.\nExpected: M<T>(): () where T: ISee\nActual: M<T>(): () where T: trait ISee",
                 """
     M<T>(): () where T: trait ISee = ()
     ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Cannot implement a non-interface``() =
+    """
+class A
+
+class B =
+    implements A
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("Cannot implement non-interfaces.",
+                """
+class B =
+      ^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Static member must have an implementation on the interface``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static GetValue(): int32
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'GetValue' must have an implementation.",
+                """
+    static GetValue(): int32
+           ^^^^^^^^
+"""
+            )
+        ]
+
+[<Fact>]
+let ``Static member must have an implementation on the interface - 2``() =
+    """
+#[intrinsic("int32")]
+alias int32
+
+interface IComponent =
+
+    static Value: int32 get
+    """
+    |> Oly
+    |> withErrorHelperTextDiagnostics
+        [
+            ("The function 'get_Value' must have an implementation.",
+                """
+    static Value: int32 get
+                        ^^^
 """
             )
         ]

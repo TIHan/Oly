@@ -1,5 +1,8 @@
 ﻿namespace rec Oly.Compiler.Syntax
 
+#nowarn "3535"
+#nowarn "3536"
+
 open System
 open System.Text
 open System.Threading
@@ -37,8 +40,11 @@ type OlyDiagnosticKind =
 [<AbstractClass>]
 type OlyDiagnostic internal () =
 
+    static member val CodePrefixOLY = "OLY"
+
     abstract Message : string
 
+    /// TODO: Instead of IsError, IsWarning, we should use an union kind.
     abstract IsError : bool
 
     abstract IsWarning : bool
@@ -50,6 +56,8 @@ type OlyDiagnostic internal () =
     abstract SyntaxTree : OlySyntaxTree option
 
     abstract OffsideAmount : int
+
+    abstract CodePrefix : string
 
     abstract Code : int
 
@@ -63,11 +71,28 @@ type OlyDiagnostic internal () =
         if String.IsNullOrWhiteSpace helperText then
             this.Message
         else
+            match this.SyntaxTree with
+            | Some(syntaxTree) ->
+                ct.ThrowIfCancellationRequested()
+                let textSpan = this.TextSpan
+                let sourceText = syntaxTree.GetSourceText(ct)
+                let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
+                let line = sourceLine.Index + 1
+                let column = textSpan.Start - sourceLine.Span.Start + 1
 
-        $"{this.Message}
------------------------------
-{helperText}
-        "
+                let kindText =
+                    if this.IsWarning then
+                        "warning"
+                    elif this.IsInformational then
+                        "informational"
+                    else
+                        "error"
+
+                let codeText = this.Code.ToString("D4")
+
+                $"{syntaxTree.Path}({line},{column}): {kindText} {this.CodePrefix}{codeText}: {this.Message}\n{helperText}"
+            | _ ->
+                helperText
 
     member this.GetHelperText(?ct: CancellationToken) =
         match this.SyntaxTree with
@@ -79,13 +104,13 @@ type OlyDiagnostic internal () =
             let textSpan = this.TextSpan
 
             let sourceText = syntaxTree.GetSourceText(ct)
-            let sourceLine = sourceText.Lines.GetLineFromPosition(textSpan.Start)
-            let sourceLineTest = sourceText.Lines.GetLineFromPosition(textSpan.End)
+            let line = sourceText.Lines.GetLineFromPosition(textSpan.Start)
+            let lineTest = sourceText.Lines.GetLineFromPosition(textSpan.End)
 
-            if sourceLine.LineIndex = sourceLineTest.LineIndex then       
-                let startI = textSpan.Start - sourceLine.TextSpan.Start
+            if line.Index = lineTest.Index then       
+                let startI = textSpan.Start - line.Span.Start
 
-                let lineText = sourceLine.ToString()
+                let lineText = line.ToString(sourceText)
                 let locationText = 
                     let a = String.init startI (fun _ -> " ")
                     let width = textSpan.Width
@@ -99,9 +124,9 @@ type OlyDiagnostic internal () =
                 lineText + "\n" + locationText
             else
                 // TODO: Fix support for multi-line diagnostic location
-                let startI = textSpan.Start - sourceLine.TextSpan.Start
+                let startI = textSpan.Start - line.Span.Start
 
-                let lineText = sourceLine.ToString()
+                let lineText = line.ToString(sourceText)
                 let locationText = 
                     let a = String.init startI (fun _ -> " ")
                     let b = String.init textSpan.Width (fun _ -> "^")
@@ -110,7 +135,7 @@ type OlyDiagnostic internal () =
         | _ ->
             String.Empty
 
-    static member CreateError(message, code, syntaxNode: OlySyntaxNode) =
+    static member CreateError(message, codePrefix, code, syntaxNode: OlySyntaxNode) =
         let textSpan = syntaxNode.TextSpan
 
         { new OlyDiagnostic() with
@@ -121,27 +146,13 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = Some syntaxNode.Tree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
-    static member CreateError(message, syntaxNode: OlySyntaxNode) =
-        OlyDiagnostic.CreateError(message, -1, syntaxNode)
-
-    static member CreateError(message, location: OlySourceLocation) =
-        let syntaxTree = Some location.SyntaxTree
-        let textSpan = location.TextSpan
-        { new OlyDiagnostic() with
-            member _.Message = message
-            member _.IsError = true
-            member _.IsWarning = false
-            member _.IsInformational = false
-            member _.SyntaxTree = syntaxTree
-            member _.TextSpan = textSpan
-            member _.OffsideAmount = 0
-            member _.Code = -1
-            member _.Kind = OlyDiagnosticKind.Semantic
-        }
+    static member CreateError(message, code, syntaxNode: OlySyntaxNode) =
+        OlyDiagnostic.CreateError(message, OlyDiagnostic.CodePrefixOLY, code, syntaxNode)
 
     static member CreateError(message, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
@@ -154,11 +165,28 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
-    static member CreateSyntacticWarning(message, code, location: OlySourceLocation) =
+    static member CreateError(message, codePrefix, code, location: OlySourceLocation) =
+        let syntaxTree = Some location.SyntaxTree
+        let textSpan = location.TextSpan
+        { new OlyDiagnostic() with
+            member _.Message = message
+            member _.IsError = true
+            member _.IsWarning = false
+            member _.IsInformational = false
+            member _.SyntaxTree = syntaxTree
+            member _.TextSpan = textSpan
+            member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
+            member _.Code = code
+            member _.Kind = OlyDiagnosticKind.Semantic
+        }
+
+    static member CreateSyntacticWarning(message, codePrefix, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -169,11 +197,12 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Syntactic
         }
 
-    static member CreateSyntacticError(message, code, location: OlySourceLocation) =
+    static member CreateSyntacticError(message, codePrefix, code, location: OlySourceLocation) =
         let syntaxTree = Some location.SyntaxTree
         let textSpan = location.TextSpan
         { new OlyDiagnostic() with
@@ -184,11 +213,12 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = syntaxTree
             member _.TextSpan = textSpan
             member _.OffsideAmount = 0
+            member _.CodePrefix = codePrefix
             member _.Code = code
             member _.Kind = OlyDiagnosticKind.Syntactic
         }
 
-    static member CreateError(message) =
+    static member CreateError(message, code) =
         { new OlyDiagnostic() with
             member _.Message = message
             member _.IsError = true
@@ -197,7 +227,22 @@ type OlyDiagnostic internal () =
             member _.SyntaxTree = None
             member _.TextSpan = OlyTextSpan()
             member _.OffsideAmount = 0
-            member _.Code = -1
+            member _.CodePrefix = OlyDiagnostic.CodePrefixOLY
+            member _.Code = code
+            member _.Kind = OlyDiagnosticKind.Semantic
+        }
+
+    static member CreateError(message, prefix, code) =
+        { new OlyDiagnostic() with
+            member _.Message = message
+            member _.IsError = true
+            member _.IsWarning = false
+            member _.IsInformational = false
+            member _.SyntaxTree = None
+            member _.TextSpan = OlyTextSpan()
+            member _.OffsideAmount = 0
+            member _.CodePrefix = prefix
+            member _.Code = code
             member _.Kind = OlyDiagnosticKind.Semantic
         }
 
@@ -213,7 +258,7 @@ type OlyDiagnostic internal () =
             s.ToString()
 
 [<Sealed>]
-type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsidesAmount, syntaxTreeOpt) =
+type internal OlyDiagnosticSyntaxInternal (msg, codePrefix, code, severity, textSpan, offsidesAmount, syntaxTreeOpt) =
     inherit OlyDiagnostic()
     
     override _.Message = msg
@@ -230,6 +275,8 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
 
     override _.OffsideAmount = offsidesAmount
 
+    override _.CodePrefix = codePrefix
+
     override _.Code = code
 
     override _.Kind = OlyDiagnosticKind.Syntactic
@@ -242,6 +289,7 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
                 syntaxNode.TextSpan
         OlyDiagnosticSyntaxInternal(
             diagnostic.Message,
+            OlyDiagnostic.CodePrefixOLY,
             diagnostic.Code,
             diagnostic.Severity,
             textSpan,
@@ -250,23 +298,29 @@ type internal OlyDiagnosticSyntaxInternal (msg, code, severity, textSpan, offsid
         )
 
 [<Sealed>]
-type OlyDiagnosticLogger private () =
+type OlyDiagnosticLogger private (prefixOpt: string option) =
 
     let mutable hasErrors = false
     let queue = System.Collections.Concurrent.ConcurrentQueue()
 
-    member _.Error(text: string) =
-        queue.Enqueue(OlyDiagnostic.CreateError(text))
+    let codePrefix =
+        match prefixOpt with
+        | Some prefix -> prefix
+        | _ -> OlyDiagnostic.CodePrefixOLY
 
     member _.Error(text: string, code: int, node: OlySyntaxNode) =
         hasErrors <- true
-        queue.Enqueue(OlyDiagnostic.CreateError(text, code, node))
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, node))
 
     member _.Error(text: string, code: int, startOffset: int, width: int, node: OlySyntaxNode) =
         hasErrors <- true
         let textSpan = node.TextSpan
         let textSpan = OlyTextSpan.Create(textSpan.Start + startOffset, width)
-        queue.Enqueue(OlyDiagnostic.CreateError(text, code, OlySourceLocation.Create(textSpan, node.Tree)))
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, OlySourceLocation.Create(textSpan, node.Tree)))
+
+    member _.ErrorWithSourceLocation(text: string, code: int, srcLoc: OlySourceLocation) =
+        hasErrors <- true
+        queue.Enqueue(OlyDiagnostic.CreateError(text, codePrefix, code, srcLoc))
 
     member _.HasAnyErrors = hasErrors
 
@@ -279,9 +333,11 @@ type OlyDiagnosticLogger private () =
         else
             queue.ToArray() |> ImArray.ofSeq
 
-    static member Create() = OlyDiagnosticLogger()
+    static member Create() = OlyDiagnosticLogger(None)
 
-[<AllowNullLiteral;AbstractClass;NoComparison>]
+    static member CreateWithPrefix(prefix: string) = OlyDiagnosticLogger(Some prefix)
+
+[<AllowNullLiteral;AbstractClass;NoComparison;DebuggerDisplay("{DebugDisplay}")>]
 type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, internalNode: ISyntaxNode) =
     
     let mutable leadingTriviaWidth = -1
@@ -291,6 +347,9 @@ type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, interna
     /// Can be 'null'.
     member _.Parent = parent
     member _.HasParent = isNull(parent) |> not
+    
+    member this.DebugDisplay =
+        tree.GetSourceText(CancellationToken.None).GetSubText(this.FullTextSpan).ToString()
 
     member this.GetDiagnostics(ct: CancellationToken): OlyDiagnostic imarray =
         tree.GetInternal(ct).GetDiagnostics(internalNode) 
@@ -317,17 +376,18 @@ type OlySyntaxNode internal (tree: OlySyntaxTree, parent: OlySyntaxNode, interna
     override _.GetHashCode() =
         internalNode.GetHashCode()
 
-    static member internal TryGetFirstToken(children: OlySyntaxNode imarray) =
+    static member internal TryGetFirstNonTriviaToken(children: OlySyntaxNode imarray) =
         let mutable node: OlySyntaxNode = null
 
         let mutable i = 0
         while isNull(node) && i < children.Length do
             let child = children[i]
 
-            if child.InternalNode.IsToken && not child.InternalNode.IsTerminal then
-                node <- child
-            else
-                node <- OlySyntaxNode.TryGetFirstToken(child.Children)
+            if not child.InternalNode.IsTriviaToken then
+                if child.InternalNode.IsToken && not child.InternalNode.IsTerminal  then
+                    node <- child
+                else
+                    node <- OlySyntaxNode.TryGetFirstNonTriviaToken(child.Children)
 
             i <- i + 1
 
@@ -386,8 +446,10 @@ type OlyCompilationUnitConfiguration =
         references: (OlyTextSpan * OlyPath) imarray
         packages: (OlyTextSpan * string) imarray
         copyFiles: (OlyTextSpan * OlyPath) imarray
+        properties: (OlyTextSpan * string * OlyTextSpan * obj) imarray
         directiveDiagnostics: OlyDiagnostic imarray
         isLibrary: bool
+        defaultAccessor: string option
     }
 
     member this.Target = this.target
@@ -400,7 +462,14 @@ type OlyCompilationUnitConfiguration =
 
     member this.CopyFiles = this.copyFiles
 
+    member this.Properties = this.properties
+
     member this.IsLibrary = this.isLibrary
+
+    member this.DefaultAccessor = this.defaultAccessor
+
+    member this.WithTarget(target) =
+        { this with target = target }
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type OlyParsingOptions =
@@ -452,9 +521,9 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                             this
                         )
                     if isError then
-                        OlyDiagnostic.CreateSyntacticError(msg, code, location)
+                        OlyDiagnostic.CreateSyntacticError(msg, OlyDiagnostic.CodePrefixOLY, code, location)
                     else
-                        OlyDiagnostic.CreateSyntacticWarning(msg, code, location)
+                        OlyDiagnostic.CreateSyntacticWarning(msg, OlyDiagnostic.CodePrefixOLY, code, location)
                 )
 
             internalTree
@@ -486,7 +555,7 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
 
             let checkConfigDirective textSpan =               
                 if not parsingOptions.CompilationUnitConfigurationEnabled then
-                    diags.Add(OlyDiagnostic.CreateError($"Compilation unit configuration is not enabled.", OlySourceLocation.Create(textSpan, this)))
+                    diags.Add(OlyDiagnostic.CreateError($"Compilation unit configuration is not enabled.", 200, OlySourceLocation.Create(textSpan, this)))
 
             let targets =
                 directives
@@ -509,17 +578,18 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     None
                 elif targets.Length > 1 then
                     let textSpan, _ = targets.[0]
-                    diags.Add(OlyDiagnostic.CreateError($"Only one target may be specified.", OlySourceLocation.Create(textSpan, this)))
+                    diags.Add(OlyDiagnostic.CreateError($"Only one target may be specified.", 201, OlySourceLocation.Create(textSpan, this)))
                     None
                 else
                     Some targets.[0]
 
             let getDirectiveValues directive =
                 directives
-                |> ImArray.choose(fun (startPos, endPos, rawToken) ->
+                |> ImArray.choose(fun (_startPos, endPos, rawToken) ->
                     match rawToken with
                     | Directive(_, identToken, _, valueToken) ->
-                        let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
+                        let length = valueToken.Width
+                        let textSpan = OlyTextSpan.Create(endPos - length, length)
                         if identToken.Text = directive then
                             checkConfigDirective textSpan
                             Some(textSpan, valueToken.ValueText)
@@ -529,13 +599,13 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         None
                 )
 
-            let directiveExists directive =
+            let directiveFlagExists directive =
                 directives
                 |> ImArray.exists(fun (startPos, endPos, rawToken) ->
                     match rawToken with
                     | DirectiveFlag(_, identToken) ->
                         let textSpan = OlyTextSpan.Create(startPos, endPos - startPos)
-                        if identToken.Text = "library" then
+                        if identToken.Text = directive then
                             checkConfigDirective textSpan
                             true
                         else
@@ -544,13 +614,56 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                         false
                 )
 
+            let getPropertyDirectives() : (OlyTextSpan * string * OlyTextSpan * obj) imarray = 
+                directives
+                |> ImArray.choose (fun (startPos, _, rawToken) ->
+                    match rawToken with
+                    | PropertyDirective(hashToken, propertyToken, whitespaceToken1, propertyNameToken, whitespaceToken2, propertyValueToken) ->
+                        let propertyNameStartPos = startPos + hashToken.Width + propertyToken.Width + whitespaceToken1.Width
+                        let propertyValueStartPos = propertyNameStartPos + propertyNameToken.Width + whitespaceToken2.Width
+                        let propertyNameTextSpan = OlyTextSpan.Create(propertyNameStartPos, propertyNameToken.Width)
+                        let propertyValueTextSpan = OlyTextSpan.Create(propertyValueStartPos, propertyValueToken.Width)
+                        match propertyValueToken with
+                        | Token.True -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, true))
+                        | Token.False -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, false))
+
+                        | Token.IntegerLiteral(text=text) -> 
+                            let (isValid, value) = Int64.TryParse(text)
+                            if isValid then
+                                Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, value))
+                            else
+                                diags.Add(OlyDiagnostic.CreateError($"Not a valid 64-bit integer.", 201, OlySourceLocation.Create(propertyValueTextSpan, this)))
+                                None
+
+                        | Token.StringLiteral(text=text) -> 
+                            Some((propertyNameTextSpan, propertyNameToken.ValueText, propertyValueTextSpan, text))
+                        | _ -> None
+                    | _ ->
+                        None
+                )
+
+            // REVIEW: While it's fast iterating through all directives for each value, 
+            //         we technically could still optimize this to not iterate through all each time.
             let loads = getDirectiveValues "load" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let references = getDirectiveValues "reference" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
             let packages = getDirectiveValues "package"
             let copyFiles = getDirectiveValues "copy" |> ImArray.map (fun (textSpan, value) -> (textSpan, OlyPath.Create(value)))
-            let isLibrary = directiveExists "library"
+            let isLibrary = directiveFlagExists "library"
+            let defaultAccessors = getDirectiveValues "default_accessor"
 
-            // Validate directives
+            let properties = getPropertyDirectives()
+
+            let defaultAccessor =
+                if defaultAccessors.IsEmpty then
+                    None
+                else
+                    let accessorDefault = defaultAccessors |> ImArray.head
+                    Some(accessorDefault)
+
+            // Begin validate directives
+
             directives
             |> ImArray.iter(fun (startPos, endPos, rawToken) ->
                 match rawToken with
@@ -561,14 +674,52 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
                     | "target"
                     | "load"
                     | "package" -> ()
-                    | "copy" -> () // TODO:
+                    | "copy"
+                    | "default_accessor" -> () // TODO:
                     | _ ->
-                        diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", OlySourceLocation.Create(textSpan, this)))
+                        diags.Add(OlyDiagnostic.CreateError($"The directive '{ (hashToken.ValueText + identToken.ValueText) }' is invalid.", 202, OlySourceLocation.Create(textSpan, this)))
                 | _ ->
                     ()
             )
 
-            { target = target; references = references; loads = loads; packages = packages; copyFiles = copyFiles; directiveDiagnostics = diags.ToImmutable(); isLibrary = isLibrary }
+            // check duplicates - TODO: do this for other directives if possible. ex: two or more '#load' with the same value, two or more '#target', two or more '#library'
+            if defaultAccessors.Length > 1 then
+                for i = 1 to defaultAccessors.Length - 1 do
+                    let (textSpan, _) = defaultAccessors[i]
+                    diags.Add(
+                        OlyDiagnostic.CreateError(
+                            $"The directive '#default_accessor' is already specified.", 
+                            203, 
+                            OlySourceLocation.Create(textSpan, this)
+                        )
+                    )
+
+            match defaultAccessor with
+            | None
+            | Some(_, "public")
+            | Some(_, "private") -> ()
+            | Some(textSpan, invalidValue) ->
+                diags.Add(
+                    OlyDiagnostic.CreateError(
+                        $"'{invalidValue}' is not a valid value for '#default_accessor'.", 
+                        203, 
+                        OlySourceLocation.Create(textSpan, this)
+                    )
+                )
+
+            // End validate directives
+
+            { 
+                target = target
+                references = references
+                loads = loads
+                packages = packages
+                copyFiles = copyFiles
+                properties = properties
+                directiveDiagnostics = diags.ToImmutable()
+                isLibrary = isLibrary
+                defaultAccessor = defaultAccessor |> Option.map snd
+            }
         )
 
     abstract WithPath : OlyPath -> OlySyntaxTree
@@ -605,3 +756,179 @@ type OlySyntaxTree internal (path: OlyPath, getText: CacheValue<IOlySourceText>,
     internal new(path, getText: CancellationToken -> IOlySourceText, version, options) =
         let getText = CacheValue(getText)
         OlySyntaxTree(path, getText, version, options)
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+
+[<Sealed;NoComparison>]
+type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if childrenOfType.IsDefault then
+            childrenOfType <- 
+                children 
+                |> ImArray.choose (fun x -> if x.InternalNode.IsToken then None else Some(System.Runtime.CompilerServices.Unsafe.As<'T>(x)))
+        children
+
+    member this.ChildrenOfType =
+        this.Children |> ignore
+        childrenOfType
+
+[<Sealed;NoComparison>]
+type OlySyntaxList<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable childrenOfType: 'T imarray = Unchecked.defaultof<_>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if childrenOfType.IsDefault then
+            childrenOfType <- 
+                children 
+                |> ImArray.map (fun x -> System.Runtime.CompilerServices.Unsafe.As<'T>(x))
+        children
+
+    member this.ChildrenOfType =
+        this.Children |> ignore
+        childrenOfType
+
+[<Sealed;NoComparison>]
+type OlySyntaxBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode
+
+[<Sealed;NoComparison>]
+type OlySyntaxBracketInnerPipes<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode
+
+[<Sealed;NoComparison>]
+type OlySyntaxCurlyBrackets<'T when 'T :> OlySyntaxNode and 'T : not struct> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode, convert) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+    
+    let mutable children: OlySyntaxNode imarray = Unchecked.defaultof<_>
+    let mutable element = Unchecked.defaultof<'T>
+
+    override this.TextSpan =
+        let offset = this.GetLeadingTriviaWidth()
+        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
+
+    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
+
+    override _.Children =
+        if children.IsDefault then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    internalNode.SlotCount 
+                    (fun i -> 
+                        let t: OlySyntaxNode = convert(tree, p, this, internalNode.GetSlot(i))
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        if obj.ReferenceEquals(element, null) then
+            element <- System.Runtime.CompilerServices.Unsafe.As<'T>(children[1])
+        children
+
+    member _.Element =
+        this.Children |> ignore
+        element
+    
+    member internal _.Internal = internalNode

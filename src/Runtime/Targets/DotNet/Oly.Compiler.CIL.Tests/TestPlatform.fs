@@ -7,8 +7,8 @@ open System.Runtime.Loader
 open Oly.Core
 open Oly.Metadata
 open Oly.Runtime
-open Oly.Runtime.Clr.Emitter
-open Oly.Runtime.Target.DotNet
+open Oly.Emitters.DotNet
+open Oly.Targets.DotNet
 open Oly.Compiler
 open Xunit
     
@@ -16,9 +16,13 @@ let globalSetup() =
     TestUtilities.Configuration.defaultReferences <- 
         let dotnetLocation = Path.GetDirectoryName(typeof<obj>.Assembly.Location)
         let asms = AppDomain.CurrentDomain.GetAssemblies()
-        asms 
+        let consoleAsm = typeof<System.Console>.Assembly
+        asms  
+        |> Array.append [|consoleAsm|]
+        |> Array.distinctBy (fun x -> x.FullName)
         |> Array.choose (fun x ->
-            if x.Location.StartsWith(dotnetLocation) then
+            System.Diagnostics.Debug.WriteLine(x.FullName)
+            if x.Location.StartsWith(dotnetLocation) && (x.Location.Contains("System.Private.CoreLib") || x.Location.Contains("System.Console") || x.Location.Contains("System.Collections.Concurrent") || x.Location.Contains("System.Runtime") || x.Location.Contains("System.Linq") || x.Location.Contains("System.Collections.Immutable")) then
                 use fs = File.OpenRead(x.Location)
                 let asm = Importer.Import(x.GetName().Name, fs)
                 let compRef = OlyCompilationReference.Create(OlyPath.Create(x.Location), 42UL, asm)
@@ -27,8 +31,8 @@ let globalSetup() =
                 None
         )
         |> ImArray.ofSeq
-    TestUtilities.Configuration.implicitExtendsForEnum <- Some "System.Enum"
-    TestUtilities.Configuration.implicitExtendsForStruct <- Some "System.ValueType"
+    TestUtilities.Configuration.implicitExtendsForEnum <- Some "System::Enum"
+    TestUtilities.Configuration.implicitExtendsForStruct <- Some "System::ValueType"
 
 let createEmitter(asm: OlyILAssembly) =
     OlyRuntimeClrEmitter(asm.Name, true, typeof<obj>.Assembly.GetName(), typeof<System.Console>.Assembly.GetName())
@@ -36,32 +40,14 @@ let createEmitter(asm: OlyILAssembly) =
 let configureRuntime(vm: OlyRuntime<ClrTypeInfo, ClrMethodInfo, ClrFieldInfo>) =
     ()
 
-let emitterWrite(emitter: OlyRuntimeClrEmitter) =
+let emitterWrite(emitter: OlyRuntimeClrEmitter, isDebuggable) =
     let ms = new MemoryStream()
     use msPdb = new MemoryStream()
-#if DEBUG || CHECKED
-    emitter.Write(ms, msPdb, (* isDebuggable *) true)
-#else
-    emitter.Write(ms, msPdb, (* isDebuggable *) false)
-#endif
+    emitter.Write(ms, msPdb, isDebuggable)
     ms.Position <- 0L
     ms
 
 let private gate = obj()
-
-//let private runtimeconfigJson =
-//    """{
-//  "runtimeOptions": {
-//    "tfm": "net7.0",
-//    "framework": {
-//      "name": "Microsoft.NETCore.App",
-//      "version": "7.0.0"
-//    },
-//    "configProperties": {
-//      "System.Reflection.Metadata.MetadataUpdater.IsSupported": false
-//    }
-//  }
-//}"""
 
 let ilverify (ms: MemoryStream) =
     let tmpFile = Path.GetTempFileName()
@@ -88,7 +74,7 @@ let ilverify (ms: MemoryStream) =
 
 let private runILVerify = false
 
-let run (ms: MemoryStream, expectedOutput: string) =
+let runAndReturnOutput(ms: MemoryStream, input: string[]): string =
     if runILVerify then
         ilverify ms
 
@@ -104,13 +90,22 @@ let run (ms: MemoryStream, expectedOutput: string) =
                 Console.SetOut(writer)
                 if rasm.EntryPoint = null then
                     failwith "Entry point not found."
-                rasm.EntryPoint.Invoke(null, [||]) |> ignore
+                let args: obj array =
+                    if input.Length = 0 then
+                        [||]
+                    else
+                        [|input|]
+                rasm.EntryPoint.Invoke(null, args) |> ignore
                 actualOutput <- builder.ToString()
                 writer.Dispose()
             )
         with
         | ex ->
             failwith $"Execution failed:\n{ex.Message}\n\n{ex.StackTrace}"
-        Assert.Equal(expectedOutput, actualOutput)
+        actualOutput
     finally
         context.Unload()
+
+let run (ms: MemoryStream, expectedOutput: string) =
+    let actualOutput = runAndReturnOutput(ms, [||])
+    Assert.Equal(expectedOutput, actualOutput)

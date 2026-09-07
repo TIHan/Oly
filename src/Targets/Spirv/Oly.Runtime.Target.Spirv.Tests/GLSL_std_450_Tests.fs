@@ -1,0 +1,124 @@
+﻿module Oly.Targets.Spirv.GLSL_std_450_Tests
+
+open Xunit
+open System.Numerics
+open Oly.Targets.Spirv.OlySpirvTestHelpers
+
+[<Fact>]
+let ``round - float32``() =
+    "round(input)"
+    |> run [|0.1f|] [|0.0f|]
+
+    "round(input)"
+    |> run [|0.9f|] [|1.0f|]
+
+    "round(input)"
+    |> run [|0.5f|] [|0.0f|]
+
+    "round(input)"
+    |> run [|1.5f|] [|2.0f|]
+
+    "round(input)"
+    |> run [|3.5f|] [|4.0f|]
+
+    "round(input)"
+    |> run [|4.5f|] [|4.0f|]
+
+    "round(input)"
+    |> run [|2.6f|] [|3.0f|]
+
+[<Fact>]
+let ``round - vec2``() =
+    "round(input)"
+    |> run [|Vector2(0.1f)|] [|Vector2(0.0f)|]
+
+    "round(input)"
+    |> run [|Vector2(0.1f, 0.9f)|] [|Vector2(0.0f, 1.0f)|]
+
+[<Fact>]
+let ``round - vec3``() =
+    "vec4(round(input.XYZ), 0)"
+    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
+
+    "vec4(round(input.XYZ), 0)"
+    |> run [|Vector4(0.9f, 0.1f, 0.1f, 0.0f)|] [|Vector4(1.0f, 0.0f, 0.0f, 0.0f)|]
+
+[<Fact>]
+let ``round - vec4``() =
+    "round(input)"
+    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
+
+    "round(input)"
+    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
+
+[<Fact>]
+let ``roundEven - float32``() =
+    "roundEven(input)"
+    |> run [|0.1f|] [|0.0f|]
+
+    "roundEven(input)"
+    |> run [|0.9f|] [|1.0f|]
+
+    "roundEven(input)"
+    |> run [|0.5f|] [|0.0f|]
+
+    "roundEven(input)"
+    |> run [|1.5f|] [|2.0f|]
+
+    "roundEven(input)"
+    |> run [|3.5f|] [|4.0f|]
+
+    "roundEven(input)"
+    |> run [|4.5f|] [|4.0f|]
+
+    "roundEven(input)"
+    |> run [|2.5f|] [|2.0f|]
+
+[<Fact>]
+let ``roundEven - vec2``() =
+    "roundEven(input)"
+    |> run [|Vector2(0.1f)|] [|Vector2(0.0f)|]
+
+    "roundEven(input)"
+    |> run [|Vector2(0.1f, 0.9f)|] [|Vector2(0.0f, 1.0f)|]
+
+[<Fact>]
+let ``roundEven - vec3``() =
+    "vec4(roundEven(input.XYZ), 0)"
+    |> run [|Vector4(Vector3(0.1f), 0.f)|] [|Vector4(0.0f)|]
+
+    "vec4(roundEven(input.XYZ), 0)"
+    |> run [|Vector4(Vector3(0.1f, 0.1f, 0.1f), 0.f)|] [|Vector4(0.0f)|]
+
+[<Fact>]
+let ``roundEven - vec4``() =
+    "roundEven(input)"
+    |> run [|Vector4(0.1f)|] [|Vector4(0.0f)|]
+
+    "roundEven(input)"
+    |> run [|Vector4(0.1f, 0.1f, 0.1f, 0.9f)|] [|Vector4(0.0f, 0.0f, 0.0f, 1.0f)|]
+
+[<Fact>]
+let ``floor - float32``() =
+    "floor(input)"
+    |> run [|0.1f|] [|0.0f|]
+
+[<Fact>]
+let ``floor - vec2``() =
+    "floor(input)"
+    |> run [|Vector2(0.1f, 1.1f)|] [|Vector2(0.0f, 1.0f)|]
+
+[<Fact>]
+let ``floor - vec3``() =
+    "vec4(floor(input.XYZ), 0)"
+    |> run [|Vector4(0.1f, 1.1f, 2.1f, 0.f)|] [|Vector4(0.0f, 1.0f, 2.0f, 0.f)|]
+
+[<Fact>]
+let ``floor - vec4``() =
+    "floor(input)"
+    |> run [|Vector4(0.1f, 1.1f, 2.1f, -0.1f)|] [|Vector4(0.0f, 1.0f, 2.0f, -1.0f)|]
+
+[<Fact>]
+let ``mix - float32``() =
+    "mix(input.X, input.Y, input.Z)"
+    |> run [|Vector4(1.0f, 2.0f, 0.5f, 0.f)|] [|1.5f|]

@@ -10,40 +10,28 @@ open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Compiler.Workspace.Extensions
 
-let createWorkspace() =
-    OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()])
+let rootDir = OlyPath.Create(Environment.CurrentDirectory)
+let rs = 
+    let rs = OlyWorkspaceResourceSnapshot.Create(rootDir, OlyPath.Empty)
+    let fileInfo = System.IO.FileInfo("prelude.oly")
+    let rs = rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
+    let fileInfo = System.IO.FileInfo("prelude_interpreter.olyx")
+    rs.SetResourceAsCopy(OlyPath.Create(fileInfo.FullName), new System.IO.MemoryStream(System.IO.File.ReadAllBytes(fileInfo.FullName)))
 
-let createWorkspaceWith(f) =
-    let rs =
-        {
-            new IOlyWorkspaceResourceService with
-        
-                member _.LoadSourceText(filePath) =
-                    f filePath
-        
-                member _.GetTimeStamp(filePath) = DateTime()
-        
-                member _.FindSubPaths(dirPath) =
-                    ImArray.empty
-        
-                member _.LoadProjectConfigurationAsync(_projectFilePath: OlyPath, ct: CancellationToken) =
-                    backgroundTask {
-                        ct.ThrowIfCancellationRequested()
-                        return OlyProjectConfiguration(String.Empty, ImArray.empty, false)
-                    }
-        }
-    OlyWorkspace.Create([Oly.Runtime.Target.Interpreter.InterpreterTarget()], rs)
+let createWorkspace() =
+    OlyWorkspace.Create(([Oly.Targets.Interpreter.InterpreterTarget()]: OlyBuild seq), OlyPath.Empty, rs)
 
 let createProject src (workspace: OlyWorkspace) =
-    let path = OlyPath.Create "olytest.olyx"
-    workspace.UpdateDocumentAsync(path, OlySourceText.Create(src), CancellationToken.None).Result[0].Project
+    let path = rootDir.Join("olytest.olyx")
+    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
+    workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
 
 [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
 let createProjectWeakReference src workspace =
     let proj = createProject src workspace
     let comp = proj.Compilation
     let syntaxTree = proj.Documents[0].SyntaxTree
-    WeakReference<OlyProject>(proj), WeakReference<OlyCompilation>(comp), WeakReference<OlySyntaxTree>(syntaxTree)
+    WeakReference<OlyProject>(proj), WeakReference<OlyCompilation>(comp), WeakReference<OlySyntaxTree>(syntaxTree), syntaxTree.Path
 
 let createDocument src (workspace: OlyWorkspace) =
 #if DEBUG || CHECKED
@@ -51,19 +39,24 @@ let createDocument src (workspace: OlyWorkspace) =
 #else
     let isDebuggable = false
 #endif
-    let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable)
-    let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", projOptions, "dotnet", OlyTargetInfo("net7", OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), CancellationToken.None)
+    let projOptions = OlyProjectConfiguration("olytest", ImArray.empty, isDebuggable, OlyDefaultAccessor.Public)
+    let sol, proj = workspace.GetSolutionAsync(CancellationToken.None).Result.CreateProject(OlyPath.Create "olytest", "dotnet", OlyTargetInfo("net10.0", projOptions, OlyOutputKind.Executable, Some "System.ValueType", Some "System.Enum"), ImArray.empty, ImArray.empty, None, CancellationToken.None)
     let syntaxTree = OlySyntaxTree.Parse(OlyPath.Create "olytest", (fun _ -> OlySourceText.Create(src)))
     let sol, proj, doc = sol.UpdateDocument(proj.Path, OlyPath.Create "olytest", syntaxTree, ImArray.empty)
     doc
 
 let updateDocument path src (workspace: OlyWorkspace) =
-    workspace.UpdateDocumentAsync(path, OlySourceText.Create(src), CancellationToken.None).Result
+    workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
+    workspace.GetDocumentsAsync(path, CancellationToken.None).Result
     |> ignore
 
 let shouldCompile (proj: OlyProject) =
     let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
     Assert.Empty(diags)
+
+let shouldNotCompile (proj: OlyProject) =
+    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    Assert.NotEmpty(diags)
 
 let getDocumentWithCursor (srcWithCursor: string) =
     let cursorPosition = srcWithCursor.IndexOf("~^~")
@@ -125,12 +118,12 @@ let getFunctionCallSymbolByCursor (srcWithCursor: string) =
 let ``Simple workspace with hello world project should compile`` () =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     print("Hello World!")
@@ -140,9 +133,43 @@ main(): () =
     |> shouldCompile
 
 [<Fact>]
+let ``Simple workspace with hello world project should not compile and then add a new file to make it compile`` () =
+    let src =
+        """
+#target "interpreter: default"
+
+#load "*.oly"
+
+module Test
+
+#[intrinsic("print")]
+print(__oly_base_object): ()
+
+main(): () =
+    print("Hello World!")
+    Extra.Print()
+        """
+    let workspace = createWorkspace()
+    let proj = createProject src workspace
+    shouldNotCompile proj
+
+    let srcExtra =
+        """
+module Extra
+    
+Print(): () =
+    Test.print("extra")
+        """
+    workspace.UpdateDocument((rootDir.Join("extra.oly")), OlySourceText.Create(srcExtra), CancellationToken.None)
+    let solution = workspace.GetSolutionAsync(CancellationToken.None).Result
+    let proj = solution.GetProject(proj.Path)
+    shouldCompile proj
+
+
+[<Fact>]
 let ``By cursor, get completions of local variable 'x'`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -155,7 +182,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -169,7 +196,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 3`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -183,7 +210,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 4`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -197,7 +224,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 5`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -210,7 +237,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 6`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -223,7 +250,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 7`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -236,7 +263,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions of local variable 'x' 8`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
 
@@ -249,7 +276,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a local variable`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 struct Test =
     
@@ -264,9 +291,9 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a byref local variable`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -286,9 +313,9 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a byref local variable 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
-#[intrinsic("by_ref_read_write")]
+#[intrinsic("by_ref")]
 alias byref<T>
 
 #[intrinsic("address_of")]
@@ -310,7 +337,7 @@ let ``By cursor, get completions from a namespace`` () =
     """
 namespace TestNamespace
 
-#target "i: default"
+#target "interpreter: default"
 
 struct Test =
     
@@ -324,10 +351,10 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions from a cast`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 interface IA =
 
@@ -351,29 +378,189 @@ main(): () =
     """
     |> containsCompletionLabelsByCursor ["A";"B"]
 
+[<Fact>]
+let ``By cursor, should not get completions at =`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~=
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 2`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () =~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 3`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~     =
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 4 - but it has no = this time`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+main(): () ~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should get completions for return type`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): ~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.NotEqual(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions at = 5 - but it has no = this time`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+#[intrinsic("equal")]
+(==)(int32, int32): bool
+
+#[intrinsic("equal")]
+(==)<T>(T, T): bool where T: struct
+
+(==)<T1, T2, T3>(value1: T1, value2: T2): T3 = unchecked default
+
+M(): () ~^~
+
+main(): () =
+    ()
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions for literal`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): () =
+    let _x = ~^~1
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
+[<Fact>]
+let ``By cursor, should not get completions for literal 2`` () =
+    let srcWithCursor = """
+#target "interpreter: default"
+
+#[intrinsic("int32")]
+alias int32
+
+#[intrinsic("bool")]
+alias bool
+
+main(): () =
+    let _x = 1~^~
+    """
+    let completionLabels = getCompletionLabels srcWithCursor
+    Assert.Equal(0, completionLabels.Count)
+
 let clearSolution (workspace: OlyWorkspace) =
-    workspace.ClearSolutionAsync(CancellationToken.None).Result
+    workspace.ClearSolution()
+
+let getSolution (workspace: OlyWorkspace) =
+    workspace.GetSolutionAsync(CancellationToken.None).Result
 
 let mutable workspaceGC_stub = Unchecked.defaultof<OlyWorkspace>
 
-[<Fact>]
-let ``Project should be GC'ed``() =
-    let src =
-        """
-#target "i: default"
-
-module Test
-    
-#[intrinsic("print")]
-print(__oly_object): ()
-    
-main(): () =
-    print("Hello World!")
-        """
-    let workspace = createWorkspace()
-    workspaceGC_stub <- workspace
-    let projWeak, compWeak, treeWeak = createProjectWeakReference src workspace
-
+[<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+let assertNoGC (projWeak: WeakReference<OlyProject>, compWeak: WeakReference<OlyCompilation>, treeWeak: WeakReference<OlySyntaxTree>) =
     let mutable proj = Unchecked.defaultof<_>
     let mutable comp = Unchecked.defaultof<_>
     let mutable tree = Unchecked.defaultof<_>
@@ -384,15 +571,15 @@ main(): () =
         GC.Collect(2, GCCollectionMode.Forced, true, true)
         GC.WaitForPendingFinalizers()
 
-    Assert.True(projWeak.TryGetTarget(&proj))
+    Assert.True(projWeak.TryGetTarget(&proj)) 
     Assert.True(compWeak.TryGetTarget(&comp))
     Assert.True(treeWeak.TryGetTarget(&tree))
 
-    proj <- Unchecked.defaultof<_>
-    comp <- Unchecked.defaultof<_>
-    tree <- Unchecked.defaultof<_>
-
-    clearSolution workspace
+[<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
+let assertGC (projWeak: WeakReference<OlyProject>, compWeak: WeakReference<OlyCompilation>, treeWeak: WeakReference<OlySyntaxTree>) =
+    let mutable proj = Unchecked.defaultof<_>
+    let mutable comp = Unchecked.defaultof<_>
+    let mutable tree = Unchecked.defaultof<_>
 
     for _i = 1 to 10 do
         GC.Collect(2, GCCollectionMode.Forced, true, true)
@@ -404,12 +591,37 @@ main(): () =
     Assert.False(compWeak.TryGetTarget(&comp))
     Assert.False(treeWeak.TryGetTarget(&tree))
 
+[<Fact>]
+let ``Project should be GC'ed``() =
+    let src =
+        """
+#target "interpreter: default"
+
+module Test
+    
+#[intrinsic("print")]
+print(__oly_base_object): ()
+    
+main(): () =
+    print("Hello World!")
+        """
+    let workspace = createWorkspace()
+    workspaceGC_stub <- workspace
+    let projWeak, compWeak, treeWeak, _ = createProjectWeakReference src workspace
+
+    assertNoGC(projWeak, compWeak, treeWeak)
+
+    clearSolution workspace
+
+    let _ = getSolution workspace
+    assertGC(projWeak, compWeak, treeWeak)
+
     workspaceGC_stub <- Unchecked.defaultof<_>
 
 let clearSolution2 (path: OlyPath) (workspace: OlyWorkspace) =
     let mutable currentDocs = workspace.GetDocumentsAsync(path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 1)
-    workspace.ClearSolutionAsync(CancellationToken.None).Result
+    workspace.ClearSolution()
     currentDocs <- workspace.GetDocumentsAsync(path, CancellationToken.None).Result
     Assert.True(currentDocs.Length = 0)
 
@@ -417,51 +629,26 @@ let clearSolution2 (path: OlyPath) (workspace: OlyWorkspace) =
 let ``Project should be GC'ed 2``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
         """
     let workspace = createWorkspace()
     workspaceGC_stub <- workspace
-    let projWeak, compWeak, treeWeak = createProjectWeakReference src workspace
+    let projWeak, compWeak, treeWeak, path = createProjectWeakReference src workspace
 
-    let mutable proj = Unchecked.defaultof<_>
-    let mutable comp = Unchecked.defaultof<_>
-    let mutable tree = Unchecked.defaultof<_>
-
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.True(projWeak.TryGetTarget(&proj))
-    Assert.True(compWeak.TryGetTarget(&comp))
-    Assert.True(treeWeak.TryGetTarget(&tree))
-
-    let path = proj.Path
-
-    proj <- Unchecked.defaultof<_>
-    comp <- Unchecked.defaultof<_>
-    tree <- Unchecked.defaultof<_>
+    assertNoGC(projWeak, compWeak, treeWeak)
 
     clearSolution2 path workspace
 
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.False(projWeak.TryGetTarget(&proj))
-    Assert.False(compWeak.TryGetTarget(&comp))
-    Assert.False(treeWeak.TryGetTarget(&tree))
+    let _ = getSolution workspace
+    assertGC(projWeak, compWeak, treeWeak)
 
     workspaceGC_stub <- Unchecked.defaultof<_>
 
@@ -469,51 +656,26 @@ main(): () =
 let ``Project should be GC'ed 3``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
         """
     let workspace = createWorkspace()
     workspaceGC_stub <- workspace
-    let projWeak, compWeak, treeWeak = createProjectWeakReference src workspace
+    let projWeak, compWeak, treeWeak, path = createProjectWeakReference src workspace
 
-    let mutable proj = Unchecked.defaultof<_>
-    let mutable comp = Unchecked.defaultof<_>
-    let mutable tree = Unchecked.defaultof<_>
-
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.True(projWeak.TryGetTarget(&proj))
-    Assert.True(compWeak.TryGetTarget(&comp))
-    Assert.True(treeWeak.TryGetTarget(&tree))
-
-    let path = proj.Path
-
-    proj <- Unchecked.defaultof<_>
-    comp <- Unchecked.defaultof<_>
-    tree <- Unchecked.defaultof<_>
+    assertNoGC(projWeak, compWeak, treeWeak)
 
     updateDocument path (src + " ") workspace
 
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.False(projWeak.TryGetTarget(&proj))
-    Assert.False(compWeak.TryGetTarget(&comp))
-    Assert.False(treeWeak.TryGetTarget(&tree))
+    let _ = getSolution workspace
+    assertGC(projWeak, compWeak, treeWeak)
 
     workspaceGC_stub <- Unchecked.defaultof<_>
 
@@ -521,51 +683,26 @@ main(): () =
 let ``Project should not be GC'ed as the source text is the same``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
         """
     let workspace = createWorkspace()
     workspaceGC_stub <- workspace
-    let projWeak, compWeak, treeWeak = createProjectWeakReference src workspace
+    let projWeak, compWeak, treeWeak, path = createProjectWeakReference src workspace
 
-    let mutable proj = Unchecked.defaultof<_>
-    let mutable comp = Unchecked.defaultof<_>
-    let mutable tree = Unchecked.defaultof<_>
-
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.True(projWeak.TryGetTarget(&proj), "proj - before")
-    Assert.True(compWeak.TryGetTarget(&comp), "comp - before")
-    Assert.True(treeWeak.TryGetTarget(&tree), "tree - before")
-
-    let path = proj.Path
-
-    proj <- Unchecked.defaultof<_>
-    comp <- Unchecked.defaultof<_>
-    tree <- Unchecked.defaultof<_>
+    assertNoGC(projWeak, compWeak, treeWeak)
 
     updateDocument path src workspace
 
-    for _i = 1 to 10 do
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-        GC.Collect(2, GCCollectionMode.Forced, true, true)
-        GC.WaitForPendingFinalizers()
-
-    Assert.True(projWeak.TryGetTarget(&proj), "proj - after")
-    Assert.True(compWeak.TryGetTarget(&comp), "comp - after")
-    Assert.True(treeWeak.TryGetTarget(&tree), "tree - after")
+    let _ = getSolution workspace
+    assertNoGC(projWeak, compWeak, treeWeak)
 
     workspaceGC_stub <- Unchecked.defaultof<_>
 
@@ -573,14 +710,14 @@ main(): () =
 let ``Project should work with multiple dots in the name``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #load "../fakepath/*.oly"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -599,14 +736,14 @@ main(): () =
 let ``Project should fail when trying to reference a Oly file``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fake.oly"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -616,7 +753,7 @@ main(): () =
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
     
-    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
     Assert.Equal("Cannot reference Oly file(s) 'fake.oly'. Use '#load' instead.", diags[0].Message)
 
@@ -624,14 +761,14 @@ main(): () =
 let ``Project should fail when trying to reference a Oly file 2``() =
     let src =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "*.oly"
 
 module Test
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
     
 main(): () =
     print("Hello World!")
@@ -641,7 +778,7 @@ main(): () =
     workspace.UpdateDocument(path, OlySourceText.Create(src), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path, CancellationToken.None).Result[0].Project
     
-    let diags = proj.Compilation.GetDiagnostics(CancellationToken.None)
+    let diags = proj.GetDiagnostics(CancellationToken.None)
     Assert.Equal(1, diags.Length)
     Assert.Equal("Cannot reference Oly file(s) '*.oly'. Use '#load' instead.", diags[0].Message)
 
@@ -649,32 +786,31 @@ main(): () =
 let ``Project reference another project``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
 open static Test
 
 main(): () =
-    print("Hello World!")
+    printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -685,30 +821,29 @@ main(): () =
 let ``Project reference another project 2``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
 main(): () =
-    Test.print("Hello World!")
+    Test.printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -719,31 +854,30 @@ main(): () =
 let ``Project reference another project 3``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
     
-#[intrinsic("print")]
-print(__oly_object): ()
+printHelloWorld(): () =
+    print("Hello World!")
         """
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
 main(): () =
-    print("Hello World!")
+    printHelloWorld()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -755,7 +889,7 @@ main(): () =
 let ``Project reference another project 4``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -763,14 +897,11 @@ module Test
 class TestClass =
 
     X: __oly_int32 get = 123
-    
-#[intrinsic("print")]
-print(__oly_object): ()
         """
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -779,12 +910,11 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -795,7 +925,7 @@ main(): () =
 let ``Project reference another project 5``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -805,9 +935,6 @@ class TestClass =
     X: __oly_int32 get = 123
 
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
-    
-#[intrinsic("print")]
-print(__oly_object): ()
 
 testShape<T>(x: T): () where T: { X: __oly_int32 get } =
     ()
@@ -826,7 +953,7 @@ shape MultiplyShape<T1, T2, T3> =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -837,12 +964,11 @@ main(): () =
     print(x.X)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -853,7 +979,7 @@ main(): () =
 let ``Project reference another project 6``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -863,7 +989,7 @@ class TestClass =
     static op_Multiply(x: TestClass, y: TestClass): TestClass = x
     
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 (+)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Addition(T1, T2): T3 } = T1.op_Addition(x, y)
 (*)<T1, T2, T3>(x: T1, y: T2): T3 where T1: { static op_Multiply(T1, T2): T3 } = T1.op_Multiply(x, y)
@@ -871,7 +997,7 @@ print(__oly_object): ()
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -880,12 +1006,11 @@ main(): () =
     let result = x * x
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -897,7 +1022,7 @@ main(): () =
 let ``Project reference another project 7``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #load "ui.oly"
 
@@ -915,7 +1040,7 @@ class UI
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -923,7 +1048,7 @@ open Evergreen.Client.Graphics
 open Evergreen.Client.Graphics.UI
 
 #[intrinsic("print")]
-print(__oly_object): ()
+print(__oly_base_object): ()
 
 main(): () =
     let g = Graphics()
@@ -931,17 +1056,14 @@ main(): () =
     print("passed")
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/ui.oly")
-    let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let text3 = OlySourceText.Create(src3)
-
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/ui.oly")
+    let path3 = rootDir.Join("main.olyx")
     // We are trying to test to make sure that namespace aggregation works properly.
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 elif OlyPath.Equals(x, path2) then text2 else failwith "Invalid path")
-    workspace.UpdateDocument(path1, text1, CancellationToken.None)
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    workspace.UpdateDocument(path3, OlySourceText.Create(src3), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -952,7 +1074,7 @@ main(): () =
 let ``Project reference another project 8``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -963,7 +1085,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -971,12 +1093,11 @@ main(): () =
     test((x: __oly_int32, y: __oly_int64) -> true)
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -987,7 +1108,7 @@ main(): () =
 let ``Project reference another project 9``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -998,7 +1119,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -1008,7 +1129,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1019,7 +1140,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1029,12 +1150,11 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path2, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -1042,7 +1162,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1052,7 +1172,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1061,7 +1181,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path2, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1070,7 +1190,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1081,7 +1201,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1091,7 +1211,7 @@ module Test2
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1101,7 +1221,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1112,7 +1232,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1122,21 +1242,13 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let text3 = OlySourceText.Create(src3)
-    let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    workspace.UpdateDocument(path3, OlySourceText.Create(src3), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -1144,7 +1256,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1154,7 +1266,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1163,7 +1275,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1172,7 +1284,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project 2``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1183,7 +1295,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1196,7 +1308,7 @@ test2(): () =
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1206,7 +1318,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1217,7 +1329,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1227,21 +1339,13 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let text3 = OlySourceText.Create(src3)
-    let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    workspace.UpdateDocument(path3, OlySourceText.Create(src3), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -1249,7 +1353,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1263,7 +1367,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     // Should fail
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1272,7 +1376,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1281,7 +1385,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 let ``Project reference another project that references another project 3``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1292,7 +1396,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "Test.olyx"
 
@@ -1305,7 +1409,7 @@ test2(): () =
 
     let src3 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test2.olyx"
 
@@ -1315,7 +1419,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1326,7 +1430,7 @@ test(f: (missing_type, __oly_int64) -> __oly_bool): () =
 
     let updatedSrc2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -1336,21 +1440,13 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     ()
         """
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("fakepath/Test2.olyx")
-    let path3 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let text3 = OlySourceText.Create(src3)
-    let workspace = 
-        createWorkspaceWith(fun x -> 
-            if OlyPath.Equals(x, path1) then 
-                text1 
-            elif OlyPath.Equals(x, path2) then
-                text2
-            else 
-                failwith "Invalid path")
-    workspace.UpdateDocument(path3, text3, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("fakepath/Test2.olyx")
+    let path3 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+    workspace.UpdateDocument(path3, OlySourceText.Create(src3), CancellationToken.None)
     let proj = workspace.GetDocumentsAsync(path3, CancellationToken.None).Result[0].Project
     let doc = proj.Documents[0]
     let symbols = doc.GetAllSymbols(CancellationToken.None)
@@ -1358,7 +1454,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     Assert.NotEqual(0, symbols.Length)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1370,7 +1466,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     // Should fail
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error _ -> ()
     | _ -> OlyAssert.Fail("Expected error")
@@ -1379,7 +1475,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc2), CancellationToken.None)
 
     let task = workspace.BuildProjectAsync(path3, CancellationToken.None)
-    let result = task.Result
+    let result = task.Result.Value
     match result with
     | Result.Error(diags) -> raise(Exception(OlyDiagnostic.PrepareForOutput(diags, CancellationToken.None)))
     | _ -> ()
@@ -1387,7 +1483,7 @@ test(f: scoped (__oly_int32, __oly_int64) -> __oly_bool): () =
 [<Fact>]
 let ``By cursor, get completions for incomplete alias definition`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 testFunction(): () = ()
 
@@ -1400,7 +1496,7 @@ alias TestAlias = ~^~
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1416,7 +1512,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 2`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1434,7 +1530,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 3`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1458,7 +1554,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 4`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1482,7 +1578,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 5`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1506,7 +1602,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 6`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1530,7 +1626,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 7`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -1554,7 +1650,7 @@ main(): () =
 [<Fact>]
 let ``By cursor, get completions for trying to use patterns 8`` () =
     """
-#target "i: default"
+#target "interpreter: default"
 
 #[intrinsic("int32")]
 alias int32
@@ -2032,7 +2128,7 @@ main(): () =
 let ``Regression - Find a definition should work after the file was edited``() =
     let src1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -2043,7 +2139,7 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
 
     let src2 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #reference "fakepath/Test.olyx"
 
@@ -2053,7 +2149,7 @@ main(): () =
 
     let updatedSrc1 =
         """
-#target "i: default"
+#target "interpreter: default"
 
 #[open]
 module Test
@@ -2067,12 +2163,11 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
     let cursorPosition = src2.IndexOf("~^~")
     let src2 = src2.Replace("~^~", "")
 
-    let path1 = OlyPath.Create("fakepath/Test.olyx")
-    let path2 = OlyPath.Create("main.olyx")
-    let text1 = OlySourceText.Create(src1)
-    let text2 = OlySourceText.Create(src2)
-    let workspace = createWorkspaceWith(fun x -> if OlyPath.Equals(x, path1) then text1 else failwith "Invalid path")
-    workspace.UpdateDocument(path2, text2, CancellationToken.None)
+    let path1 = rootDir.Join("fakepath/Test.olyx")
+    let path2 = rootDir.Join("main.olyx")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
 
     let testLocation isAfterUpdate =
         let updateKindText = if isAfterUpdate then "after-update" else "before-update"
@@ -2083,10 +2178,83 @@ test(f: (__oly_int32, __oly_int64) -> __oly_bool): () =
         Assert.True(callInfo.IsSome, $"call info not found - {updateKindText}")
         let func = callInfo.Value.Function
         Assert.Equal("test", func.Name)
-        let loc = func.TryGetDefinitionLocation(CancellationToken.None)
+        let loc = func.TryGetDefinitionLocation(doc.BoundModel, CancellationToken.None)
         Assert.True(loc.IsSome, $"location not found - {updateKindText}")
 
 
     testLocation false
     workspace.UpdateDocument(path1, OlySourceText.Create(updatedSrc1), CancellationToken.None)
     testLocation true
+
+
+[<Fact>]
+let ``Project has a blank file and project should have that file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+
+#load "testing.oly"
+
+main(): () =
+    ()
+        """
+
+    let src2 = ""
+
+    let path1 = rootDir.Join("main.olyx")
+    let path2 = rootDir.Join("testing.oly")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+
+    let solution = workspace.GetSolutionAsync(CancellationToken.None).Result
+    let project = solution.GetProject(path1)
+    Assert.Equal(2, project.Documents.Length)
+
+[<Fact>]
+let ``Project does not have a blank file and project should have that file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+
+#load "testing.oly"
+
+main(): () =
+    ()
+        """
+
+    let src2 = "namespace NotBlank"
+
+    let path1 = rootDir.Join("main.olyx")
+    let path2 = rootDir.Join("testing.oly")
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    workspace.UpdateDocument(path2, OlySourceText.Create(src2), CancellationToken.None)
+
+    let solution = workspace.GetSolutionAsync(CancellationToken.None).Result
+    let project = solution.GetProject(path1)
+    Assert.Equal(2, project.Documents.Length)
+
+[<Fact>]
+let ``Should error as project does not have the specified file``() =
+    let src1 =
+        """
+#target "interpreter: default"
+#load "does_not_exist.oly"
+    
+print(): () =
+    print("Hello World!")
+        """
+
+    let path1 = rootDir.Join("main.olyx")
+    let text1 = OlySourceText.Create(src1)
+    let workspace = createWorkspace()
+    workspace.UpdateDocument(path1, OlySourceText.Create(src1), CancellationToken.None)
+    let proj = workspace.GetDocumentsAsync(path1, CancellationToken.None).Result[0].Project
+    Assert.Equal(1, proj.Documents.Length)
+
+    let diags = proj.GetDiagnostics(CancellationToken.None)
+
+    // TODO: We need a unified way of asserting diagnostics across the board.
+    Assert.Equal(1, diags.Length)
+    Assert.True(diags[0].Message.EndsWith("does_not_exist.oly' does not exist."))

@@ -2,7 +2,9 @@
 
 open System
 open System.IO
+open System.Collections.Generic
 open FSharp.NativeInterop
+open Oly.Core
 
 #nowarn "9"
 
@@ -96,9 +98,30 @@ type OlyTextChangeWithRange =
 
     new(range, text) = { Range = range; Text = text }
 
-type IOlySourceText =
+[<Struct>]
+type OlyTextLine(index: int, span: OlyTextSpan) =
+
+    member _.Index = index
+
+    member _.Span = span
+
+    member _.ToString(sourceText: IOlySourceText) =
+        let mutable str = String.init span.Width (fun _ -> string Char.MinValue)
+        use ptr = fixed str
+        sourceText.CopyTo(span.Start, Span(ptr |> NativePtr.toVoidPtr, span.Width))
+        str.ReplaceLineEndings("")
+
+    member _.ToStringWithLineEndings(sourceText: IOlySourceText) =
+        let mutable str = String.init span.Width (fun _ -> string Char.MinValue)
+        use ptr = fixed str
+        sourceText.CopyTo(span.Start, Span(ptr |> NativePtr.toVoidPtr, span.Width))
+        str
+
+and IOlySourceText =
 
     abstract Item : int -> char with get
+
+    abstract Chars : IEnumerable<char>
 
     abstract GetSubText : textSpan: OlyTextSpan -> IOlySourceText
 
@@ -124,30 +147,71 @@ type IOlySourceText =
 
     abstract ApplyTextChanges : textChanges: OlyTextChange seq -> IOlySourceText
 
-    abstract Lines : OlySourceTextLineCollection
+    abstract Lines : OlyTextLineCollection
 
-and [<AbstractClass>] OlySourceTextLineCollection internal () =
+and [<Sealed>] OlyTextLineCollection internal (sourceText: IOlySourceText) =
 
-    abstract Item : index: int -> OlySourceTextLine
+    let mutable lastLineNumber = -1
+    let lineStarts = ResizeArray()
+    let mutable charCount = 0
+    do
+        let mutable idx = 0
+        let mutable pos = 0
 
-    abstract Count : int
+        sourceText.Chars
+        |> Seq.iter (fun c ->
+            idx <- idx + 1
+            match c with
+            | '\n' 
+            | '\u0085'    // NEL
+            | '\u2028'    // LS
+            | '\u2029' -> // PS
+                lineStarts.Add(pos)
+                pos <- idx
+            | _ ->
+               ()
+        )
 
-    abstract GetLineFromPosition : position: int -> OlySourceTextLine
+        charCount <- idx
+        lineStarts.Add(pos)
 
-and [<Struct;NoComparison;NoEquality>] OlySourceTextLine internal (textSpan: OlyTextSpan, lineIndex: int, sourceText: IOlySourceText) =
+    member _.Item index =
+        let start = lineStarts[index]
+        if index = (lineStarts.Count - 1) then
+            OlyTextLine(index, OlyTextSpan.Create(start, charCount - start))
+        else
+            let nextStart = lineStarts[index + 1]
+            OlyTextLine(index, OlyTextSpan.Create(start, nextStart - start))
 
-    member _.TextSpan = textSpan
+    member _.Count = lineStarts.Count
 
-    member _.SourceText = sourceText
+    member this.GetLineFromPosition(pos: int) =
+        // This impl is effectively the same as Roslyn.
 
-    member _.LineIndex = lineIndex
+        // It is common to have back-to-back queries around the last line number that was found.
+        let mutable lineNumber = -1
+        let possibleLineNumber = lastLineNumber
+        if possibleLineNumber <> -1 && pos >= lineStarts[possibleLineNumber] then
+            let limit = Math.Min(lineStarts.Count, possibleLineNumber + 4);
 
-    override _.ToString() = 
-        let mutable str = String.init textSpan.Width (fun _ -> string Char.MinValue)
-        use ptr = fixed str
-        let span = Span(ptr |> NativePtr.toVoidPtr, textSpan.Width)
-        sourceText.CopyTo(textSpan.Start, span)
-        str       
+            let mutable i = possibleLineNumber
+            while (i < limit && lineNumber = -1) do
+                if pos < lineStarts[i] then
+                    lineNumber <- i - 1
+                    lastLineNumber <- lineNumber
+                i <- i + 1
+
+        if lineNumber <> -1 then
+            this[lineNumber]
+        else
+            lineNumber <- lineStarts.BinarySearch(pos)
+            lineNumber <-
+                if lineNumber < 0 then
+                    (~~~lineNumber) - 1
+                else
+                    lineNumber
+            lastLineNumber <- lineNumber
+            this[lineNumber]  
 
 [<AutoOpen>]
 module OlySourceTextExtensions =
@@ -171,26 +235,12 @@ module OlySourceTextExtensions =
                 )
             this.ApplyTextChanges(textChanges)
 
-module private Helpers =
-
-    let inline tryBinaryFind ([<InlineIfLambda>] comparer: 'a -> 'b -> int) (value: 'a) (source: 'b[]) : int =
-        let rec loop lo hi =
-            if lo > hi then -1
-            else
-                let mid = lo + (hi - lo) / 2
-                match sign (comparer value source[mid]) with
-                | 0 -> mid
-                | 1 -> loop (mid + 1) hi
-                | _ -> loop lo (mid - 1)
-
-        loop 0 (source.Length - 1)
-
 [<Sealed>]
 type private StringText(str: string) as this =
 
     let getLines =
         lazy
-            StringTextLineCollection(this)
+            OlyTextLineCollection(this)
 
     let hashCode =
         lazy
@@ -222,6 +272,8 @@ type private StringText(str: string) as this =
             StringText(appliedText) :> IOlySourceText
 
         member _.Item with get index = str.[index]
+
+        member _.Chars = str
 
         member _.GetSubText(textSpan) =
             str.Substring(textSpan.Start, textSpan.Width)
@@ -279,7 +331,7 @@ type private StringText(str: string) as this =
             let line1 = lines.GetLineFromPosition(startPos)
             let line2 = lines.GetLineFromPosition(endPos)
 
-            OlyTextRange(OlyTextPosition(line1.LineIndex, startPos - line1.TextSpan.Start), OlyTextPosition(line2.LineIndex, endPos - line2.TextSpan.Start))
+            OlyTextRange(OlyTextPosition(line1.Index, startPos - line1.Span.Start), OlyTextPosition(line2.Index, endPos - line2.Span.Start))
 
         member _.TryGetPosition(textPos) =
             let line = textPos.Line
@@ -289,8 +341,8 @@ type private StringText(str: string) as this =
                 None
             else
                 let line = lines.[line]
-                let position = line.TextSpan.Start + column
-                if position <= line.TextSpan.End then
+                let position = line.Span.Start + column
+                if position <= line.Span.End then
                     Some position
                 else
                     None
@@ -302,52 +354,7 @@ type private StringText(str: string) as this =
             | _ ->
                 None
 
-        member this.Lines = getLines.Value :> OlySourceTextLineCollection
-
-and [<Sealed>] private StringTextLineCollection(sourceText: StringText) =
-    inherit OlySourceTextLineCollection()
-
-    let lines = 
-        [|
-            let mutable startPos = OlyTextPosition()
-            let mutable endPos = OlyTextPosition()
-            let mutable line = 0
-            let mutable col = 0
-            let mutable pos = 0
-
-            for c in sourceText.String do
-                match c with
-                | '\n' -> 
-                    yield OlySourceTextLine(OlyTextSpan.CreateWithEnd(pos - endPos.Column, pos), line, sourceText)
-                    line <- line + 1
-                    col <- 0
-                    startPos <- OlyTextPosition(line, col)
-                    endPos <- startPos
-                | _ ->
-                    col <- col + 1
-                    endPos <- OlyTextPosition(line, col)
-
-                pos <- pos + 1
-
-            yield OlySourceTextLine(OlyTextSpan.CreateWithEnd(pos - endPos.Column, pos), line, sourceText)
-        |]
-
-    override _.Item index = lines.[index]
-
-    override _.Count = lines.Length
-
-    override _.GetLineFromPosition(pos: int) =
-        let index =
-            (pos, lines)
-            ||> Helpers.tryBinaryFind (fun pos line ->
-                if line.TextSpan.IntersectsWith(pos) then
-                    0
-                elif pos < line.TextSpan.Start then
-                    -1
-                else
-                    1
-            )
-        lines[index]
+        member this.Lines = getLines.Value
 
 [<Sealed;AbstractClass>]
 type OlySourceText private () =
@@ -357,3 +364,13 @@ type OlySourceText private () =
 
     static member FromFile(filePath: string) =
         StringText(File.ReadAllText(filePath)) :> IOlySourceText
+
+    static member FromFile(filePath: OlyPath) =
+        OlySourceText.FromFile(filePath.ToString())
+
+    static member FromStream(stream: Stream) =
+        let reader = new System.IO.StreamReader(stream, leaveOpen = true)
+        try
+            StringText(reader.ReadToEnd()) :> IOlySourceText
+        finally
+            reader.Dispose()

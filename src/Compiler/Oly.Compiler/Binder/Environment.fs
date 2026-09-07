@@ -11,6 +11,17 @@ open Oly.Compiler.Internal.Symbols
 open Oly.Compiler.Internal.SymbolOperations
 open Oly.Compiler.Internal.SymbolEnvironments
 
+type AccessorBehavior =
+    | PublicByDefault
+    | PrivateByDefault
+
+[<NoEquality;NoComparison>]
+type BinderConfiguration =
+    {
+        AccessorBehavior: AccessorBehavior
+    }
+
+/// Compiler Environment
 [<NoEquality;NoComparison>]
 type cenv =
     {
@@ -21,6 +32,7 @@ type cenv =
         diagnostics: OlyDiagnosticLogger
         ct: CancellationToken
         pass: CompilerPass
+        config: BinderConfiguration
         mutable entryPoint: IFunctionSymbol option
         mutable entityDefIndex: int
         mutable memberDefIndex: int
@@ -35,22 +47,71 @@ let recordEntityDeclaration cenv ent (syntaxNode: OlySyntaxNode) =
 let recordTypeParameterDeclaration cenv tyPar (syntaxNode: OlySyntaxNode) =
     cenv.declTable.contents <- cenv.declTable.contents.SetTypeParameterDeclaration(tyPar, syntaxNode.GetLocation())
 
+let recordAnonymousTypeExtensionDeclaration cenv env ent (syntaxNode: OlySyntaxNode) =
+    let result, existingEnts, intersectedImplTys, declTable = cenv.declTable.contents.SetAnonymousTypeExtensionDeclaration(ent, env.benv, syntaxNode.GetLocation())
+    cenv.declTable.contents <- declTable
+    result, existingEnts, intersectedImplTys
+
+let rec private getTopLevelEnclosingType (enclosing: EnclosingSymbol) =
+    OlyAssert.True(enclosing.IsType)
+    match enclosing with
+    | EnclosingSymbol.Entity(ent) when ent.Enclosing.IsType ->
+        getTopLevelEnclosingType ent.Enclosing
+    | _ ->
+        enclosing
+
+/// TODO: Use this.
+type BinderContextFlags =
+    | None                                      = 0x0000000000000000UL
+    | InInstanceConstructorType                 = 0x0000000000000001UL
+    | InEntityDefinitionTypeParameters          = 0x0000000000000010UL
+    | InFunctionDefinitionTypeParameters        = 0x0000000000000100UL
+    | InConstraint                              = 0x0000000000001000UL
+    | InOpenDeclaration                         = 0x0000000000010000UL
+    | InTypeArgument                            = 0x0000000000100000UL
+    | InTypeArgumentDepth2                      = 0x0000000001100000UL
+    | InLocalLambda                             = 0x0000000010000000UL
+    | InExport                                  = 0x0000000100000000UL
+
+    /// When set, indicates the currently bound expression is
+    /// returnable.
+    | Returnable                                = 0x0000001000000000UL
+
+    /// When set, indicates the currently bound expression is
+    /// passed as an argument to a function.
+    | PassedAsArgument                          = 0x0000010000000000UL
+
+/// TODO: Use this.
+type BinderEnvironmentFlags =
+    | None                     = 0x0000000000UL
+    | Executable               = 0x0000000001UL
+    | SkipCheckTypeConstructor = 0x0000000010UL
+    | SkipTypeExtensionBinding = 0x0000000100UL
+
+    /// When set, binding open declarations will not report
+    /// diagnostics.
+    | AttemptOpenDeclaration   = 0x0000000100UL
+
+/// This is the context environment of the current expression.
 type BinderEnvironment =
     {
        benv: BoundEnvironment
 
        // Context info
        // TODO: Put context info into a separate data type
-       isIntrinsic: bool
        isInInstanceConstructorType: TypeSymbol option
        isInEntityDefinitionTypeParameters: bool
        isInFunctionDefinitionTypeParameters: bool
        isInConstraint: bool
        isInOpenDeclaration: bool
+       isInTypeArgument: bool
+       isInTypeArgumentDepth2: bool
        isInLocalLambda: bool
+       isInExport: bool
        resolutionMustSolveTypes: bool
        skipCheckTypeConstructor: bool
        skipTypeExtensionBinding: bool
+       isOpenDeclarationAttempt: bool
 
        contextTypeOrTypeConstructor: TypeSymbol option
 
@@ -61,6 +122,7 @@ type BinderEnvironment =
        implicitThisOpt: ILocalParameterSymbol option
 
        isExecutable: bool
+       currentAsm: AssemblySymbol
     }
 
     member this.SetIsInInstanceConstructorType(ent: EntitySymbol) =
@@ -87,6 +149,7 @@ type BinderEnvironment =
     member this.SetContextType(ty: TypeSymbol) =
         { this with contextTypeOrTypeConstructor = Some ty.Formal }
 
+    /// If set to 'false', will also set 'PassedAsArgument' to 'false'.
     member this.SetReturnable(isReturnable: bool) =
         if this.isReturnable = isReturnable then 
             if isReturnable then
@@ -141,7 +204,7 @@ type BinderEnvironment =
             env
 
     member this.TryFindConcreteEntityByType(ty: TypeSymbol) =
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent -> ValueSome ent
         | _ -> this.TryFindIntrinsicType ty
 
@@ -161,10 +224,10 @@ type BinderEnvironment =
         let group =
             match this.benv.senv.namespaces.TryGetValue(ent.FullNamespacePath) with
             | true, group -> group
-            | _ -> AggregatedNamespaceSymbol(ent.Name, ent.Enclosing, ImArray.empty)
+            | _ -> AggregatedNamespaceSymbol(this.currentAsm, ent.Name, ent.Enclosing, ImArray.empty)
 
 #if DEBUG || CHECKED
-        let exists = group.Namespaces |> ImArray.exists (fun x -> x.Id = ent.Id)
+        let exists = group.Namespaces |> ImArray.exists (fun x -> obj.ReferenceEquals(x, ent))
         if exists then failwith "assert"
 #endif
 
@@ -183,14 +246,21 @@ type BinderEnvironment =
         if arity < 0 then
             invalidArg (nameof(arity)) "Less than zero."
 
-        match ty.TryEntity with
+        match ty.TryEntityNoAlias with
         | ValueSome ent when ent.IsNamespace -> failwith "Cannot add a namespace as a type."
         | _  ->
 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
+
+        ty.ForEachAllInnerTypeArguments(fun tyArg ->
+            OlyAssert.False(tyArg.IsError_ste)
+        )
 #endif
+
+        if ty.IsAnonymous_ste then this
+        else
 
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with
@@ -198,13 +268,27 @@ type BinderEnvironment =
             | _ -> NameMap.empty
         let arityGroup = 
             // Type variables and locals will override what's in scope.
-            if ty.IsTypeVariable || ty.Enclosing.IsLocalEnclosing then
+            if ty.IsAnyVariable_ste || ty.Enclosing.IsLocalEnclosing then
                 arityGroup.SetItem(name, ImArray.createOne ty)
             else
                 match arityGroup.TryGetValue(name) with
                 | true, tys ->
 #if DEBUG || CHECKED
-                    let exists = tys |> ImArray.exists (fun x -> areTypesEqual x ty && x.FormalId = ty.FormalId)
+                    let exists = 
+                        tys 
+                        |> ImArray.exists (fun x -> 
+                            (
+                                if x.IsAlias_steea then
+                                    match ty.TryEntityNoAlias with
+                                    | ValueSome _ ->
+                                        areEntitiesEqual x.AsEntity ty.AsEntity
+                                    | _ ->
+                                        false
+                                else
+                                    true
+                            ) &&
+                            areTypesEqual x ty
+                        )
                     OlyAssert.False(exists)
 #endif                  
                     arityGroup.SetItem(name, tys.Add(ty))
@@ -227,15 +311,18 @@ type BinderEnvironment =
         if arity < 0 then
             invalidArg (nameof(arity)) "Less than zero."
 
-        match ty.TryEntity with
-        | ValueSome ent when ent.IsNamespace && not(ty.IsAlias) -> 
+        match ty.TryEntityNoAlias with
+        | ValueSome ent when ent.IsNamespace && not(ty.IsAlias_steea) -> 
             OlyAssert.Fail("Cannot add a namespace as a type.")
         | _ ->
 
 #if DEBUG || CHECKED
-        if ty.IsTypeConstructor then
+        if ty.IsTypeConstructor_steea then
             OlyAssert.True(ty.Arity >= arity)
 #endif
+
+        if ty.IsAnonymous_ste then this
+        else
 
         let arityGroup =
             match this.benv.senv.unqualifiedTypes.TryGetValue arity with
@@ -248,10 +335,10 @@ type BinderEnvironment =
         |> Seq.iter (fun tys ->
             tys
             |> ImArray.iter (fun ty ->
-                OlyAssert.True(ty.IsSolved)
-                if ty.IsTypeExtension then
+                OlyAssert.True(ty.IsSolved_ste)
+                if ty.IsTypeExtension_ste then
                     if ty.Inherits.Length > 0 then
-                        OlyAssert.True(ty.Inherits[0].IsSolved)
+                        OlyAssert.True(ty.Inherits[0].IsSolved_ste)
                         OlyAssert.Equal(1, ty.Inherits.Length)
             )
         )
@@ -298,7 +385,7 @@ type BinderEnvironment =
 
     static member private SetUnqualifiedValue(unqualifiedSymbols: NameMap<UnqualifiedSymbol>, unqualified, value: IValueSymbol) =
         let unqualifiedSymbols =
-            if value.IsLocal then
+            if value.HasLocalEnclosing then
                 unqualifiedSymbols.SetItem(value.Name, unqualified)
             else
                 match unqualifiedSymbols.TryGetValue(value.Name) with
@@ -326,28 +413,35 @@ type BinderEnvironment =
     member this.TryAddUnqualifiedValue(value: IValueSymbol) =
         this.SetUnqualifiedValueAux(value, false)
 
-    member this.SetUnqualifiedValueAux(value: IValueSymbol, canMerge: bool) =
-        let isPatFunc = value.IsFunction && value.AsFunction.IsPatternFunction
+    member this.SetUnqualifiedValueAux(valueToSet: IValueSymbol, canReplace: bool) =
+        let isPatFunc = valueToSet.IsFunction && valueToSet.AsFunction.IsPatternFunction
         let unqualifiedSymbols = 
             if isPatFunc then
                 this.benv.senv.unqualifiedPatterns
             else
                 this.benv.senv.unqualifiedSymbols
-        let unqualified = value.ToUnqualified()
-        if value.IsFunction then
+        let unqualifiedToSet = valueToSet.ToUnqualified()
+        if valueToSet.IsFunction then
             let funcsToSet =
-                match unqualified with
+                match unqualifiedToSet with
                 | UnqualifiedSymbol.FunctionGroup(funcGroup) -> funcGroup.Functions
                 | UnqualifiedSymbol.Function(func) -> ImArray.createOne func
                 | _ -> ImArray.empty
 
+#if DEBUG || CHECKED
+            funcsToSet
+            |> ImArray.iter (fun func ->
+                OlyAssert.False(func.IsFunctionGroup)
+            )
+#endif
+
             if funcsToSet.IsEmpty then this
             else
                 let name = 
-                    if value.IsConstructor then
-                        value.Enclosing.AsEntity.Name
+                    if valueToSet.IsConstructor then
+                        valueToSet.Enclosing.AsEntity.Name
                     else
-                        value.Name
+                        valueToSet.Name
                 let create (funcs: IFunctionSymbol imarray) =
                     if funcs.Length = 1 then
                         funcs[0]
@@ -365,79 +459,96 @@ type BinderEnvironment =
                     else
 
                     match unqualifiedSymbols.TryGetValue name with
-                    | true, result ->
-                        match result with
-                        // Merge functions.
-                        | UnqualifiedSymbol.FunctionGroup(funcGroup) ->
+                    | true, currentQualified ->
+                        let currentFuncs =
+                            match currentQualified with
+                            // Merge functions.
+                            | UnqualifiedSymbol.FunctionGroup(currentFuncGroup) -> currentFuncGroup.Functions
+                            | UnqualifiedSymbol.Function(currentFunc) -> ImArray.createOne currentFunc
+                            | _ -> ImArray.empty
+
+                        if currentFuncs.IsEmpty then
+                            defaultCase()
+                        else
+
 #if DEBUG || CHECKED
                             // Check the enclosings to make sure we are not adding values who have the same enclosing multiple times.
                             // We prefer to add values in bulk for an individual enclosing.
+                            // We want to check for this because of performance reasons.
                             let exists =
-                                funcGroup.Functions
+                                currentFuncs
                                 |> ImArray.exists (fun x ->
-                                    areEnclosingsEqual x.Enclosing value.Enclosing
+                                    funcsToSet
+                                    |> ImArray.exists (fun y ->
+                                        areEnclosingsEqual x.Enclosing y.Enclosing
+
+                                        // It is possible to add the same constructor more than once because of aliases. So we ignore it for this assertion.
+                                        // REVIEW: Has the potential to cause performance issues, but does not seem to happen often.
+                                        // TODO: Add a test case where it fails in Debug if the condition below is removed.
+                                        && not x.IsInstanceConstructor && not y.IsInstanceNotConstructor 
+                                    )
                                 )
                             OlyAssert.False(exists)
 #endif
-
-                            if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
+                            let envEnclosing = this.benv.senv.enclosing
+                            if canReplace then
                                 let funcs =
-                                    funcGroup.Functions
+                                    currentFuncs
                                     |> ImArray.filter (fun x ->
                                         let exists =
                                             // TODO: this uses indexable rigidity, should we do generalizable instead?
                                             // TODO: PERFORMANCE ISSUES - quadratic, this can be expensive if there are a lot of functions.
                                             //       Consider creating a Map based on number of parameters to improve perf.
                                             funcsToSet
-                                            |> ImArray.exists (areLogicalFunctionSignaturesEqual x)
+                                            |> ImArray.exists (fun y -> 
+                                                if areEnclosingsEqual envEnclosing y.Enclosing then
+                                                    areLogicalFunctionSignaturesEqual x y
+                                                else
+                                                    false
+                                            )
                                         not exists
                                     )
                                 unqualifiedSymbols.SetItem(name, create (funcs.AddRange(funcsToSet)))
                             else
-                                if canMerge then
-                                    unqualifiedSymbols.SetItem(name, create (funcGroup.Functions.AddRange(funcsToSet)))
+                                // These enclosings are used to support the check if a function is defined within a current module before the 'open' declarations are processed.
+                                // Example:
+                                //     module Test.A
+                                //
+                                //     open Test.B // hypothetically could have its own `TestM(): ()`
+                                //      
+                                //     #[open]
+                                //     module NestedA =
+                                //         let TestM(): () = ()
+                                // -- 
+                                // We need to make sure 'NestedA.TestM' stays in scope and will not be replaced with another function with the same signature from another module.
+                                // TODO: Instead of doing it this way, perhaps we could "mark" these unqualified functions i.e. (NestedA.TestM) as not able to be merged with others.
+                                //       The marking information would likely have to be stored in the 'UnqualifiedSymbol'.
+                                //       But, we should only do it if this would likely be a performance boost.
+                                let currentFuncEnclosings =
+                                    currentFuncs
+                                    |> ImArray.map (fun func ->
+                                        getTopLevelEnclosingType func.Enclosing
+                                    )
+                                let funcsToSet2 =
+                                    funcsToSet
+                                    |> ImArray.filter (fun x ->
+                                        let exists =
+                                            // TODO: this uses indexable rigidity, should we do generalizable instead?
+                                            // TODO: PERFORMANCE ISSUES - quadratic, this can be expensive if there are a lot of functions.
+                                            //       Consider creating a Map based on number of parameters to improve perf.
+                                            currentFuncs
+                                            |> ImArray.existsi (fun i y ->
+                                                if areEnclosingsEqual envEnclosing currentFuncEnclosings[i] then
+                                                    areLogicalFunctionSignaturesEqual x y
+                                                else
+                                                    false
+                                            )
+                                        not exists
+                                    )
+                                if funcsToSet2.IsEmpty then
+                                    unqualifiedSymbols
                                 else
-                                    let funcs =
-                                        funcsToSet
-                                        |> ImArray.filter (fun x ->
-                                            let exists =
-                                                // TODO: this uses indexable rigidity, should we do generalizable instead?
-                                                // TODO: PERFORMANCE ISSUES - quadratic, this can be expensive if there are a lot of functions.
-                                                //       Consider creating a Map based on number of parameters to improve perf.
-                                                funcGroup.Functions
-                                                |> ImArray.exists (areLogicalFunctionSignaturesEqual x)
-                                            not exists
-                                        )
-                                    if funcs.IsEmpty then
-                                        unqualifiedSymbols
-                                    else
-                                        unqualifiedSymbols.SetItem(name, create (funcGroup.Functions.AddRange(funcs)))
-
-                        | UnqualifiedSymbol.Function(func) ->
-#if DEBUG || CHECKED
-                            // Check the enclosings to make sure we are not adding values who have the same enclosing multiple times.
-                            // We prefer to add values in bulk for an individual enclosing.
-                            OlyAssert.False(areEnclosingsEqual func.Enclosing value.Enclosing)
-#endif
-
-                            if areEnclosingsEqual this.benv.senv.enclosing value.Enclosing then
-                                // TODO: this uses indexable rigidity, should we do generalizable instead?
-                                if areLogicalFunctionSignaturesEqual func value.AsFunction then
-                                    unqualifiedSymbols.SetItem(name, create funcsToSet)
-                                else
-                                    unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
-                            else
-                                if canMerge then
-                                    unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
-                                else
-                                    // TODO: this uses indexable rigidity, should we do generalizable instead?
-                                    if areLogicalFunctionSignaturesEqual func value.AsFunction then
-                                        unqualifiedSymbols
-                                    else
-                                        unqualifiedSymbols.SetItem(name, create (funcsToSet |> ImArray.prependOne func))
-
-                        | _ ->
-                            defaultCase()
+                                    unqualifiedSymbols.SetItem(name, create (currentFuncs.AddRange(funcsToSet2)))
                     | _ ->
                         defaultCase()
 
@@ -463,14 +574,14 @@ type BinderEnvironment =
                     }
         else
             OlyAssert.False(isPatFunc)
-            if value.IsFieldConstant then
+            if valueToSet.IsFieldConstant then
                 { this with
                     benv = 
                         { this.benv with
                             senv = 
                                 { this.benv.senv with
-                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualified, value)
-                                    unqualifiedPatterns = BinderEnvironment.SetUnqualifiedValue(this.benv.senv.unqualifiedPatterns, unqualified, value)
+                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualifiedToSet, valueToSet)
+                                    unqualifiedPatterns = BinderEnvironment.SetUnqualifiedValue(this.benv.senv.unqualifiedPatterns, unqualifiedToSet, valueToSet)
                                 }
                         }
                 }
@@ -480,7 +591,7 @@ type BinderEnvironment =
                         { this.benv with
                             senv = 
                                 { this.benv.senv with
-                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualified, value)
+                                    unqualifiedSymbols = BinderEnvironment.SetUnqualifiedValue(unqualifiedSymbols, unqualifiedToSet, valueToSet)
                                 }
                         }
                 }
@@ -505,6 +616,12 @@ type BinderEnvironment =
             this
         else
             { this with benv = { this.benv with ac = { this.benv.ac with Entity = Some ent }} }
+            
+    member this.SetAccessorContextFlags(flags: AccessorContextFlags) =
+        if this.benv.ac.Flags = flags then
+            this
+        else
+            { this with benv = { this.benv with ac = { this.benv.ac with Flags = flags }} }
 
     member this.SetEnclosingTypeParameters(tyPars: TypeParameterSymbol imarray) =
         if tyPars.IsEmpty && this.benv.senv.typeParameters.IsEmpty then this
@@ -527,26 +644,23 @@ type BinderEnvironment =
             this
         else
 
-        let inheritsTy =
+        let extendsTy =
             match tyExt.Extends.Length = 1 with
             | true -> tyExt.Extends.[0]
-            | _ -> failwith "Expecting a type extension that inherits a type."
+            | _ -> failwith "Expecting a type extension that extends a type."
 
         let implementsTys = 
-            tyExt.AllLogicalImplements
-            |> Seq.collect (fun implementsTy -> 
-                implementsTy.AllLogicalInheritsAndImplements.Add(implementsTy)
-            )
-            |> TypeSymbol.Distinct
-            |> ImArray.ofSeq
+            tyExt.AllTypeExtensionLogicalImplements
 
         if implementsTys.IsEmpty then
             // Normal type extension
 
+            let extendsTy = (stripTypeEquationsAndBuiltIn extendsTy).Formal
+
             let typeExtensionMembers = this.benv.senv.typeExtensionMembers
             let typeExtensionMembers2 =
                 let tyExts =
-                    match typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn inheritsTy) with
+                    match typeExtensionMembers.TryFind(extendsTy) with
                     | ValueSome tyExts -> tyExts
                     | _ -> ExtensionMemberSymbolOrderedSet.Create()
 
@@ -560,11 +674,11 @@ type BinderEnvironment =
 
                 let tyExts2 = tyExts.AddRange(funcs.AddRange(props))
 
-                if inheritsTy.IsError_t then
+                if extendsTy.IsError_ste then
                     typeExtensionMembers
                 else
-                    OlyAssert.True(inheritsTy.IsSolved)
-                    typeExtensionMembers.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
+                    OlyAssert.True(extendsTy.IsSolved_ste)
+                    typeExtensionMembers.SetItem(extendsTy, tyExts2)
             { this with
                 benv =
                     { this.benv with
@@ -580,21 +694,21 @@ type BinderEnvironment =
             let typeExtensionsWithImplements = this.benv.senv.typeExtensionsWithImplements
             let typeExtensionsWithImplements2 =
                 let tyExts =
-                    match typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn inheritsTy) with
+                    match typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn extendsTy) with
                     | ValueSome tyExts -> tyExts
                     | _ -> EntitySymbolGeneralizedMapEntitySet.Create()
 
                 let tyExts2 = 
                     (tyExts, implementsTys)
                     ||> Seq.fold (fun tyExts ty ->
-                        match ty.TryEntity with
+                        match ty.TryEntityNoAlias with
                         | ValueSome withEnt when withEnt.IsInterface ->
                             tyExts.SetItem(withEnt, tyExt)
                         | _ ->
                             tyExts
                     )
 
-                typeExtensionsWithImplements.SetItem(stripTypeEquationsAndBuiltIn inheritsTy, tyExts2)
+                typeExtensionsWithImplements.SetItem(stripTypeEquationsAndBuiltIn extendsTy, tyExts2)
             { this with
                 benv =
                     { this.benv with
@@ -618,13 +732,31 @@ type BinderEnvironment =
                     }
             }
 
+    member this.SetEnclosingValue(value: IValueSymbol) =
+        { this with
+            benv =
+                { this.benv with
+                    senv =
+                        { this.benv.senv with
+                            enclosingValue = Some value
+                        }
+                }
+        }
+
+    member this.IsInOpenDeclaration() =
+        this.isInOpenDeclaration
+
     member this.SetIsInOpenDeclaration() =
         if this.isInOpenDeclaration then this
         else { this with isInOpenDeclaration = true }
 
-    member this.UnsetIsInOpenDeclaration() =
-        if this.isInOpenDeclaration then { this with isInOpenDeclaration = false }
-        else this
+    member this.SetIsInTypeArgument() =
+        if this.isInTypeArgument then this
+        else { this with isInTypeArgument = true }
+
+    member this.SetIsInTypeArgumentDepth2() =
+        if this.isInTypeArgumentDepth2 then this
+        else { this with isInTypeArgumentDepth2 = true }
 
     member this.SetResolutionMustSolveTypes() =
         if this.resolutionMustSolveTypes then this
@@ -639,10 +771,10 @@ type BinderEnvironment =
         | true, UnqualifiedSymbol.FunctionGroup funcGroup ->
             funcGroup.Functions
             |> ImArray.exists (fun func ->
-                func.IsPatternFunction && func.ReturnType.IsUnit_t
+                func.IsPatternFunction && func.ReturnType.IsUnit_ste
             )
         | true, UnqualifiedSymbol.Function(func) ->
-            func.IsPatternFunction && func.ReturnType.IsUnit_t
+            func.IsPatternFunction && func.ReturnType.IsUnit_ste
 
         | true, UnqualifiedSymbol.Field(field) when field.Constant.IsSome ->
             true
@@ -650,15 +782,49 @@ type BinderEnvironment =
         | _ ->
             false
 
+    member this.HasOpenedNamespace(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNamespace)
+        OlyAssert.False(ent.IsAggregatedNamespace)
+        this.benv.openedNamespaces.Contains(ent.FormalId)
+
+    member this.AddOpenedNamespace(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNamespace)
+        OlyAssert.False(ent.IsAggregatedNamespace)
+        { this with
+            benv = 
+                { this.benv with
+                    openedNamespaces = this.benv.openedNamespaces.Add(ent.FormalId)
+                }
+        }
+
     member this.HasOpenedEntity(ent: EntitySymbol) =
         this.benv.openedEnts.Contains(ent)
 
-    member this.AddOpenedEntity(ent: EntitySymbol) =
+    member this.HasFullyOpenedEntity(ent: EntitySymbol) =
+        this.benv.fullyOpenedEnts.Contains(ent)
+
+    member this.AddOpenedEntity(ent: EntitySymbol, fullyOpened: bool) =
         { this with
             benv = 
                 { this.benv with
                     openedEnts = this.benv.openedEnts.Add(ent)
+                    fullyOpenedEnts =
+                        if fullyOpened then
+                            this.benv.fullyOpenedEnts.Add(ent)
+                        else
+                            this.benv.fullyOpenedEnts
+                    partialAutoOpenedRootEnts = this.benv.partialAutoOpenedRootEnts.Remove(ent)
                 }
+        }
+
+    member this.AddPartialOpenedRootEntity(ent: EntitySymbol) =
+        OlyAssert.True(ent.IsNonNamespaceRootInScope(this.benv.ac.AssemblyIdentity))
+        { this with
+            benv =
+                { this.benv with
+                    partialAutoOpenedRootEnts = this.benv.partialAutoOpenedRootEnts.Add(ent)
+                }
+            
         }
 
 let checkSyntaxHigherTypeArguments cenv (syntaxTyArgs: OlySyntaxType imarray) =

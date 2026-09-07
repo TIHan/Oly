@@ -13,6 +13,8 @@ open Oly.Compiler.Internal.BoundTree
 open Oly.Compiler.Internal.BoundTreeVisitor
 open Oly.Compiler.Internal.BoundTreeRewriter
 open Oly.Compiler.Internal.BoundTreePatterns
+open Oly.Compiler.Internal.SymbolQuery
+open Oly.Compiler.Internal.SymbolQuery.Extensions
 open System.Threading
 
 // TODO: Rename 'intrinsic' uses to something else as we use 'intrinsic' to mean compiler 'intrinsic'.
@@ -21,142 +23,11 @@ open System.Threading
 [<AutoOpen>]
 module private Helpers =
 
-    let findImmediateFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-    let findIntrinsicFieldsOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        let fields = findImmediateFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
-    
-        let inheritedFields =
-            // TODO: If we make newtypes not extend anything, then this should not be needed.
-            if ent.IsNewtype then
-                Seq.empty
-            else
-                ent.Extends
-                |> Seq.map (fun x ->
-                    match x.TryEntity with
-                    | ValueSome x ->
-                        findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt x
-                    | _ ->
-                        Seq.empty
-                )
-                |> Seq.concat
-                |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-        Seq.append inheritedFields fields
-    
-    let findImmediatePropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        filterProperties queryMemberFlags valueFlags nameOpt ent.Properties
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-    let findIntrinsicPropertiesOfEntity (benv: BoundEnvironment) queryMemberFlags valueFlags (nameOpt: string option) (ent: EntitySymbol) =
-        let props = findImmediatePropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
-        
-        let inheritedProps =
-            ent.Extends
-            |> Seq.map (fun x ->
-                match x.TryEntity with
-                | ValueSome x ->
-                    findIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt x
-                | _ ->
-                    Seq.empty
-            )
-            |> Seq.concat
-            |> filterValuesByAccessibility benv.ac queryMemberFlags
-    
-        Seq.append props inheritedProps
-    
-    let findFieldsOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) (ty: TypeSymbol) =
-        let ty = findIntrinsicTypeIfPossible benv ty
-        match stripTypeEquations ty with
-        | TypeSymbol.Variable(tyPar) ->
-            tyPar.Constraints
-            |> Seq.choose (function
-                | ConstraintSymbol.Null
-                | ConstraintSymbol.Struct
-                | ConstraintSymbol.NotStruct 
-                | ConstraintSymbol.Unmanaged
-                | ConstraintSymbol.Blittable
-                | ConstraintSymbol.Scoped
-                | ConstraintSymbol.ConstantType _ -> None
-                | ConstraintSymbol.SubtypeOf(ty) 
-                | ConstraintSymbol.TraitType(ty) -> Some ty.Value
-            )
-            |> Seq.collect(fun ent ->
-                filterFields queryMemberFlags valueFlags nameOpt ent.Fields
-            )
-        | TypeSymbol.Entity(ent) ->
-            findIntrinsicFieldsOfEntity benv queryMemberFlags valueFlags nameOpt ent
-        | _ ->
-            Seq.empty
-
-    let findMostSpecificPropertiesOfTypeParameter benv (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp isTyCtor (tyPar: TypeParameterSymbol) =
-        hierarchicalTypesOfTypeParameter tyPar
-        |> Seq.collect (fun ty -> 
-            findPropertiesOfType benv queryMemberFlags valueFlags nameOpt queryProp ty
-        )
-        |> Seq.filter (fun (prop: IPropertySymbol) -> 
-            (not prop.IsFormal) ||
-            (not tyPar.HasArity) || 
-            (prop.Formal.Enclosing.TypeParameterCount = 0) || 
-            (prop.Formal.Enclosing.TypeParameterCount = tyPar.Arity)
-        )
-        |> filterMostSpecificProperties
-
-    let findPropertiesOfType (benv: BoundEnvironment) (queryMemberFlags: QueryMemberFlags) (valueFlags: ValueFlags) (nameOpt: string option) queryProp (ty: TypeSymbol) =
-        let ty = findIntrinsicTypeIfPossible benv ty
-        let intrinsicProps =
-            match stripTypeEquations ty with
-            | TypeSymbol.Variable(tyPar) 
-            | TypeSymbol.HigherVariable(tyPar, _) ->
-                findMostSpecificPropertiesOfTypeParameter benv queryMemberFlags valueFlags nameOpt queryProp false tyPar
-            | TypeSymbol.Entity(ent) ->
-                findIntrinsicPropertiesOfEntity benv queryMemberFlags valueFlags nameOpt ent
-            | _ ->
-                Seq.empty
-    
-        let extrinsicProps =
-            match queryProp with
-            | QueryProperty.IntrinsicAndExtrinsic ->
-                let results1 =
-                    match benv.senv.typeExtensionsWithImplements.TryFind(stripTypeEquationsAndBuiltIn ty) with
-                    | ValueSome (traitImpls) ->
-                        traitImpls.Values
-                        |> Seq.collect (fun trImpl ->
-                            trImpl.Values
-                            |> Seq.collect (fun trImpl ->
-                                filterProperties queryMemberFlags valueFlags nameOpt trImpl.Properties
-                            )
-                        )
-                    | _ ->
-                        Seq.empty
-
-                let results2 =
-                    match benv.senv.typeExtensionMembers.TryFind(stripTypeEquationsAndBuiltIn ty) with
-                    | ValueSome extMembers ->
-                        extMembers.Values
-                        |> Seq.choose (function
-                            | ExtensionMemberSymbol.Property prop -> 
-                                // REVIEW: We do a similar thing when looking for extension member functions in 'findExtensionMembersOfType',
-                                //         is there a way to combine these together so we do not have to repeat this logic?
-                                let tyArgs = ty.TypeArguments
-                                let enclosing = applyEnclosing tyArgs prop.Enclosing
-                                let prop = actualProperty enclosing tyArgs prop
-                                Some prop
-                            | _ -> 
-                                None
-                        )
-                        |> filterProperties queryMemberFlags valueFlags nameOpt
-                    | _ ->
-                        Seq.empty
-
-                Seq.append results1 results2
-            | _ ->
-                Seq.empty
-    
-        Seq.append intrinsicProps extrinsicProps
-        |> filterValuesByAccessibility benv.ac queryMemberFlags
+    let witnessSolutionComparer = 
+        { new IEqualityComparer<WitnessSolution> with 
+            member _.GetHashCode(x) = int32 x.Type.FormalId
+            member _.Equals(x1, x2) = areTypesEqual x1.Type x2.Type
+        }
 
     type Locals = System.Collections.Generic.HashSet<int64>
 
@@ -164,7 +35,7 @@ module private Helpers =
         inherit BoundTreeVisitor(BoundTreeVisitorCore())
 
         let checkValue (value: IValueSymbol) =
-            value.IsLocal && not value.IsStaticLocalFunction && predicate value && not (locals.Contains(value.Id))
+            value.HasLocalEnclosing && not value.IsStaticLocalFunction && predicate value && not (locals.Contains(value.Id))
 
         static member HandlePossibleLambda(predicate: IValueSymbol -> bool, canCache, checkInnerLambdas, expr, freeLocals: FreeLocals, locals: Locals) =
             match expr with
@@ -273,7 +144,7 @@ module private Helpers =
 
         ReadOnlyFreeLocals(freeLocals)
     
-    let getFreeInferenceVariablesFromType add (ty: TypeSymbol) =
+    let getFreeInferenceVariablesFromType captureSolved add (ty: TypeSymbol) =
         let rec implType ty =
             match stripTypeEquations ty with
             | TypeSymbol.InferenceVariable(_, solution) ->
@@ -298,12 +169,20 @@ module private Helpers =
                 for i = 0 to ent.TypeArguments.Length - 1 do
                     implType ent.TypeArguments.[i]
             | _ ->
+                if ty.IsAnyVariable_ste && captureSolved then
+                    match ty with
+                    | TypeSymbol.InferenceVariable(None, solution) when solution.HasSolution ->
+                        add solution.Id ty
+                    | _ ->
+                        ()
                 ()
     
         implType ty
     
     let getFreeInferenceVariables (expr: BoundExpression) =
+        // REVIEW: There a way to make this a little more efficient with GC?
         let inputs = ResizeArray<struct(int64 * TypeSymbol)>()
+        let witnessArgsLookup = Dictionary<int64, HashSet<WitnessSolution>>()
     
         let addInput id item =
             let exists =
@@ -311,7 +190,11 @@ module private Helpers =
             if not exists then
                 inputs.Add(struct(id, item))
     
-        let implType ty = getFreeInferenceVariablesFromType addInput ty
+        let implType ty =
+            getFreeInferenceVariablesFromType false addInput ty
+            
+        let implTypeCaptureSolved ty =
+            getFreeInferenceVariablesFromType true addInput ty
 
         let handleLiteral (literal: BoundLiteral) =
             // TODO:
@@ -371,17 +254,34 @@ module private Helpers =
                 implType ty
 
             | BoundExpression.Value(value=value) ->
-                if value.IsLocal then
+                if value.HasLocalEnclosing then
                     implType value.Type
 
             | BoundExpression.Literal(_, literal) ->
                 handleLiteral literal
 
-            | BoundExpression.Call(receiverOpt=receiverOpt;args=args;value=value) ->
+            | BoundExpression.Call(receiverOpt=receiverOpt;witnessArgs=witnessArgs;args=args;value=value) ->
                 args |> Seq.iter (fun arg -> handleExpression arg)
                 receiverOpt
                 |> Option.iter (fun receiver -> handleExpression receiver)
-                implType value.Type
+                
+                if value.HasLocalEnclosing then
+                    implTypeCaptureSolved value.Type
+                else
+                    implType value.Type
+
+                // REVIEW: There a way to make this more efficient for GC?
+                witnessArgs
+                |> ImArray.iter (fun witnessArg ->
+                    let xs =
+                        match witnessArgsLookup.TryGetValue(witnessArg.TypeParameter.Id) with
+                        | true, xs -> xs
+                        | _ ->
+                            let xs = HashSet(witnessSolutionComparer)
+                            witnessArgsLookup.Add(witnessArg.TypeParameter.Id, xs)
+                            xs
+                    xs.Add(witnessArg) |> ignore
+                )
 
             | BoundExpression.Lambda(body=bodyExpr;cachedLambdaTy=cachedLambdaTy) ->
                 OlyAssert.True(bodyExpr.HasExpression)
@@ -392,52 +292,7 @@ module private Helpers =
                 ()
     
         handleExpression expr
-        inputs
-
-    let getFreeTypeParametersFromType (tySet: TypeSymbolMutableSet) (existing: HashSet<int64>) add (ty: TypeSymbol) =
-        ty.TypeParameters
-        |> ImArray.iter (fun x ->
-            existing.Add(x.Id) |> ignore
-        )
-
-        let rec implType ty =
-            if tySet.Add(ty) then
-                match stripTypeEquations ty with
-                | TypeSymbol.Variable(tyPar) ->
-                    if existing.Contains(tyPar.Id) |> not then
-                        add tyPar
-                | TypeSymbol.HigherVariable(tyPar, tyArgs) ->
-                    if existing.Contains(tyPar.Id) |> not then
-                        add tyPar
-                    for i = 0 to tyArgs.Length - 1 do
-                        implType tyArgs.[i]
-                | TypeSymbol.NativeFunctionPtr(_, inputTy, returnTy)
-                | TypeSymbol.Function(inputTy, returnTy, _) ->
-                    implType inputTy
-                    implType returnTy
-                | TypeSymbol.ForAll(tyPars, innerTy) ->
-                    tyPars
-                    |> ImArray.iter (fun x ->
-                        existing.Add(x.Id) |> ignore
-                    )
-                    implType innerTy
-                | TypeSymbol.Tuple(tyArgs, _) ->
-                    tyArgs |> Seq.iter implType
-                | TypeSymbol.Entity(ent) ->
-                    for i = 0 to ent.TypeArguments.Length - 1 do
-                        implType ent.TypeArguments.[i]
-                | _ ->
-                    let tyTyArgs = ty.TypeArguments
-                    for i = 0 to tyTyArgs.Length - 1 do
-                        implType tyTyArgs[i]
-
-        ty.Fields
-        |> ImArray.iter (fun x -> implType x.Type)
-
-        ty.Functions
-        |> ImArray.iter (fun x -> implType x.Type)
-    
-        implType ty
+        inputs, witnessArgsLookup
 
 [<AutoOpen>]
 module private FreeVariablesHelper =
@@ -471,7 +326,7 @@ module private FreeVariablesHelper =
                 addTyPars tyPars
                 visitType innerTy
             | _ ->
-                if not ty.IsTypeConstructor then
+                if not ty.IsTypeConstructor_steea then
                     ty.TypeArguments
                     |> ImArray.iter (fun ty -> visitType ty)
 
@@ -485,13 +340,10 @@ module private FreeVariablesHelper =
             match expr with
             | BoundExpression.EntityDefinition _ 
             | BoundExpression.MemberDefinition _ -> false
-            | BoundExpression.Lambda(tyPars=tyPars;pars=pars;freeVars=freeVarsRef) ->
+            | BoundExpression.Lambda(tyPars=tyPars;pars=pars;freeVars=freeVarsRef;cachedLambdaTy=cachedLambdaTy) ->
                 addTyPars tyPars
 
-                pars
-                |> ImArray.iter (fun par ->
-                    visitType par.Type
-                )
+                visitType cachedLambdaTy.Type
                 base.VisitExpression(expr)
 
             | BoundExpression.Value(value=value) ->
@@ -664,45 +516,9 @@ type BoundExpression with
         |> Seq.map (fun x -> x.Value |> snd)
         |> ImArray.ofSeq
 
-type EntitySymbol with
-
-    member this.GetInstanceFields() =
-        this.Fields
-        |> ImArray.filter (fun x -> x.IsInstance)
-
-    member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags) =
-        findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags None this
-
-    member this.FindMostSpecificIntrinsicFunctions(benv: BoundEnvironment, queryMemberFlags, funcFlags, name) =
-        findMostSpecificIntrinsicFunctionsOfEntity benv queryMemberFlags funcFlags (Some name) this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags) =
-        findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-        findIntrinsicFieldsOfEntity benv queryMemberFlags ValueFlags.None (Some name) this
-
-    member this.FindIntrinsicProperties(benv, queryMemberFlags) =
-        findIntrinsicPropertiesOfEntity benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindNestedEntities(benv: BoundEnvironment, nameOpt: string option, tyArity: ResolutionTypeArity) =
-        this.Entities
-        |> filterEntitiesByAccessibility benv.ac
-        |> Seq.filter (fun x ->
-            match tyArity.TryArity with
-            | ValueSome n -> x.LogicalTypeParameterCount = n
-            | _ -> true
-            &&
-            (
-                match nameOpt with
-                | Some name -> x.Name = name
-                | _ -> true
-            )
-        )
-        |> ImArray.ofSeq
-
 type TypeSymbol with
 
+    /// Strips type equations.
     member this.ReplaceInferenceVariablesWithError() =
         match stripTypeEquations this with
         | TypeSymbol.InferenceVariable(tyParOpt, _)
@@ -717,72 +533,6 @@ type TypeSymbol with
                 this
             else
                 applyType this.Formal tyArgs
-
-    member this.GetFreeTypeParameters() : TypeParameterSymbol imarray =
-        let builder = ImArray.builder()
-        getFreeTypeParametersFromType (TypeSymbolMutableSet.Create()) (HashSet()) builder.Add this
-        builder.ToImmutable()
-
-    member this.GetInstanceFields() =
-        this.Fields
-        |> ImArray.filter (fun x -> x.IsInstance)
-
-    member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags) =
-        findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags None this
-
-    member this.FindIntrinsicFunctions(benv, queryMemberFlags, funcFlags, name) =
-        findMostSpecificIntrinsicFunctionsOfType benv queryMemberFlags funcFlags (Some name) this
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags) =
-        match this.TryEntity with
-        | ValueSome(ent) ->
-            ent.FindIntrinsicFields(benv, queryMemberFlags)
-        | _ ->
-            Seq.empty
-
-    member this.FindIntrinsicFields(benv, queryMemberFlags, name) =
-        match this.TryEntity with
-        | ValueSome(ent) ->
-            ent.FindIntrinsicFields(benv, queryMemberFlags, name)
-        | _ ->
-            Seq.empty
-
-    member this.FindField(name: string) =
-        this.Fields
-        |> ImArray.find (fun x -> x.Name = name)
-
-    member this.FindFields(benv, queryMemberFlags) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None None this
-
-    member this.FindFields(benv, queryMemberFlags, name) =
-        findFieldsOfType benv queryMemberFlags ValueFlags.None (Some name) this
-
-    member this.FindProperties(benv, queryMemberFlags, queryField) =
-        findPropertiesOfType benv queryMemberFlags ValueFlags.None None queryField this
-
-    member this.FindProperties(benv, queryMemberFlags, queryField, name) =
-        findPropertiesOfType benv queryMemberFlags ValueFlags.None (Some name) queryField this
-
-    member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc) =
-        findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags None queryFunc this
-
-    member this.FindFunctions(benv, queryMemberFlags, funcFlags, queryFunc, name) =
-        findMostSpecificFunctionsOfType benv queryMemberFlags funcFlags (Some name) queryFunc this
-
-    member this.FindNestedEntities(benv, nameOpt, resTyArity) =
-        let ty = findIntrinsicTypeIfPossible benv this
-        match stripTypeEquations ty with
-        | TypeSymbol.Entity(ent) ->
-            ent.FindNestedEntities(benv, nameOpt, resTyArity)
-        | _ ->
-            ImArray.empty
-        
-type IValueSymbol with
-
-    member this.IsFunctionGroup =
-        match this with
-        | :? FunctionGroupSymbol -> true
-        | _ -> false
 
 type BoundTree with
 
@@ -826,7 +576,7 @@ type BoundTree with
                             Assert.ThrowIfNot(body.HasExpression)
                             iterator.VisitExpression(body.Expression) |> ignore
                         
-                        | BoundExpression.SetField(_, receiver, _, rhs) ->
+                        | BoundExpression.SetField(_, receiver, _, rhs, _) ->
                             iterator.VisitExpression(receiver) |> ignore
                             iterator.VisitExpression(rhs) |> ignore
 
@@ -1017,13 +767,13 @@ type BoundExpression with
         rewriter.Rewrite(this)
 
     static member TryImplicitCall_LoadFunction(argExpr: BoundExpression, argTy: TypeSymbol) =
-        if argTy.IsAnyFunction then
+        if argTy.IsAnyFunction_ste then
             let argExprTy = argExpr.Type
-            if argExprTy.IsClosure then
+            if argExprTy.IsClosure_ste then
                 let cloInvoke = argExprTy.GetClosureInvoke()
                 let funcExpr =
-                    BoundExpression.CreateValue(
-                        argExpr.Syntax.Tree,
+                    BoundExpression.CreateGeneratedValue(
+                        argExpr.Syntax,
                         cloInvoke
                     )
                 let argExpr = WellKnownExpressions.ReadOnlyAddressOfReceiverIfPossible argExprTy argExpr
@@ -1091,7 +841,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // non-second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> false | _ -> true)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor_steea -> false | _ -> true)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -1102,7 +852,7 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
                         let constrs = 
                             // second-order generic constraints
                             tyPar.Constraints 
-                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor -> true | _ -> false)
+                            |> ImArray.filter (function ConstraintSymbol.SubtypeOf(lazyTy) | ConstraintSymbol.TraitType(lazyTy) when lazyTy.Value.IsTypeConstructor_steea -> true | _ -> false)
                         f syntaxConstrClause tyPar constrs
                     | _ ->
                         ()
@@ -1116,56 +866,68 @@ let forEachConstraintBySyntaxConstraintClause (syntaxConstrClauses: OlySyntaxCon
 
 // ************************************************************************
 
-let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
-    OlyAssert.True(superShapeTy.IsShape)
+let subsumesShapeMembersWith benv rigidity queryFunc (superShapeTy: TypeSymbol) (ty: TypeSymbol) : _ imarray =
+    OlyAssert.True(superShapeTy.IsShape_ste)
 
-    if ty.IsTypeConstructor then
-        Seq.empty
+    if ty.IsTypeConstructor_steea then
+        ImArray.empty
     else
 
-    let funcs = ty.FindFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc) |> ImArray.ofSeq
-    superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
-    |> Seq.map (fun superFunc ->
-        let superFunc =
+    let superFuncs = 
+        superShapeTy.FindIntrinsicFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None)
+        |> ImArray.map (fun superFunc ->
             if superFunc.IsInstanceConstructor then
                 superFunc.MorphShapeConstructor(ty, superShapeTy).AsFunction
             else
                 superFunc
+        )
+
+    let lookup = Dictionary<string, IFunctionSymbol imarray>()
+    superFuncs
+    |> ImArray.iter (fun superFunc ->
+        if not(lookup.ContainsKey(superFunc.Name)) then
+            let nameToFind =
+                if superFunc.IsConstructor then
+                    ty.Name
+                else
+                    superFunc.Name
+            lookup[superFunc.Name] <- ty.FindMostSpecificFunctions(benv, QueryMemberFlags.StaticOrInstance, FunctionFlags.None, queryFunc, nameToFind)
+    )
+   
+    superFuncs
+    |> ImArray.map (fun superFunc ->
         let results =
-            funcs
+            lookup[superFunc.Name]
             |> ImArray.filter (fun func ->
                 if func.IsInstance = superFunc.IsInstance && (func.Name = superFunc.Name || (func.IsInstanceConstructor && superFunc.IsInstanceConstructor)) && func.TypeArguments.Length = superFunc.TypeArguments.Length && func.Parameters.Length = superFunc.Parameters.Length then
                     // TODO: This really isn't right.
                     let isInstance = func.IsInstance
-                    if not isInstance || not ty.IsAnyStruct || (if superFunc.IsReadOnly then func.IsReadOnly else true) then
-                        let result =
-                            (superFunc.Parameters, func.Parameters)
-                            ||> ImArray.foralli2 (fun i par1 par2 ->
-                                if i = 0 && isInstance then
-                                    // We return true here because the first parameter of an instance member function is the 'shape' entity,
-                                    // which cannot be unified.
-                                    true
-                                else
-                                    UnifyTypes rigidity par1.Type par2.Type
-                            ) &&
-                            UnifyTypes rigidity superFunc.ReturnType func.ReturnType
+                    let result =
+                        (superFunc.Parameters, func.Parameters)
+                        ||> ImArray.foralli2 (fun i par1 par2 ->
+                            if i = 0 && isInstance then
+                                // We return true here because the first parameter of an instance member function is the 'shape' entity,
+                                // which cannot be unified.
+                                true
+                            else
+                                UnifyTypes rigidity par1.Type par2.Type
+                        ) &&
+                        UnifyTypes rigidity superFunc.ReturnType func.ReturnType
 
-                        if (rigidity = Rigid) && not(areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction) then
-                            false
-                        elif not result then
-                            areLogicalFunctionSignaturesEqual superFunc func
-                        else
-                            true
-                    else
+                    if (rigidity = Rigid) && not(areFunctionTypeParameterConstraintsEqualWith Indexable superFunc.Formal.AsFunction func.Formal.AsFunction) then
                         false
+                    elif not result then
+                        areLogicalFunctionSignaturesEqual superFunc func
+                    else
+                        true
                 else
                     false
             )
-        (superFunc, results)
+        (superFunc, results |> filterMostSpecificFunctions)
     )
 
 let subsumesTypeOrShapeWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
-    if superTy.IsShape then
+    if superTy.IsShape_ste then
         subsumesShapeWith benv rigidity superTy ty
     else
         subsumesTypeWith rigidity superTy ty
@@ -1174,14 +936,14 @@ let subsumesTypeOrShape benv superTy ty =
     subsumesTypeOrShapeWith benv Rigid superTy ty
 
 let subsumesShapeWith benv rigidity (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
-    OlyAssert.True(superShapeTy.IsShape)
+    OlyAssert.True(superShapeTy.IsShape_ste)
     
-    if ty.IsTypeConstructor then
+    if ty.IsTypeConstructor_steea then
         false
     else
         let areFuncsValid =
             subsumesShapeMembersWith benv rigidity QueryFunction.Intrinsic superShapeTy ty
-            |> Seq.forall (fun (_, xs) -> 
+            |> ImArray.forall (fun (_, xs) -> 
                 xs.Length = 1
             )
 
@@ -1194,11 +956,11 @@ let subsumesShape benv (superShapeTy: TypeSymbol) (ty: TypeSymbol) =
 let subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity (superTy: TypeSymbol) (ty: TypeSymbol) =
     if subsumesTypeOrShapeWith benv rigidity superTy ty then true
     else
-        if superTy.IsTypeConstructor then
+        if superTy.IsTypeConstructor_steea then
             subsumesTypeConstructorWith rigidity superTy ty
         else
             match stripTypeEquations ty, stripTypeEquations superTy with
-            | TypeSymbol.ForAll(_, innerTy), superTy when not superTy.IsTypeConstructor ->
+            | TypeSymbol.ForAll(_, innerTy), superTy when not superTy.IsTypeConstructor_steea ->
                 subsumesTypeOrShapeOrTypeConstructorAndUnifyTypesWith benv rigidity superTy innerTy
             | TypeSymbol.Variable(tyPar), superTy ->
                 tyPar.Constraints
@@ -1255,14 +1017,14 @@ let areTargetExpressionsEqual (expr1: E) (expr2: E) =
             (argExprs1, argExprs2)
             ||> ImArray.forall2 (fun expr1 expr2 ->
                 match expr1, expr2 with
-                | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+                | E.Value(value=value1), E.Value(value=value2) when value1.HasLocalEnclosing && not value1.IsMutable ->
                     areValueSignaturesEqual value1 value2
                 | E.Literal(_, literal1), E.Literal(_, literal2) ->
                     areLiteralsEqual literal1 literal2
                 | _ ->
                     false
             )
-        | E.Value(value=value1), E.Value(value=value2) when value1.IsLocal && not value1.IsMutable ->
+        | E.Value(value=value1), E.Value(value=value2) when value1.HasLocalEnclosing && not value1.IsMutable ->
             areValueSignaturesEqual value1 value2
         | E.Literal(_, literal1), E.Literal(_, literal2) ->
             areLiteralsEqual literal1 literal2

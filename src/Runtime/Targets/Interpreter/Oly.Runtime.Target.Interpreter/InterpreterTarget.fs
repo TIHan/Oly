@@ -1,4 +1,4 @@
-﻿namespace Oly.Runtime.Target.Interpreter
+﻿namespace Oly.Targets.Interpreter
 
 open System
 open System.IO
@@ -10,71 +10,25 @@ open Oly.Compiler.Text
 open Oly.Compiler.Syntax
 open Oly.Compiler.Workspace
 open Oly.Runtime
-open Oly.Runtime.Interpreter
+open Oly.Emitters.Interpreter
+open Oly.Targets.Core
 
 [<Sealed>]
 type InterpreterTarget() =
-    inherit OlyBuild("i")
+    inherit OlyTargetOutputOnly<InterpreterRuntimeEmitter, InterpreterType, InterpreterFunction, InterpreterField>("interpreter")
 
-    let relativeOutputDir = String.Empty
+    let mutable emitterOpt: InterpreterRuntimeEmitter option = None
 
-    override this.OnBeforeReferencesImportedAsync(_, _, _) = 
-        backgroundTask {
-            return ()
-        }
-        
-    override this.OnAfterReferencesImported() = ()
+    member this.Run(args) =
+        match emitterOpt with
+        | Some emitter -> 
+            emitterOpt <- None
+            emitter.Run(args)
+        | _ ->
+            failwith "No successful build found"
 
-    override this.BuildProjectAsync(proj, ct: System.Threading.CancellationToken) = backgroundTask { 
-        let comp = proj.Compilation
-        let asm = comp.GetILAssembly(ct)
-        match asm with
-        | Error diags -> return Error(diags)
-        | Ok asm ->
+    override this.CreateEmitter(_) = InterpreterRuntimeEmitter(Console.Out)
 
-        let emitter = InterpreterRuntimeEmitter()
-        let runtime = OlyRuntime(emitter)
-
-        let refDiags = ImArray.builder()
-        comp.References
-        |> ImArray.iter (fun x ->
-            match x.GetILAssembly(ct) with
-            | Ok x -> x.ToReadOnly() |> runtime.ImportAssembly
-            | Error diags -> refDiags.AddRange(diags |> ImArray.filter (fun x -> x.IsError))
-        )
-
-        if refDiags.Count > 0 then
-            return Error(refDiags.ToImmutable())
-        else
-
-        runtime.ImportAssembly(asm.ToReadOnly())
-
-        runtime.InitializeEmitter()
-
-        if asm.EntryPoint.IsSome then
-            runtime.EmitEntryPoint()
-        else
-            runtime.EmitAheadOfTime()
-
-        return Ok ("")
-        }
-
-    override this.CanImportReference(path: OlyPath): bool = false
-
-    override this.ImportReferenceAsync(_, _, path: OlyPath, ct: System.Threading.CancellationToken) =
-        backgroundTask {
-            try
-                return raise (System.NotSupportedException($"{path}"))
-            with
-            | ex ->
-                return Error(ex.Message)
-        }
+    override this.EmitOutput(_, _, emitter: InterpreterRuntimeEmitter, _) = emitter.Run(ImArray.empty)
 
     override this.IsValidTargetName targetInfo = targetInfo.Name = "default"
-
-    override _.ResolveReferencesAsync(_, _, _, _, ct) =
-        backgroundTask {
-            ct.ThrowIfCancellationRequested()
-            return OlyReferenceResolutionInfo(ImArray.empty, ImArray.empty, ImArray.empty)
-        }
-

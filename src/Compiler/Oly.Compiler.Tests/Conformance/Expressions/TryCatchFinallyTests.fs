@@ -9,7 +9,7 @@ let ``Simple throw should compile``() =
     let src =
         """
 #[intrinsic("throw")]
-(throw)<TResult>(__oly_utf16): TResult
+(throw)<TResult>(__oly_string16): TResult
 
 test(): __oly_int32 =
     throw "a message for throw"
@@ -24,7 +24,7 @@ let ``Able to use try/catch``() =
 main(): () =
     try
         let _ = 1
-    catch (ex: __oly_object) =>
+    catch (ex: __oly_base_object) =>
         ()
     """
     |> Oly
@@ -48,7 +48,7 @@ let ``Able to use try/catch/finally``() =
 main(): () =
     try
         let _ = 1
-    catch (ex: __oly_object) =>
+    catch (ex: __oly_base_object) =>
         ()
     finally
         ()
@@ -62,7 +62,7 @@ let ``Get symbol for catch type``() =
 main(): () =
     try
         let _ = 1
-    catch (~^~ex: __oly_object) =>
+    catch (~^~ex: __oly_base_object) =>
         ()
     """
-    |> hasSymbolSignatureTextByCursor "ex: __oly_object"
+    |> hasSymbolSignatureTextByCursor "ex: __oly_base_object"

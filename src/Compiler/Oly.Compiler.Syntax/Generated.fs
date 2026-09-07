@@ -5,171 +5,12 @@ open Oly.Core
 open Oly.Compiler.Text
 open Oly.Compiler.Syntax.Internal
 
+#nowarn "40"
 
-[<Sealed;NoComparison>]
-type OlySyntaxSeparatorList<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
+#nowarn "3535"
 
-    let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable childrenOfType = ImArray.empty
+#nowarn "3536"
 
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsEmpty && internalNode.SlotCount > 0 then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-            childrenOfType <- 
-                children 
-                |> ImArray.choose (fun x -> match x with :? 'T as x -> Some x | _ -> None)
-        children
-
-    member this.ChildrenOfType =
-        this.Children |> ignore
-        childrenOfType
-
-[<Sealed;NoComparison>]
-type OlySyntaxList<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-
-    let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable childrenOfType: 'T imarray = ImArray.empty
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsEmpty && internalNode.SlotCount > 0 then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-            childrenOfType <- 
-                children 
-                |> ImArray.map (fun x -> x :?> 'T)
-        children
-
-    member this.ChildrenOfType =
-        this.Children |> ignore
-        childrenOfType
-
-[<Sealed;NoComparison>]
-type OlySyntaxBrackets<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsEmpty && internalNode.SlotCount > 0 then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-            element <- children[1] :?> 'T
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
-
-[<Sealed;NoComparison>]
-type OlySyntaxBracketInnerPipes<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsEmpty && internalNode.SlotCount > 0 then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-            element <- children[1] :?> 'T
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
-
-[<Sealed;NoComparison>]
-type OlySyntaxCurlyBrackets<'T when 'T :> OlySyntaxNode> internal (tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) as this =
-    inherit OlySyntaxNode(tree, parent, internalNode)
-    
-    let mutable children: OlySyntaxNode imarray = ImArray.empty
-    let mutable element = Unchecked.defaultof<'T>
-
-    override this.TextSpan =
-        let offset = this.GetLeadingTriviaWidth()
-        OlyTextSpan.Create(start + offset, this.FullTextSpan.Width - offset)
-
-    override _.FullTextSpan = OlyTextSpan.Create(start, internalNode.FullWidth)
-
-    override _.Children =
-        if children.IsEmpty && internalNode.SlotCount > 0 then
-            children <-
-                let mutable p = start
-                ImArray.init 
-                    internalNode.SlotCount 
-                    (fun i -> 
-                        let t = Convert.From(tree, p, this, internalNode.GetSlot(i))
-                        p <- p + t.FullTextSpan.Width
-                        t
-                    )
-            element <- children[1] :?> 'T
-        children
-
-    member _.Element =
-        this.Children |> ignore
-        element
-    
-    member internal _.Internal = internalNode
 [<Sealed;NoComparison>]
 type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxAccessor) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
@@ -192,7 +33,7 @@ type OlySyntaxAccessor internal (tree, start: int, parent, internalNode: SyntaxA
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -275,7 +116,7 @@ type OlySyntaxName internal (tree, start: int, parent, internalNode: SyntaxName)
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -351,7 +192,7 @@ type OlySyntaxBlittable internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -404,7 +245,7 @@ type OlySyntaxBlittableOptional internal (tree, start: int, parent, internalNode
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -466,7 +307,7 @@ type OlySyntaxAttribute internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -591,7 +432,7 @@ type OlySyntaxHashAttribute internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -617,7 +458,7 @@ type OlySyntaxHashAttribute internal (tree, start: int, parent, internalNode: Sy
 [<RequireQualifiedAccess>]
 module OlySyntaxHashAttribute =
 
-    let (|HashAttribute|_|) (node: OlySyntaxHashAttribute) : ( OlySyntaxToken * OlySyntaxAttribute OlySyntaxBrackets ) option =
+    let (|HashAttribute|_|) (node: OlySyntaxHashAttribute) : ( OlySyntaxToken * OlySyntaxAttribute OlySyntaxSeparatorList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxHashAttribute.HashAttribute _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
@@ -644,7 +485,7 @@ type OlySyntaxAttributes internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -706,7 +547,7 @@ type OlySyntaxConstraint internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -824,7 +665,7 @@ type OlySyntaxConstraintClause internal (tree, start: int, parent, internalNode:
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -886,7 +727,7 @@ type OlySyntaxTypeParameters internal (tree, start: int, parent, internalNode: S
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -955,7 +796,7 @@ type OlySyntaxTypeConstructor internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1017,7 +858,7 @@ type OlySyntaxTupleElement internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1065,6 +906,59 @@ module OlySyntaxTupleElement =
             Option.None
 
 [<Sealed;NoComparison>]
+type OlySyntaxFixedArrayLength internal (tree, start: int, parent, internalNode: SyntaxFixedArrayLength) as this =
+    inherit OlySyntaxNode(tree, parent, internalNode)
+
+    
+    let mutable children: OlySyntaxNode imarray = ImArray.empty
+    let mutable textSpan = Unchecked.defaultof<OlyTextSpan>
+
+    member private this.FullWidth =
+#if DEBUG || CHECKED
+        let fullWidth = (internalNode :> ISyntaxNode).FullWidth
+        this.Children
+        |> ImArray.iteri (fun i x ->
+            OlyAssert.Equal(x.FullTextSpan.Width, (internalNode :> ISyntaxNode).GetSlot(i).FullWidth)
+        )
+        fullWidth
+#else
+        (internalNode :> ISyntaxNode).FullWidth
+#endif
+
+    override this.TextSpan =
+        if textSpan.Start = 0 && textSpan.Width = 0 then
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
+        textSpan
+
+    override this.FullTextSpan =
+        OlyTextSpan.Create(start, this.FullWidth)
+
+    override _.Children =
+        if children.IsEmpty && (internalNode :> ISyntaxNode).SlotCount > 0 then
+            children <-
+                let mutable p = start
+                ImArray.init 
+                    (internalNode :> ISyntaxNode).SlotCount 
+                    (fun i -> 
+                        let slot = (internalNode :> ISyntaxNode).GetSlot(i)
+                        let t = Convert.From(tree, p, this, slot)
+                        p <- p + t.FullTextSpan.Width
+                        t
+                    )
+        children
+    
+    member internal _.Internal = internalNode
+
+[<RequireQualifiedAccess>]
+module OlySyntaxFixedArrayLength =
+
+    let (|Expression|_|) (node: OlySyntaxFixedArrayLength) : ( OlySyntaxExpression ) option =
+        match node.Internal with
+        | SyntaxFixedArrayLength.Expression _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
+
+[<Sealed;NoComparison>]
 type OlySyntaxType internal (tree, start: int, parent, internalNode: SyntaxType) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
@@ -1086,7 +980,7 @@ type OlySyntaxType internal (tree, start: int, parent, internalNode: SyntaxType)
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1150,6 +1044,20 @@ module OlySyntaxType =
     let (|MutableArray|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxToken OlySyntaxList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxType.MutableArray _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
+        | _ ->
+            Option.None
+
+    let (|FixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxType * OlySyntaxFixedArrayLength OlySyntaxBrackets ) option =
+        match node.Internal with
+        | SyntaxType.FixedArray _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
+        | _ ->
+            Option.None
+
+    let (|MutableFixedArray|_|) (node: OlySyntaxType) : ( OlySyntaxToken * OlySyntaxType * OlySyntaxFixedArrayLength OlySyntaxBrackets ) option =
+        match node.Internal with
+        | SyntaxType.MutableFixedArray _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
         | _ ->
             Option.None
@@ -1232,7 +1140,7 @@ type OlySyntaxMutability internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1294,7 +1202,7 @@ type OlySyntaxParameter internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1363,7 +1271,7 @@ type OlySyntaxTypeArguments internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1425,7 +1333,7 @@ type OlySyntaxParameters internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1487,7 +1395,7 @@ type OlySyntaxLambdaKind internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1549,7 +1457,7 @@ type OlySyntaxReturnTypeAnnotation internal (tree, start: int, parent, internalN
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1611,7 +1519,7 @@ type OlySyntaxFunctionName internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1673,7 +1581,7 @@ type OlySyntaxBindingDeclaration internal (tree, start: int, parent, internalNod
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1777,7 +1685,7 @@ type OlySyntaxPropertyBinding internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1830,7 +1738,7 @@ type OlySyntaxGuardBinding internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1892,7 +1800,7 @@ type OlySyntaxBinding internal (tree, start: int, parent, internalNode: SyntaxBi
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -1975,7 +1883,7 @@ type OlySyntaxLet internal (tree, start: int, parent, internalNode: SyntaxLet) a
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2028,7 +1936,7 @@ type OlySyntaxTypeDeclarationKind internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2160,7 +2068,7 @@ type OlySyntaxLiteral internal (tree, start: int, parent, internalNode: SyntaxLi
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2270,9 +2178,9 @@ module OlySyntaxLiteral =
         | _ ->
             Option.None
 
-    let (|Utf16|_|) (node: OlySyntaxLiteral) : ( OlySyntaxToken ) option =
+    let (|String16|_|) (node: OlySyntaxLiteral) : ( OlySyntaxToken ) option =
         match node.Internal with
-        | SyntaxLiteral.Utf16 _ ->
+        | SyntaxLiteral.String16 _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
         | _ ->
             Option.None
@@ -2334,7 +2242,7 @@ type OlySyntaxFieldPattern internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2396,7 +2304,7 @@ type OlySyntaxNamedArgument internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2449,7 +2357,7 @@ type OlySyntaxArguments internal (tree, start: int, parent, internalNode: Syntax
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2511,7 +2419,7 @@ type OlySyntaxElseIfOrElseExpression internal (tree, start: int, parent, interna
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2580,7 +2488,7 @@ type OlySyntaxCatchOrFinallyExpression internal (tree, start: int, parent, inter
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2649,7 +2557,7 @@ type OlySyntaxValueDeclarationPremodifier internal (tree, start: int, parent, in
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2732,7 +2640,7 @@ type OlySyntaxValueDeclarationPostmodifier internal (tree, start: int, parent, i
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2785,7 +2693,7 @@ type OlySyntaxValueDeclarationKind internal (tree, start: int, parent, internalN
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2882,7 +2790,7 @@ type OlySyntaxExtends internal (tree, start: int, parent, internalNode: SyntaxEx
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -2951,7 +2859,7 @@ type OlySyntaxImplements internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3013,7 +2921,7 @@ type OlySyntaxTypeDeclarationCase internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3075,7 +2983,7 @@ type OlySyntaxTypeDeclarationBody internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3105,15 +3013,6 @@ module OlySyntaxTypeDeclarationBody =
         match node.Internal with
         | SyntaxTypeDeclarationBody.Body _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
-        | _ ->
-            Option.None
-
-    let (|None|_|) (node: OlySyntaxTypeDeclarationBody) : unit option =
-        match node.Internal with
-        | SyntaxTypeDeclarationBody.None _ ->
-            Option.Some()
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxTypeDeclarationName internal (tree, start: int, parent, internalNode: SyntaxTypeDeclarationName) as this =
@@ -3137,7 +3036,7 @@ type OlySyntaxTypeDeclarationName internal (tree, start: int, parent, internalNo
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3177,6 +3076,13 @@ module OlySyntaxTypeDeclarationName =
         | _ ->
             Option.None
 
+    let (|Anonymous|_|) (node: OlySyntaxTypeDeclarationName) : unit option =
+        match node.Internal with
+        | SyntaxTypeDeclarationName.Anonymous _ ->
+            Option.Some()
+        | _ ->
+            Option.None
+
 [<Sealed;NoComparison>]
 type OlySyntaxPattern internal (tree, start: int, parent, internalNode: SyntaxPattern) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
@@ -3199,7 +3105,7 @@ type OlySyntaxPattern internal (tree, start: int, parent, internalNode: SyntaxPa
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3289,7 +3195,7 @@ type OlySyntaxMatchGuard internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3351,7 +3257,7 @@ type OlySyntaxMatchPattern internal (tree, start: int, parent, internalNode: Syn
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3427,7 +3333,7 @@ type OlySyntaxMatchClause internal (tree, start: int, parent, internalNode: Synt
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3459,7 +3365,7 @@ module OlySyntaxMatchClause =
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3], System.Runtime.CompilerServices.Unsafe.As node.Children[4])
 
 [<Sealed;NoComparison>]
-type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: SyntaxConstructType) as this =
+type OlySyntaxInitializer internal (tree, start: int, parent, internalNode: SyntaxInitializer) as this =
     inherit OlySyntaxNode(tree, parent, internalNode)
 
     
@@ -3480,7 +3386,7 @@ type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: Sy
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3504,21 +3410,12 @@ type OlySyntaxConstructType internal (tree, start: int, parent, internalNode: Sy
     member internal _.Internal = internalNode
 
 [<RequireQualifiedAccess>]
-module OlySyntaxConstructType =
+module OlySyntaxInitializer =
 
-    let (|Anonymous|_|) (node: OlySyntaxConstructType) : ( OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
+    let (|Initializer|_|) (node: OlySyntaxInitializer) : ( OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
         match node.Internal with
-        | SyntaxConstructType.Anonymous _ ->
+        | SyntaxInitializer.Initializer _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
-        | _ ->
-            Option.None
-
-    let (|Named|_|) (node: OlySyntaxConstructType) : ( OlySyntaxName * OlySyntaxToken * OlySyntaxFieldPattern OlySyntaxSeparatorList * OlySyntaxToken ) option =
-        match node.Internal with
-        | SyntaxConstructType.Named _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2], System.Runtime.CompilerServices.Unsafe.As node.Children[3])
-        | _ ->
-            Option.None
 
 [<Sealed;NoComparison>]
 type OlySyntaxCompilationUnit internal (tree, start: int, parent, internalNode: SyntaxCompilationUnit) as this =
@@ -3542,7 +3439,7 @@ type OlySyntaxCompilationUnit internal (tree, start: int, parent, internalNode: 
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3611,7 +3508,7 @@ type OlySyntaxExpression internal (tree, start: int, parent, internalNode: Synta
 
     override this.TextSpan =
         if textSpan.Start = 0 && textSpan.Width = 0 then
-            let offset = (match OlySyntaxNode.TryGetFirstToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
+            let offset = (match OlySyntaxNode.TryGetFirstNonTriviaToken(this.Children) with null -> start | x -> x.TextSpan.Start) - start
             textSpan <- if this.Children.IsEmpty then OlyTextSpan.Create(start, 0) else OlyTextSpan.Create(start + offset, this.FullWidth - offset)
         textSpan
 
@@ -3707,13 +3604,6 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|Throw|_|) (node: OlySyntaxExpression) : ( OlySyntaxToken * OlySyntaxExpression ) option =
-        match node.Internal with
-        | SyntaxExpression.Throw _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
-        | _ ->
-            Option.None
-
     let (|Indexer|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxExpression OlySyntaxSeparatorList OlySyntaxBrackets ) option =
         match node.Internal with
         | SyntaxExpression.Indexer _ ->
@@ -3735,17 +3625,17 @@ module OlySyntaxExpression =
         | _ ->
             Option.None
 
-    let (|CreateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxConstructType ) option =
-        match node.Internal with
-        | SyntaxExpression.CreateRecord _ ->
-            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0])
-        | _ ->
-            Option.None
-
-    let (|UpdateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxToken * OlySyntaxConstructType ) option =
+    let (|UpdateRecord|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxToken * OlySyntaxInitializer ) option =
         match node.Internal with
         | SyntaxExpression.UpdateRecord _ ->
             Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1], System.Runtime.CompilerServices.Unsafe.As node.Children[2])
+        | _ ->
+            Option.None
+
+    let (|Initialize|_|) (node: OlySyntaxExpression) : ( OlySyntaxExpression * OlySyntaxInitializer ) option =
+        match node.Internal with
+        | SyntaxExpression.Initialize _ ->
+            Option.Some (System.Runtime.CompilerServices.Unsafe.As node.Children[0], System.Runtime.CompilerServices.Unsafe.As node.Children[1])
         | _ ->
             Option.None
 
@@ -3842,97 +3732,102 @@ module OlySyntaxExpression =
 
 [<RequireQualifiedAccess>]
 module private Convert =
+    let convert = From
+
     let From(tree: OlySyntaxTree, start: int, parent: OlySyntaxNode, internalNode: ISyntaxNode) : OlySyntaxNode =
         match internalNode.Tag with
-        | SyntaxAccessor.Tag -> OlySyntaxAccessor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxName.Tag -> OlySyntaxName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxBlittable.Tag -> OlySyntaxBlittable(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxBlittableOptional.Tag -> OlySyntaxBlittableOptional(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxAttribute.Tag -> OlySyntaxAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxHashAttribute.Tag -> OlySyntaxHashAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxAttributes.Tag -> OlySyntaxAttributes(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxConstraint.Tag -> OlySyntaxConstraint(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxConstraintClause.Tag -> OlySyntaxConstraintClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeParameters.Tag -> OlySyntaxTypeParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeConstructor.Tag -> OlySyntaxTypeConstructor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTupleElement.Tag -> OlySyntaxTupleElement(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxType.Tag -> OlySyntaxType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxMutability.Tag -> OlySyntaxMutability(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxParameter.Tag -> OlySyntaxParameter(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeArguments.Tag -> OlySyntaxTypeArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxParameters.Tag -> OlySyntaxParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxLambdaKind.Tag -> OlySyntaxLambdaKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxReturnTypeAnnotation.Tag -> OlySyntaxReturnTypeAnnotation(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxFunctionName.Tag -> OlySyntaxFunctionName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxBindingDeclaration.Tag -> OlySyntaxBindingDeclaration(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxPropertyBinding.Tag -> OlySyntaxPropertyBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxGuardBinding.Tag -> OlySyntaxGuardBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxBinding.Tag -> OlySyntaxBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxLet.Tag -> OlySyntaxLet(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeDeclarationKind.Tag -> OlySyntaxTypeDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxLiteral.Tag -> OlySyntaxLiteral(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxFieldPattern.Tag -> OlySyntaxFieldPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxNamedArgument.Tag -> OlySyntaxNamedArgument(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxArguments.Tag -> OlySyntaxArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxElseIfOrElseExpression.Tag -> OlySyntaxElseIfOrElseExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxCatchOrFinallyExpression.Tag -> OlySyntaxCatchOrFinallyExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxValueDeclarationPremodifier.Tag -> OlySyntaxValueDeclarationPremodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxValueDeclarationPostmodifier.Tag -> OlySyntaxValueDeclarationPostmodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxValueDeclarationKind.Tag -> OlySyntaxValueDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxExtends.Tag -> OlySyntaxExtends(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxImplements.Tag -> OlySyntaxImplements(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeDeclarationCase.Tag -> OlySyntaxTypeDeclarationCase(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeDeclarationBody.Tag -> OlySyntaxTypeDeclarationBody(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxTypeDeclarationName.Tag -> OlySyntaxTypeDeclarationName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxPattern.Tag -> OlySyntaxPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxMatchGuard.Tag -> OlySyntaxMatchGuard(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxMatchPattern.Tag -> OlySyntaxMatchPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxMatchClause.Tag -> OlySyntaxMatchClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxConstructType.Tag -> OlySyntaxConstructType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
-        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) :> OlySyntaxNode
+        | Tags.Token -> OlySyntaxToken(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | Tags.Terminal -> tree.DummyNode
+        | SyntaxAccessor.Tag -> OlySyntaxAccessor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxName.Tag -> OlySyntaxName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxBlittable.Tag -> OlySyntaxBlittable(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxBlittableOptional.Tag -> OlySyntaxBlittableOptional(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxAttribute.Tag -> OlySyntaxAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxHashAttribute.Tag -> OlySyntaxHashAttribute(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxAttributes.Tag -> OlySyntaxAttributes(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxConstraint.Tag -> OlySyntaxConstraint(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxConstraintClause.Tag -> OlySyntaxConstraintClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeParameters.Tag -> OlySyntaxTypeParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeConstructor.Tag -> OlySyntaxTypeConstructor(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTupleElement.Tag -> OlySyntaxTupleElement(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxFixedArrayLength.Tag -> OlySyntaxFixedArrayLength(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxType.Tag -> OlySyntaxType(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxMutability.Tag -> OlySyntaxMutability(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxParameter.Tag -> OlySyntaxParameter(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeArguments.Tag -> OlySyntaxTypeArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxParameters.Tag -> OlySyntaxParameters(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxLambdaKind.Tag -> OlySyntaxLambdaKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxReturnTypeAnnotation.Tag -> OlySyntaxReturnTypeAnnotation(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxFunctionName.Tag -> OlySyntaxFunctionName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxBindingDeclaration.Tag -> OlySyntaxBindingDeclaration(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxPropertyBinding.Tag -> OlySyntaxPropertyBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxGuardBinding.Tag -> OlySyntaxGuardBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxBinding.Tag -> OlySyntaxBinding(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxLet.Tag -> OlySyntaxLet(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeDeclarationKind.Tag -> OlySyntaxTypeDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxLiteral.Tag -> OlySyntaxLiteral(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxFieldPattern.Tag -> OlySyntaxFieldPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxNamedArgument.Tag -> OlySyntaxNamedArgument(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxArguments.Tag -> OlySyntaxArguments(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxElseIfOrElseExpression.Tag -> OlySyntaxElseIfOrElseExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxCatchOrFinallyExpression.Tag -> OlySyntaxCatchOrFinallyExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxValueDeclarationPremodifier.Tag -> OlySyntaxValueDeclarationPremodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxValueDeclarationPostmodifier.Tag -> OlySyntaxValueDeclarationPostmodifier(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxValueDeclarationKind.Tag -> OlySyntaxValueDeclarationKind(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxExtends.Tag -> OlySyntaxExtends(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxImplements.Tag -> OlySyntaxImplements(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeDeclarationCase.Tag -> OlySyntaxTypeDeclarationCase(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeDeclarationBody.Tag -> OlySyntaxTypeDeclarationBody(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxTypeDeclarationName.Tag -> OlySyntaxTypeDeclarationName(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxPattern.Tag -> OlySyntaxPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxMatchGuard.Tag -> OlySyntaxMatchGuard(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxMatchPattern.Tag -> OlySyntaxMatchPattern(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxMatchClause.Tag -> OlySyntaxMatchClause(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxInitializer.Tag -> OlySyntaxInitializer(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxCompilationUnit.Tag -> OlySyntaxCompilationUnit(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
+        | SyntaxExpression.Tag -> OlySyntaxExpression(tree, start, parent, System.Runtime.CompilerServices.Unsafe.As internalNode) : OlySyntaxNode
         | _ ->
 
         match internalNode with
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
-        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode) :> OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxType>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxType>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxCurlyBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxCurlyBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxConstraintClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxConstraintClause> as internalNode -> OlySyntaxList<OlySyntaxConstraintClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxParameter> as internalNode -> OlySyntaxSeparatorList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxTupleElement> as internalNode -> OlySyntaxSeparatorList<OlySyntaxTupleElement>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxParameter> as internalNode -> OlySyntaxList<OlySyntaxParameter>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxExpression> as internalNode -> OlySyntaxSeparatorList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxExpression> as internalNode -> OlySyntaxList<OlySyntaxExpression>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxAttribute> as internalNode -> OlySyntaxSeparatorList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxAttribute> as internalNode -> OlySyntaxList<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxFieldPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxFieldPattern> as internalNode -> OlySyntaxList<OlySyntaxFieldPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxConstraint> as internalNode -> OlySyntaxSeparatorList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxConstraint> as internalNode -> OlySyntaxList<OlySyntaxConstraint>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxType> as internalNode -> OlySyntaxSeparatorList<OlySyntaxType>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxType> as internalNode -> OlySyntaxList<OlySyntaxType>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxMatchClause> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxMatchClause> as internalNode -> OlySyntaxList<OlySyntaxMatchClause>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxMatchPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxMatchPattern> as internalNode -> OlySyntaxList<OlySyntaxMatchPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxBinding> as internalNode -> OlySyntaxList<OlySyntaxBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxPropertyBinding> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPropertyBinding>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxPattern> as internalNode -> OlySyntaxSeparatorList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxPattern> as internalNode -> OlySyntaxList<OlySyntaxPattern>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxAttribute> as internalNode -> OlySyntaxBrackets<OlySyntaxAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxHashAttribute> as internalNode -> OlySyntaxList<OlySyntaxHashAttribute>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxSeparatorList<SyntaxNamedArgument> as internalNode -> OlySyntaxSeparatorList<OlySyntaxNamedArgument>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBracketInnerPipes<SyntaxList<SyntaxToken>> as internalNode -> OlySyntaxBracketInnerPipes<OlySyntaxList<OlySyntaxToken>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxToken> as internalNode -> OlySyntaxList<OlySyntaxToken>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxExpression>> as internalNode -> OlySyntaxBrackets<OlySyntaxSeparatorList<OlySyntaxExpression>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxTypeDeclarationCase> as internalNode -> OlySyntaxList<OlySyntaxTypeDeclarationCase>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxValueDeclarationPremodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPremodifier>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxList<SyntaxValueDeclarationPostmodifier> as internalNode -> OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxSeparatorList<SyntaxAttribute>> as internalNode -> OlySyntaxBrackets<OlySyntaxList<OlySyntaxValueDeclarationPostmodifier>>(tree, start, parent, internalNode, convert) : OlySyntaxNode
+        | :? SyntaxBrackets<SyntaxFixedArrayLength> as internalNode -> OlySyntaxBrackets<OlySyntaxFixedArrayLength>(tree, start, parent, internalNode, convert) : OlySyntaxNode
         | _ -> failwith "Invalid Internal Syntax Node"
