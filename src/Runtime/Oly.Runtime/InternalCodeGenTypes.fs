@@ -449,13 +449,15 @@ type RuntimeEntity =
 
     member this.IsImported =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
+        entDef.IsExternal
 
     member this.TryImportedInfo =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-        entDef.Attributes
-        |> ImArray.tryPick (function OlyILAttribute.Import(platform, path, name) -> Some(platform, path, name) | _ -> None)
+        match entDef with
+        | OlyILEntityDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+            Some(platform, path, name)
+        | _ ->
+            None
 
     member this.IsExported =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
@@ -1494,16 +1496,14 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
     member this.TryGetExternalInfo() =
         let ilAsm = state.ILAssembly
         let ilFuncDef = ilAsm.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
-        ilFuncDef.Attributes
-        |> ImArray.tryPick (function
-            | OlyILAttribute.Import(platform, path, name) ->
-                let platform = ilAsm.GetStringOrEmpty(platform)
-                let path = path |> ImArray.map ilAsm.GetStringOrEmpty
-                let name = ilAsm.GetStringOrEmpty(name)
-                Some(OlyIRFunctionExternalInfo(platform, path, name))
-            | _ ->
-                None
-        )
+        match ilFuncDef with
+        | OlyILFunctionDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+            let platform = ilAsm.GetStringOrEmpty(platform)
+            let path = path |> ImArray.map ilAsm.GetStringOrEmpty
+            let name = ilAsm.GetStringOrEmpty(name)
+            Some(OlyIRFunctionExternalInfo(platform, path, name))            
+        | _ ->
+            None
 
     member this.AssemblyIdentity = state.ILAssembly.Identity
 
@@ -1891,8 +1891,11 @@ type RuntimeField =
     member this.TryGetImportInfo() =
         let resultOpt =
             let fieldDef = this.ILAssembly.GetFieldDefinition(this.ILFieldDefinitionHandle)
-            fieldDef.Attributes
-            |> ImArray.tryPick (function OlyILAttribute.Import(platform, path, name) -> Some(platform, path, name) | _ -> None)
+            match fieldDef with
+            | OlyILFieldDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+                Some(platform, path, name)
+            | _ ->
+                None
         match resultOpt with
         | Some(platform, path, name) ->
             let ilAsm = this.ILAssembly

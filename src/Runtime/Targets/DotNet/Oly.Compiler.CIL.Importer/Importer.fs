@@ -918,9 +918,11 @@ module internal rec Helpers =
         let olyAttrs =
             seq {
                 yield! fieldDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
-                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name)
             }
             |> ImArray.ofSeq
+            
+        let olyImportInfo =
+            Some(OlyILImportInfo(importRawString cenv "CLR", ImArray.empty, importRawString cenv name))
 
         let olyFieldFlags =
             if (fieldDef.Attributes &&& FieldAttributes.InitOnly = FieldAttributes.InitOnly) || isLiteral then
@@ -934,7 +936,8 @@ module internal rec Helpers =
                 nameHandle,
                 olyTy,
                 olyFieldFlags,
-                olyMemberFlags
+                olyMemberFlags,
+                olyImportInfo
             )
 
         olyAsm.AddFieldDefinition(olyFieldDef)
@@ -1084,9 +1087,11 @@ module internal rec Helpers =
         let olyAttrs =
             seq {
                 yield! attrs.ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
-                yield OlyILAttribute.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName)
             }
             |> ImArray.ofSeq
+            
+        let olyImportInfo =
+            Some(OlyILImportInfo(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName))
 
         let olyOverrides =
             match methOverrides.TryGetValue(MethodDefinitionHandle.op_Implicit(methDefHandle)) with
@@ -1102,6 +1107,7 @@ module internal rec Helpers =
                 olyAttrs,
                 olyFuncSpecHandle,
                 olyOverrides,
+                olyImportInfo,
                 ref None
             )
 
@@ -1292,12 +1298,14 @@ module internal rec Helpers =
         let olyAttrs =
             seq {
                 yield! tyDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
-                yield OlyILAttribute.Import(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name)
                 match olyIntrinsicAttrOpt with
                 | ValueSome(olyAttr, _) -> yield olyAttr
                 | _ -> ()
             }
             |> ImArray.ofSeq
+            
+        let olyImportInfo =
+            Some(OlyILImportInfo(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name))
 
         let methImpls = ImmutableDictionary.CreateBuilder()
         for methImplHandle in tyDef.GetMethodImplementations().ToImmutableArray() do
@@ -1484,7 +1492,8 @@ module internal rec Helpers =
                 olyPatDefs,
                 olyNestedEntDefHandles,
                 (if isInterface then ImArray.empty else olyImplements),
-                (if isInterface then olyImplements else olyInherits)
+                (if isInterface then olyImplements else olyInherits),
+                olyImportInfo
             )
         
         olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
@@ -1545,6 +1554,7 @@ type Importer private (name: string, peReader: PEReader) =
                         ImArray.empty,
                         olyFuncSpecHandle,
                         None,
+                        None,
                         ref None
                     )
                 olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
@@ -1563,7 +1573,8 @@ type Importer private (name: string, peReader: PEReader) =
                     ImArray.empty,
                     ImArray.empty,
                     ImArray.empty,
-                    ImArray.empty
+                    ImArray.empty,
+                    None
                 )
             olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
             let olyEntInst = OlyILEntityInstance(olyEntDefHandle, ImArray.empty)

@@ -1309,11 +1309,6 @@ let private importFieldFlags (ilFieldFlags: OlyILFieldFlags) =
 
 let private importAttribute cenv (ilAttr: OlyILAttribute) =
     match ilAttr with
-    | OlyILAttribute.Import(platform, path, name) ->
-        let platform = cenv.ilAsm.GetStringOrEmpty(platform)
-        let path = path |> ImArray.map cenv.ilAsm.GetStringOrEmpty
-        let name = cenv.ilAsm.GetStringOrEmpty(name)
-        AttributeSymbol.Import(platform, path, name)
     | OlyILAttribute.Intrinsic(name) ->
         let name = cenv.ilAsm.GetStringOrEmpty(name)
         AttributeSymbol.Intrinsic(name)
@@ -1379,13 +1374,11 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 else
                     ValueFlags.None
 
-            (this :> IFunctionSymbol).Attributes
-            |> ImArray.iter (function
-                | AttributeSymbol.Import _ ->
-                    valueFlags <- valueFlags ||| ValueFlags.Imported
-                | _ ->
-                    ()
-            )
+            match ilFuncDef with
+            | OlyILFunctionDefinition(importInfo = Some _) ->
+                valueFlags <- valueFlags ||| ValueFlags.Imported
+            | _ ->
+                ()
 
             lazyValueFlags <- ValueSome(valueFlags)
             valueFlags
@@ -1467,10 +1460,19 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 let attrs =
                     ilFuncDef.Attributes
                     |> ImArray.map (importAttribute cenv)
-                if ilCallConv.HasFlag(OlyILCallingConvention.Blittable) then
-                    attrs.Add(AttributeSymbol.Blittable)
-                else
-                    attrs
+                let attrs =
+                    if ilCallConv.HasFlag(OlyILCallingConvention.Blittable) then
+                        attrs.Add(AttributeSymbol.Blittable)
+                    else
+                        attrs
+                match ilFuncDef with
+                | OlyILFunctionDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+                    let platform = cenv.ilAsm.GetStringOrEmpty(platform)
+                    let path = path |> ImArray.map cenv.ilAsm.GetStringOrEmpty
+                    let name = cenv.ilAsm.GetStringOrEmpty(name)
+                    attrs.Add(AttributeSymbol.Import(platform, path, name))
+                | _ ->
+                   attrs
         lazyAttrs
 
     let mutable lazyReturnTy = Unchecked.defaultof<TypeSymbol>
@@ -1598,14 +1600,11 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let memberFlags = importMemberFlags ilFieldDef.MemberFlags
     let valueFlags =
         let mutable valueFlags = importFieldFlags ilFieldDef.Flags
-        ilFieldDef.Attributes
-        |> ImArray.iter (fun ilAttr ->
-            match ilAttr with
-            | OlyILAttribute.Import _ ->
-                valueFlags <- valueFlags ||| ValueFlags.Imported
-            | _ ->
-                ()
-        )
+        match ilFieldDef with
+        | OlyILFieldDefinition(importInfo = Some _) ->
+            valueFlags <- valueFlags ||| ValueFlags.Imported
+        | _ ->
+            ()
         valueFlags
 
     let lazyName =
@@ -1737,11 +1736,14 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
             match ilAttr with
             | OlyILAttribute.Intrinsic _ ->
                 entFlags <- entFlags ||| EntityFlags.Intrinsic
-            | OlyILAttribute.Import _ ->
-                entFlags <- entFlags ||| EntityFlags.Imported
             | _ ->
                 ()
         )
+        match ilEntDef with
+        | OlyILEntityDefinition(importInfo = Some _) ->
+            entFlags <- entFlags ||| EntityFlags.Imported
+        | _ ->
+            ()
         entFlags
 
     let mutable lazyEnclosing = Unchecked.defaultof<EnclosingSymbol>

@@ -685,7 +685,8 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 let ilAttrs =
                     field.Attributes
                     |> (GenAttributes cenv env)
-                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags)
+                let ilImportedInfo = GenImportedInfo cenv env field.Attributes
+                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags, ilImportedInfo)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 
 and GenFieldsAsILFieldDefinitions cenv env fields =
@@ -870,7 +871,8 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilFuncDefHandle = 
             let ilEntDefHandle = GenEntityAsILEntityDefinition cenv env enclosingEnt
-            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ref None)
+            let ilImportedInfo = GenImportedInfo cenv env func.Attributes
+            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportedInfo, ref None)
             cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle
@@ -967,21 +969,9 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Blittable
     | AttributeSymbol.Pure
     | AttributeSymbol.Unmanaged _
-    | AttributeSymbol.Export ->
+    | AttributeSymbol.Export
+    | AttributeSymbol.Import _ ->
         None
-    | AttributeSymbol.Import(platform, path, name) ->
-        let platform = 
-            if String.IsNullOrEmpty platform then
-                OlyILTableIndex(OlyILTableKind.String, -1)
-            else
-                GenString cenv platform
-        let path = 
-            if path.Length = 1 && String.IsNullOrWhiteSpace path[0] then
-                ImArray.empty
-            else
-                path |> ImArray.map (GenString cenv)
-        let name = GenString cenv name
-        OlyILAttribute.Import(platform, path, name) |> Some
     | AttributeSymbol.Intrinsic(name) ->
         if name = "importer" then
             // The "importer" intrinsic is specific to the front-end compiler.
@@ -1022,6 +1012,26 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
 and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.choose (GenAttribute cenv env)
+    
+and GenImportedInfo cenv env (attrs: AttributeSymbol imarray) =
+    attrs
+    |> ImArray.tryPick (function
+        | AttributeSymbol.Import(platform, path, name) ->
+            let platform = 
+                if String.IsNullOrEmpty platform then
+                    OlyILTableIndex(OlyILTableKind.String, -1)
+                else
+                    GenString cenv platform
+            let path = 
+                if path.Length = 1 && String.IsNullOrWhiteSpace path[0] then
+                    ImArray.empty
+                else
+                    path |> ImArray.map (GenString cenv)
+            let name = GenString cenv name
+            OlyILImportInfo(platform, path, name) |> Some
+        | _ ->
+            None
+    )
 
 and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
 #if DEBUG || CHECKED
@@ -1236,7 +1246,9 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilPatDefs,
                 ilEntDefHandles,
                 ilImplements,
-                ilExtends)
+                ilExtends,
+                (ent.Attributes |> (GenImportedInfo cenv env))
+                )
 
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)
     )

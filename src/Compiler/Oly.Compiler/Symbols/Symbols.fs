@@ -5685,10 +5685,19 @@ module SymbolExtensions =
         type EntitySymbol with
 
             member this.IsAttributeImporter =
-                this.Flags.HasFlag(EntityFlags.AttributeImporter)
+                this.Flags &&& EntityFlags.AttributeImporter = EntityFlags.AttributeImporter
 
             member this.IsImported =
-                this.Flags.HasFlag(EntityFlags.Imported)
+                this.Flags &&& EntityFlags.Imported = EntityFlags.Imported
+                
+            member this.IsIntrinsic =
+                this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic
+
+            member this.IsInvalid =
+                this.Flags &&& EntityFlags.Invalid = EntityFlags.Invalid
+
+            member this.IsScoped =
+                this.Flags &&& EntityFlags.Scoped = EntityFlags.Scoped
 
             member this.IsExported =
                 this.Flags &&& EntityFlags.Exported = EntityFlags.Exported

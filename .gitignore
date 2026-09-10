@@ -57,6 +57,7 @@ build
 .vscode
 .oly
 \.oly_target
+\.idea
 
 # Node
 \node_modules

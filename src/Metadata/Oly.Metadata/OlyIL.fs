@@ -238,9 +238,15 @@ type OlyILAttributeNamedArgument =
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 type OlyILAttribute =
-    | Import of platform: OlyILStringHandle * path: OlyILStringHandle imarray * name: OlyILStringHandle
     | Intrinsic of name: OlyILStringHandle
     | Constructor of OlyILFunctionInstance * args: OlyILConstant imarray * namedArgs: OlyILAttributeNamedArgument imarray
+
+[<NoEquality;NoComparison>]
+type OlyILImportInfo =
+    | OlyILImportInfo of
+        platform: OlyILStringHandle *
+        path: OlyILStringHandle imarray *
+        name: OlyILStringHandle
 
 [<NoEquality;NoComparison>]
 type OlyILEntityDefinition =
@@ -257,12 +263,13 @@ type OlyILEntityDefinition =
         patDefs: OlyILPatternDefinitionHandle imarray *
         entDefs: OlyILEntityDefinitionHandle imarray *
         implements: OlyILType imarray *
-        extends: OlyILType imarray
+        extends: OlyILType imarray *
+        importInfo: OlyILImportInfo option
 
     member this.UpdateKind(kind: OlyILEntityKind) =
         match this with
-        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits) ->
-            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits)
+        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo) ->
+            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo)
 
     member this.EntityDefinitionHandles =
         match this with
@@ -322,8 +329,9 @@ type OlyILEntityDefinition =
         | OlyILEntityDefinition(attrs=attrs) -> attrs
         
     member this.IsExternal =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
+        match this with
+        | OlyILEntityDefinition(importInfo=Some _) -> true
+        | _ -> false
 
     member this.IsIntrinsic =
         this.Attributes
@@ -473,7 +481,8 @@ type OlyILFunctionDefinition =
         memberFlags: OlyILMemberFlags * 
         attrs: OlyILAttribute imarray * 
         specHandle: OlyILFunctionSpecificationHandle * 
-        overrides: OlyILFunctionReference option * 
+        overrides: OlyILFunctionReference option *
+        importInfo: OlyILImportInfo option *
         bodyHandle: OlyILFunctionBodyHandle option ref
 
     member this.Flags =
@@ -501,8 +510,9 @@ type OlyILFunctionDefinition =
         | OlyILFunctionDefinition(attrs=attrs) -> attrs
 
     member this.IsImported =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
+        match this with
+        | OlyILFunctionDefinition(importInfo=Some _) -> true
+        | _ -> false
 
     member this.IsIntrinsic =
         this.Attributes
@@ -614,7 +624,7 @@ type OlyILConstant =
 
 [<NoEquality;NoComparison>]
 type OlyILFieldDefinition =
-    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags
+    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags * importInfo: OlyILImportInfo option
     | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant * memberFlags: OlyILMemberFlags
 
     member this.IsConstant =
@@ -651,8 +661,9 @@ type OlyILFieldDefinition =
         | _ -> ImArray.empty
 
     member this.IsExternal =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
+        match this with
+        | OlyILFieldDefinition(importInfo=Some _) -> true
+        | _ -> false
 
 [<NoEquality;NoComparison>]
 type OlyILPropertyDefinition =

@@ -288,9 +288,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
 
     let returnTy = runtime.ResolveType(ilAsm, ilFuncSpec.ReturnType, genericContext)
 
-    let isExternal =
-        ilFuncDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Import _ -> true | _ -> false)
+    let isExternal = ilFuncDef.IsImported
         
     let irFlags =
         if isExternal then

@@ -1624,19 +1624,6 @@ type EntitySymbol with
             |> ImArray.map (fun x -> x.AsType)
             |> this.Apply
 
-    // TODO: Remove this and use the other Extension with IsImported.
-    member this.IsImported =
-        attributesContainImport this.Attributes
-
-    member this.IsIntrinsic =
-        this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic
-
-    member this.IsInvalid =
-        this.Flags &&& EntityFlags.Invalid = EntityFlags.Invalid
-
-    member this.IsScoped =
-        this.Flags &&& EntityFlags.Scoped = EntityFlags.Scoped
-
     member this.TryImportedInfo =
         this.Attributes
         |> Seq.tryPick (fun x ->
