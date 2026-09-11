@@ -181,13 +181,13 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
 
     member _.IsExternal = funcFlags &&& RuntimeFunctionFlags.External = RuntimeFunctionFlags.External
 
-    member _.IsPublic = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Public
+    member _.IsPublic = ilFuncFlags &&& OlyILFunctionFlags.AccessorMask = OlyILFunctionFlags.Public
 
-    member _.IsPrivate = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Private
+    member _.IsPrivate = ilFuncFlags &&& OlyILFunctionFlags.AccessorMask = OlyILFunctionFlags.Private
 
-    member _.IsInternal = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Internal
+    member _.IsInternal = ilFuncFlags &&& OlyILFunctionFlags.AccessorMask = OlyILFunctionFlags.Internal
 
-    member _.IsProtected = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Protected
+    member _.IsProtected = ilFuncFlags &&& OlyILFunctionFlags.AccessorMask = OlyILFunctionFlags.Protected
 
 [<Struct>]
 type OlyIRFieldFlags internal (ilFieldFlags: OlyILFieldFlags, ilMemberFlags: OlyILMemberFlags, isExported: bool) =
@@ -200,13 +200,13 @@ type OlyIRFieldFlags internal (ilFieldFlags: OlyILFieldFlags, ilMemberFlags: Oly
 
     member _.IsStatic = ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static
 
-    member _.IsPublic = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Public
+    member _.IsPublic = ilFieldFlags &&& OlyILFieldFlags.AccessorMask = OlyILFieldFlags.Public
 
-    member _.IsPrivate = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Private
+    member _.IsPrivate = ilFieldFlags &&& OlyILFieldFlags.AccessorMask = OlyILFieldFlags.Private
 
-    member _.IsInternal = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Internal
+    member _.IsInternal = ilFieldFlags &&& OlyILFieldFlags.AccessorMask = OlyILFieldFlags.Internal
 
-    member _.IsProtected = ilMemberFlags &&& OlyILMemberFlags.AccessorMask = OlyILMemberFlags.Protected
+    member _.IsProtected = ilFieldFlags &&& OlyILFieldFlags.AccessorMask = OlyILFieldFlags.Protected
 
     member this.IsInstance = not this.IsStatic
 

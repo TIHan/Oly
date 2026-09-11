@@ -164,12 +164,6 @@ type OlyILEntityFlags =
 type OlyILMemberFlags =
     | None =              0x000000000UL
 
-    | Public            = 0x000000000UL
-    | Internal          = 0x000000001UL
-    | Private           = 0x000000002UL
-    | Protected         = 0x000000003UL
-    | AccessorMask      = 0x000000007UL
-
     | Abstract =          0x000000110UL
     | Virtual =           0x000000100UL
     | Static =            0x000001000UL
@@ -180,27 +174,42 @@ type OlyILMemberFlags =
 
 [<Flags>]
 type OlyILFunctionFlags =
-    | None                          = 0x000000
-    | Constructor                   = 0x000001
-    | Inline                        = 0x000010
-    | InlineNever                   = 0x000020
-    | InlineAlways                  = 0x000030
-    | InlineMask                    = 0x000070
+    | None                          = 0x00000000000
+    
+    | Public                        = 0b00000000000
+    | Internal                      = 0b00000000001
+    | Private                       = 0b00000000010
+    | Protected                     = 0b00000000011
+    | AccessorMask                  = 0b00000000011
+    
+    | Constructor                   = 0b00000001000
+    
+    | Inline                        = 0b00000010000
+    | InlineNever                   = 0b00000100000
+    | InlineAlways                  = 0b00000110000
+    | InlineMask                    = 0b00000110000
 
     /// Marks the function as 'mutable'.
     /// Runtime only cares about this flag if the enclosing type is a struct or shape, and the function is an instance member and not a constructor,
     ///     otherwise, it will ignore it.
-    | Mutable                       = 0x000100
-    | Pure                          = 0x000200 // frontend hint? not implemented at all, but should the runtime also have it?
-    | RequiresExplicitTypeArguments = 0x001000 // frontend hint
-    | ParameterLess                 = 0x010000 // frontend hint
+    | Mutable                       = 0b00001000000
+    | Pure                          = 0b00010000000 // frontend hint? not implemented at all, but should the runtime also have it?
+    | RequiresExplicitTypeArguments = 0b00100000000 // frontend hint
+    | ParameterLess                 = 0b01000000000 // frontend hint
 
-    | UnmanagedAllocationOnly       = 0x1000000 // frontend hint? for now, but could we also have the runtime verify it?
+    | UnmanagedAllocationOnly       = 0b10000000000 // frontend hint? for now, but could we also have the runtime verify it?
 
 [<Flags>]
 type OlyILFieldFlags =
-    | None =        0x000000
-    | Mutable =     0x000001
+    | None                          = 0b00000000000
+    
+    | Public                        = 0b00000000000
+    | Internal                      = 0b00000000001
+    | Private                       = 0b00000000010
+    | Protected                     = 0b00000000011
+    | AccessorMask                  = 0b00000000011
+    
+    | Mutable                       = 0b00000000100
 
 [<Flags>]
 type OlyILCallingConvention =

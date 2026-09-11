@@ -836,13 +836,6 @@ module internal rec Helpers =
             else
                 OlyILMemberFlags.None
 
-        let olyMemberFlags =
-            // TODO: Handle more accessors.
-            if fieldDef.Attributes &&& FieldAttributes.FieldAccessMask = FieldAttributes.Public then
-                olyMemberFlags ||| OlyILMemberFlags.Public
-            else
-                olyMemberFlags
-
         let olyTy = fieldDef.DecodeSignature(OlySignatureTypeProvider(cenv), 0)
 
         let isLiteral = fieldDef.Attributes &&& FieldAttributes.Literal = FieldAttributes.Literal
@@ -929,6 +922,13 @@ module internal rec Helpers =
                 OlyILFieldFlags.None
             else
                 OlyILFieldFlags.Mutable
+                
+        let olyFieldFlags =
+            // TODO: Handle more accessors.
+            if fieldDef.Attributes &&& FieldAttributes.FieldAccessMask = FieldAttributes.Public then
+                olyFieldFlags ||| OlyILFieldFlags.Public
+            else
+                olyFieldFlags
 
         let olyFieldDef =
             OlyILFieldDefinition(
@@ -1042,23 +1042,23 @@ module internal rec Helpers =
             else
                 olyFuncFlags
 
-        let olyMemberFlags =
+        let olyFuncFlags =
             if (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Public) then
-                OlyILMemberFlags.Public
+                olyFuncFlags ||| OlyILFunctionFlags.Public
             elif (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Family) then
-                OlyILMemberFlags.Protected
+                olyFuncFlags ||| OlyILFunctionFlags.Protected
             elif (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.FamORAssem) then
-                OlyILMemberFlags.Protected
+                olyFuncFlags ||| OlyILFunctionFlags.Protected
             elif (meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Assembly) then
-                OlyILMemberFlags.Internal
+                olyFuncFlags ||| OlyILFunctionFlags.Internal
             else
-                OlyILMemberFlags.Private
+                olyFuncFlags ||| OlyILFunctionFlags.Private
 
         let olyMemberFlags = 
             if isStatic then
-                olyMemberFlags ||| OlyILMemberFlags.Static
+                OlyILMemberFlags.None ||| OlyILMemberFlags.Static
             else
-                olyMemberFlags
+                OlyILMemberFlags.None
 
         let olyMemberFlags =
             if isVirtual then

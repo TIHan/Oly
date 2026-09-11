@@ -1216,21 +1216,10 @@ let private importParameter (cenv: cenv) (enclosingTyPars: TypeParameterSymbol i
 
 let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
     let flags =
-        match ilMemberFlags &&& OlyILMemberFlags.AccessorMask with
-        | OlyILMemberFlags.Public ->
-            MemberFlags.Public
-        | OlyILMemberFlags.Internal ->
-            MemberFlags.Internal
-        | OlyILMemberFlags.Protected ->
-            MemberFlags.Protected
-        | _ ->
-            MemberFlags.Private
-
-    let flags =
         if ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static then
-            flags
+            MemberFlags.None
         else
-            flags ||| MemberFlags.Instance
+            MemberFlags.None ||| MemberFlags.Instance
 
     let flags =
         if ilMemberFlags &&& OlyILMemberFlags.Abstract = OlyILMemberFlags.Abstract then
@@ -1343,7 +1332,17 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
     let ilFuncDef = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle)
     let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
     let funcFlags = importFunctionFlags ilFuncDef.Flags
-    let memberFlags = importMemberFlags ilFuncDef.MemberFlags
+    let memberFlags =
+        let memberFlags = importMemberFlags ilFuncDef.MemberFlags
+        match ilFuncDef.Flags &&& OlyILFunctionFlags.AccessorMask with
+        | OlyILFunctionFlags.Public ->
+            memberFlags ||| MemberFlags.Public
+        | OlyILFunctionFlags.Internal ->
+            memberFlags ||| MemberFlags.Internal
+        | OlyILFunctionFlags.Protected ->
+            memberFlags ||| MemberFlags.Protected
+        | _ ->
+            memberFlags ||| MemberFlags.Private
 
     let enclosing = enclosingEnt.AsEnclosing
 
@@ -1597,7 +1596,17 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 
     let id = newId()
     let ilFieldDef = cenv.ilAsm.GetFieldDefinition(ilFieldDefHandle)
-    let memberFlags = importMemberFlags ilFieldDef.MemberFlags
+    let memberFlags =
+        let memberFlags = importMemberFlags ilFieldDef.MemberFlags
+        match ilFieldDef.Flags &&& OlyILFieldFlags.AccessorMask with
+        | OlyILFieldFlags.Public ->
+            memberFlags ||| MemberFlags.Public
+        | OlyILFieldFlags.Internal ->
+            memberFlags ||| MemberFlags.Internal
+        | OlyILFieldFlags.Protected ->
+            memberFlags ||| MemberFlags.Protected
+        | _ ->
+            memberFlags ||| MemberFlags.Private
     let valueFlags =
         let mutable valueFlags = importFieldFlags ilFieldDef.Flags
         match ilFieldDef with

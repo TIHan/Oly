@@ -654,16 +654,6 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 OlyILMemberFlags.None
             else
                 OlyILMemberFlags.Static
-
-        let memberFlags = 
-            if field.IsPrivate then
-                memberFlags ||| OlyILMemberFlags.Private
-            elif field.IsInternal then
-                memberFlags ||| OlyILMemberFlags.Internal
-            elif field.IsProtected then
-                memberFlags ||| OlyILMemberFlags.Protected
-            else
-                memberFlags
                 
         let memberFlags =
             if field.IsExported then
@@ -676,6 +666,16 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 OlyILFieldFlags.Mutable
             else
                 OlyILFieldFlags.None
+                
+        let flags = 
+            if field.IsPrivate then
+                flags ||| OlyILFieldFlags.Private
+            elif field.IsInternal then
+                flags ||| OlyILFieldFlags.Internal
+            elif field.IsProtected then
+                flags ||| OlyILFieldFlags.Protected
+            else
+                flags
 
         let ilFieldDef = 
             match field.Constant with
@@ -824,6 +824,16 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                 ilFuncFlags ||| OlyILFunctionFlags.InlineNever
             else
                 ilFuncFlags
+                
+        let ilFuncFlags =
+            if func.IsPrivate then
+                ilFuncFlags ||| OlyILFunctionFlags.Private
+            elif func.IsInternal then
+                ilFuncFlags ||| OlyILFunctionFlags.Internal
+            elif func.IsProtected then
+                ilFuncFlags ||| OlyILFunctionFlags.Protected
+            else
+                ilFuncFlags
 
         let ilMemberFlags =
             if func.IsNewSlot then
@@ -834,16 +844,6 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         let ilMemberFlags =
             if func.IsFinal then
                 ilMemberFlags ||| OlyILMemberFlags.Final
-            else
-                ilMemberFlags
-
-        let ilMemberFlags = 
-            if func.IsPrivate then
-                ilMemberFlags ||| OlyILMemberFlags.Private
-            elif func.IsInternal then
-                ilMemberFlags ||| OlyILMemberFlags.Internal
-            elif func.IsProtected then
-                ilMemberFlags ||| OlyILMemberFlags.Protected
             else
                 ilMemberFlags
 
