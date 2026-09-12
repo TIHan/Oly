@@ -830,12 +830,6 @@ module internal rec Helpers =
 
         let nameHandle = importRawString cenv name
 
-        let olyMemberFlags =
-            if fieldDef.Attributes &&& FieldAttributes.Static = FieldAttributes.Static then
-                OlyILMemberFlags.Static
-            else
-                OlyILMemberFlags.None
-
         let olyTy = fieldDef.DecodeSignature(OlySignatureTypeProvider(cenv), 0)
 
         let isLiteral = fieldDef.Attributes &&& FieldAttributes.Literal = FieldAttributes.Literal
@@ -847,61 +841,61 @@ module internal rec Helpers =
             | ConstantTypeCode.Byte ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt8(blob.ReadByte())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.SByte ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int8(blob.ReadSByte())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int16 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int16(blob.ReadInt16())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt16 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt16(blob.ReadUInt16())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int32 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int32(blob.ReadInt32())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt32 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt32(blob.ReadUInt32())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Int64 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Int64(blob.ReadInt64())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.UInt64 ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.UInt64(blob.ReadUInt64())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Single ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Float32(blob.ReadSingle())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | ConstantTypeCode.Double ->
                 let mutable blob = reader.GetBlobReader(constant.Value)
                 let c = OlyILConstant.Float64(blob.ReadDouble())
-                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c, olyMemberFlags)
+                let olyConstant = OlyILFieldConstant(nameHandle, olyTy, c)
                 olyAsm.AddFieldDefinition(olyConstant)
                 |> Some
             | _ ->
@@ -918,10 +912,16 @@ module internal rec Helpers =
             Some(OlyILImportOrExportInfo.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name))
 
         let olyFieldFlags =
-            if (fieldDef.Attributes &&& FieldAttributes.InitOnly = FieldAttributes.InitOnly) || isLiteral then
-                OlyILFieldFlags.None
+            if fieldDef.Attributes &&& FieldAttributes.Static = FieldAttributes.Static then
+                OlyILFieldFlags.Static
             else
-                OlyILFieldFlags.Mutable
+                OlyILFieldFlags.None
+
+        let olyFieldFlags =
+            if (fieldDef.Attributes &&& FieldAttributes.InitOnly = FieldAttributes.InitOnly) || isLiteral then
+                olyFieldFlags
+            else
+                olyFieldFlags ||| OlyILFieldFlags.Mutable
                 
         let olyFieldFlags =
             // TODO: Handle more accessors.
@@ -936,7 +936,6 @@ module internal rec Helpers =
                 nameHandle,
                 olyTy,
                 olyFieldFlags,
-                olyMemberFlags,
                 olyImportInfo
             )
 
@@ -1054,35 +1053,35 @@ module internal rec Helpers =
             else
                 olyFuncFlags ||| OlyILFunctionFlags.Private
 
-        let olyMemberFlags = 
+        let olyFuncFlags = 
             if isStatic then
-                OlyILMemberFlags.None ||| OlyILMemberFlags.Static
+                olyFuncFlags ||| OlyILFunctionFlags.Static
             else
-                OlyILMemberFlags.None
+                olyFuncFlags
 
-        let olyMemberFlags =
+        let olyFuncFlags =
             if isVirtual then
-                olyMemberFlags ||| OlyILMemberFlags.Virtual
+                olyFuncFlags ||| OlyILFunctionFlags.Virtual
             else
-                olyMemberFlags
+                olyFuncFlags
 
-        let olyMemberFlags =
+        let olyFuncFlags =
             if isAbstract then
-                olyMemberFlags ||| OlyILMemberFlags.Abstract
+                olyFuncFlags ||| OlyILFunctionFlags.Abstract
             else
-                olyMemberFlags
+                olyFuncFlags
 
-        let olyMemberFlags =
+        let olyFuncFlags =
             if isNewSlot then
-                olyMemberFlags ||| OlyILMemberFlags.NewSlot
+                olyFuncFlags ||| OlyILFunctionFlags.NewSlot
             else
-                olyMemberFlags
+                olyFuncFlags
 
-        let olyMemberFlags =
+        let olyFuncFlags =
             if isFinal then
-                olyMemberFlags ||| OlyILMemberFlags.Final
+                olyFuncFlags ||| OlyILFunctionFlags.Final
             else
-                olyMemberFlags
+                olyFuncFlags
 
         let olyAttrs =
             seq {
@@ -1103,7 +1102,6 @@ module internal rec Helpers =
         let olyFuncDef =
             OlyILFunctionDefinition(
                 olyFuncFlags,
-                olyMemberFlags,
                 olyAttrs,
                 olyFuncSpecHandle,
                 olyOverrides,
@@ -1549,8 +1547,7 @@ type Importer private (name: string, peReader: PEReader) =
                 let olyFuncSpecHandle = olyAsm.AddFunctionSpecification(olyFuncSpec)
                 let olyFuncDef =
                     OlyILFunctionDefinition(
-                        OlyILFunctionFlags.Constructor,
-                        OlyILMemberFlags.Abstract,
+                        OlyILFunctionFlags.Constructor ||| OlyILFunctionFlags.Abstract,
                         ImArray.empty,
                         olyFuncSpecHandle,
                         None,

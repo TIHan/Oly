@@ -649,33 +649,32 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
         if field.IsNewSlot && not field.IsInstance then
             failwith "A static field cannot be marked as distinct."
 
-        let memberFlags =
-            if field.IsInstance then
-                OlyILMemberFlags.None
-            else
-                OlyILMemberFlags.Static
-
-        let flags =
-            if field.IsMutable then
-                OlyILFieldFlags.Mutable
-            else
-                OlyILFieldFlags.None
-                
-        let flags = 
-            if field.IsPrivate then
-                flags ||| OlyILFieldFlags.Private
-            elif field.IsInternal then
-                flags ||| OlyILFieldFlags.Internal
-            elif field.IsProtected then
-                flags ||| OlyILFieldFlags.Protected
-            else
-                flags
-
         let ilFieldDef = 
             match field.Constant with
             | ValueSome(constValue) ->
-                OlyILFieldConstant(GenString cenv field.Name, emitILType cenv env field.Type, GenConstant cenv env constValue, memberFlags)
+                OlyILFieldConstant(GenString cenv field.Name, emitILType cenv env field.Type, GenConstant cenv env constValue)
             | _ ->
+                let flags =
+                    if field.IsInstance then
+                        OlyILFieldFlags.None
+                    else
+                        OlyILFieldFlags.Static
+
+                let flags =
+                    if field.IsMutable then
+                        flags ||| OlyILFieldFlags.Mutable
+                    else
+                        flags
+                
+                let flags = 
+                    if field.IsPrivate then
+                        flags ||| OlyILFieldFlags.Private
+                    elif field.IsInternal then
+                        flags ||| OlyILFieldFlags.Internal
+                    elif field.IsProtected then
+                        flags ||| OlyILFieldFlags.Protected
+                    else
+                        flags
                 let ilAttrs =
                     field.Attributes
                     |> (GenAttributes cenv env)
@@ -684,7 +683,7 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                         Some(OlyILImportOrExportInfo.Export)
                     else
                         GenImportInfo cenv env field.Attributes
-                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags, ilImportOrExportInfo)
+                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, ilImportOrExportInfo)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 
 and GenFieldsAsILFieldDefinitions cenv env fields =
@@ -761,27 +760,26 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
         if func.IsConstructor && (func.IsVirtual || func.IsAbstract) && not func.Enclosing.IsShape then
             failwith "A constructor cannot be virtual or abstract."
 
-        let ilMemberFlags =
+        let ilFuncFlags =
             if func.IsInstance then
-                OlyILMemberFlags.None
+                OlyILFunctionFlags.None
             else
-                OlyILMemberFlags.Static
+                OlyILFunctionFlags.Static
 
-        let ilFuncFlags, ilMemberFlags =
+        let ilFuncFlags =
             if func.IsConstructor then
-                OlyILFunctionFlags.Constructor, ilMemberFlags
+                ilFuncFlags ||| OlyILFunctionFlags.Constructor
             else
-                OlyILFunctionFlags.None,
-                let memberFlags =
+                let ilFuncFlags =
                     if func.IsAbstract then
-                        ilMemberFlags ||| OlyILMemberFlags.Abstract
+                        ilFuncFlags ||| OlyILFunctionFlags.Abstract
                     else
-                        ilMemberFlags
+                        ilFuncFlags
 
                 if func.IsVirtual then
-                    memberFlags ||| OlyILMemberFlags.Virtual
+                    ilFuncFlags  ||| OlyILFunctionFlags.Virtual
                 else
-                    memberFlags
+                    ilFuncFlags
 
         let ilFuncFlags =
             if func.IsMutable then
@@ -829,15 +827,15 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilMemberFlags =
             if func.IsNewSlot then
-                ilMemberFlags ||| OlyILMemberFlags.NewSlot
+                ilFuncFlags ||| OlyILFunctionFlags.NewSlot
             else
-                ilMemberFlags
+                ilFuncFlags 
 
-        let ilMemberFlags =
+        let ilFuncFlags =
             if func.IsFinal then
-                ilMemberFlags ||| OlyILMemberFlags.Final
+                ilFuncFlags  ||| OlyILFunctionFlags.Final
             else
-                ilMemberFlags
+                ilFuncFlags 
 
         let overrides =
             let enclosing = func.Enclosing
@@ -868,7 +866,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                     Some(OlyILImportOrExportInfo.Export)
                 else
                     GenImportInfo cenv env func.Attributes
-            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportOrExportInfo, ref None)
+            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportOrExportInfo, ref None)
             cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle

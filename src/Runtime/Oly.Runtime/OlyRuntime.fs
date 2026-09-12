@@ -312,7 +312,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         else
             irFlags
 
-    let flags = OlyIRFunctionFlags(ilFuncDef.Flags, ilFuncDef.MemberFlags, irFlags)
+    let flags = OlyIRFunctionFlags(ilFuncDef.Flags, irFlags)
 
     let tyPars =
         ilFuncSpec.TypeParameters
@@ -3186,7 +3186,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     RuntimeField.Name = ilAsm.GetStringOrEmpty(ilFieldDef.NameHandle)
                     RuntimeField.Type = this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.Default)
                     RuntimeField.EnclosingType = enclosingTy
-                    RuntimeField.Flags = OlyIRFieldFlags(ilFieldFlags, ilFieldDef.MemberFlags, enclosingTy.IsExported)
+                    RuntimeField.Flags = OlyIRFieldFlags(ilFieldFlags, enclosingTy.IsExported)
                     RuntimeField.Index = index
                     RuntimeField.Attributes = attrs
                     RuntimeField.ILAssembly = ilAsm
@@ -3729,7 +3729,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             failwith "Enum is missing its principal field."
                         else
                             let ilFieldDef = ilAsm.GetFieldDefinition(ilFieldDefHandles[0])
-                            if ilFieldDef.MemberFlags.HasFlag(OlyILMemberFlags.Static) then
+                            if ilFieldDef.Flags.HasFlag(OlyILFieldFlags.Static) then
                                 failwith "Enum is missing its principal field."
                             Some(this.ResolveType(ilAsm, ilFieldDef.Type, GenericContext.Default))
                     else
@@ -3795,8 +3795,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     ilEntDef.FunctionHandles
                     |> ImArray.tryPick (fun x ->
                         let ilFuncDef = ilAsm.GetFunctionDefinition(x)
-                        if ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor) && 
-                           ilFuncDef.MemberFlags.HasFlag(OlyILMemberFlags.Static) then
+                        if ilFuncDef.IsConstructor && ilFuncDef.IsStatic then
                             let func = this.ResolveFunctionDefinition(ty.Formal, x)     
 
                             assert(func.TypeParameters.IsEmpty)
@@ -4179,7 +4178,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         ilFuncDefHandles
         |> ImArray.choose (fun (enclosingTy, ilAsm2, ilFuncDefHandle2) ->
             let ilFuncDef = ilAsm2.GetFunctionDefinition(ilFuncDefHandle2)
-            if ilFuncDef.MemberFlags &&& OlyILMemberFlags.Virtual = OlyILMemberFlags.Virtual then
+            if ilFuncDef.IsVirtual then
                 match ilFuncDef.Overrides with
                 | Some(ilOverrides) ->
                     let overrides = this.ResolveFunction(ilAsm2, ilOverrides, genericContext)

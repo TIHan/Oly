@@ -56,7 +56,6 @@ type DummyAssemblyBuilder =
         ilTyPars: OlyILTypeParameter imarray *
         ilPars: OlyILParameter imarray *
         ilFlags: OlyILFunctionFlags *
-        ilMemberFlags: OlyILMemberFlags *
         ilLocals: OlyILLocal imarray *
         ilExpr: OlyILExpression *
         ilExprTy: OlyILType
@@ -65,8 +64,7 @@ type DummyAssemblyBuilder =
     member CreateFieldDefinition:
         name: string *
         ilTy: OlyILType *
-        ilFlags: OlyILFieldFlags *
-        ilMemberFlags: OlyILMemberFlags
+        ilFlags: OlyILFieldFlags
             -> OlyILFieldDefinitionHandle
 
     member CreateFieldReference:

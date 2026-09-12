@@ -122,7 +122,6 @@ let addFunction
         (tyPars: OlyILTypeParameter imarray) 
         (pars: OlyILParameter imarray) 
         (ilFlags: OlyILFunctionFlags)
-        (ilMemberFlags: OlyILMemberFlags)
         (ilLocals: OlyILLocal imarray, ilExpr: OlyILExpression, ilExprTy: OlyILType) =
 
     let ilFuncSpec =
@@ -140,7 +139,6 @@ let addFunction
     let ilFuncDef =
         OlyILFunctionDefinition(
             ilFlags,
-            ilMemberFlags,
             ImArray.empty,
             ilFuncSpecHandle,
             None,
@@ -172,8 +170,8 @@ let createType ilAsm ilEntDefHandle ilKind name ilFuncDefHandles ilFieldDefHandl
     addEntity ilAsm ilEntDefHandle ilKind name ImArray.empty ilFuncDefHandles ilFieldDefHandles
     OlyILTypeEntity(OlyILEntityConstructor(ilEntDefHandle))
 
-let createFunctionDefinition ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags ilMemberFlags ilLocals ilExpr ilExprTy =
-    addFunction ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags ilMemberFlags (ilLocals, ilExpr, ilExprTy)
+let createFunctionDefinition ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags ilLocals ilExpr ilExprTy =
+    addFunction ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags (ilLocals, ilExpr, ilExprTy)
 
 [<Sealed;NoComparison;NoEquality>]
 type DummyAssemblyBuilder(isDebuggable: bool) =
@@ -190,8 +188,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
             "main"
             ImArray.empty
             ImArray.empty
-            OlyILFunctionFlags.None 
-            OlyILMemberFlags.Static
+            OlyILFunctionFlags.Static
             ImArray.empty
             (OlyILExpression.None(OlyILDebugSourceTextRange.Empty))
             OlyILTypeVoid
@@ -232,21 +229,19 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
                 ilTyPars: OlyILTypeParameter imarray,
                 ilPars: OlyILParameter imarray,
                 ilFlags: OlyILFunctionFlags,
-                ilMemberFlags: OlyILMemberFlags,
                 ilLocals: OlyILLocal imarray,
                 ilExpr: OlyILExpression,
                 ilExprTy: OlyILType
             ): OlyILFunctionDefinitionHandle * OlyILFunctionSpecificationHandle =
-        createFunctionDefinition ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags ilMemberFlags ilLocals ilExpr ilExprTy
+        createFunctionDefinition ilAsm ilEnclosingEntDefHandle name ilTyPars ilPars ilFlags ilLocals ilExpr ilExprTy
 
     member this.CreateFieldDefinition(
                 name: string,
                 ilTy: OlyILType,
-                ilFlags: OlyILFieldFlags,
-                ilMemberFlags: OlyILMemberFlags
+                ilFlags: OlyILFieldFlags
             ): OlyILFieldDefinitionHandle =
         let ilFieldDef =
-            OlyILFieldDefinition(ImArray.empty, ilAsm.AddString(name), ilTy, ilFlags, ilMemberFlags, None)
+            OlyILFieldDefinition(ImArray.empty, ilAsm.AddString(name), ilTy, ilFlags, None)
 
         ilAsm.AddFieldDefinition(ilFieldDef)
 
@@ -265,8 +260,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
 
         match ilAsm.GetFunctionDefinition(ilMainFuncDefHandle) with
         | OlyILFunctionDefinition(
-            ilFlags, 
-            ilMemberFlags, 
+            ilFlags,
             ilAttrs,
             ilFuncSpecHandle,
             ilOverrides,
@@ -277,7 +271,6 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
                 ilMainFuncDefHandle, 
                 OlyILFunctionDefinition(
                     ilFlags, 
-                    ilMemberFlags, 
                     ilAttrs, 
                     ilFuncSpecHandle, 
                     ilOverrides,

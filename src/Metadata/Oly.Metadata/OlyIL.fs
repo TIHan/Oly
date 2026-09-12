@@ -159,41 +159,37 @@ type OlyILEntityFlags =
     | Anonymous         = 0x100000000UL // frontend hint
 
 [<Flags>]
-type OlyILMemberFlags =
-    | None =              0x000000000UL
-
-    | Abstract =          0x000000110UL
-    | Virtual =           0x000000100UL
-    | Static =            0x000001000UL
-    | Final =             0x000010000UL
-    | NewSlot =           0x000100000UL
-
-[<Flags>]
 type OlyILFunctionFlags =
-    | None                          = 0x00000000000
+    | None                          = 0x0000000000000000
     
-    | Public                        = 0b00000000000
-    | Internal                      = 0b00000000001
-    | Private                       = 0b00000000010
-    | Protected                     = 0b00000000011
-    | AccessorMask                  = 0b00000000011
+    | Public                        = 0b0000000000000000
+    | Internal                      = 0b0000000000000001
+    | Private                       = 0b0000000000000010
+    | Protected                     = 0b0000000000000011
+    | AccessorMask                  = 0b0000000000000011
     
-    | Constructor                   = 0b00000001000
+    | Constructor                   = 0b0000000000001000
     
-    | Inline                        = 0b00000010000
-    | InlineNever                   = 0b00000100000
-    | InlineAlways                  = 0b00000110000
-    | InlineMask                    = 0b00000110000
+    | Inline                        = 0b0000000000010000
+    | InlineNever                   = 0b0000000000100000
+    | InlineAlways                  = 0b0000000000110000
+    | InlineMask                    = 0b0000000000110000
 
     /// Marks the function as 'mutable'.
     /// Runtime only cares about this flag if the enclosing type is a struct or shape, and the function is an instance member and not a constructor,
     ///     otherwise, it will ignore it.
-    | Mutable                       = 0b00001000000
-    | Pure                          = 0b00010000000 // frontend hint? not implemented at all, but should the runtime also have it?
-    | RequiresExplicitTypeArguments = 0b00100000000 // frontend hint
-    | ParameterLess                 = 0b01000000000 // frontend hint
+    | Mutable                       = 0b0000000001000000
+    | Pure                          = 0b0000000010000000 // frontend hint? not implemented at all, but should the runtime also have it?
+    | RequiresExplicitTypeArguments = 0b0000000100000000 // frontend hint
+    | ParameterLess                 = 0b0000001000000000 // frontend hint
 
-    | UnmanagedAllocationOnly       = 0b10000000000 // frontend hint? for now, but could we also have the runtime verify it?
+    | UnmanagedAllocationOnly       = 0b0000010000000000 // frontend hint? for now, but could we also have the runtime verify it?
+
+    | Abstract                      = 0b0000100000000000
+    | Virtual                       = 0b0001000000000000
+    | Static                        = 0b0010000000000000
+    | Final                         = 0b0100000000000000
+    | NewSlot                       = 0b1000000000000000
 
 [<Flags>]
 type OlyILFieldFlags =
@@ -206,6 +202,8 @@ type OlyILFieldFlags =
     | AccessorMask                  = 0b00000000011
     
     | Mutable                       = 0b00000000100
+
+    | Static                        = 0b00000001000
 
 [<Flags>]
 type OlyILCallingConvention =
@@ -490,7 +488,6 @@ type OlyILFunctionSpecification =
 type OlyILFunctionDefinition =
     | OlyILFunctionDefinition of 
         flags: OlyILFunctionFlags * 
-        memberFlags: OlyILMemberFlags * 
         attrs: OlyILAttribute imarray * 
         specHandle: OlyILFunctionSpecificationHandle * 
         overrides: OlyILFunctionReference option *
@@ -500,10 +497,6 @@ type OlyILFunctionDefinition =
     member this.Flags =
         match this with
         | OlyILFunctionDefinition(flags=flags) -> flags
-
-    member this.MemberFlags =
-        match this with
-        | OlyILFunctionDefinition(memberFlags=memberFlags) -> memberFlags
 
     member this.SpecificationHandle =
         match this with
@@ -531,16 +524,16 @@ type OlyILFunctionDefinition =
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
 
     member this.IsStatic =
-        this.MemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static
+        this.Flags &&& OlyILFunctionFlags.Static = OlyILFunctionFlags.Static
 
     member this.IsAbstract =
-        this.MemberFlags &&& OlyILMemberFlags.Abstract = OlyILMemberFlags.Abstract
+        this.Flags &&& OlyILFunctionFlags.Abstract = OlyILFunctionFlags.Abstract
 
     member this.IsVirtual =
-        this.MemberFlags &&& OlyILMemberFlags.Virtual = OlyILMemberFlags.Virtual
+        this.Flags &&& OlyILFunctionFlags.Virtual = OlyILFunctionFlags.Virtual
 
     member this.IsSealed =
-        this.MemberFlags &&& OlyILMemberFlags.Final = OlyILMemberFlags.Final
+        this.Flags &&& OlyILFunctionFlags.Final = OlyILFunctionFlags.Final
 
     member this.IsConstructor =
         this.Flags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
@@ -638,8 +631,8 @@ type OlyILConstant =
 
 [<NoEquality;NoComparison>]
 type OlyILFieldDefinition =
-    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags * importOrExportInfo: OlyILImportOrExportInfo option
-    | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant * memberFlags: OlyILMemberFlags
+    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * importOrExportInfo: OlyILImportOrExportInfo option
+    | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant
 
     member this.IsConstant =
         match this with
@@ -659,12 +652,7 @@ type OlyILFieldDefinition =
     member this.Flags =
         match this with
         | OlyILFieldDefinition(flags=flags) -> flags
-        | OlyILFieldConstant _ -> OlyILFieldFlags.None
-
-    member this.MemberFlags =
-        match this with
-        | OlyILFieldDefinition(memberFlags=memberFlags) -> memberFlags
-        | OlyILFieldConstant(memberFlags=memberFlags) -> memberFlags
+        | OlyILFieldConstant _ -> OlyILFieldFlags.Static
 
     member this.IsMutable =
         this.Flags &&& OlyILFieldFlags.Mutable = OlyILFieldFlags.Mutable

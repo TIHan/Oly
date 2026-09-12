@@ -138,19 +138,19 @@ type OlyIRTypeFlags internal (ilEntFlags: OlyILEntityFlags, tyFlags: RuntimeType
     member _.IsScoped = ilEntFlags &&& OlyILEntityFlags.Scoped = OlyILEntityFlags.Scoped
 
 [<Struct>]
-type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags: OlyILMemberFlags, funcFlags: RuntimeFunctionFlags) =
+type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, funcFlags: RuntimeFunctionFlags) =
 
     member internal _.SetGenericsErased() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.GenericsErased)
+        OlyIRFunctionFlags(ilFuncFlags, funcFlags ||| RuntimeFunctionFlags.GenericsErased)
 
     member internal _.SetStatic() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags ||| OlyILMemberFlags.Static, funcFlags)
+        OlyIRFunctionFlags(ilFuncFlags ||| OlyILFunctionFlags.Static, funcFlags)
 
     member internal _.SetInlineable() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.Inlineable)
+        OlyIRFunctionFlags(ilFuncFlags, funcFlags ||| RuntimeFunctionFlags.Inlineable)
 
     member internal _.SetSignatureUsesNewType() =
-        OlyIRFunctionFlags(ilFuncFlags, ilMemberFlags, funcFlags ||| RuntimeFunctionFlags.SignatureUsesNewType)
+        OlyIRFunctionFlags(ilFuncFlags, funcFlags ||| RuntimeFunctionFlags.SignatureUsesNewType)
 
     /// Function is able to be inlined in all situations.
     member _.IsInlineable = funcFlags &&& RuntimeFunctionFlags.Inlineable = RuntimeFunctionFlags.Inlineable
@@ -159,17 +159,17 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
 
     member _.IsMutable = ilFuncFlags &&& OlyILFunctionFlags.Mutable = OlyILFunctionFlags.Mutable
 
-    member _.IsStatic = ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static
+    member _.IsStatic = ilFuncFlags &&& OlyILFunctionFlags.Static = OlyILFunctionFlags.Static
 
     member this.IsInstance = not this.IsStatic
 
-    member _.IsVirtual = ilMemberFlags &&& OlyILMemberFlags.Virtual = OlyILMemberFlags.Virtual
+    member _.IsVirtual = ilFuncFlags &&& OlyILFunctionFlags.Virtual = OlyILFunctionFlags.Virtual
 
-    member _.IsAbstract = ilMemberFlags &&& OlyILMemberFlags.Abstract = OlyILMemberFlags.Abstract
+    member _.IsAbstract = ilFuncFlags &&& OlyILFunctionFlags.Abstract = OlyILFunctionFlags.Abstract
 
-    member _.IsFinal = ilMemberFlags &&& OlyILMemberFlags.Final = OlyILMemberFlags.Final
+    member _.IsFinal = ilFuncFlags &&& OlyILFunctionFlags.Final = OlyILFunctionFlags.Final
 
-    member _.IsNewSlot = ilMemberFlags &&& OlyILMemberFlags.NewSlot = OlyILMemberFlags.NewSlot
+    member _.IsNewSlot = ilFuncFlags &&& OlyILFunctionFlags.NewSlot = OlyILFunctionFlags.NewSlot
 
     member _.AreGenericsErased = funcFlags &&& RuntimeFunctionFlags.GenericsErased = RuntimeFunctionFlags.GenericsErased
 
@@ -190,15 +190,13 @@ type OlyIRFunctionFlags internal (ilFuncFlags: OlyILFunctionFlags, ilMemberFlags
     member _.IsProtected = ilFuncFlags &&& OlyILFunctionFlags.AccessorMask = OlyILFunctionFlags.Protected
 
 [<Struct>]
-type OlyIRFieldFlags internal (ilFieldFlags: OlyILFieldFlags, ilMemberFlags: OlyILMemberFlags, isExported: bool) =
+type OlyIRFieldFlags internal (ilFieldFlags: OlyILFieldFlags, isExported: bool) =
 
     member internal _.ILFieldFlags = ilFieldFlags
 
-    member internal _.ILMemberFlags = ilMemberFlags
-
     member _.IsMutable = ilFieldFlags &&& OlyILFieldFlags.Mutable = OlyILFieldFlags.Mutable
 
-    member _.IsStatic = ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static
+    member _.IsStatic = ilFieldFlags &&& OlyILFieldFlags.Static = OlyILFieldFlags.Static
 
     member _.IsPublic = ilFieldFlags &&& OlyILFieldFlags.AccessorMask = OlyILFieldFlags.Public
 

@@ -1208,37 +1208,45 @@ let private importParameter (cenv: cenv) (enclosingTyPars: TypeParameterSymbol i
     let attrs = ilPar.Attributes |> ImArray.map (importAttribute cenv)
     LocalParameterSymbol(attrs, name, ty, isThis, (* isBase *) false, (* isMutable: *) false) :> ILocalParameterSymbol
 
-let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
+let private importMemberFlagsFromFunction (ilFuncFlags: OlyILFunctionFlags) =
     let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.Static = OlyILMemberFlags.Static then
+        if ilFuncFlags &&& OlyILFunctionFlags.Static = OlyILFunctionFlags.Static then
             MemberFlags.None
         else
             MemberFlags.None ||| MemberFlags.Instance
 
     let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.Abstract = OlyILMemberFlags.Abstract then
+        if ilFuncFlags &&& OlyILFunctionFlags.Abstract = OlyILFunctionFlags.Abstract then
             flags ||| MemberFlags.Abstract
         else
             flags
 
     let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.Final = OlyILMemberFlags.Final then
+        if ilFuncFlags &&& OlyILFunctionFlags.Final = OlyILFunctionFlags.Final then
             flags ||| MemberFlags.Sealed
         else
             flags
 
     let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.Virtual = OlyILMemberFlags.Virtual then
+        if ilFuncFlags &&& OlyILFunctionFlags.Virtual = OlyILFunctionFlags.Virtual then
             flags ||| MemberFlags.Virtual
         else
             flags
 
     let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.NewSlot = OlyILMemberFlags.NewSlot then
+        if ilFuncFlags &&& OlyILFunctionFlags.NewSlot = OlyILFunctionFlags.NewSlot then
             flags ||| MemberFlags.NewSlot
         else
             flags
 
+    flags
+
+let private importMemberFlagsFromField (ilFieldFlags: OlyILFieldFlags) =
+    let flags =
+        if ilFieldFlags &&& OlyILFieldFlags.Static = OlyILFieldFlags.Static then
+            MemberFlags.None
+        else
+            MemberFlags.None ||| MemberFlags.Instance
     flags
 
 let private importFunctionFlags (ilFuncFlags: OlyILFunctionFlags) =
@@ -1321,7 +1329,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
     let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
     let funcFlags = importFunctionFlags ilFuncDef.Flags
     let memberFlags =
-        let memberFlags = importMemberFlags ilFuncDef.MemberFlags
+        let memberFlags = importMemberFlagsFromFunction ilFuncDef.Flags
         match ilFuncDef.Flags &&& OlyILFunctionFlags.AccessorMask with
         | OlyILFunctionFlags.Public ->
             memberFlags ||| MemberFlags.Public
@@ -1574,7 +1582,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let id = newId()
     let ilFieldDef = cenv.ilAsm.GetFieldDefinition(ilFieldDefHandle)
     let memberFlags =
-        let memberFlags = importMemberFlags ilFieldDef.MemberFlags
+        let memberFlags = importMemberFlagsFromField ilFieldDef.Flags
         match ilFieldDef.Flags &&& OlyILFieldFlags.AccessorMask with
         | OlyILFieldFlags.Public ->
             memberFlags ||| MemberFlags.Public
@@ -1614,7 +1622,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let lazyConstant =
         lazy
             match ilFieldDef with
-            | OlyILFieldConstant(_, _, ilNamedConst, _) ->
+            | OlyILFieldConstant(_, _, ilNamedConst) ->
                 match ilNamedConst with
                 | OlyILConstant.UInt8(value) -> ConstantSymbol.UInt8(value) |> ValueSome
                 | OlyILConstant.Int8(value) -> ConstantSymbol.Int8(value) |> ValueSome

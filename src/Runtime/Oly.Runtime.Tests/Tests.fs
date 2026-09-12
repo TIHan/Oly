@@ -39,8 +39,7 @@ let ``Should not get function body because it is not invoked in main`` () =
             "test", 
             ImArray.empty,
             ImArray.empty,
-            OlyILFunctionFlags.None, 
-            OlyILMemberFlags.Static, 
+            OlyILFunctionFlags.Static, 
             ImArray.empty,
             OlyILExpression.None(OlyILDebugSourceTextRange.Empty),
             OlyILTypeVoid
@@ -73,8 +72,7 @@ let ``Should get function body because it is invoked in main`` () =
             "test", 
             ImArray.empty,
             ImArray.empty,
-            OlyILFunctionFlags.InlineNever, 
-            OlyILMemberFlags.Static, 
+            OlyILFunctionFlags.InlineNever ||| OlyILFunctionFlags.Static, 
             ilLocals,
             ilExpr,
             ilExprTy
@@ -133,8 +131,7 @@ let getIR
             "test", 
             ilFuncTyPars,
             ilFuncPars,
-            OlyILFunctionFlags.None, 
-            OlyILMemberFlags.Static, 
+            OlyILFunctionFlags.Static,
             ilLocals,
             ilExpr,
             ilExprTy
@@ -678,7 +675,7 @@ let ``Test 5`` () =
     let locals = builder.CreateLocalManager()
     let ilExprTy = OlyILTypeInt32
 
-    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable, OlyILMemberFlags.None)
+    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable)
     let tyStructA = builder.CreateType(builder.CreateEntityDefinitionHandle(), OlyILEntityKind.Struct, "StructA", ImArray.empty, ImArray.createOne fieldDefX)
     let fieldRefX = builder.CreateFieldReference(tyStructA, fieldDefX)
 
@@ -733,7 +730,7 @@ let ``Test 6`` () =
     let locals = builder.CreateLocalManager()
     let ilExprTy = OlyILTypeInt32
 
-    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable, OlyILMemberFlags.None)
+    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable)
     let tyStructA = builder.CreateType(builder.CreateEntityDefinitionHandle(), OlyILEntityKind.Struct, "StructA", ImArray.empty, ImArray.createOne fieldDefX)
     let fieldRefX = builder.CreateFieldReference(tyStructA, fieldDefX)
 
@@ -788,7 +785,7 @@ let ``Test 7`` () =
     let locals = builder.CreateLocalManager()
     let ilExprTy = OlyILTypeInt32
 
-    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable, OlyILMemberFlags.None)
+    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable)
     let tyStructA = builder.CreateType(builder.CreateEntityDefinitionHandle(), OlyILEntityKind.Struct, "StructA", ImArray.empty, ImArray.createOne fieldDefX)
     let fieldRefX = builder.CreateFieldReference(tyStructA, fieldDefX)
 
@@ -1112,7 +1109,7 @@ let ``Test 12`` () =
     let locals = builder.CreateLocalManager()
     let ilExprTy = OlyILTypeInt32
 
-    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable, OlyILMemberFlags.None)
+    let fieldDefX = builder.CreateFieldDefinition("X", OlyILTypeInt32, OlyILFieldFlags.Mutable)
     let tyStructA = builder.CreateType(builder.CreateEntityDefinitionHandle(), OlyILEntityKind.Struct, "StructA", ImArray.empty, ImArray.createOne fieldDefX)
     let fieldRefX = builder.CreateFieldReference(tyStructA, fieldDefX)
 
