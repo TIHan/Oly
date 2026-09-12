@@ -67,7 +67,9 @@ export async function activate(context: ExtensionContext) {
 
 	const workspaceFolder = workspaceFolders[0];
 
-	const olyExe = path.join(os.homedir(), ".oly/", "bin", "oly");
+	const olyVersionData = await vscode.workspace.fs.readFile(vscode.Uri.file(path.join(os.homedir(), ".oly/", "version.txt")));
+	const olyVersion = Buffer.from(olyVersionData).toString('utf8');
+	const olyExe = path.join(os.homedir(), ".oly", olyVersion, "oly");
 
 	const lspConfig = vscode.workspace.getConfiguration("oly.languageServer.process");
 
@@ -392,7 +394,7 @@ export async function activate(context: ExtensionContext) {
 				if (!newFileName.toLocaleLowerCase().endsWith('.oly')) {
 					return "'.oly' extension required"
 				}
-				if (!projectUri) { 
+				if (!projectUri) {
 					return "Project not found"
 				}
 				const fileUri = vscode.Uri.file(path.join(path.dirname(projectUri.path), newFileName));
