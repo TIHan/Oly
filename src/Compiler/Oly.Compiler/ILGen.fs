@@ -654,12 +654,6 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 OlyILMemberFlags.None
             else
                 OlyILMemberFlags.Static
-                
-        let memberFlags =
-            if field.IsExported then
-                memberFlags ||| OlyILMemberFlags.Exported
-            else
-                memberFlags
 
         let flags =
             if field.IsMutable then
@@ -685,8 +679,12 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                 let ilAttrs =
                     field.Attributes
                     |> (GenAttributes cenv env)
-                let ilImportedInfo = GenImportedInfo cenv env field.Attributes
-                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags, ilImportedInfo)
+                let ilImportOrExportInfo =
+                    if field.IsExported then
+                        Some(OlyILImportOrExportInfo.Export)
+                    else
+                        GenImportInfo cenv env field.Attributes
+                OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, memberFlags, ilImportOrExportInfo)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 
 and GenFieldsAsILFieldDefinitions cenv env fields =
@@ -784,12 +782,6 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                     memberFlags ||| OlyILMemberFlags.Virtual
                 else
                     memberFlags
-                    
-        let ilMemberFlags =
-            if func.IsExported then
-                ilMemberFlags ||| OlyILMemberFlags.Exported
-            else
-                ilMemberFlags
 
         let ilFuncFlags =
             if func.IsMutable then
@@ -871,8 +863,12 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilFuncDefHandle = 
             let ilEntDefHandle = GenEntityAsILEntityDefinition cenv env enclosingEnt
-            let ilImportedInfo = GenImportedInfo cenv env func.Attributes
-            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportedInfo, ref None)
+            let ilImportOrExportInfo =
+                if func.IsExported then
+                    Some(OlyILImportOrExportInfo.Export)
+                else
+                    GenImportInfo cenv env func.Attributes
+            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilMemberFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportOrExportInfo, ref None)
             cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle
@@ -1013,7 +1009,7 @@ and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.choose (GenAttribute cenv env)
     
-and GenImportedInfo cenv env (attrs: AttributeSymbol imarray) =
+and GenImportInfo cenv env (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.tryPick (function
         | AttributeSymbol.Import(platform, path, name) ->
@@ -1028,7 +1024,7 @@ and GenImportedInfo cenv env (attrs: AttributeSymbol imarray) =
                 else
                     path |> ImArray.map (GenString cenv)
             let name = GenString cenv name
-            OlyILImportInfo(platform, path, name) |> Some
+            OlyILImportOrExportInfo.Import(platform, path, name) |> Some
         | _ ->
             None
     )
@@ -1102,7 +1098,6 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
     let ilEntFlags = if ent.IsAbstract then ilEntFlags ||| OlyILEntityFlags.Abstract else ilEntFlags
     let ilEntFlags = if ent.IsAttributeImporter then ilEntFlags ||| OlyILEntityFlags.AttributeImporter else ilEntFlags
     let ilEntFlags = if ent.IsAnonymous then ilEntFlags ||| OlyILEntityFlags.Anonymous else ilEntFlags
-    let ilEntFlags = if ent.IsExported then ilEntFlags ||| OlyILEntityFlags.Exported else ilEntFlags
     let ilEntFlags = 
         if ent.IsPrivate then
             if ent.Enclosing.IsNamespace then
@@ -1232,6 +1227,12 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             OlyAssert.True(ilImplements.IsEmpty)
 #endif
 
+        let ilImportOrExportInfo =
+            if ent.IsExported then
+                Some(OlyILImportOrExportInfo.Export)
+            else
+                GenImportInfo cenv env ent.Attributes
+                
         let ilEntDef = 
             OlyILEntityDefinition(
                 ilEntKind,
@@ -1247,8 +1248,8 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilEntDefHandles,
                 ilImplements,
                 ilExtends,
-                (ent.Attributes |> (GenImportedInfo cenv env))
-                )
+                ilImportOrExportInfo
+            )
 
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)
     )

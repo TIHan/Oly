@@ -157,8 +157,6 @@ type OlyILEntityFlags =
 
     | AttributeImporter = 0x010000000UL // frontend hint
     | Anonymous         = 0x100000000UL // frontend hint
-    
-    | Exported          = 0x1000000000UL
 
 [<Flags>]
 type OlyILMemberFlags =
@@ -169,8 +167,6 @@ type OlyILMemberFlags =
     | Static =            0x000001000UL
     | Final =             0x000010000UL
     | NewSlot =           0x000100000UL
-    
-    | Exported =          0x100000000UL
 
 [<Flags>]
 type OlyILFunctionFlags =
@@ -250,12 +246,13 @@ type OlyILAttribute =
     | Intrinsic of name: OlyILStringHandle
     | Constructor of OlyILFunctionInstance * args: OlyILConstant imarray * namedArgs: OlyILAttributeNamedArgument imarray
 
-[<NoEquality;NoComparison>]
-type OlyILImportInfo =
-    | OlyILImportInfo of
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
+type OlyILImportOrExportInfo =
+    | Import of
         platform: OlyILStringHandle *
         path: OlyILStringHandle imarray *
         name: OlyILStringHandle
+    | Export
 
 [<NoEquality;NoComparison>]
 type OlyILEntityDefinition =
@@ -273,7 +270,7 @@ type OlyILEntityDefinition =
         entDefs: OlyILEntityDefinitionHandle imarray *
         implements: OlyILType imarray *
         extends: OlyILType imarray *
-        importInfo: OlyILImportInfo option
+        importOrExportInfo: OlyILImportOrExportInfo option
 
     member this.UpdateKind(kind: OlyILEntityKind) =
         match this with
@@ -339,15 +336,21 @@ type OlyILEntityDefinition =
         
     member this.IsExternal =
         match this with
-        | OlyILEntityDefinition(importInfo=Some _) -> true
-        | _ -> false
+        | OlyILEntityDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Import _)) ->
+            true
+        | _ ->
+            false
 
     member this.IsIntrinsic =
         this.Attributes
         |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
         
     member this.IsExported =
-        this.Flags &&& OlyILEntityFlags.Exported = OlyILEntityFlags.Exported
+        match this with
+        | OlyILEntityDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Export)) ->
+            true
+        | _ ->
+            false
 
 [<NoEquality;NoComparison>]
 type OlyILEntityInstance =
@@ -491,7 +494,7 @@ type OlyILFunctionDefinition =
         attrs: OlyILAttribute imarray * 
         specHandle: OlyILFunctionSpecificationHandle * 
         overrides: OlyILFunctionReference option *
-        importInfo: OlyILImportInfo option *
+        importOrExportInfo: OlyILImportOrExportInfo option *
         bodyHandle: OlyILFunctionBodyHandle option ref
 
     member this.Flags =
@@ -520,7 +523,7 @@ type OlyILFunctionDefinition =
 
     member this.IsImported =
         match this with
-        | OlyILFunctionDefinition(importInfo=Some _) -> true
+        | OlyILFunctionDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Import _)) -> true
         | _ -> false
 
     member this.IsIntrinsic =
@@ -543,7 +546,9 @@ type OlyILFunctionDefinition =
         this.Flags &&& OlyILFunctionFlags.Constructor = OlyILFunctionFlags.Constructor
         
      member this.IsExported =
-        this.MemberFlags &&& OlyILMemberFlags.Exported = OlyILMemberFlags.Exported
+        match this with
+        | OlyILFunctionDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Export)) -> true
+        | _ -> false
 
     static member NilHandle = OlyILTableIndex.CreateFunctionDefinition(-1)
 
@@ -633,7 +638,7 @@ type OlyILConstant =
 
 [<NoEquality;NoComparison>]
 type OlyILFieldDefinition =
-    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags * importInfo: OlyILImportInfo option
+    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * memberFlags: OlyILMemberFlags * importOrExportInfo: OlyILImportOrExportInfo option
     | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant * memberFlags: OlyILMemberFlags
 
     member this.IsConstant =
@@ -671,7 +676,7 @@ type OlyILFieldDefinition =
 
     member this.IsExternal =
         match this with
-        | OlyILFieldDefinition(importInfo=Some _) -> true
+        | OlyILFieldDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Import _)) -> true
         | _ -> false
 
 [<NoEquality;NoComparison>]

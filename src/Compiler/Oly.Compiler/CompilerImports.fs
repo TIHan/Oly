@@ -929,12 +929,6 @@ let private importEntityFlags (ilEntFlags: OlyILEntityFlags) =
             flags ||| EntityFlags.Anonymous
         else
             flags
-            
-    let flags =
-        if ilEntFlags.HasFlag(OlyILEntityFlags.Exported) then
-            flags ||| EntityFlags.Exported
-        else
-            flags
 
     flags
 
@@ -1244,12 +1238,6 @@ let private importMemberFlags (ilMemberFlags: OlyILMemberFlags) =
             flags ||| MemberFlags.NewSlot
         else
             flags
-            
-    let flags =
-        if ilMemberFlags &&& OlyILMemberFlags.Exported = OlyILMemberFlags.Exported then
-            flags ||| MemberFlags.Exported
-        else
-            flags
 
     flags
 
@@ -1357,30 +1345,26 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         else
             funcFlags
 
-    let mutable lazyValueFlags = ValueNone: ValueFlags voption
-    let evalValueFlags() =
-        match lazyValueFlags with
-        | ValueSome(valueFlags) -> valueFlags
+    let valueFlags =
+        let mutable valueFlags =
+            // Clean up value flags.
+            if 
+                    not ilFuncDef.IsStatic && 
+                    (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)) && 
+                    not (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor)) && 
+                    (enclosing.IsStruct || enclosing.IsShape) then
+                ValueFlags.Mutable
+            else
+                ValueFlags.None
+
+        match ilFuncDef with
+        | OlyILFunctionDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Import _)) ->
+            valueFlags <- valueFlags ||| ValueFlags.Imported
+        | OlyILFunctionDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Export)) ->
+            valueFlags <- valueFlags ||| ValueFlags.Exported
         | _ ->
-            let mutable valueFlags =
-                // Clean up value flags.
-                if 
-                        not ilFuncDef.IsStatic && 
-                        (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Mutable)) && 
-                        not (ilFuncDef.Flags.HasFlag(OlyILFunctionFlags.Constructor)) && 
-                        (enclosing.IsStruct || enclosing.IsShape) then
-                    ValueFlags.Mutable
-                else
-                    ValueFlags.None
-
-            match ilFuncDef with
-            | OlyILFunctionDefinition(importInfo = Some _) ->
-                valueFlags <- valueFlags ||| ValueFlags.Imported
-            | _ ->
-                ()
-
-            lazyValueFlags <- ValueSome(valueFlags)
-            valueFlags
+            ()
+        valueFlags
 
     let mutable lazyName = null
     let evalName() =
@@ -1464,14 +1448,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         attrs.Add(AttributeSymbol.Blittable)
                     else
                         attrs
-                match ilFuncDef with
-                | OlyILFunctionDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
-                    let platform = cenv.ilAsm.GetStringOrEmpty(platform)
-                    let path = path |> ImArray.map cenv.ilAsm.GetStringOrEmpty
-                    let name = cenv.ilAsm.GetStringOrEmpty(name)
-                    attrs.Add(AttributeSymbol.Import(platform, path, name))
-                | _ ->
-                   attrs
+                attrs
         lazyAttrs
 
     let mutable lazyReturnTy = Unchecked.defaultof<TypeSymbol>
@@ -1570,7 +1547,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         member _.MemberFlags = memberFlags
         member _.IsFunction = true
         member _.IsFunctionGroup = false
-        member _.ValueFlags = evalValueFlags()
+        member _.ValueFlags = valueFlags
 
         member this.Type = evalTy()
 
@@ -1610,8 +1587,10 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let valueFlags =
         let mutable valueFlags = importFieldFlags ilFieldDef.Flags
         match ilFieldDef with
-        | OlyILFieldDefinition(importInfo = Some _) ->
+        | OlyILFieldDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Import _)) ->
             valueFlags <- valueFlags ||| ValueFlags.Imported
+        | OlyILFieldDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Export)) ->
+            valueFlags <- valueFlags ||| ValueFlags.Exported
         | _ ->
             ()
         valueFlags
@@ -1650,24 +1629,6 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
                 | _ -> ValueNone
             | _ ->
                 ValueNone
-
-    let mutable lazyValueFlags = ValueNone: ValueFlags voption
-    let evalValueFlags() =
-        match lazyValueFlags with
-        | ValueSome(valueFlags) -> valueFlags
-        | _ ->
-            let mutable valueFlags = importFieldFlags ilFieldDef.Flags
-
-            (this :> IFieldSymbol).Attributes
-            |> ImArray.iter (function
-                | AttributeSymbol.Import _ ->
-                    valueFlags <- valueFlags ||| ValueFlags.Imported
-                | _ ->
-                    ()
-            )
-
-            lazyValueFlags <- ValueSome(valueFlags)
-            valueFlags
 
     let mutable lazyAttrs = Unchecked.defaultof<AttributeSymbol imarray>
     let evalAttrs() =
@@ -1749,8 +1710,10 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                 ()
         )
         match ilEntDef with
-        | OlyILEntityDefinition(importInfo = Some _) ->
+        | OlyILEntityDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Import _)) ->
             entFlags <- entFlags ||| EntityFlags.Imported
+        | OlyILEntityDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Export)) ->
+            entFlags <- entFlags ||| EntityFlags.Exported
         | _ ->
             ()
         entFlags

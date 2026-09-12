@@ -179,7 +179,7 @@ let bindRootPass0 (cenv: cenv) (nmsEnv: NamespaceEnvironment) (env: BinderEnviro
         // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
         let attrs = bindEarlyAttributes cenv env syntaxAttrs
 
-        let flags = Pass0.processAttributesForEntityFlags EntityFlags.None attrs
+        let flags = Pass0.processAttributesForEntityFlags cenv env syntaxName.LastIdentifier EntityFlags.None attrs
 
         let entBuilder =
             match syntaxName.EnclosingPath with

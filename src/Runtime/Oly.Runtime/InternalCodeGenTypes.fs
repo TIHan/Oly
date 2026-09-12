@@ -454,7 +454,7 @@ type RuntimeEntity =
     member this.TryImportedInfo =
         let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
         match entDef with
-        | OlyILEntityDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+        | OlyILEntityDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Import(platform, path, name))) ->
             Some(platform, path, name)
         | _ ->
             None
@@ -1497,7 +1497,7 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
         let ilAsm = state.ILAssembly
         let ilFuncDef = ilAsm.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
         match ilFuncDef with
-        | OlyILFunctionDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+        | OlyILFunctionDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Import(platform, path, name))) ->
             let platform = ilAsm.GetStringOrEmpty(platform)
             let path = path |> ImArray.map ilAsm.GetStringOrEmpty
             let name = ilAsm.GetStringOrEmpty(name)
@@ -1892,7 +1892,7 @@ type RuntimeField =
         let resultOpt =
             let fieldDef = this.ILAssembly.GetFieldDefinition(this.ILFieldDefinitionHandle)
             match fieldDef with
-            | OlyILFieldDefinition(importInfo=Some(OlyILImportInfo(platform, path, name))) ->
+            | OlyILFieldDefinition(importOrExportInfo=Some(OlyILImportOrExportInfo.Import(platform, path, name))) ->
                 Some(platform, path, name)
             | _ ->
                 None

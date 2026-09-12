@@ -2021,8 +2021,6 @@ type MemberFlags =
 
     /// This is a helper to indicate that the member was marked explicitly with the 'overrides' keyword.
     | ExplicitOverrides =   0x01000000
-    
-    | Exported          =   0x10000000
 
 [<System.Flags>]
 type FunctionFlags =
@@ -2066,6 +2064,7 @@ type FunctionFlags =
 type ValueFlags =
     | None =      0x0000000
     | Imported =  0x0000001
+    | Exported =  0x0000010
     /// Marks a function, local, or field as 'mutable'.
     /// If a function is marked 'mutable', meaning that the function is an instance member on a (struct or shape) and does mutate the receiver.
     | Mutable =   0x0000100
@@ -2263,6 +2262,12 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
             valueFlags ||| ValueFlags.Imported
         else
             valueFlags
+         
+    do   
+        if attributesContainExport attrs then
+            valueFlags <- valueFlags ||| ValueFlags.Exported
+        else
+            valueFlags <- valueFlags
 
     let mutable overrides = overrides
     let mutable attrs = attrs
@@ -5272,7 +5277,7 @@ module SymbolExtensions =
                 | _ -> false
 
             member this.IsExported =
-                this.MemberFlags &&& MemberFlags.Exported = MemberFlags.Exported
+                this.ValueFlags &&& ValueFlags.Exported = ValueFlags.Exported
     
             member this.IsImported =
                 this.ValueFlags &&& ValueFlags.Imported = ValueFlags.Imported

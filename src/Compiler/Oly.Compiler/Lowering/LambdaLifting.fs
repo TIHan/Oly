@@ -150,16 +150,17 @@ let createClosureConstructor cenv (freeLocals: IValueSymbol imarray) (fields: IF
     let ctorFlags = FunctionFlags.Constructor
 
     let memberFlags = (MemberFlags.Instance ||| MemberFlags.Public)
-    let memberFlags =
+    let attrs =
         if closure.IsExported then
-            memberFlags ||| MemberFlags.Exported
+            AttributeSymbol.Export
+            |> ImArray.createOne
         else
-            memberFlags
+            ImArray.empty
 
     let ctor = 
         createFunctionValue 
             closure.AsEnclosing
-            ImArray.empty
+            attrs
             Oly.Metadata.OlySpecialNames.Constructor
             ImArray.empty
             ctorPars
@@ -174,7 +175,7 @@ let createClosureConstructor cenv (freeLocals: IValueSymbol imarray) (fields: IF
 
     ctor
 
-let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary<_, _>) attrs (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: EntitySymbol) =
+let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary<_, _>) (attrs: AttributeSymbol imarray) (pars: ILocalParameterSymbol imarray) invokeTyPars (funcTy: TypeSymbol) (closure: EntitySymbol) =
     let invokePars, invokeReturnTy =
         let invokePars =
             pars
@@ -216,11 +217,11 @@ let createClosureInvoke name (lambdaFlags: LambdaFlags) (tyParLookup: Dictionary
         else
             memberFlags ||| MemberFlags.Instance
             
-    let memberFlags =
+    let attrs =
         if closure.IsExported then
-            memberFlags ||| MemberFlags.Exported
+            attrs.Add(AttributeSymbol.Export)
         else
-            memberFlags
+            attrs
 
     let enclosing =
         if lambdaFlags.HasFlag(LambdaFlags.Static) then

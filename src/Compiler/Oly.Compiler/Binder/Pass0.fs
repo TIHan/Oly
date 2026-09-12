@@ -41,30 +41,27 @@ let private bindAccessorAsEntityFlags (cenv: cenv) (enclosing: EnclosingSymbol) 
                 // Default is public.
                 EntityFlags.Public
 
-let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
-    (flags, attrs)
-    ||> ImArray.fold (fun flags attr ->
-        match attr with
-        | AttributeSymbol.Open ->
-            flags ||| EntityFlags.AutoOpen
-        | AttributeSymbol.Null ->
-            flags ||| EntityFlags.Nullable
-        | AttributeSymbol.Export ->
-            flags ||| EntityFlags.Exported
-        | AttributeSymbol.Import _ ->
-            flags ||| EntityFlags.Imported
-        | AttributeSymbol.Intrinsic("importer") ->
-            flags ||| EntityFlags.AttributeImporter
-        | _ ->
-            flags
-    )
-    
-let private setExportFlagIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs flags =
+let processAttributesForEntityFlags (cenv: cenv) env syntaxNode flags (attrs: AttributeSymbol imarray) =
+    let flags =
+        (flags, attrs)
+        ||> ImArray.fold (fun flags attr ->
+            match attr with
+            | AttributeSymbol.Open ->
+                flags ||| EntityFlags.AutoOpen
+            | AttributeSymbol.Null ->
+                flags ||| EntityFlags.Nullable
+            | AttributeSymbol.Export ->
+                if env.isInExport then
+                    cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+                flags ||| EntityFlags.Exported
+            | AttributeSymbol.Import _ ->
+                flags ||| EntityFlags.Imported
+            | AttributeSymbol.Intrinsic("importer") ->
+                flags ||| EntityFlags.AttributeImporter
+            | _ ->
+                flags
+        )
     if env.isInExport then
-        if attributesContainExport attrs then 
-            cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
-        flags ||| EntityFlags.Exported
-    elif attributesContainExport attrs then
         flags ||| EntityFlags.Exported
     else
         flags
@@ -105,7 +102,6 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
 
     let flags =
         flags ||| (bindAccessorAsEntityFlags cenv enclosing syntaxAccessor)
-        |> setExportFlagIfNecessary cenv env syntaxNode attrs
 
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
@@ -116,7 +112,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         else
             flags
 
-    let flags = processAttributesForEntityFlags flags attrs
+    let flags = processAttributesForEntityFlags cenv env syntaxNode flags attrs
 
     let name =
         match syntaxIdentOpt with

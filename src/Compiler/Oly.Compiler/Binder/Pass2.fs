@@ -50,15 +50,13 @@ let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs 
         else
             newAttrs
             
-let private setExportFlagIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs flags =
+let private addExportAttributeIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs =
     if env.isInExport then
         if attributesContainExport attrs then 
             cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
-        flags ||| MemberFlags.Exported
-    elif attributesContainExport attrs then
-        flags ||| MemberFlags.Exported
+        attrs.Add(AttributeSymbol.Export)
     else
-        flags
+        attrs
 
 [<Sealed>]
 type private PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness, memberFlags: MemberFlags) =
@@ -1234,11 +1232,9 @@ let private bindTopLevelValueDeclaration
             (Pass1.bindAccessorAsMemberFlags defaultAccessorFlags syntaxAccessor)
 
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
-    let attrs = addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs
-    
-    let memberFlags =
-       memberFlags
-       |> setExportFlagIfNecessary cenv env syntaxBinding attrs
+    let attrs =
+        addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs
+        |> addExportAttributeIfNecessary cenv env syntaxBinding.Declaration.Identifier 
 
     bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding
 

@@ -915,7 +915,7 @@ module internal rec Helpers =
             |> ImArray.ofSeq
             
         let olyImportInfo =
-            Some(OlyILImportInfo(importRawString cenv "CLR", ImArray.empty, importRawString cenv name))
+            Some(OlyILImportOrExportInfo.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv name))
 
         let olyFieldFlags =
             if (fieldDef.Attributes &&& FieldAttributes.InitOnly = FieldAttributes.InitOnly) || isLiteral then
@@ -1091,7 +1091,7 @@ module internal rec Helpers =
             |> ImArray.ofSeq
             
         let olyImportInfo =
-            Some(OlyILImportInfo(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName))
+            Some(OlyILImportOrExportInfo.Import(importRawString cenv "CLR", ImArray.empty, importRawString cenv origName))
 
         let olyOverrides =
             match methOverrides.TryGetValue(MethodDefinitionHandle.op_Implicit(methDefHandle)) with
@@ -1305,7 +1305,7 @@ module internal rec Helpers =
             |> ImArray.ofSeq
             
         let olyImportInfo =
-            Some(OlyILImportInfo(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name))
+            Some(OlyILImportOrExportInfo.Import(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name))
 
         let methImpls = ImmutableDictionary.CreateBuilder()
         for methImplHandle in tyDef.GetMethodImplementations().ToImmutableArray() do
@@ -1550,11 +1550,11 @@ type Importer private (name: string, peReader: PEReader) =
                 let olyFuncDef =
                     OlyILFunctionDefinition(
                         OlyILFunctionFlags.Constructor,
-                        OlyILMemberFlags.Abstract ||| OlyILMemberFlags.Exported,
+                        OlyILMemberFlags.Abstract,
                         ImArray.empty,
                         olyFuncSpecHandle,
                         None,
-                        None,
+                        Some(OlyILImportOrExportInfo.Export),
                         ref None
                     )
                 olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
@@ -1562,7 +1562,7 @@ type Importer private (name: string, peReader: PEReader) =
             let olyEntDef =
                 OlyILEntityDefinition(
                     OlyILEntityKind.Shape,
-                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous ||| OlyILEntityFlags.Exported,
+                    OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous,
                     ImArray.empty,
                     OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
                     OlyILStringHandle.GetNil(OlyILTableKind.String),
@@ -1574,7 +1574,7 @@ type Importer private (name: string, peReader: PEReader) =
                     ImArray.empty,
                     ImArray.empty,
                     ImArray.empty,
-                    None
+                    Some(OlyILImportOrExportInfo.Export)
                 )
             olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
             let olyEntInst = OlyILEntityInstance(olyEntDefHandle, ImArray.empty)
