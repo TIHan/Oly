@@ -473,7 +473,7 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
                 cenv.diagnostics.Error($"'{func.Name}' cannot be overriden in a newtype declaration.", 10, syntax.Identifier)
 
         let checkFunc (func: IFunctionSymbol) =
-            match func.FunctionOverrides with
+            match func.Overrides with
             | Some overridenFunc when overridenFunc.Enclosing.IsInterface -> ()
             | _ ->
                 duplicateError func syntax.Identifier

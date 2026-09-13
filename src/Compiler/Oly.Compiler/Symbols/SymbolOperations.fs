@@ -12,7 +12,7 @@ type IFunctionSymbol with
 
     member this.IsOverriding(func: IFunctionSymbol) =
         if this.Id <> func.Id then
-            match this.FunctionOverrides with
+            match this.Overrides with
             | Some(overrides) -> overrides.Id = func.Id
             | _ -> 
                 if not this.IsVirtual && func.IsVirtual && this.IsInstance = func.IsInstance then
@@ -22,9 +22,12 @@ type IFunctionSymbol with
                        this.Enclosing.TryGetEntity(&ent) &&
                        subsumesEntity superEnt ent then
                         areLogicalFunctionSignaturesParameterOnlyEqual func this &&
-                        areTypesEqual func.ReturnType this.ReturnType
-                        // Covariant return types
-                     //   subsumesType func.ReturnType this.ReturnType
+                        areTypesEqual func.ReturnType this.ReturnType &&
+                        // REVIEW: Covariant return types - should we do this?
+                        if false then
+                            subsumesType func.ReturnType this.ReturnType
+                        else
+                            true
                     else 
                         false
                 else
@@ -2027,7 +2030,7 @@ let private isPossiblyNotSpecific (func: IFunctionSymbol) (targetFunc: IFunction
     if targetFunc.IsVirtual then (areLogicalFunctionSignaturesEqual func targetFunc)
     else
 
-    if targetFunc.IsStatic && targetFunc.FunctionOverrides.IsSome then (areLogicalFunctionSignaturesEqual func targetFunc)
+    if targetFunc.IsStatic && targetFunc.Overrides.IsSome then (areLogicalFunctionSignaturesEqual func targetFunc)
     else
 
     if func.Enclosing.IsTypeExtension && targetFunc.Enclosing.IsTypeExtension then (areLogicalFunctionSignaturesEqual func targetFunc)
@@ -2408,7 +2411,7 @@ let createBaseInstanceConstructors (ent: EntitySymbol) =
             member _.IsThis = true
             member _.IsBase = true
             member _.Id = id
-            member _.FunctionOverrides = x.FunctionOverrides
+            member _.Overrides = x.Overrides
             member _.IsProperty = false
             member _.IsPattern = false
             member _.Type = x.Type
@@ -2442,7 +2445,7 @@ let createThisInstanceConstructors name (ent: EntitySymbol) =
             member _.IsThis = true
             member _.IsBase = false
             member _.Id = id
-            member _.FunctionOverrides = x.FunctionOverrides
+            member _.Overrides = x.Overrides
             member _.IsProperty = false
             member _.IsPattern = false
             member _.Type = x.Type
@@ -2482,7 +2485,6 @@ let createFieldConstant (enclosing: EnclosingSymbol) attrs name fieldTy memberFl
         member _.IsBase = false
         member _.IsThis = false
         member this.Formal = this :> IValueSymbol
-        member _.FunctionOverrides = None
         member _.TypeArguments = ImArray.empty
         member _.TypeParameters = ImArray.empty
         member _.MemberFlags = memberFlags
@@ -2567,7 +2569,6 @@ let invalidValue (enclosingTyOpt: TypeSymbol option) =
 
         member _.IsFunction = false
         member _.IsFunctionGroup = false
-        member _.FunctionOverrides = None
         member _.IsProperty = false
         member _.IsPattern = false
         member _.TypeParameters = ImmutableArray.Empty
@@ -2599,7 +2600,6 @@ let invalidLocal () =
 
         member _.IsFunction = false
         member _.IsFunctionGroup = false
-        member _.FunctionOverrides = None
         member _.IsProperty = false
         member _.IsPattern = false
         member _.TypeParameters = ImmutableArray.Empty

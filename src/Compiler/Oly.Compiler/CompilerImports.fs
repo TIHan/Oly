@@ -66,7 +66,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
 
     let lazyOverrides =
         lazy
-            func.FunctionOverrides
+            func.Overrides
             |> Option.map (fun x ->
 #if DEBUG || CHECKED
                 match x.Enclosing.TryEntity with
@@ -110,7 +110,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         member this.Enclosing = enclosing
         member this.Formal = this
         member this.FunctionFlags = func.FunctionFlags
-        member this.FunctionOverrides = lazyOverrides.Value
+        member this.Overrides = lazyOverrides.Value
         member this.Id = id
         member this.IsBase = false
         member this.IsField = false
@@ -156,7 +156,6 @@ type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Imp
         member this.Enclosing = enclosing
         member this.Formal = this
         member this.FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides = None
         member this.Id = id
         member this.IsBase = false
         member this.IsField = true
@@ -218,7 +217,6 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
         member this.Enclosing = enclosing
         member this.Formal = this
         member this.FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides = None
         member this.Id = id
         member this.IsBase = false
         member this.IsField = false
@@ -267,7 +265,6 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
         member this.Enclosing = enclosing
         member this.Formal = this
         member this.FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides = None
         member this.Id = id
         member this.IsBase = false
         member this.IsField = false
@@ -1495,19 +1492,19 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
             lazyTy <- ty
         lazyTy
         
-    let mutable lazyFuncOverrides = ValueNone: IFunctionSymbol option voption
-    let evalFuncOverrides() =
-        match lazyFuncOverrides with
-        | ValueSome(funcOverrides) -> funcOverrides
+    let mutable lazyOverrides = ValueNone: IFunctionSymbol option voption
+    let evalOverrides() =
+        match lazyOverrides with
+        | ValueSome(overrides) -> overrides
         | _ ->
             lock lockObj (fun () ->
-                if lazyFuncOverrides.IsNone then
-                    let funcOverrides =
+                if lazyOverrides.IsNone then
+                    let overrides =
                         ilFuncDef.Overrides
                         |> Option.map (importFunctionOverridesFromReference cenv enclosingEnt.TypeParameters this)
-                    lazyFuncOverrides <- ValueSome(funcOverrides)
+                    lazyOverrides <- ValueSome(overrides)
             )
-            lazyFuncOverrides.Value
+            lazyOverrides.Value
 
     let mutable lazyWellKnownFunc = ValueNone: WellKnownFunction voption
     let evalWellKnownFunc() =
@@ -1559,7 +1556,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
         member this.Type = evalTy()
 
-        member this.FunctionOverrides = evalFuncOverrides()
+        member this.Overrides = evalOverrides()
 
         member _.IsProperty = false
         member _.IsPattern = false
@@ -1575,7 +1572,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
-type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) as this =
+type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILReadOnlyAssembly, imports: Imports, ilFieldDefHandle: OlyILFieldDefinitionHandle) =
     
     let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
 
@@ -1655,8 +1652,6 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
         member this.FunctionFlags: FunctionFlags = FunctionFlags.None
-
-        member this.FunctionOverrides: IFunctionSymbol option = None
 
         member _.IsProperty = false
 
@@ -1862,7 +1857,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                           member this.Enclosing = enclosing
                                           member this.Formal = this :> IValueSymbol
                                           member this.FunctionFlags = FunctionFlags.None
-                                          member this.FunctionOverrides = None
                                           member this.Getter = getterOpt
                                           member this.Id = id
                                           member this.IsBase = false
@@ -1939,7 +1933,6 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                           member this.Enclosing = enclosing
                                           member this.Formal = this :> IValueSymbol
                                           member this.FunctionFlags = FunctionFlags.None
-                                          member this.FunctionOverrides = None
                                           member this.Id = id
                                           member this.IsBase = false
                                           member this.IsField = false

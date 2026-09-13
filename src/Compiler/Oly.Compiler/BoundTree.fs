@@ -1102,7 +1102,6 @@ let invalidLocalBinding name =
               member this.Enclosing = EnclosingSymbol.RootNamespace
               member this.Formal = this :> IValueSymbol
               member this.FunctionFlags = FunctionFlags.None
-              member this.FunctionOverrides = None
               member this.Id = id
               member this.IsBase = false
               member this.IsField = false

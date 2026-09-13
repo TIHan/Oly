@@ -212,7 +212,7 @@ let rec lower (ct: CancellationToken) (origExpr: E) =
         let implExists (baseFunc: IFunctionSymbol) =
             funcs
             |> ImArray.exists (fun x ->
-                match x.FunctionOverrides with
+                match x.Overrides with
                 | Some overrides ->
                     areLogicalFunctionSignaturesEqual (overrides.Formal :?> IFunctionSymbol) (baseFunc.Formal :?> IFunctionSymbol)
                 | _ ->

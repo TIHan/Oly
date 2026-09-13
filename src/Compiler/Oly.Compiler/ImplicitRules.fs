@@ -100,7 +100,7 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
 
                 member _.FunctionFlags = func.FunctionFlags
 
-                member _.FunctionOverrides = func.FunctionOverrides
+                member _.Overrides = func.Overrides
 
                 member _.IsProperty = func.IsProperty
 

@@ -839,13 +839,13 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let overrides =
             let enclosing = func.Enclosing
-            func.FunctionOverrides 
-            |> Option.bind (fun funcOverride ->
-                if areEnclosingsEqual enclosing funcOverride.Enclosing then
+            func.Overrides 
+            |> Option.bind (fun overrides ->
+                if areEnclosingsEqual enclosing overrides.Enclosing then
                     failwith "Invalid overrides."
-                if funcOverride.IsFinal then
+                if overrides.IsFinal then
                     failwith "Function is trying to override a sealed function."
-                let result = GenFunctionAsILFunctionReference cenv env funcOverride
+                let result = GenFunctionAsILFunctionReference cenv env overrides
                 Some result
             )
 

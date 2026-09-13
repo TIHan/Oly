@@ -186,7 +186,7 @@ let private filterFunctions (queryMemberFlags: QueryMemberFlags) (funcFlags: Fun
 
         let func =
             if canCheckOverrides then
-                match func.FunctionOverrides with
+                match func.Overrides with
                 | Some func -> func
                 | _ -> func
             else
@@ -269,7 +269,10 @@ let private queryHierarchicalValuesOfEntity (queryImmediateValues: BoundEnvironm
                 let isOverriden =
                     overridenFuncs
                     |> ImArray.exists (fun y ->
-                        areLogicalFunctionSignaturesEqual x y.FunctionOverrides.Value
+                        if y.IsFunction then
+                            areLogicalFunctionSignaturesEqual x y.AsFunction.Overrides.Value
+                        else
+                            false
                     )
                 not isOverriden
             else
@@ -335,7 +338,7 @@ let private queryMostSpecificIntrinsicFunctionsOfEntity (benv: BoundEnvironment)
 
     let overridenFuncs =
         funcs
-        |> ImArray.filter (fun x -> x.FunctionOverrides.IsSome)
+        |> ImArray.filter (fun x -> x.Overrides.IsSome)
 
     let inheritedFuncs =
         queryHierarchicalValuesOfEntity

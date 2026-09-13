@@ -479,7 +479,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 if x.Id <> func.Id then
                     if x.IsVirtual then
                         let x =
-                            match x.FunctionOverrides with
+                            match x.Overrides with
                             | Some overridenFunc -> overridenFunc
                             | _ -> x
                         checkOverrides x func
@@ -495,7 +495,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                 ty.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None)
                 |> Seq.filter (fun x ->
                     if x.IsVirtual then
-                        match x.FunctionOverrides with
+                        match x.Overrides with
                         | Some x ->
                             checkOverrides x func
                         | _ -> 
@@ -516,7 +516,7 @@ and checkImplementation env (syntaxNode: OlySyntaxNode) (ty: TypeSymbol) (super:
                         x.FindIntrinsicFunctions(env.benv, queryMemberFlags, FunctionFlags.None)
                         |> Seq.filter (fun x ->
                             if x.IsVirtual then
-                                match x.FunctionOverrides with
+                                match x.Overrides with
                                 | Some overridenFunc -> areLogicalFunctionSignaturesEqual overridenFunc func
                                 | _ -> false
                             else

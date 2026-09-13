@@ -924,7 +924,7 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
         
         member _.FunctionFlags = func.FunctionFlags
         
-        member _.FunctionOverrides = func.FunctionOverrides
+        member _.Overrides = func.Overrides
         
         member _.IsProperty = false
 
@@ -972,7 +972,6 @@ let actualField enclosing (tyArgs: TypeArgumentSymbol imarray) (field: IFieldSym
         member _.IsField = field.IsField
 
         member _.FunctionFlags = field.FunctionFlags
-        member _.FunctionOverrides = field.FunctionOverrides
         member _.IsProperty = false
         member _.IsPattern = false
         member _.IsFunction = false
@@ -1006,7 +1005,6 @@ let tryActualProperty enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (p
         member _.IsField = prop.IsField
 
         member _.FunctionFlags = prop.FunctionFlags
-        member _.FunctionOverrides = prop.FunctionOverrides
         member _.IsProperty = prop.IsProperty
         member _.IsPattern = false
         member _.IsFunction = false
@@ -1076,7 +1074,6 @@ let actualProperty enclosing (tyArgs: TypeArgumentSymbol imarray) (prop: IProper
         member _.IsField = prop.IsField
 
         member _.FunctionFlags = prop.FunctionFlags
-        member _.FunctionOverrides = prop.FunctionOverrides
         member _.IsProperty = prop.IsProperty
         member _.IsFunction = false
         member _.IsFunctionGroup = false
@@ -1144,7 +1141,6 @@ let actualPattern enclosing (tyArgs: TypeArgumentSymbol imarray) (pat: IPatternS
         member _.IsField = pat.IsField
 
         member _.FunctionFlags = pat.FunctionFlags
-        member _.FunctionOverrides = pat.FunctionOverrides
         member _.IsProperty = pat.IsProperty
         member _.IsFunction = pat.IsFunction
         member _.IsFunctionGroup = pat.IsFunctionGroup
@@ -1303,7 +1299,7 @@ let tryActualFunction (enclosing: EnclosingSymbol) tys (func: IFunctionSymbol) =
 
         member _.FunctionFlags = func.FunctionFlags // TODO: Do we need to change flags?
 
-        member _.FunctionOverrides = func.FunctionOverrides
+        member _.Overrides = func.Overrides
 
         member _.IsProperty = false
 
@@ -1362,7 +1358,6 @@ let tryActualField enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (fiel
         member _.IsField = field.IsField
 
         member _.FunctionFlags = field.FunctionFlags
-        member _.FunctionOverrides = field.FunctionOverrides
         member _.IsProperty = field.IsProperty
         member _.IsPattern = false
         member _.IsFunction = false
@@ -2228,6 +2223,8 @@ type IFunctionSymbol =
 
     abstract AssociatedFormalProperty: IPropertySymbol option
 
+    abstract Overrides : IFunctionSymbol option
+
 [<Sealed;DebuggerDisplay("{Name}")>]
 type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalParameterSymbol imarray, tyPars: TypeParameterSymbol imarray, memberFlags, funcFlags, funcSemantic, wellKnownFunc, overrides: IFunctionSymbol option, isMutable) =
 
@@ -2394,7 +2391,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         member _.TypeArguments = tyArgs
         member _.Id = id
         member _.FunctionFlags = funcFlags
-        member _.FunctionOverrides = overrides
+        member _.Overrides = overrides
         member _.IsProperty = false
         member _.IsPattern = false
         member _.IsFunction = true
@@ -2442,7 +2439,7 @@ type InvalidFunctionSymbol(enclosing, name) =
         member _.TypeArguments = func.TypeArguments
         member _.Id = func.Id
         member _.FunctionFlags = func.FunctionFlags
-        member _.FunctionOverrides = func.FunctionOverrides
+        member _.Overrides = func.Overrides
         member _.IsProperty = false
         member _.IsPattern = false
         member _.IsFunction = true
@@ -2481,7 +2478,6 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
                 member this.Enclosing = EnclosingSymbol.Local
                 member this.Formal = this :> IValueSymbol
                 member this.FunctionFlags = FunctionFlags.None
-                member this.FunctionOverrides = None
                 member this.IsProperty = false
                 member this.Id = id
                 member this.IsField = false
@@ -2534,8 +2530,6 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
 
         member this.FunctionFlags: FunctionFlags = FunctionFlags.None
 
-        member this.FunctionOverrides: IFunctionSymbol option = None
-
         member this.IsProperty = false
 
         member _.IsPattern = false
@@ -2574,6 +2568,8 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
 
         member this.AssociatedFormalProperty = None
 
+        member this.Overrides = None
+
 type IFieldSymbol =
     inherit IValueSymbol
 
@@ -2609,7 +2605,6 @@ type FieldSymbol(attrs, enclosing, memberFlags, name, ty, valueFlags, associated
         member _.IsPattern = false
         member this.Formal: IValueSymbol = this :> IValueSymbol
         member this.FunctionFlags: FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides: IFunctionSymbol option = None
         member this.Id: int64 = id
         member this.IsBase: bool = false
         member this.IsField: bool = true
@@ -2684,10 +2679,6 @@ type PolymorphicFieldSymbol(enclosing, field: IFieldSymbol, ty: TypeSymbol, tyAr
             OlyAssert.Equal(FunctionFlags.None, field.FunctionFlags)
             FunctionFlags.None
 
-        member _.FunctionOverrides = 
-            OlyAssert.Equal(None, field.FunctionOverrides)
-            None
-
         member _.IsProperty = false
 
         member _.IsPattern = false
@@ -2743,7 +2734,6 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
         member this.FunctionFlags: FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides: IFunctionSymbol option = None
         member _.IsProperty = true
         member _.IsPattern = false
         member this.Getter: IFunctionSymbol option = getterOpt |> Option.map (fun x -> x :> IFunctionSymbol)
@@ -2799,7 +2789,6 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
         member this.FunctionFlags: FunctionFlags = FunctionFlags.None
-        member this.FunctionOverrides: IFunctionSymbol option = None
         member _.IsProperty = false
         member _.IsPattern = true
         member this.PatternFunction = func
@@ -2929,8 +2918,6 @@ type IValueSymbol =
 
     abstract ValueFlags: ValueFlags 
 
-    abstract FunctionOverrides : IFunctionSymbol option
-
     abstract IsThis : bool
 
     abstract IsBase : bool
@@ -3011,8 +2998,6 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
         member _.MemberFlags = MemberFlags.None
 
         member _.FunctionFlags = FunctionFlags.None
-
-        member _.FunctionOverrides = None
 
         member _.IsProperty = false
 
@@ -3103,8 +3088,6 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
 
         member _.FunctionFlags = FunctionFlags.None
 
-        member _.FunctionOverrides = None
-
         member _.IsProperty = false
 
         member _.IsPattern = false
@@ -3168,8 +3151,6 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
         member _.MemberFlags = MemberFlags.None
 
         member _.FunctionFlags = FunctionFlags.None
-
-        member _.FunctionOverrides = None
 
         member _.IsProperty = false
 
@@ -5407,7 +5388,7 @@ module SymbolExtensions =
     
                         member _.FunctionFlags = func.FunctionFlags
     
-                        member _.FunctionOverrides = func.FunctionOverrides
+                        member _.Overrides = func.Overrides
 
                         member _.IsProperty = func.IsProperty
 
@@ -5469,7 +5450,7 @@ module SymbolExtensions =
     
                         member _.FunctionFlags = func.FunctionFlags
     
-                        member _.FunctionOverrides = func.FunctionOverrides
+                        member _.Overrides = func.Overrides
 
                         member _.IsProperty = func.IsProperty
 
@@ -5522,8 +5503,6 @@ module SymbolExtensions =
                         member _.MemberFlags = field.MemberFlags
     
                         member _.FunctionFlags = field.FunctionFlags
-    
-                        member _.FunctionOverrides = field.FunctionOverrides
 
                         member _.IsProperty = field.IsProperty
 
@@ -5570,8 +5549,6 @@ module SymbolExtensions =
                         member _.MemberFlags = prop.MemberFlags
     
                         member _.FunctionFlags = prop.FunctionFlags
-    
-                        member _.FunctionOverrides = prop.FunctionOverrides
 
                         member _.IsProperty = prop.IsProperty
 
@@ -5619,8 +5596,6 @@ module SymbolExtensions =
                         member _.MemberFlags = pat.MemberFlags
     
                         member _.FunctionFlags = pat.FunctionFlags
-    
-                        member _.FunctionOverrides = pat.FunctionOverrides
 
                         member _.IsProperty = pat.IsProperty
 
@@ -5666,8 +5641,6 @@ module SymbolExtensions =
                         member _.MemberFlags = value.MemberFlags
     
                         member _.FunctionFlags = value.FunctionFlags
-    
-                        member _.FunctionOverrides = value.FunctionOverrides
 
                         member _.IsProperty = false
 
