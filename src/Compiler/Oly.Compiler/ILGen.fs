@@ -825,7 +825,7 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
             else
                 ilFuncFlags
 
-        let ilMemberFlags =
+        let ilFuncFlags =
             if func.IsNewSlot then
                 ilFuncFlags ||| OlyILFunctionFlags.NewSlot
             else
