@@ -241,7 +241,6 @@ type OlyILAttributeNamedArgument =
 [<NoEquality;NoComparison>]
 [<RequireQualifiedAccess>]
 type OlyILAttribute =
-    | Intrinsic of name: OlyILStringHandle
     | Constructor of OlyILFunctionInstance * args: OlyILConstant imarray * namedArgs: OlyILAttributeNamedArgument imarray
 
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
@@ -268,12 +267,13 @@ type OlyILEntityDefinition =
         entDefs: OlyILEntityDefinitionHandle imarray *
         implements: OlyILType imarray *
         extends: OlyILType imarray *
-        importOrExportInfo: OlyILImportOrExportInfo option
+        importOrExportInfo: OlyILImportOrExportInfo option *
+        intrinsicTyOpt: OlyILStringHandle option
 
     member this.UpdateKind(kind: OlyILEntityKind) =
         match this with
-        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo) ->
-            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo)
+        | OlyILEntityDefinition(_, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo, intrinsicTyOpt) ->
+            OlyILEntityDefinition(kind, flags, attrs, enclosing, name, tyPars, funcDefs, fieldDefs, propDefs, patDefs, entDefs, implements, inherits, importInfo, intrinsicTyOpt)
 
     member this.EntityDefinitionHandles =
         match this with
@@ -340,8 +340,9 @@ type OlyILEntityDefinition =
             false
 
     member this.IsIntrinsic =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+        match this with
+        | OlyILEntityDefinition(intrinsicTyOpt = Some _) -> true
+        | _ -> false
         
     member this.IsExported =
         match this with
@@ -492,6 +493,7 @@ type OlyILFunctionDefinition =
         specHandle: OlyILFunctionSpecificationHandle * 
         overrides: OlyILFunctionReference option *
         importOrExportInfo: OlyILImportOrExportInfo option *
+        intrinsicFuncOpt: OlyILStringHandle option *
         bodyHandle: OlyILFunctionBodyHandle option ref
 
     member this.Flags =
@@ -520,8 +522,9 @@ type OlyILFunctionDefinition =
         | _ -> false
 
     member this.IsIntrinsic =
-        this.Attributes
-        |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+        match this with
+        | OlyILFunctionDefinition(intrinsicFuncOpt = Some _) -> true
+        | _ -> false
 
     member this.IsStatic =
         this.Flags &&& OlyILFunctionFlags.Static = OlyILFunctionFlags.Static

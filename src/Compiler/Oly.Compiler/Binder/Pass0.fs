@@ -9,6 +9,14 @@ open Oly.Compiler.Internal.SymbolBuilders
 open Oly.Compiler.Internal.PrettyPrint
 open Oly.Compiler.Internal.Binder.EarlyAttributes
 
+let addExportAttributeIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs =
+    if env.isInExport then
+        if attributesContainExport attrs then 
+            cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
+        attrs.Add(AttributeSymbol.Export)
+    else
+        attrs
+
 let private bindAccessorAsEntityFlags (cenv: cenv) (enclosing: EnclosingSymbol) (syntaxAccessor: OlySyntaxAccessor) =
     match syntaxAccessor with
     | OlySyntaxAccessor.Internal _
@@ -51,8 +59,6 @@ let processAttributesForEntityFlags (cenv: cenv) env syntaxNode flags (attrs: At
             | AttributeSymbol.Null ->
                 flags ||| EntityFlags.Nullable
             | AttributeSymbol.Export ->
-                if env.isInExport then
-                    cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
                 flags ||| EntityFlags.Exported
             | AttributeSymbol.Import _ ->
                 flags ||| EntityFlags.Imported
@@ -79,7 +85,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
         | _ -> syntaxTyKind
         
     // We only early bind built-in attributes (import, export, intrinsic) in pass(0).
-    let attrs = bindEarlyAttributes cenv env syntaxAttrs
+    let attrs = 
+        bindEarlyAttributes cenv env syntaxAttrs
+        |> addExportAttributeIfNecessary cenv env syntaxNode
 
     let flags, kind =
         match syntaxTyKind with

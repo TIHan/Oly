@@ -675,14 +675,9 @@ and GenFieldAsILFieldDefinition cenv env (field: IFieldSymbol) =
                         flags ||| OlyILFieldFlags.Protected
                     else
                         flags
-                let ilAttrs =
+                let ilAttrs, ilImportOrExportInfo =
                     field.Attributes
-                    |> (GenAttributes cenv env)
-                let ilImportOrExportInfo =
-                    if field.IsExported then
-                        Some(OlyILImportOrExportInfo.Export)
-                    else
-                        GenImportInfo cenv env field.Attributes
+                    |> (GenFieldAttributes cenv env)
                 OlyILFieldDefinition(ilAttrs, GenString cenv field.Name, emitILType cenv env field.Type, flags, ilImportOrExportInfo)
         cenv.assembly.AddFieldDefinition(ilFieldDef)
 
@@ -849,9 +844,9 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
                 Some result
             )
 
-        let ilAttrs =
+        let ilAttrs, ilImportOrExportInfo, ilIntrinsicName =
             func.Attributes
-            |> (GenAttributes cenv env)
+            |> (GenFunctionAttributes cenv env)
 
         let enclosingEnt = 
             if func.Enclosing.IsLocalEnclosing then
@@ -861,12 +856,15 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
 
         let ilFuncDefHandle = 
             let ilEntDefHandle = GenEntityAsILEntityDefinition cenv env enclosingEnt
-            let ilImportOrExportInfo =
-                if func.IsExported then
-                    Some(OlyILImportOrExportInfo.Export)
-                else
-                    GenImportInfo cenv env func.Attributes
-            let ilFuncDef = OlyILFunctionDefinition(ilFuncFlags, ilAttrs, GenFunctionAsILFunctionSpecification cenv env func, overrides, ilImportOrExportInfo, ref None)
+            let ilFuncDef = 
+                OlyILFunctionDefinition(
+                ilFuncFlags, 
+                ilAttrs, 
+                GenFunctionAsILFunctionSpecification cenv env func, 
+                overrides, 
+                ilImportOrExportInfo,
+                ilIntrinsicName,
+                ref None)
             cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle
@@ -964,16 +962,9 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
     | AttributeSymbol.Pure
     | AttributeSymbol.Unmanaged _
     | AttributeSymbol.Export
-    | AttributeSymbol.Import _ ->
+    | AttributeSymbol.Import _
+    | AttributeSymbol.Intrinsic _ ->
         None
-    | AttributeSymbol.Intrinsic(name) ->
-        if name = "importer" then
-            // The "importer" intrinsic is specific to the front-end compiler.
-            // Therefore, we should not include this in the IL.
-            None
-        else
-            let name = GenString cenv name
-            OlyILAttribute.Intrinsic(name) |> Some
     | AttributeSymbol.Constructor(ctor, args, namedArgs, _flags) ->
         if not ctor.IsInstanceConstructor then
             failwith "Expected instance constructor."
@@ -1003,9 +994,88 @@ and GenAttribute (cenv: cenv) (env: env) (attr: AttributeSymbol) =
         OlyILAttribute.Constructor(GenFunctionAsILFunctionInstance cenv env ImArray.empty ctor, ilConstants, ilNamedArgs)
         |> Some
 
+and GenImportAttribute cenv env platform (path: string imarray) name =
+    let platform = 
+        if String.IsNullOrEmpty platform then
+            OlyILTableIndex(OlyILTableKind.String, -1)
+        else
+            GenString cenv platform
+    let path = 
+        if path.Length = 1 && String.IsNullOrWhiteSpace path[0] then
+            ImArray.empty
+        else
+            path |> ImArray.map (GenString cenv)
+    let name = GenString cenv name
+    OlyILImportOrExportInfo.Import(platform, path, name)
+
 and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
     attrs
     |> ImArray.choose (GenAttribute cenv env)
+
+and GenEntityAttributes cenv env (attrs: AttributeSymbol imarray) =
+    let mutable ilImportOrExportInfo = None
+    let mutable ilIntrinsicName = None
+    let ilAttrs = ImArray.builder()
+    attrs
+    |> ImArray.iter (fun attr ->
+        match attr with
+        | AttributeSymbol.Export ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(OlyILImportOrExportInfo.Export)
+        | AttributeSymbol.Import(platform, path, name) when name <> "importer" ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(GenImportAttribute cenv env platform path name)
+        | AttributeSymbol.Intrinsic(name) ->
+            OlyAssert.True(ilIntrinsicName.IsNone)
+            ilIntrinsicName <- Some(GenString cenv name)
+        | _ ->
+            match GenAttribute cenv env attr with
+            | Some attr -> ilAttrs.Add(attr)
+            | _ -> ()
+    )
+    ilAttrs.ToImmutable(), ilImportOrExportInfo, ilIntrinsicName
+
+and GenFunctionAttributes cenv env (attrs: AttributeSymbol imarray) =
+    let mutable ilImportOrExportInfo = None
+    let mutable ilIntrinsicName = None
+    let ilAttrs = ImArray.builder()
+    attrs
+    |> ImArray.iter (fun attr ->
+        match attr with
+        | AttributeSymbol.Export ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(OlyILImportOrExportInfo.Export)
+        | AttributeSymbol.Import(platform, path, name) when name <> "importer" ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(GenImportAttribute cenv env platform path name)
+        | AttributeSymbol.Intrinsic(name) ->
+            OlyAssert.True(ilIntrinsicName.IsNone)
+            ilIntrinsicName <- Some(GenString cenv name)
+        | _ ->
+            match GenAttribute cenv env attr with
+            | Some attr -> ilAttrs.Add(attr)
+            | _ -> ()
+    )
+    ilAttrs.ToImmutable(), ilImportOrExportInfo, ilIntrinsicName
+
+and GenFieldAttributes cenv env (attrs: AttributeSymbol imarray) =
+    let mutable ilImportOrExportInfo = None
+    let ilAttrs = ImArray.builder()
+    attrs
+    |> ImArray.iter (fun attr ->
+        match attr with
+        | AttributeSymbol.Export ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(OlyILImportOrExportInfo.Export)
+        | AttributeSymbol.Import(platform, path, name) when name <> "importer" ->
+            OlyAssert.True(ilImportOrExportInfo.IsNone)
+            ilImportOrExportInfo <- Some(GenImportAttribute cenv env platform path name)
+        | _ ->
+            match GenAttribute cenv env attr with
+            | Some attr -> ilAttrs.Add(attr)
+            | _ -> ()
+    )
+    ilAttrs.ToImmutable(), ilImportOrExportInfo
     
 and GenImportInfo cenv env (attrs: AttributeSymbol imarray) =
     attrs
@@ -1225,17 +1295,15 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             OlyAssert.True(ilImplements.IsEmpty)
 #endif
 
-        let ilImportOrExportInfo =
-            if ent.IsExported then
-                Some(OlyILImportOrExportInfo.Export)
-            else
-                GenImportInfo cenv env ent.Attributes
+        let ilAttrs, ilImportOrExportInfo, ilIntrinsicName =
+            ent.Attributes
+            |> GenEntityAttributes cenv env
                 
         let ilEntDef = 
             OlyILEntityDefinition(
                 ilEntKind,
                 ilEntFlags,
-                (ent.Attributes |> (GenAttributes cenv env)),
+                ilAttrs,
                 ilEnclosing,
                 ilName,
                 ilTyPars,
@@ -1246,7 +1314,8 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
                 ilEntDefHandles,
                 ilImplements,
                 ilExtends,
-                ilImportOrExportInfo
+                ilImportOrExportInfo,
+                ilIntrinsicName
             )
 
         cenv.assembly.SetEntityDefinition(ilEntDefHandleFixup, ilEntDef)

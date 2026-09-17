@@ -1106,6 +1106,7 @@ module internal rec Helpers =
                 olyFuncSpecHandle,
                 olyOverrides,
                 olyImportInfo,
+                None,
                 ref None
             )
 
@@ -1189,59 +1190,59 @@ module internal rec Helpers =
         let isInterface = tyDef.Attributes &&& TypeAttributes.Interface = TypeAttributes.Interface
         let isAbstract = tyDef.Attributes &&& TypeAttributes.Abstract = TypeAttributes.Abstract
 
-        let olyIntrinsicAttrOpt =
+        let olyIntrinsicTyOpt =
             if path.Length = 1 && path.[0] = "System" then
                 match unmangledName with
                 | "Object" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "base_object"), OlyILTypeBaseObject)
+                    (importRawString cenv "base_object", OlyILTypeBaseObject)
                     |> ValueSome
                 | "Byte" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "uint8"), OlyILTypeUInt8)
+                    (importRawString cenv "uint8", OlyILTypeUInt8)
                     |> ValueSome
                 | "SByte" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "int8"), OlyILTypeInt8)
+                    (importRawString cenv "int8", OlyILTypeInt8)
                     |> ValueSome
                 | "UInt16" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "uint16"), OlyILTypeUInt16)
+                    (importRawString cenv "uint16", OlyILTypeUInt16)
                     |> ValueSome
                 | "Int16" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "int16"), OlyILTypeInt16)
+                    (importRawString cenv "int16", OlyILTypeInt16)
                     |> ValueSome
                 | "UInt32" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "uint32"), OlyILTypeUInt32)
+                    (importRawString cenv "uint32", OlyILTypeUInt32)
                     |> ValueSome
                 | "Int32" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "int32"), OlyILTypeInt32)
+                    (importRawString cenv "int32", OlyILTypeInt32)
                     |> ValueSome
                 | "UInt64" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "uint64"), OlyILTypeUInt64)
+                    (importRawString cenv "uint64", OlyILTypeUInt64)
                     |> ValueSome
                 | "Int64" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "int64"), OlyILTypeInt64)
+                    (importRawString cenv "int64", OlyILTypeInt64)
                     |> ValueSome
                 | "Single" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "float32"), OlyILTypeFloat32)
+                    (importRawString cenv "float32", OlyILTypeFloat32)
                     |> ValueSome
                 | "Double" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "float64"), OlyILTypeFloat64)
+                    (importRawString cenv "float64", OlyILTypeFloat64)
                     |> ValueSome
                 | "Char" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "char16"), OlyILTypeChar16)
+                    (importRawString cenv "char16", OlyILTypeChar16)
                     |> ValueSome
                 | "Boolean" -> 
-                    (OlyILAttribute.Intrinsic(importRawString cenv "bool"), OlyILTypeBool)
+                    (importRawString cenv "bool", OlyILTypeBool)
                     |> ValueSome
                 | "String" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "string16"), OlyILTypeString16)
+                    (importRawString cenv "string16", OlyILTypeString16)
                     |> ValueSome
                 | "IntPtr" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "native_int"), OlyILTypeNativeInt)
+                    (importRawString cenv "native_int", OlyILTypeNativeInt)
                     |> ValueSome
                 | "UIntPtr" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "native_uint"), OlyILTypeNativeUInt)
+                    (importRawString cenv "native_uint", OlyILTypeNativeUInt)
                     |> ValueSome
                 | "Void" ->
-                    (OlyILAttribute.Intrinsic(importRawString cenv "void"), OlyILTypeVoid)
+                    (importRawString cenv "void", OlyILTypeVoid)
                     |> ValueSome
                 | _ ->
                     ValueNone
@@ -1296,9 +1297,6 @@ module internal rec Helpers =
         let olyAttrs =
             seq {
                 yield! tyDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
-                match olyIntrinsicAttrOpt with
-                | ValueSome(olyAttr, _) -> yield olyAttr
-                | _ -> ()
             }
             |> ImArray.ofSeq
             
@@ -1491,12 +1489,17 @@ module internal rec Helpers =
                 olyNestedEntDefHandles,
                 (if isInterface then ImArray.empty else olyImplements),
                 (if isInterface then olyImplements else olyInherits),
-                olyImportInfo
+                olyImportInfo,
+                match olyIntrinsicTyOpt with
+                | ValueSome(name, _) ->
+                    Some(name)
+                | _ ->
+                    None
             )
         
         olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
 
-        match olyIntrinsicAttrOpt with
+        match olyIntrinsicTyOpt with
         | ValueSome(_, olyBuiltInTy) ->
             olyAsm.AddPrimitiveType(olyBuiltInTy, olyEntDefHandle)
         | _ ->
@@ -1552,6 +1555,7 @@ type Importer private (name: string, peReader: PEReader) =
                         olyFuncSpecHandle,
                         None,
                         Some(OlyILImportOrExportInfo.Export),
+                        None,
                         ref None
                     )
                 olyAsm.AddFunctionDefinition(olyEntDefHandle, olyFuncDef)
@@ -1571,7 +1575,8 @@ type Importer private (name: string, peReader: PEReader) =
                     ImArray.empty,
                     ImArray.empty,
                     ImArray.empty,
-                    Some(OlyILImportOrExportInfo.Export)
+                    Some(OlyILImportOrExportInfo.Export),
+                    None
                 )
             olyAsm.SetEntityDefinition(olyEntDefHandle, olyEntDef)
             let olyEntInst = OlyILEntityInstance(olyEntDefHandle, ImArray.empty)

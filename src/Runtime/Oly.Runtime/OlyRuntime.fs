@@ -3777,15 +3777,13 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                 let mutable entFlags = RuntimeEntityFlags.None
 
+                if ilEntDef.IsIntrinsic then
+                    entFlags <- entFlags ||| RuntimeEntityFlags.Intrinsic
+
                 let attrs =
                     ilEntDef.Attributes
                     |> ImArray.choose (fun x -> 
-                        match x with
-                        | OlyILAttribute.Intrinsic _ ->
-                            entFlags <- entFlags ||| RuntimeEntityFlags.Intrinsic
-                            None
-                        | _ ->
-                            this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
+                        this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
                     )
 
                 ent.Info.Flags <- entFlags

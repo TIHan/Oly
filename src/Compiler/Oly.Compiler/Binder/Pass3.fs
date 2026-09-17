@@ -120,7 +120,9 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (entities: EntityS
 
     checkConstraintClauses (SolverEnvironment.Create(cenv.diagnostics, envBody.benv, cenv.pass)) syntaxConstrClauses ent.TypeParameters
 
-    let attrs = bindAttributes cenv envBody syntaxAttrs
+    let attrs = 
+        bindAttributes cenv envBody syntaxAttrs
+        |> Pass0.addExportAttributeIfNecessary cenv env syntaxNode
     entBuilder.SetAttributes(cenv.pass, attrs)
 
     let envBody =
@@ -311,7 +313,10 @@ let bindTypeDeclarationBody (cenv: cenv) (env: BinderEnvironment) entities (entB
 
     let rec processMember (syntaxAttrs, syntax) (binding: BindingInfoSymbol, isImpl) =
         let attrs = bindAttributes cenv env syntaxAttrs
-        let attrs = Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name attrs
+        let attrs = 
+            attrs
+            |> Pass2.addImportAttributeIfNecessary binding.Value.Enclosing binding.Value.Name
+            |> Pass0.addExportAttributeIfNecessary cenv env syntax
 
         let env =
             if binding.Value.IsExported && not env.isInExport then

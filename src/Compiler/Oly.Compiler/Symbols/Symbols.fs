@@ -5678,7 +5678,14 @@ module SymbolExtensions =
                 this.Flags &&& EntityFlags.Scoped = EntityFlags.Scoped
 
             member this.IsExported =
+#if DEBUG || CHECKED
+                let isExported = this.Flags &&& EntityFlags.Exported = EntityFlags.Exported
+                if attributesContainExport this.Attributes then
+                    OlyAssert.True(isExported)
+                isExported
+#else
                 this.Flags &&& EntityFlags.Exported = EntityFlags.Exported
+#endif
 
             member this.IsPublic =
                 this.Flags &&& EntityFlags.AccessorMask = EntityFlags.Public

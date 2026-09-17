@@ -1291,9 +1291,6 @@ let private importFieldFlags (ilFieldFlags: OlyILFieldFlags) =
 
 let private importAttribute cenv (ilAttr: OlyILAttribute) =
     match ilAttr with
-    | OlyILAttribute.Intrinsic(name) ->
-        let name = cenv.ilAsm.GetStringOrEmpty(name)
-        AttributeSymbol.Intrinsic(name)
     | OlyILAttribute.Constructor(funcInst, args, namedArgs) ->
         // TODO: 
         match funcInst with
@@ -1453,7 +1450,11 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                         attrs.Add(AttributeSymbol.Blittable)
                     else
                         attrs
-                attrs
+                match ilFuncDef with
+                | OlyILFunctionDefinition(intrinsicFuncOpt = Some intrinsicNameHandle) ->
+                    attrs.Add(AttributeSymbol.Intrinsic(cenv.ilAsm.GetStringOrEmpty(intrinsicNameHandle)))
+                | _ ->
+                    attrs
         lazyAttrs
 
     let mutable lazyReturnTy = Unchecked.defaultof<TypeSymbol>
@@ -1704,14 +1705,8 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     let entFlags = importEntityFlags ilEntDef.Flags
     let entFlags =
         let mutable entFlags = entFlags
-        ilEntDef.Attributes
-        |> ImArray.iter (fun ilAttr ->
-            match ilAttr with
-            | OlyILAttribute.Intrinsic _ ->
-                entFlags <- entFlags ||| EntityFlags.Intrinsic
-            | _ ->
-                ()
-        )
+        if ilEntDef.IsIntrinsic then
+            entFlags <- entFlags ||| EntityFlags.Intrinsic
         match ilEntDef with
         | OlyILEntityDefinition(importOrExportInfo = Some(OlyILImportOrExportInfo.Import _)) ->
             entFlags <- entFlags ||| EntityFlags.Imported
@@ -2006,10 +2001,15 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
     let mutable lazyAttrs = Unchecked.defaultof<AttributeSymbol imarray>
     let evalAttrs() =
         if lazyAttrs.IsDefault then
-            let attrs =
-                ilEntDef.Attributes
-                |> ImArray.map (importAttribute cenv)
-            lazyAttrs <- attrs
+            lazyAttrs <-
+                let attrs =
+                    ilEntDef.Attributes
+                    |> ImArray.map (importAttribute cenv)
+                match ilEntDef with
+                | OlyILEntityDefinition(intrinsicTyOpt = Some intrinsicNameHandle) ->
+                    attrs.Add(AttributeSymbol.Intrinsic(cenv.ilAsm.GetStringOrEmpty(intrinsicNameHandle)))
+                | _ ->
+                    attrs
         lazyAttrs
 
     let kind = importEntityKind ilEntDef.Kind

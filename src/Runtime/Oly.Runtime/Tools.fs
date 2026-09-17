@@ -110,6 +110,7 @@ let addEntity (ilAsm: OlyILAssembly) (ilEntDefHandle: OlyILEntityDefinitionHandl
             ImArray.empty,
             ImArray.empty,
             ImArray.empty,
+            None,
             None
         )
 
@@ -141,6 +142,7 @@ let addFunction
             ilFlags,
             ImArray.empty,
             ilFuncSpecHandle,
+            None,
             None,
             None,
             ref(Some ilFuncBodyHandle)
@@ -264,7 +266,8 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
             ilAttrs,
             ilFuncSpecHandle,
             ilOverrides,
-            ilImportInfo,
+            ilImportOrExporInfo,
+            ilIntrinsicName,
             _) ->
             ilAsm.SetFunctionDefinition(
                 ilEnclosingEntDefHandle,
@@ -274,7 +277,8 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
                     ilAttrs, 
                     ilFuncSpecHandle, 
                     ilOverrides,
-                    ilImportInfo,
+                    ilImportOrExporInfo,
+                    ilIntrinsicName,
                     ref(Some(ilFuncBodyHandle))
                 )
             )

@@ -49,14 +49,6 @@ let addImportAttributeIfNecessary (enclosing: EnclosingSymbol) importName attrs 
             newAttrs.Add(AttributeSymbol.Import(System.String.Empty, ImArray.empty, importName))
         else
             newAttrs
-            
-let private addExportAttributeIfNecessary (cenv: cenv) (env: BinderEnvironment) syntaxNode attrs =
-    if env.isInExport then
-        if attributesContainExport attrs then 
-            cenv.diagnostics.Error("The 'export' attribute is redundant since the enclosing type is marked 'export'.", 10, syntaxNode)
-        attrs.Add(AttributeSymbol.Export)
-    else
-        attrs
 
 [<Sealed>]
 type private PropertyInfo(name: string, ty: TypeSymbol, explicitness: ValueExplicitness, memberFlags: MemberFlags) =
@@ -1233,8 +1225,9 @@ let private bindTopLevelValueDeclaration
 
     let attrs = bindEarlyAttributes cenv env syntaxAttrs
     let attrs =
-        addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText attrs
-        |> addExportAttributeIfNecessary cenv env syntaxBinding.Declaration.Identifier 
+        attrs
+        |> addImportAttributeIfNecessary enclosing syntaxBinding.Declaration.Identifier.ValueText
+        |> Pass0.addExportAttributeIfNecessary cenv env syntaxBinding.Declaration.Identifier 
 
     bindTopLevelBinding cenv env (syntaxAttrs, attrs) memberFlags valueExplicitness propInfoOpt enclosing syntaxBinding
 

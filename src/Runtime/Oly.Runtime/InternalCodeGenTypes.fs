@@ -466,13 +466,11 @@ type RuntimeEntity =
     member this.IsObjectType =
         if this.IsIntrinsic then
             let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-            entDef.Attributes
-            |> ImArray.exists (function 
-                | OlyILAttribute.Intrinsic(nameHandle) ->
-                    this.ILAssembly.GetStringOrEmpty(nameHandle) = "base_object"
-                | _ -> 
-                    false
-            )
+            match entDef with
+            | OlyILEntityDefinition(intrinsicTyOpt = Some(nameHandle)) ->
+                this.ILAssembly.GetStringOrEmpty(nameHandle) = "base_object"
+            | _ ->
+                false
         else
             false
 
@@ -482,13 +480,11 @@ type RuntimeEntity =
     member this.TryGetIntrinsicTypeInfo() =
         if this.IsIntrinsic then
             let entDef = this.ILAssembly.GetEntityDefinition(this.ILEntityDefinitionHandle)
-            entDef.Attributes
-            |> ImArray.tryPick (function 
-                | OlyILAttribute.Intrinsic(nameHandle) -> 
-                    Some(this.ILAssembly.GetStringOrEmpty(nameHandle))
-                | _ -> 
-                    None
-            )
+            match entDef with
+            | OlyILEntityDefinition(intrinsicTyOpt = Some(nameHandle)) ->
+                Some(this.ILAssembly.GetStringOrEmpty(nameHandle))
+            | _ ->
+                None
         else
             None
 
@@ -1520,8 +1516,9 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
 
     member this.IsIntrinsic =
         let ilFuncDef = state.ILAssembly.GetFunctionDefinition(state.ILFunctionDefinitionHandle)
-        ilFuncDef.Attributes
-        |> ImArray.exists (function OlyILAttribute.Intrinsic _ -> true | _ -> false)
+        match ilFuncDef with
+        | OlyILFunctionDefinition(intrinsicFuncOpt = Some _) -> true
+        | _ -> false
 
     member this.GetArgumentType(argIndex: int) =
         if this.Flags.IsInstance then
