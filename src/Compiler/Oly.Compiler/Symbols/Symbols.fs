@@ -6013,7 +6013,7 @@ module OtherExtensions =
         member this.TryGetIntrinsicType(outTy: outref<TypeSymbol>) =
             // TODO: Uncomment this.
             //   OlyAssert.True(this.IsFormal)
-            if this.Flags &&& EntityFlags.Intrinsic = EntityFlags.Intrinsic then
+            if this.IsIntrinsic then
                 let attrs = this.Attributes
                 let mutable result = false
                 let mutable count = attrs.Length

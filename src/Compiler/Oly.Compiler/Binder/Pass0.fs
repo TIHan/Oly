@@ -49,28 +49,25 @@ let private bindAccessorAsEntityFlags (cenv: cenv) (enclosing: EnclosingSymbol) 
                 // Default is public.
                 EntityFlags.Public
 
-let processAttributesForEntityFlags (cenv: cenv) env syntaxNode flags (attrs: AttributeSymbol imarray) =
-    let flags =
-        (flags, attrs)
-        ||> ImArray.fold (fun flags attr ->
-            match attr with
-            | AttributeSymbol.Open ->
-                flags ||| EntityFlags.AutoOpen
-            | AttributeSymbol.Null ->
-                flags ||| EntityFlags.Nullable
-            | AttributeSymbol.Export ->
-                flags ||| EntityFlags.Exported
-            | AttributeSymbol.Import _ ->
-                flags ||| EntityFlags.Imported
-            | AttributeSymbol.Intrinsic("importer") ->
-                flags ||| EntityFlags.AttributeImporter
-            | _ ->
-                flags
-        )
-    if env.isInExport then
-        flags ||| EntityFlags.Exported
-    else
-        flags
+let processAttributesForEntityFlags flags (attrs: AttributeSymbol imarray) =
+    (flags, attrs)
+    ||> ImArray.fold (fun flags attr ->
+        match attr with
+        | AttributeSymbol.Open ->
+            flags ||| EntityFlags.AutoOpen
+        | AttributeSymbol.Null ->
+            flags ||| EntityFlags.Nullable
+        | AttributeSymbol.Export ->
+            flags ||| EntityFlags.Exported
+        | AttributeSymbol.Import _ ->
+            flags ||| EntityFlags.Imported
+        | AttributeSymbol.Intrinsic("importer") ->
+            flags ||| EntityFlags.AttributeImporter
+        | AttributeSymbol.Intrinsic _ ->
+            flags ||| EntityFlags.Intrinsic
+        | _ ->
+            flags
+    )
 
 (********************************************************************************************************************************************************************************************)
 (********************************************************************************************************************************************************************************************)
@@ -114,13 +111,7 @@ let bindTypeDeclaration (cenv: cenv) (env: BinderEnvironment) (syntaxAttrs: OlyS
     let intrinsicTyOpt =
         tryAddIntrinsicPrimitivesForEntity cenv env kind syntaxTyPars.Count syntaxAttrs attrs
 
-    let flags =
-        if intrinsicTyOpt.IsSome then
-            flags ||| EntityFlags.Intrinsic
-        else
-            flags
-
-    let flags = processAttributesForEntityFlags cenv env syntaxNode flags attrs
+    let flags = processAttributesForEntityFlags flags attrs
 
     let name =
         match syntaxIdentOpt with
