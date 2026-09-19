@@ -323,7 +323,7 @@ type RuntimeEntityInfo =
 
         mutable Flags: RuntimeEntityFlags
         mutable Formal: RuntimeEntity
-        mutable Attributes: RuntimeAttribute imarray
+        mutable Attributes: Lazy<RuntimeAttribute imarray>
         mutable StaticConstructor: RuntimeFunction option
     }
 

@@ -2455,7 +2455,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let irAttrs = 
                     match tyDef with
                     | RuntimeType.Entity(ent) ->
-                        emitAttributes ilAsm ent.Attributes
+                        emitAttributes ilAsm ent.Attributes.Value
                     | _ ->
                         ImArray.empty
 
@@ -3362,6 +3362,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
         | OlyILFunctionInstance.Definition(ilEnclosing, ilFuncDefHandle) ->
+            failwith "should not happen yet"
             let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
             vm.ResolveFunctionDefinition(enclosing.AsType, ilFuncDefHandle)
 
@@ -3716,7 +3717,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
                                 RuntimeEntityInfo.Flags = RuntimeEntityFlags.None
                                 RuntimeEntityInfo.Formal = Unchecked.defaultof<_>
-                                RuntimeEntityInfo.Attributes = ImArray.empty
+                                RuntimeEntityInfo.Attributes = Unchecked.defaultof<_>
                                 RuntimeEntityInfo.StaticConstructor = None
                             }
                     }
@@ -3784,10 +3785,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     entFlags <- entFlags ||| RuntimeEntityFlags.Intrinsic
 
                 let attrs =
-                    ilEntDef.Attributes.Value
-                    |> ImArray.choose (fun x -> 
-                        this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
-                    )
+                    lazy
+                        ilEntDef.Attributes.Value
+                        |> ImArray.choose (fun x -> 
+                            this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
+                        )
 
                 ent.Info.Flags <- entFlags
                 ent.Info.Attributes <- attrs
