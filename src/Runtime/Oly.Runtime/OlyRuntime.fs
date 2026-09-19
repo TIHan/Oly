@@ -3362,7 +3362,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
         | OlyILFunctionInstance.Definition(ilEnclosing, ilFuncDefHandle) ->
-            failwith "should not happen yet"
             let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
             vm.ResolveFunctionDefinition(enclosing.AsType, ilFuncDefHandle)
 

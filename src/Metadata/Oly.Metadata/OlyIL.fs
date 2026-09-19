@@ -447,6 +447,11 @@ type OlyILEnclosing =
         | Entity(OlyILEntityInstance(_, tyArgs)) -> tyArgs.Length
         | _ -> 0
 
+    member this.IsFormalEntityDefinition =
+        match this with
+        | Entity(OlyILEntityInstance(handle, tyArgs)) when tyArgs.IsEmpty -> handle.Kind = OlyILTableKind.EntityDefinition
+        | _ -> false
+
 [<RequireQualifiedAccess>]
 type OlyILWitness =
     | Implementation of index: int * kind: OlyILTypeVariableKind * OlyILEntityInstance * specificAbstractFuncInstOpt: OlyILFunctionReference option
