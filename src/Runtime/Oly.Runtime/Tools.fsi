@@ -72,7 +72,7 @@ type DummyAssemblyBuilder =
         ilFieldDefHandle: OlyILFieldDefinitionHandle
             -> OlyILFieldReference
 
-    member SetMainFunctionBody: ilEnclosingEntDefHandle: OlyILEntityDefinitionHandle * ilLocals: OlyILLocal imarray * ilExpr: OlyILExpression -> unit
+    member SetMainFunctionBody: ilLocals: OlyILLocal imarray * ilExpr: OlyILExpression -> unit
 
     /// JIT means that the runtime will be spun up, import the internal assembly,
     ///  and emit the entry point.

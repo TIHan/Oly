@@ -701,7 +701,7 @@ let importOperationNewOrDefault
     let inline asExpr irOp = E.Operation(irTextRange, irOp)
 
     // '{ new() }' shape works for structs that have no parameterless instance constructor.
-    if ilArgs.IsEmpty && ilFuncInst.Enclosing.IsWitness_t then
+    if ilArgs.IsEmpty then
         match ilFuncInst with
         | OlyILFunctionInstance.Signature(OlyILEnclosing.Witness(OlyILTypeVariable _ as ilEnclosingTy, ilEnclosingAbstractEntInst), ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) 
                 when ilFuncTyArgs.IsEmpty && ilWitnesses.IsEmpty ->
@@ -1613,12 +1613,16 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             importOperationNewOrDefault cenv env irTextRange ilFuncInst ilArgs
 
         | OlyILOperation.Call(ilFuncInst, ilArgs) ->
-            let constrainedTy =
-                match ilFuncInst.Enclosing with
-                | OlyILEnclosing.Entity entInst -> cenv.ResolveType(env.ILAssembly, entInst.AsType, env.GenericContext)
-                | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
-                | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
+            let constrainedTy =
+                match ilFuncInst with
+                | OlyILFunctionInstance.Signature(enclosing=OlyILEnclosing.Witness(ilTy, _)) -> 
+                    cenv.ResolveType(env.ILAssembly, ilTy, env.GenericContext)
+                | _ -> 
+                    match func.Enclosing with
+                    | RuntimeEnclosing.Type(ty)
+                    | RuntimeEnclosing.Witness(_, ty, _) -> ty
+                    | _ -> failwith "Invalid enclosing."
 
             // VERIFY: Accessors
             verifyFunctionAccess env.Function.Enclosing func
@@ -1640,12 +1644,16 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
             handleCall constrainedTy func irArgs false
 
         | OlyILOperation.CallVirtual(ilFuncInst, ilArgs) ->
-            let constrainedTy =
-                match ilFuncInst.Enclosing with
-                | OlyILEnclosing.Entity entInst -> cenv.ResolveType(env.ILAssembly, entInst.AsType, env.GenericContext)
-                | OlyILEnclosing.Witness(ty, _) -> cenv.ResolveType(env.ILAssembly, ty, env.GenericContext)
-                | _ -> failwith "Invalid enclosing."
             let func = resolveFunction ilFuncInst
+            let constrainedTy =
+                match ilFuncInst with
+                | OlyILFunctionInstance.Signature(enclosing=OlyILEnclosing.Witness(ilTy, _)) -> 
+                    cenv.ResolveType(env.ILAssembly, ilTy, env.GenericContext)
+                | _ -> 
+                    match func.Enclosing with
+                    | RuntimeEnclosing.Type(ty)
+                    | RuntimeEnclosing.Witness(_, ty, _) -> ty
+                    | _ -> failwith "Invalid enclosing."
 
             // VERIFY: Accessors
             verifyFunctionAccess env.Function.Enclosing func
@@ -3361,9 +3369,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
-        | OlyILFunctionInstance.Definition(ilEnclosing, ilFuncDefHandle) ->
-            let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
-            vm.ResolveFunctionDefinition(enclosing.AsType, ilFuncDefHandle)
+        | OlyILFunctionInstance.Definition(ilFuncDefHandle) ->
+            let enclosingTy = 
+                vm.ResolveTypeDefinition(ilAsm, ilAsm.GetFunctionDefinition(ilFuncDefHandle).EnclosingEntityDefinitionHandle)
+            vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext

@@ -495,6 +495,7 @@ type OlyILFunctionDefinition =
     | OlyILFunctionDefinition of 
         flags: OlyILFunctionFlags * 
         attrs: OlyILAttribute imarray * 
+        enclosingEntDefHandle: OlyILEntityDefinitionHandle *
         specHandle: OlyILFunctionSpecificationHandle * 
         overrides: OlyILFunctionReference option *
         importOrExportInfo: OlyILImportOrExportInfo option *
@@ -504,6 +505,11 @@ type OlyILFunctionDefinition =
     member this.Flags =
         match this with
         | OlyILFunctionDefinition(flags=flags) -> flags
+
+    member this.EnclosingEntityDefinitionHandle =
+        match this with
+        | OlyILFunctionDefinition(enclosingEntDefHandle=enclosingEntDefHandle) -> 
+            enclosingEntDefHandle
 
     member this.SpecificationHandle =
         match this with
@@ -556,23 +562,12 @@ type OlyILFunctionDefinition =
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyILFunctionInstance =
     | Signature of enclosing: OlyILEnclosing * specHandle: OlyILFunctionSpecificationHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray
-    | Definition of enclosing: OlyILEnclosing * funcDefHandle: OlyILFunctionDefinitionHandle
-
-    member this.Enclosing =
-        match this with
-        | Signature(enclosing=enclosing) 
-        | Definition(enclosing=enclosing) -> enclosing
+    | Definition of funcDefHandle: OlyILFunctionDefinitionHandle
 
     member this.TypeArguments =
         match this with
         | Signature(tyArgs=tyArgs) -> tyArgs
         | Definition _ -> ImArray.empty
-
-    member this.GetEnclosingType() =
-        match this.Enclosing with
-        | OlyILEnclosing.Entity(entInst) -> entInst.AsType
-        | OlyILEnclosing.Witness(ty, _) -> ty
-        | _ -> failwith "Expected enclosing type."
 
 [<NoEquality;NoComparison>]
 type OlyILFunctionReference =

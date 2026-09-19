@@ -1104,6 +1104,7 @@ module internal rec Helpers =
             OlyILFunctionDefinition(
                 olyFuncFlags,
                 olyAttrs,
+                olyEntDefHandle,
                 olyFuncSpecHandle,
                 olyOverrides,
                 olyImportInfo,
@@ -1158,12 +1159,6 @@ module internal rec Helpers =
                 Some(
                     OlyILAttribute.Constructor(
                         OlyILFunctionInstance.Definition(
-                            OlyILEnclosing.Entity(
-                                OlyILEntityInstance(
-                                    olyEntHandle,
-                                    ImArray.empty
-                                )
-                            ),
                             olyFuncDefHandle
                         ),
                         ImArray.empty,
@@ -1607,6 +1602,7 @@ type Importer private (name: string, peReader: PEReader) =
                     OlyILFunctionDefinition(
                         OlyILFunctionFlags.Constructor ||| OlyILFunctionFlags.Abstract,
                         ImArray.empty,
+                        olyEntDefHandle,
                         olyFuncSpecHandle,
                         None,
                         Some(OlyILImportOrExportInfo.Export),

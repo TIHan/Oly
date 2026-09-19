@@ -1298,23 +1298,20 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
     | OlyILAttribute.Constructor(funcInst, args, namedArgs) ->
         // TODO: 
         match funcInst with
-        | OlyILFunctionInstance.Definition(ilEnclosing, ilFuncDefHandle) ->
-            match ilEnclosing with
-            | OlyILEnclosing.Entity(ilEntInst) ->   
-                let enclosingEnt = 
-                    importEntitySymbolFromDefinition 
-                        cenv 
-                        ilEntInst.DefinitionOrReferenceHandle
-                let func = 
-                    importFunctionFromDefinition
-                        cenv
-                        enclosingEnt
-                        ilEntInst.DefinitionOrReferenceHandle
-                        FunctionSemantic.NormalFunction
-                        ilFuncDefHandle
-                AttributeSymbol.Constructor(func, ImArray.empty, ImArray.empty, (* TODO *)AttributeFlags.AllowOnAll)
-            | _ ->
-                failwith "Expected entity."
+        | OlyILFunctionInstance.Definition(ilFuncDefHandle) ->
+            let ilEnclosingEntDefHandle = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle).EnclosingEntityDefinitionHandle
+            let enclosingEnt = 
+                importEntitySymbolFromDefinition 
+                    cenv 
+                    ilEnclosingEntDefHandle
+            let func = 
+                importFunctionFromDefinition
+                    cenv
+                    enclosingEnt
+                    ilEnclosingEntDefHandle
+                    FunctionSemantic.NormalFunction
+                    ilFuncDefHandle
+            AttributeSymbol.Constructor(func, ImArray.empty, ImArray.empty, (* TODO *)AttributeFlags.AllowOnAll)
         | OlyILFunctionInstance.Signature _ ->
             failwith "Importing attribute of a function signature is invalid"
 

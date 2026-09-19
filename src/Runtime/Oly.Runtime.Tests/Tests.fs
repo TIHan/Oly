@@ -94,11 +94,11 @@ let ``Should get function body because it is invoked in main`` () =
         | _ ->
             failwith "Expected an entity."
 
-    builder.SetMainFunctionBody(ilEntDefHandle, ImArray.empty,
+    builder.SetMainFunctionBody(ImArray.empty,
         OlyILExpression.Operation(
             OlyILDebugSourceTextRange.Empty,
             OlyILOperation.Call(
-                OlyILFunctionInstance(
+                OlyILFunctionInstance.Signature(
                     ilEnclosing,
                     ilFuncSpecHandle,
                     ImArray.empty,
@@ -162,7 +162,7 @@ let getIR
         | _ ->
             OlyILExpression.Operation(OlyILDebugSourceTextRange.Empty, OlyILOperation.Ignore(ilMainExpr))
 
-    builder.SetMainFunctionBody(ilEntDefHandle, locals.GetLocals(), ilMainExpr)
+    builder.SetMainFunctionBody(locals.GetLocals(), ilMainExpr)
 
     let result = builder.TryGetIRFunctionBodyByJIT(ilFuncDefHandle).Value
     result.LocalCount, result.Expression
@@ -297,7 +297,7 @@ module OlyExpressionHelpers =
         OlyILExpression.Operation(
             OlyILDebugSourceTextRange.Empty,
             OlyILOperation.Call(
-                OlyILFunctionInstance(
+                OlyILFunctionInstance.Signature(
                     ilEnclosing,
                     ilFuncSpecHandle,
                     ilTyArgs,

@@ -218,12 +218,13 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     //OlyAssert.False(func.Enclosing.IsTypeConstructor)
     OlyAssert.Equal(func.TypeParameters.Length, func.TypeArguments.Length)
 
+    // TODO: Do not do this for OlyILFunctionInstance.Definition.
     let ilEnclosing: OlyILEnclosing = emitILEnclosingForMember cenv env func
 
     if func.IsFormal && ilEnclosing.IsFormalEntityDefinition then
         OlyAssert.True(witnessArgs.IsEmpty)
         OlyAssert.Equal(0, func.AllTypeParameterCount)
-        OlyILFunctionInstance.Definition(ilEnclosing, GenFunctionAsILFunctionDefinition cenv env func)
+        OlyILFunctionInstance.Definition(GenFunctionAsILFunctionDefinition cenv env func)
     else
         let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func
         let ilTyInst, ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env func witnessArgs
@@ -862,13 +863,15 @@ and GenFunctionAsILFunctionDefinition cenv (env: env) (func: IFunctionSymbol) =
             let ilEntDefHandle = GenEntityAsILEntityDefinition cenv env enclosingEnt
             let ilFuncDef = 
                 OlyILFunctionDefinition(
-                ilFuncFlags, 
-                ilAttrs, 
-                GenFunctionAsILFunctionSpecification cenv env func, 
-                overrides, 
-                ilImportOrExportInfo,
-                ilIntrinsicName,
-                ref None)
+                    ilFuncFlags, 
+                    ilAttrs, 
+                    ilEntDefHandle,
+                    GenFunctionAsILFunctionSpecification cenv env func, 
+                    overrides, 
+                    ilImportOrExportInfo,
+                    ilIntrinsicName,
+                    ref None
+                )
             cenv.assembly.AddFunctionDefinition(ilEntDefHandle, ilFuncDef)
 
         cenv.cachedFuncDefs.[funcId] <- ilFuncDefHandle

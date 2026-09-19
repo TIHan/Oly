@@ -141,6 +141,7 @@ let addFunction
         OlyILFunctionDefinition(
             ilFlags,
             ImArray.empty,
+            ilEnclosingEntDefHandle,
             ilFuncSpecHandle,
             None,
             None,
@@ -255,7 +256,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
         | _ ->
             failwith "Expected entity type."
 
-    member this.SetMainFunctionBody(ilEnclosingEntDefHandle, ilLocals: OlyILLocal imarray, ilExpr: OlyILExpression) =
+    member this.SetMainFunctionBody(ilLocals: OlyILLocal imarray, ilExpr: OlyILExpression) =
         let ilFuncBody =
             OlyILFunctionBody(ilLocals, ilExpr)
         let ilFuncBodyHandle = ilAsm.AddFunctionBody(ilFuncBody)
@@ -264,6 +265,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
         | OlyILFunctionDefinition(
             ilFlags,
             ilAttrs,
+            ilEnclosingEntDefHandle,
             ilFuncSpecHandle,
             ilOverrides,
             ilImportOrExporInfo,
@@ -275,6 +277,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
                 OlyILFunctionDefinition(
                     ilFlags, 
                     ilAttrs, 
+                    ilEnclosingEntDefHandle,
                     ilFuncSpecHandle, 
                     ilOverrides,
                     ilImportOrExporInfo,
