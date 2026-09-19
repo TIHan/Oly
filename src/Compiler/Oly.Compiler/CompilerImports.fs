@@ -104,31 +104,32 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
     member this.Original = func
     
     interface IFunctionSymbol with
-        member this.AssociatedFormalPattern = lazyAssociatedFormalPatOpt.Value
-        member this.AssociatedFormalProperty = lazyAssociatedFormalPropOpt.Value
-        member this.Attributes = func.Attributes
-        member this.Enclosing = enclosing
+        member _.AssociatedFormalPattern = lazyAssociatedFormalPatOpt.Value
+        member _.AssociatedFormalProperty = lazyAssociatedFormalPropOpt.Value
+        member _.Attributes = func.Attributes
+        member _.Enclosing = enclosing
         member this.Formal = this
-        member this.FunctionFlags = func.FunctionFlags
-        member this.Overrides = lazyOverrides.Value
-        member this.Id = id
-        member this.IsBase = false
-        member this.IsField = false
-        member this.IsFunction = true
-        member this.IsFunctionGroup = false
-        member this.IsPattern = false
-        member this.IsProperty = false
-        member this.IsThis = false
-        member this.MemberFlags = func.MemberFlags
-        member this.Name = func.Name
-        member this.Parameters = lazyPars.Value
-        member this.ReturnType = lazyReturnTy.Value
-        member this.Semantic = func.Semantic
-        member this.Type = lazyTy.Value
-        member this.TypeArguments = lazyTyArgs.Value
-        member this.TypeParameters = lazyTyPars.Value
-        member this.ValueFlags = func.ValueFlags
-        member this.WellKnownFunction = func.WellKnownFunction
+        member _.FunctionFlags = func.FunctionFlags
+        member _.Overrides = lazyOverrides.Value
+        member _.Id = id
+        member _.IsBase = false
+        member _.IsField = false
+        member _.IsFunction = true
+        member _.IsFunctionGroup = false
+        member _.IsPattern = false
+        member _.IsProperty = false
+        member _.IsParameter = false
+        member _.IsThis = false
+        member _.MemberFlags = func.MemberFlags
+        member _.Name = func.Name
+        member _.Parameters = lazyPars.Value
+        member _.ReturnType = lazyReturnTy.Value
+        member _.Semantic = func.Semantic
+        member _.Type = lazyTy.Value
+        member _.TypeArguments = lazyTyArgs.Value
+        member _.TypeParameters = lazyTyPars.Value
+        member _.ValueFlags = func.ValueFlags
+        member _.WellKnownFunction = func.WellKnownFunction
 
 [<Sealed>]
 type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, field: IFieldSymbol) =
@@ -152,26 +153,27 @@ type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Imp
     member this.Original = field
     
     interface IFieldSymbol with
-        member this.Attributes = field.Attributes
-        member this.Enclosing = enclosing
+        member _.Attributes = field.Attributes
+        member _.Enclosing = enclosing
         member this.Formal = this
-        member this.FunctionFlags = FunctionFlags.None
-        member this.Id = id
-        member this.IsBase = false
-        member this.IsField = true
-        member this.IsFunction = false
-        member this.IsFunctionGroup = false
-        member this.IsPattern = false
-        member this.IsProperty = false
-        member this.IsThis = false
-        member this.MemberFlags = field.MemberFlags
-        member this.Name = field.Name
-        member this.Type = lazyTy.Value
-        member this.TypeArguments = ImArray.empty
-        member this.TypeParameters = ImArray.empty
-        member this.ValueFlags = field.ValueFlags
-        member this.Constant = lazyConstant.Value
-        member this.AssociatedFormalPropertyId = None // TODO
+        member _.FunctionFlags = FunctionFlags.None
+        member _.Id = id
+        member _.IsBase = false
+        member _.IsField = true
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
+        member _.IsPattern = false
+        member _.IsProperty = false
+        member _.IsParameter = false
+        member _.IsThis = false
+        member _.MemberFlags = field.MemberFlags
+        member _.Name = field.Name
+        member _.Type = lazyTy.Value
+        member _.TypeArguments = ImArray.empty
+        member _.TypeParameters = ImArray.empty
+        member _.ValueFlags = field.ValueFlags
+        member _.Constant = lazyConstant.Value
+        member _.AssociatedFormalPropertyId = None // TODO
 
 [<Sealed>]
 type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, prop: IPropertySymbol) =
@@ -213,27 +215,28 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
     member this.Original = prop
     
     interface IPropertySymbol with
-        member this.Attributes = prop.Attributes
-        member this.Enclosing = enclosing
+        member _.Attributes = prop.Attributes
+        member _.Enclosing = enclosing
         member this.Formal = this
-        member this.FunctionFlags = FunctionFlags.None
-        member this.Id = id
-        member this.IsBase = false
-        member this.IsField = false
-        member this.IsFunction = false
-        member this.IsFunctionGroup = false
-        member this.IsPattern = false
-        member this.IsProperty = true
-        member this.IsThis = false
-        member this.MemberFlags = prop.MemberFlags
-        member this.Name = prop.Name
-        member this.Type = lazyTy.Value
-        member this.TypeArguments = ImArray.empty
-        member this.TypeParameters = ImArray.empty
-        member this.ValueFlags = prop.ValueFlags
-        member this.BackingField = lazyBackingField.Value
-        member this.Getter = lazyGetter.Value
-        member this.Setter = lazySetter.Value
+        member _.FunctionFlags = FunctionFlags.None
+        member _.Id = id
+        member _.IsBase = false
+        member _.IsField = false
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
+        member _.IsPattern = false
+        member _.IsParameter = false
+        member _.IsProperty = true
+        member _.IsThis = false
+        member _.MemberFlags = prop.MemberFlags
+        member _.Name = prop.Name
+        member _.Type = lazyTy.Value
+        member _.TypeArguments = ImArray.empty
+        member _.TypeParameters = ImArray.empty
+        member _.ValueFlags = prop.ValueFlags
+        member _.BackingField = lazyBackingField.Value
+        member _.Getter = lazyGetter.Value
+        member _.Setter = lazySetter.Value
 
 [<Sealed>]
 type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, pat: IPatternSymbol) =
@@ -261,26 +264,27 @@ type RetargetedPatternSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: I
     member this.Original = pat
     
     interface IPatternSymbol with
-        member this.Attributes = pat.Attributes
-        member this.Enclosing = enclosing
+        member _.Attributes = pat.Attributes
+        member _.Enclosing = enclosing
         member this.Formal = this
-        member this.FunctionFlags = FunctionFlags.None
-        member this.Id = id
-        member this.IsBase = false
-        member this.IsField = false
-        member this.IsFunction = false
-        member this.IsFunctionGroup = false
-        member this.IsPattern = true
-        member this.IsProperty = false
-        member this.IsThis = false
-        member this.MemberFlags = pat.MemberFlags
-        member this.Name = pat.Name
-        member this.Type = lazyTy.Value
-        member this.TypeArguments = ImArray.empty
-        member this.TypeParameters = ImArray.empty
-        member this.ValueFlags = pat.ValueFlags
-        member this.PatternFunction = lazyPatFunc.Value
-        member this.PatternGuardFunction = lazyPatGuardFuncOpt.Value
+        member _.FunctionFlags = FunctionFlags.None
+        member _.Id = id
+        member _.IsBase = false
+        member _.IsField = false
+        member _.IsFunction = false
+        member _.IsFunctionGroup = false
+        member _.IsPattern = true
+        member _.IsParameter = false
+        member _.IsProperty = false
+        member _.IsThis = false
+        member _.MemberFlags = pat.MemberFlags
+        member _.Name = pat.Name
+        member _.Type = lazyTy.Value
+        member _.TypeArguments = ImArray.empty
+        member _.TypeParameters = ImArray.empty
+        member _.ValueFlags = pat.ValueFlags
+        member _.PatternFunction = lazyPatFunc.Value
+        member _.PatternGuardFunction = lazyPatGuardFuncOpt.Value
 
 [<Sealed;DebuggerDisplay("Retargeted({DebugName}) for {AssemblyNameThatImportedThis}")>]
 type RetargetedEntitySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Importer, enclosing: EnclosingSymbol, ent: EntitySymbol) as this =
@@ -1541,13 +1545,13 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
 
         member _.TypeParameters = evalTyPars()
 
-        member this.TypeArguments = evalTyArgs()
+        member _.TypeArguments = evalTyArgs()
 
         member _.Attributes = evalAttrs()
 
-        member this.Parameters = evalPars()
+        member _.Parameters = evalPars()
 
-        member this.ReturnType = evalReturnTy()
+        member _.ReturnType = evalReturnTy()
         member _.IsField = false
         member _.FunctionFlags = funcFlags
         member _.MemberFlags = memberFlags
@@ -1555,12 +1559,13 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         member _.IsFunctionGroup = false
         member _.ValueFlags = valueFlags
 
-        member this.Type = evalTy()
+        member _.Type = evalTy()
 
-        member this.Overrides = evalOverrides()
+        member _.Overrides = evalOverrides()
 
         member _.IsProperty = false
         member _.IsPattern = false
+        member _.IsParameter = false
 
         member _.IsThis = false
         member _.IsBase = false
@@ -1648,39 +1653,41 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
 
     interface IFieldSymbol with
 
-        member this.Enclosing: EnclosingSymbol = enclosing
+        member _.Enclosing: EnclosingSymbol = enclosing
 
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
-        member this.FunctionFlags: FunctionFlags = FunctionFlags.None
+        member _.FunctionFlags: FunctionFlags = FunctionFlags.None
 
         member _.IsProperty = false
 
         member _.IsPattern = false
 
-        member this.Id: int64 = id
+        member _.IsParameter = false
 
-        member this.IsField: bool = true
+        member _.Id: int64 = id
 
-        member this.IsFunction: bool = false
+        member _.IsField: bool = true
 
-        member this.IsFunctionGroup: bool = false
+        member _.IsFunction: bool = false
 
-        member this.IsThis: bool = false
+        member _.IsFunctionGroup: bool = false
 
-        member this.IsBase: bool = false
+        member _.IsThis: bool = false
 
-        member this.MemberFlags: MemberFlags = memberFlags
+        member _.IsBase: bool = false
 
-        member this.Name: string = lazyName.Value
+        member _.MemberFlags: MemberFlags = memberFlags
 
-        member this.Type: TypeSymbol = lazyTy.Value
+        member _.Name: string = lazyName.Value
 
-        member this.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty
+        member _.Type: TypeSymbol = lazyTy.Value
 
-        member this.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty
+        member _.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty
 
-        member this.ValueFlags: ValueFlags = valueFlags
+        member _.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty
+
+        member _.ValueFlags: ValueFlags = valueFlags
 
         member _.Attributes = evalAttrs()
 
@@ -1847,27 +1854,28 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                 let enclosing = EnclosingSymbol.Entity(this)
                                 let prop =
                                     { new IPropertySymbol with
-                                          member this.Attributes = attrs
-                                          member this.BackingField = None
-                                          member this.Enclosing = enclosing
+                                          member _.Attributes = attrs
+                                          member _.BackingField = None
+                                          member _.Enclosing = enclosing
                                           member this.Formal = this :> IValueSymbol
-                                          member this.FunctionFlags = FunctionFlags.None
-                                          member this.Getter = getterOpt
-                                          member this.Id = id
-                                          member this.IsBase = false
-                                          member this.IsField = false
-                                          member this.IsFunction = false
-                                          member this.IsFunctionGroup = false
-                                          member this.IsPattern = false
-                                          member this.IsProperty = true
-                                          member this.IsThis = false
-                                          member this.MemberFlags = memberFlags
-                                          member this.Name = name
-                                          member this.Setter = setterOpt
-                                          member this.Type = propTy
-                                          member this.TypeArguments = ImArray.empty
-                                          member this.TypeParameters = ImArray.empty
-                                          member this.ValueFlags = valueFlags
+                                          member _.FunctionFlags = FunctionFlags.None
+                                          member _.Getter = getterOpt
+                                          member _.Id = id
+                                          member _.IsBase = false
+                                          member _.IsField = false
+                                          member _.IsFunction = false
+                                          member _.IsFunctionGroup = false
+                                          member _.IsPattern = false
+                                          member _.IsParameter = false
+                                          member _.IsProperty = true
+                                          member _.IsThis = false
+                                          member _.MemberFlags = memberFlags
+                                          member _.Name = name
+                                          member _.Setter = setterOpt
+                                          member _.Type = propTy
+                                          member _.TypeArguments = ImArray.empty
+                                          member _.TypeParameters = ImArray.empty
+                                          member _.ValueFlags = valueFlags
                         
                                     }
                                 match getterTypedOpt with
@@ -1924,26 +1932,27 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                                 let enclosing = EnclosingSymbol.Entity(this)
                                 let pat =
                                     { new IPatternSymbol with
-                                          member this.Attributes = attrs
-                                          member this.Enclosing = enclosing
+                                          member _.Attributes = attrs
+                                          member _.Enclosing = enclosing
                                           member this.Formal = this :> IValueSymbol
-                                          member this.FunctionFlags = FunctionFlags.None
-                                          member this.Id = id
-                                          member this.IsBase = false
-                                          member this.IsField = false
-                                          member this.IsFunction = false
-                                          member this.IsFunctionGroup = false
-                                          member this.IsPattern = true
-                                          member this.IsProperty = false
-                                          member this.IsThis = false
-                                          member this.MemberFlags = memberFlags
-                                          member this.Name = name
-                                          member this.Type = patFunc.Type
-                                          member this.TypeArguments = ImArray.empty // REVIEW: This right?
-                                          member this.TypeParameters = ImArray.empty // REVIEW: This right?
-                                          member this.ValueFlags = valueFlags
-                                          member this.PatternFunction = patFunc
-                                          member this.PatternGuardFunction = guardOpt
+                                          member _.FunctionFlags = FunctionFlags.None
+                                          member _.Id = id
+                                          member _.IsBase = false
+                                          member _.IsField = false
+                                          member _.IsFunction = false
+                                          member _.IsFunctionGroup = false
+                                          member _.IsPattern = true
+                                          member _.IsParameter = false
+                                          member _.IsProperty = false
+                                          member _.IsThis = false
+                                          member _.MemberFlags = memberFlags
+                                          member _.Name = name
+                                          member _.Type = patFunc.Type
+                                          member _.TypeArguments = ImArray.empty // REVIEW: This right?
+                                          member _.TypeParameters = ImArray.empty // REVIEW: This right?
+                                          member _.ValueFlags = valueFlags
+                                          member _.PatternFunction = patFunc
+                                          member _.PatternGuardFunction = guardOpt
                         
                                     }
                                 patTypedFunc.SetAssociatedFormalPattern(pat)

@@ -789,7 +789,7 @@ type OlyValueSymbol internal (value: IValueSymbol) =
 
     member this.IsOverridable = value.IsOverridable
 
-    member this.IsParameter = this.IsInLocalScope && (value.ValueFlags &&& ValueFlags.Parameter = ValueFlags.Parameter)
+    member this.IsParameter = this.IsInLocalScope && value.IsParameter
 
     member this.IsEntryPoint =
         match value with

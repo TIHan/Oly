@@ -929,6 +929,8 @@ type ActualFunctionSymbol(enclosing: EnclosingSymbol, tyArgs: TypeArgumentSymbol
         member _.IsProperty = false
 
         member _.IsPattern = false
+
+        member _.IsParameter = false
         
         member _.IsFunction = true
 
@@ -974,6 +976,7 @@ let actualField enclosing (tyArgs: TypeArgumentSymbol imarray) (field: IFieldSym
         member _.FunctionFlags = field.FunctionFlags
         member _.IsProperty = false
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.IsFunction = false
         member _.IsFunctionGroup = false
         member _.TypeParameters = field.TypeParameters
@@ -994,7 +997,6 @@ let tryActualProperty enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (p
     let mutable actualGetter = ValueNone
     let mutable actualSetter = ValueNone
     let mutable fieldCache = ValueNone
-    let mutable enclosingCache = ValueNone
 
     { new IPropertySymbol with
         member _.Id = id
@@ -1007,6 +1009,7 @@ let tryActualProperty enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (p
         member _.FunctionFlags = prop.FunctionFlags
         member _.IsProperty = prop.IsProperty
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.IsFunction = false
         member _.IsFunctionGroup = false
         member _.TypeParameters = prop.TypeParameters
@@ -1078,6 +1081,7 @@ let actualProperty enclosing (tyArgs: TypeArgumentSymbol imarray) (prop: IProper
         member _.IsFunction = false
         member _.IsFunctionGroup = false
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.TypeParameters = prop.TypeParameters
         member _.TypeArguments = prop.TypeArguments
         member _.ValueFlags = prop.ValueFlags
@@ -1145,6 +1149,7 @@ let actualPattern enclosing (tyArgs: TypeArgumentSymbol imarray) (pat: IPatternS
         member _.IsFunction = pat.IsFunction
         member _.IsFunctionGroup = pat.IsFunctionGroup
         member _.IsPattern = true
+        member _.IsParameter = false
         member _.TypeParameters = pat.TypeParameters
         member _.TypeArguments = pat.TypeArguments
         member _.ValueFlags = pat.ValueFlags
@@ -1305,6 +1310,8 @@ let tryActualFunction (enclosing: EnclosingSymbol) tys (func: IFunctionSymbol) =
 
         member _.IsPattern = false
 
+        member _.IsParameter = false
+
         member _.IsFunction = true
 
         member _.IsFunctionGroup = func.IsFunctionGroup
@@ -1360,6 +1367,7 @@ let tryActualField enclosing (tys: IReadOnlyDictionary<int64, TypeSymbol>) (fiel
         member _.FunctionFlags = field.FunctionFlags
         member _.IsProperty = field.IsProperty
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.IsFunction = false
         member _.IsFunctionGroup = false
         member _.TypeParameters = field.TypeParameters
@@ -2063,7 +2071,6 @@ type ValueFlags =
     /// Marks a function, local, or field as 'mutable'.
     /// If a function is marked 'mutable', meaning that the function is an instance member on a (struct or shape) and does mutate the receiver.
     | Mutable =   0x0000100
-    | Parameter = 0x0001000
     | Generated = 0x0010000
     | FieldInit = 0x0100000
     | Invalid =   0x1000000
@@ -2394,6 +2401,7 @@ type FunctionSymbol(enclosing, attrs, name, funcTy: TypeSymbol, pars: ILocalPara
         member _.Overrides = overrides
         member _.IsProperty = false
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.IsFunction = true
         member _.IsFunctionGroup = false
         member _.IsField = false
@@ -2442,6 +2450,7 @@ type InvalidFunctionSymbol(enclosing, name) =
         member _.Overrides = func.Overrides
         member _.IsProperty = false
         member _.IsPattern = false
+        member _.IsParameter = false
         member _.IsFunction = true
         member _.IsFunctionGroup = false
         member _.IsField = false
@@ -2473,24 +2482,25 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
             let id = newId()
             let isThis = principalFunc.IsInstance && i = 0
             { new ILocalParameterSymbol with
-                member this.IsThis = isThis
-                member this.IsBase = false
-                member this.Enclosing = EnclosingSymbol.Local
+                member _.IsThis = isThis
+                member _.IsBase = false
+                member _.Enclosing = EnclosingSymbol.Local
                 member this.Formal = this :> IValueSymbol
-                member this.FunctionFlags = FunctionFlags.None
-                member this.IsProperty = false
-                member this.Id = id
-                member this.IsField = false
-                member this.IsFunction = false
-                member this.IsFunctionGroup = false
-                member this.IsPattern = false
-                member this.MemberFlags = MemberFlags.None
-                member this.Name = ""
-                member this.Type = errorTy
-                member this.TypeArguments = ImArray.empty
-                member this.TypeParameters = ImArray.empty
-                member this.ValueFlags = ValueFlags.Parameter ||| ValueFlags.Invalid
-                member this.Attributes = ImArray.empty
+                member _.FunctionFlags = FunctionFlags.None
+                member _.IsProperty = false
+                member _.Id = id
+                member _.IsField = false
+                member _.IsFunction = false
+                member _.IsFunctionGroup = false
+                member _.IsPattern = false
+                member _.IsParameter = true
+                member _.MemberFlags = MemberFlags.None
+                member _.Name = ""
+                member _.Type = errorTy
+                member _.TypeArguments = ImArray.empty
+                member _.TypeParameters = ImArray.empty
+                member _.ValueFlags = ValueFlags.Invalid
+                member _.Attributes = ImArray.empty
             }
         )
 
@@ -2510,65 +2520,67 @@ type FunctionGroupSymbol(enclosing: EnclosingSymbol, name: string, funcs: IFunct
         else
             WellKnownFunction.None
 
-    member this.Name = name
+    member _.Name = name
 
-    member this.Functions: IFunctionSymbol imarray = funcs
+    member _.Functions: IFunctionSymbol imarray = funcs
 
     interface IFunctionSymbol with
         
-        member this.Attributes = ImArray.empty
+        member _.Attributes = ImArray.empty
 
-        member this.Parameters = pars
+        member _.Parameters = pars
 
-        member this.ReturnType = errorTy
+        member _.ReturnType = errorTy
 
-        member this.Enclosing: EnclosingSymbol = enclosing
+        member _.Enclosing: EnclosingSymbol = enclosing
 
-        member this.MemberFlags = if principalFunc.IsInstance && pars.Length >= 1 then MemberFlags.Instance else MemberFlags.None
+        member _.MemberFlags = if principalFunc.IsInstance && pars.Length >= 1 then MemberFlags.Instance else MemberFlags.None
 
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
-        member this.FunctionFlags: FunctionFlags = FunctionFlags.None
+        member _.FunctionFlags: FunctionFlags = FunctionFlags.None
 
-        member this.IsProperty = false
+        member _.IsProperty = false
 
         member _.IsPattern = false
 
-        member this.Id: int64 = id
+        member _.IsParameter = false
 
-        member this.IsField: bool = false
+        member _.Id: int64 = id
 
-        member this.IsFunction: bool = true
+        member _.IsField: bool = false
 
-        member this.IsFunctionGroup: bool = true
+        member _.IsFunction: bool = true
 
-        member this.Name: string = name
+        member _.IsFunctionGroup: bool = true
 
-        member this.Type: TypeSymbol = errorTy
+        member _.Name: string = name
 
-        member this.TypeArguments: ImmutableArray<TypeSymbol> = ImArray.empty
+        member _.Type: TypeSymbol = errorTy
 
-        member this.TypeParameters: ImmutableArray<TypeParameterSymbol> = ImArray.empty
+        member _.TypeArguments: ImmutableArray<TypeSymbol> = ImArray.empty
 
-        member this.ValueFlags: ValueFlags = ValueFlags.Invalid
+        member _.TypeParameters: ImmutableArray<TypeParameterSymbol> = ImArray.empty
 
-        member this.IsThis = false
+        member _.ValueFlags: ValueFlags = ValueFlags.Invalid
 
-        member this.IsBase = false
+        member _.IsThis = false
 
-        member this.Semantic = 
+        member _.IsBase = false
+
+        member _.Semantic = 
             if isPattern then
                 PatternFunction
             else
                 NormalFunction
 
-        member this.WellKnownFunction = wellKnownFunc
+        member _.WellKnownFunction = wellKnownFunc
 
-        member this.AssociatedFormalPattern = None
+        member _.AssociatedFormalPattern = None
 
-        member this.AssociatedFormalProperty = None
+        member _.AssociatedFormalProperty = None
 
-        member this.Overrides = None
+        member _.Overrides = None
 
 type IFieldSymbol =
     inherit IValueSymbol
@@ -2598,24 +2610,25 @@ type FieldSymbol(attrs, enclosing, memberFlags, name, ty, valueFlags, associated
     member _.Type = ty
 
     interface IFieldSymbol with
-        member this.Attributes: imarray<AttributeSymbol> = attrs
-        member this.Constant: ConstantSymbol voption = constant
-        member this.Enclosing: EnclosingSymbol = enclosing
-        member this.IsProperty = false
+        member _.Attributes: imarray<AttributeSymbol> = attrs
+        member _.Constant: ConstantSymbol voption = constant
+        member _.Enclosing: EnclosingSymbol = enclosing
+        member _.IsProperty = false
         member _.IsPattern = false
+        member _.IsParameter = false
         member this.Formal: IValueSymbol = this :> IValueSymbol
-        member this.FunctionFlags: FunctionFlags = FunctionFlags.None
-        member this.Id: int64 = id
-        member this.IsBase: bool = false
-        member this.IsField: bool = true
-        member this.IsFunction: bool = false
-        member this.IsFunctionGroup: bool = false
-        member this.IsThis: bool = false
-        member this.MemberFlags: MemberFlags = memberFlags
-        member this.Name: string = name
-        member this.Type: TypeSymbol = ty
-        member this.ValueFlags: ValueFlags = valueFlags  
-        member this.AssociatedFormalPropertyId = associatedFormalPropId.contents
+        member _.FunctionFlags: FunctionFlags = FunctionFlags.None
+        member _.Id: int64 = id
+        member _.IsBase: bool = false
+        member _.IsField: bool = true
+        member _.IsFunction: bool = false
+        member _.IsFunctionGroup: bool = false
+        member _.IsThis: bool = false
+        member _.MemberFlags: MemberFlags = memberFlags
+        member _.Name: string = name
+        member _.Type: TypeSymbol = ty
+        member _.ValueFlags: ValueFlags = valueFlags  
+        member _.AssociatedFormalPropertyId = associatedFormalPropId.contents
 
         member _.TypeParameters =
             match stripTypeEquations ty with
@@ -2642,13 +2655,13 @@ type PolymorphicFieldSymbol(enclosing, field: IFieldSymbol, ty: TypeSymbol, tyAr
 
     interface IFieldSymbol with
 
-        member this.AssociatedFormalPropertyId: int64 option = 
+        member _.AssociatedFormalPropertyId: int64 option = 
             field.AssociatedFormalPropertyId
 
-        member this.Attributes: AttributeSymbol imarray = 
+        member _.Attributes: AttributeSymbol imarray = 
             field.Attributes
 
-        member this.Constant: ConstantSymbol voption = 
+        member _.Constant: ConstantSymbol voption = 
             field.Constant
 
         member _.Id = id
@@ -2683,7 +2696,9 @@ type PolymorphicFieldSymbol(enclosing, field: IFieldSymbol, ty: TypeSymbol, tyAr
 
         member _.IsPattern = false
 
-        member this.Formal = field.Formal
+        member _.IsParameter = false
+
+        member _.Formal = field.Formal
 
         member _.ValueFlags = flags
 
@@ -2729,28 +2744,29 @@ type PropertySymbol(enclosing, attrs, name, valueFlags, memberFlags, propTy, get
         attrs <- newAttrs
 
     interface IPropertySymbol with
-        member this.Attributes: imarray<AttributeSymbol> = attrs
-        member this.Enclosing: EnclosingSymbol = enclosing
+        member _.Attributes: imarray<AttributeSymbol> = attrs
+        member _.Enclosing: EnclosingSymbol = enclosing
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
-        member this.FunctionFlags: FunctionFlags = FunctionFlags.None
+        member _.FunctionFlags: FunctionFlags = FunctionFlags.None
         member _.IsProperty = true
         member _.IsPattern = false
-        member this.Getter: IFunctionSymbol option = getterOpt |> Option.map (fun x -> x :> IFunctionSymbol)
-        member this.Id: int64 = id
-        member this.IsBase: bool = false
-        member this.IsField: bool = false
-        member this.IsFunction: bool = false
-        member this.IsFunctionGroup: bool = false
-        member this.IsThis: bool = false
-        member this.MemberFlags: MemberFlags = memberFlags
-        member this.Name: string = name
-        member this.Setter: IFunctionSymbol option = setterOpt |> Option.map (fun x -> x :> IFunctionSymbol)
-        member this.Type: TypeSymbol = propTy
-        member this.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty
-        member this.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty
-        member this.ValueFlags: ValueFlags = valueFlags
-        member this.BackingField = backingFieldOpt
+        member _.IsParameter = false
+        member _.Getter: IFunctionSymbol option = getterOpt |> Option.map (fun x -> x :> IFunctionSymbol)
+        member _.Id: int64 = id
+        member _.IsBase: bool = false
+        member _.IsField: bool = false
+        member _.IsFunction: bool = false
+        member _.IsFunctionGroup: bool = false
+        member _.IsThis: bool = false
+        member _.MemberFlags: MemberFlags = memberFlags
+        member _.Name: string = name
+        member _.Setter: IFunctionSymbol option = setterOpt |> Option.map (fun x -> x :> IFunctionSymbol)
+        member _.Type: TypeSymbol = propTy
+        member _.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty
+        member _.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty
+        member _.ValueFlags: ValueFlags = valueFlags
+        member _.BackingField = backingFieldOpt
 
 type IPatternSymbol =
     inherit IValueSymbol
@@ -2784,27 +2800,28 @@ type PatternSymbol(enclosing, attrs, name, func: IFunctionSymbol) =
         attrs <- newAttrs
 
     interface IPatternSymbol with
-        member this.Attributes: imarray<AttributeSymbol> = attrs
-        member this.Enclosing: EnclosingSymbol = enclosing
+        member _.Attributes: imarray<AttributeSymbol> = attrs
+        member _.Enclosing: EnclosingSymbol = enclosing
         member this.Formal: IValueSymbol = this :> IValueSymbol
 
-        member this.FunctionFlags: FunctionFlags = FunctionFlags.None
+        member _.FunctionFlags: FunctionFlags = FunctionFlags.None
         member _.IsProperty = false
         member _.IsPattern = true
-        member this.PatternFunction = func
-        member this.PatternGuardFunction = guardOpt
-        member this.Id: int64 = id
-        member this.IsBase: bool = false
-        member this.IsField: bool = false
-        member this.IsFunction: bool = false
-        member this.IsFunctionGroup: bool = false
-        member this.IsThis: bool = false
-        member this.MemberFlags: MemberFlags = func.MemberFlags
-        member this.Name: string = name
-        member this.Type: TypeSymbol = func.Type
-        member this.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty // REVIEW: This right?
-        member this.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty // REVIEW: This right?
-        member this.ValueFlags: ValueFlags = func.ValueFlags
+        member _.IsParameter = false
+        member _.PatternFunction = func
+        member _.PatternGuardFunction = guardOpt
+        member _.Id: int64 = id
+        member _.IsBase: bool = false
+        member _.IsField: bool = false
+        member _.IsFunction: bool = false
+        member _.IsFunctionGroup: bool = false
+        member _.IsThis: bool = false
+        member _.MemberFlags: MemberFlags = func.MemberFlags
+        member _.Name: string = name
+        member _.Type: TypeSymbol = func.Type
+        member _.TypeArguments: imarray<TypeArgumentSymbol> = ImArray.empty // REVIEW: This right?
+        member _.TypeParameters: imarray<TypeParameterSymbol> = ImArray.empty // REVIEW: This right?
+        member _.ValueFlags: ValueFlags = func.ValueFlags
 
 [<NoEquality;NoComparison;RequireQualifiedAccess>]
 type ConstantSymbol =
@@ -2912,6 +2929,8 @@ type IValueSymbol =
 
     abstract IsPattern : bool
 
+    abstract IsParameter : bool
+
     abstract FunctionFlags : FunctionFlags
 
     abstract MemberFlags : MemberFlags
@@ -3003,6 +3022,8 @@ type LocalSymbol(name: string, ty: TypeSymbol, isGenerated, isMutable) =
 
         member _.IsPattern = false
 
+        member _.IsParameter = false
+
         member this.Formal = this :> IValueSymbol
 
         member _.ValueFlags = flags
@@ -3032,9 +3053,9 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
 
     let valueFlags =
         if isMutable then
-            ValueFlags.Mutable ||| ValueFlags.Parameter
+            ValueFlags.Mutable
         else
-            ValueFlags.Parameter
+            ValueFlags.None
             
     let mutable attrs = attrs
 
@@ -3091,6 +3112,8 @@ type LocalParameterSymbol(attrs, name: string, ty: TypeSymbol, isThis: bool, isB
         member _.IsProperty = false
 
         member _.IsPattern = false
+
+        member _.IsParameter = true
 
         member this.Formal = this :> IValueSymbol
 
@@ -3156,7 +3179,9 @@ type PolymorphicLocalSymbol(value: ILocalSymbol, ty: TypeSymbol, tyArgs: TypeSym
 
         member _.IsPattern = false
 
-        member this.Formal = value
+        member _.IsParameter = false
+
+        member _.Formal = value
 
         member _.ValueFlags = flags
 
@@ -5331,9 +5356,6 @@ module SymbolExtensions =
                 match this.Enclosing with
                 | EnclosingSymbol.Witness _ -> true
                 | _ -> false
-    
-            member this.IsParameter =
-                this.ValueFlags &&& ValueFlags.Parameter = ValueFlags.Parameter
 
             member this.AsLocal = this :?> ILocalSymbol
 
@@ -5393,8 +5415,10 @@ module SymbolExtensions =
                         member _.IsProperty = func.IsProperty
 
                         member _.IsPattern = false
+
+                        member _.IsParameter = false
     
-                        member this.Formal = func
+                        member _.Formal = func
     
                         member _.Parameters = func.Parameters
     
@@ -5455,6 +5479,8 @@ module SymbolExtensions =
                         member _.IsProperty = func.IsProperty
 
                         member _.IsPattern = false
+
+                        member _.IsParameter = false
     
                         member _.Formal = func.Formal
     
@@ -5507,6 +5533,8 @@ module SymbolExtensions =
                         member _.IsProperty = field.IsProperty
 
                         member _.IsPattern = false
+
+                        member _.IsParameter = false
     
                         member _.Formal = field.Formal
     
@@ -5553,6 +5581,8 @@ module SymbolExtensions =
                         member _.IsProperty = prop.IsProperty
 
                         member _.IsPattern = false
+
+                        member _.IsParameter = false
     
                         member _.Formal = prop.Formal
     
@@ -5600,6 +5630,8 @@ module SymbolExtensions =
                         member _.IsProperty = pat.IsProperty
 
                         member _.IsPattern = true
+
+                        member _.IsParameter = false
     
                         member _.Formal = pat.Formal
     
@@ -5645,6 +5677,8 @@ module SymbolExtensions =
                         member _.IsProperty = false
 
                         member _.IsPattern = false
+
+                        member _.IsParameter = false
     
                         member _.Formal = value.Formal
     

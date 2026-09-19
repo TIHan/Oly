@@ -1099,23 +1099,24 @@ let invalidLocalBinding name =
     let ty = TypeSymbolError
     let value =
         { new ILocalSymbol with
-              member this.Enclosing = EnclosingSymbol.RootNamespace
+              member _.Enclosing = EnclosingSymbol.RootNamespace
               member this.Formal = this :> IValueSymbol
-              member this.FunctionFlags = FunctionFlags.None
-              member this.Id = id
-              member this.IsBase = false
-              member this.IsField = false
-              member this.IsFunction = false
-              member this.IsFunctionGroup = false
-              member this.IsPattern = false
-              member this.IsProperty = false
-              member this.IsThis = false
-              member this.MemberFlags = MemberFlags.None
-              member this.Name = name
-              member this.Type = ty
-              member this.TypeArguments = ImArray.empty
-              member this.TypeParameters = ImArray.empty
-              member this.ValueFlags = ValueFlags.Invalid
+              member _.FunctionFlags = FunctionFlags.None
+              member _.Id = id
+              member _.IsBase = false
+              member _.IsField = false
+              member _.IsFunction = false
+              member _.IsFunctionGroup = false
+              member _.IsPattern = false
+              member _.IsProperty = false
+              member _.IsParameter = false
+              member _.IsThis = false
+              member _.MemberFlags = MemberFlags.None
+              member _.Name = name
+              member _.Type = ty
+              member _.TypeArguments = ImArray.empty
+              member _.TypeParameters = ImArray.empty
+              member _.ValueFlags = ValueFlags.Invalid
         }
     BindingLocal(value)
 

@@ -106,7 +106,9 @@ let private alterParameterAndReturnTypesForEnumOperations (func: IFunctionSymbol
 
                 member _.IsPattern = false
 
-                member this.Formal = func.Formal
+                member _.IsParameter = false
+
+                member _.Formal = func.Formal
 
                 member _.Parameters = newPars
 
