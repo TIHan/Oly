@@ -264,11 +264,10 @@ type internal RuntimeAssembly<'Type, 'Function, 'Field> =
         | true, (_, emitted) -> emitted
         | _ -> failwithf "Function definition not cached: %A" func.Name
 
-let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Type, 'Function, 'Field>) (enclosingTy: RuntimeType) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
-    let asm = runtime.Assemblies[enclosingTy.AssemblyIdentity]
-    let ilAsm = asm.ilAsm
+let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Type, 'Function, 'Field>) (ilAsm: OlyILReadOnlyAssembly) (ilFuncDefHandle: OlyILFunctionDefinitionHandle) =
     let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
     let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
+    let enclosingTy = runtime.ResolveTypeDefinition(ilAsm, ilFuncDef.EnclosingEntityDefinitionHandle)
 
     let name = ilAsm.GetStringOrEmpty ilFuncSpec.NameHandle
 
@@ -445,8 +444,8 @@ type cenv<'Type, 'Function, 'Field>(localCount, argCount, vm: OlyRuntime<'Type, 
         vm.ResolveTypes(ilAsm, ilTys, genericContext)
 
     [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
-    member _.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle): RuntimeFunction =
-        vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
+    member _.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle): RuntimeFunction =
+        vm.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
 
     [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
     member _.ResolveFunction(ilAsm, ilFuncRef, genericContext): RuntimeFunction = 
@@ -1566,7 +1565,7 @@ let importExpressionAux (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'Type, 
                     )
                     |> Seq.exactlyOne
 
-                let invokeFunc = cenv.ResolveFunctionDefinition(funArgTy, ilInvokeFuncDefHandle)
+                let invokeFunc = cenv.ResolveFunctionDefinition(ilAsm, ilInvokeFuncDefHandle)
 
                 if invokeFunc.TypeParameters.IsEmpty |> not then
                     raise(System.NotImplementedException("CallIndirect on generic closure invoke function."))
@@ -1822,13 +1821,12 @@ let importReceiverExpression (cenv: cenv<'Type, 'Function, 'Field>) (env: env<'T
 let importFunctionBody 
         (vm: OlyRuntime<'Type, 'Function, 'Field>)
         (asmIdentity: OlyILAssemblyIdentity)
-        (ilEntDefHandle: OlyILEntityDefinitionHandle)
         (ilFuncDefHandle: OlyILFunctionDefinitionHandle) 
         (genericContext: GenericContext) : OlyIRFunctionBody<'Type, 'Function, 'Field> =
 
     let asm = vm.Assemblies[asmIdentity]
-    let enclosingTy = vm.ResolveTypeDefinition(asm.ilAsm, ilEntDefHandle)
-    let func = vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
+    let func = vm.ResolveFunctionDefinition(asm.ilAsm, ilFuncDefHandle)
+    let enclosingTy = func.EnclosingType
 
     OlyAssert.True(func.IsFormal)
     OlyAssert.True(enclosingTy.IsFormal)
@@ -1936,14 +1934,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             MutableFixedArrays = RuntimeTypeArgumentListTable()
         }
 
-    let resolveFunctionDefinition (enclosingTy: RuntimeType) ilFuncDefHandle =
-        OlyAssert.True(enclosingTy.IsFormal)
-        let asm = assemblies[enclosingTy.AssemblyIdentity]
-
+    let resolveFunctionDefinition (ilAsm: OlyILReadOnlyAssembly) ilFuncDefHandle =
+        let asm = assemblies[ilAsm.Identity]
         match asm.FunctionDefinitionCache.TryGetValue ilFuncDefHandle with
         | true, (res, _) -> res
         | _ ->
-            let res = createFunctionDefinition this enclosingTy ilFuncDefHandle
+            let res = createFunctionDefinition this ilAsm ilFuncDefHandle
             if not res.IsFormal then
                 failwith "Expected formal function."
             asm.FunctionDefinitionCache.[ilFuncDefHandle] <- (res, RuntimeTypeArgumentWitnessListTable())
@@ -1992,7 +1988,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let ilFuncDef2 = asm.ilAsm.GetFunctionDefinition(ilFuncDefHandle2)
                     let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
                     if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, fixedGenericContext, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, fixedGenericContext) then
-                        this.ResolveFunctionDefinition(enclosingTy1.Formal, ilFuncDefHandle2)
+                        this.ResolveFunctionDefinition(asm.ilAsm, ilFuncDefHandle2)
                         |> Some
                     else
                         None
@@ -2126,7 +2122,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     ilFuncSpec2.TypeParameters.Length = targetFunc.TypeParameters.Length &&
                     ilFuncSpec2.Parameters.Length = targetFunc.Parameters.Length &&
                     ilFuncSpec2.IsInstance = targetFunc.Flags.IsInstance then
-                        let formalFunc = this.ResolveFunctionDefinition(ty.Formal, ilFuncDefHandle2)
+                        let formalFunc = this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle2)
                         let func = formalFunc.MakeInstance(ty, targetFunc.TypeArguments)
 
                         let areParameterTysEqual =
@@ -2549,7 +2545,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
 
                             if not ilFuncDef.IsIntrinsic then
-                                let func = this.ResolveFunctionDefinition(tyDef.Formal, ilFuncDefHandle)
+                                let func = this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
                                 this.EmitFunction(func) |> ignore
                         )
                     )
@@ -2560,7 +2556,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let ilFuncDef = ilAsm.GetFunctionDefinition(ilFuncDefHandle)
 
                             if ilFuncDef.IsConstructor && ilFuncDef.IsStatic then
-                                let func = this.ResolveFunctionDefinition(tyDef.Formal, ilFuncDefHandle)
+                                let func = this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
                                 let func =
                                     if isGenericsErased && not func.EnclosingType.TypeParameters.IsEmpty then
                                         func.MakeReference(tyDef)
@@ -2582,7 +2578,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                             overridenFunc.IsExternal ||
                                             (overridenFunc.EnclosingType.TypeParameters.IsEmpty && overridenFunc.TypeParameters.IsEmpty)
                                         if canEagerlyEmit then
-                                            let func = this.ResolveFunctionDefinition(tyDef.Formal, ilFuncDefHandle)
+                                            let func = this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
                                             let func2 = func.MakeReference(tyDef)
                                             this.EmitFunction(func2) |> ignore
                                     | _ ->
@@ -2607,11 +2603,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             None
                         else
                             if isGenericsErased then                               
-                                this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Getter).MakeReference(tyDef)
+                                this.ResolveFunctionDefinition(ilAsm, ilPropDef.Getter).MakeReference(tyDef)
                                 |> this.EmitFunction
                                 |> Some
                             else
-                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Getter)
+                                this.ResolveFunctionDefinition(ilAsm, ilPropDef.Getter)
                                 |> this.EmitFunction
                                 |> Some
 
@@ -2620,11 +2616,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             None
                         else
                             if isGenericsErased then
-                                this.ResolveFunctionDefinition(tyDef.Formal, ilPropDef.Setter).MakeReference(tyDef)
+                                this.ResolveFunctionDefinition(ilAsm, ilPropDef.Setter).MakeReference(tyDef)
                                 |> this.EmitFunction
                                 |> Some
                             else
-                                this.ResolveFunctionDefinition(tyDef, ilPropDef.Setter)
+                                this.ResolveFunctionDefinition(ilAsm, ilPropDef.Setter)
                                 |> this.EmitFunction
                                 |> Some
 
@@ -3050,8 +3046,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 let ilAsm = pair.Value.ilAsm
                 match ilAsm.EntryPoint with
                 | Some(ilEnclosingTy, ilFuncDefHandle) ->
-                    let ty = this.ResolveType(ilAsm, ilEnclosingTy, GenericContext.Default)
-                    Some(this.ResolveFunctionDefinition(ty.Formal, ilFuncDefHandle))
+                    Some(this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle))
                 | _ ->
                     None
             )
@@ -3236,8 +3231,8 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     { field.Formal with EnclosingType = enclosingTy; Type = field.Type.Substitute(genericContext) }
                     |> asm.RuntimeFieldReferenceCache.Intern
 
-    member this.ResolveFunctionDefinition(enclosingTy: RuntimeType, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
-        resolveFunctionDefinition enclosingTy ilFuncDefHandle
+    member this.ResolveFunctionDefinition(ilAsm: OlyILReadOnlyAssembly, ilFuncDefHandle: OlyILFunctionDefinitionHandle) : RuntimeFunction =
+        resolveFunctionDefinition ilAsm ilFuncDefHandle
 
     /// REVIEW: If the enclosing is a witness of a shape for a type variable, then calling this will fail. The reason being is that we haven't figured out
     ///         a good way to represent calling the shape's function for a type variable.
@@ -3370,9 +3365,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
         | OlyILFunctionInstance.Definition(ilFuncDefHandle) ->
-            let enclosingTy = 
-                vm.ResolveTypeDefinition(ilAsm, ilAsm.GetFunctionDefinition(ilFuncDefHandle).EnclosingEntityDefinitionHandle)
-            vm.ResolveFunctionDefinition(enclosingTy, ilFuncDefHandle)
+            vm.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext
@@ -3807,7 +3800,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     |> ImArray.tryPick (fun x ->
                         let ilFuncDef = ilAsm.GetFunctionDefinition(x)
                         if ilFuncDef.IsConstructor && ilFuncDef.IsStatic then
-                            let func = this.ResolveFunctionDefinition(ty.Formal, x)     
+                            let func = this.ResolveFunctionDefinition(ilAsm, x)     
 
                             assert(func.TypeParameters.IsEmpty)
                             assert(func.Parameters.IsEmpty)
@@ -4178,7 +4171,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
             let ilFuncSpec2 = asm.ilAsm.GetFunctionSpecification(ilFuncDef2.SpecificationHandle)
             let enclosingTyParCount2 = enclosingTy2.TypeArguments.Length
             if this.AreFunctionSpecificationsEqual(enclosingTyParCount1, ilAsm1, ilFuncSpec1, genericContext, enclosingTyParCount2, asm.ilAsm, ilFuncSpec2, genericContext2) then
-                this.ResolveFunctionDefinition(enclosingTy.Formal, ilFuncDefHandle2)
+                this.ResolveFunctionDefinition(asm.ilAsm, ilFuncDefHandle2)
                 |> Some
             else
                 None
@@ -4196,7 +4189,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let genericContext2 = genericContext.Set(overrides.EnclosingType.TypeArguments, funcTyArgs)
                     let ilFuncSpec2 = ilAsm2.GetFunctionSpecification(ilOverrides.SpecificationHandle)
                     if this.AreFunctionSpecificationsEqual(enclosingTyParCount, ilAsm1, ilAsm1.GetFunctionSpecification(ilFuncSpecHandle1), genericContext, enclosingTyParCount, ilAsm2, ilFuncSpec2, genericContext2) then
-                        this.ResolveFunctionDefinition(enclosingTy.Formal, ilFuncDefHandle2)
+                        this.ResolveFunctionDefinition(ilAsm2, ilFuncDefHandle2)
                         |> Some
                     else
                         None
@@ -4205,7 +4198,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let genericContext2 = genericContext.Set(enclosingTy.TypeArguments, funcTyArgs)
                     let ilFuncSpec2 = ilAsm2.GetFunctionSpecification(ilFuncDef.SpecificationHandle)
                     if this.AreFunctionSpecificationsEqual(enclosingTyParCount, ilAsm1, ilAsm1.GetFunctionSpecification(ilFuncSpecHandle1), genericContext, enclosingTyParCount, ilAsm2, ilFuncSpec2, genericContext2) then
-                        this.ResolveFunctionDefinition(enclosingTy.Formal, ilFuncDefHandle2)
+                        this.ResolveFunctionDefinition(ilAsm2, ilFuncDefHandle2)
                         |> Some
                     else
                         None
@@ -4617,7 +4610,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             let ilEntDef = ilAsm.GetEntityDefinition(constrEnt.ILEntityDefinitionHandle)
                             ilEntDef.FunctionHandles
                             |> ImArray.iter (fun ilFuncDefHandle ->
-                                let func = resolveFunctionDefinition constrTy ilFuncDefHandle
+                                let func = resolveFunctionDefinition ilAsm ilFuncDefHandle
                                 let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature tyArg func
                                 if funcs.IsEmpty then
                                     // Structs implicitly have a default ctor even if it isn't defined. It simply allocates the struct.
@@ -4733,7 +4726,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     importFunctionBody
                         this
                         func.Formal.EnclosingType.AssemblyIdentity
-                        func.Formal.EnclosingType.ILEntityDefinitionHandle
                         func.Formal.ILFunctionDefinitionHandle
                         (genericContext.SetPassedWitnesses(func.Witnesses))
 
