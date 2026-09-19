@@ -548,21 +548,20 @@ type OlyILFunctionDefinition =
 
     static member NilHandle = OlyILTableIndex.CreateFunctionDefinition(-1)
 
-[<NoEquality;NoComparison>]
+[<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyILFunctionInstance =
-    | OlyILFunctionInstance of enclosing: OlyILEnclosing * specHandle: OlyILFunctionSpecificationHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray
+    | Signature of enclosing: OlyILEnclosing * specHandle: OlyILFunctionSpecificationHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray
+    | Definition of enclosing: OlyILEnclosing * funcDefHandle: OlyILFunctionDefinitionHandle
 
     member this.Enclosing =
         match this with
-        | OlyILFunctionInstance(enclosing=enclosing) -> enclosing
-
-    member this.SpecificationHandle =
-        match this with
-        | OlyILFunctionInstance(specHandle=specHandle) -> specHandle
+        | Signature(enclosing=enclosing) 
+        | Definition(enclosing=enclosing) -> enclosing
 
     member this.TypeArguments =
         match this with
-        | OlyILFunctionInstance(tyArgs=tyArgs) -> tyArgs
+        | Signature(tyArgs=tyArgs) -> tyArgs
+        | Definition _ -> ImArray.empty
 
     member this.GetEnclosingType() =
         match this.Enclosing with

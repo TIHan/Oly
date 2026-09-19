@@ -703,7 +703,7 @@ let importOperationNewOrDefault
     // '{ new() }' shape works for structs that have no parameterless instance constructor.
     if ilArgs.IsEmpty && ilFuncInst.Enclosing.IsWitness_t then
         match ilFuncInst with
-        | OlyILFunctionInstance(OlyILEnclosing.Witness(OlyILTypeVariable _ as ilEnclosingTy, ilEnclosingAbstractEntInst), ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) 
+        | OlyILFunctionInstance.Signature(OlyILEnclosing.Witness(OlyILTypeVariable _ as ilEnclosingTy, ilEnclosingAbstractEntInst), ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) 
                 when ilFuncTyArgs.IsEmpty && ilWitnesses.IsEmpty ->
             let isShape = 
                 match ilEnclosingAbstractEntInst with
@@ -3238,7 +3238,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
     member this.ResolveFunction(ilAsm: OlyILReadOnlyAssembly, ilFuncInst: OlyILFunctionInstance, genericContext: GenericContext, passedWitnesses: RuntimeWitness imarray) : RuntimeFunction =
         let vm = this
         match ilFuncInst with
-        | OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) ->
+        | OlyILFunctionInstance.Signature(ilEnclosing, ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses) ->
             let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
             let ilFuncSpec = ilAsm.GetFunctionSpecification(ilFuncSpecHandle)
 
@@ -3361,6 +3361,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
+        | OlyILFunctionInstance.Definition(ilEnclosing, ilFuncDefHandle) ->
+            let enclosing = vm.ResolveEnclosing(ilAsm, ilEnclosing, genericContext, passedWitnesses)
+            vm.ResolveFunctionDefinition(enclosing.AsType, ilFuncDefHandle)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext

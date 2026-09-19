@@ -232,7 +232,7 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     )
 #endif
 
-    OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
+    OlyILFunctionInstance.Signature(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
 
 and GenFunctionAsILFunctionReference cenv env (func: IFunctionSymbol) : OlyILFunctionReference =
     //OlyAssert.False(func.Enclosing.IsTypeConstructor)

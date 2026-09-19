@@ -1132,16 +1132,15 @@ module internal rec Helpers =
         let attr = reader.GetCustomAttribute(attrHandle)
 
         let ctorHandle = attr.Constructor
-        let parentHandle = attr.Parent
 
         if ctorHandle.Kind = HandleKind.MethodDefinition then
-            let olyEntHandle, _ = 
-                if parentHandle.Kind = HandleKind.TypeDefinition then
-                    importTypeDefinitionAsOlyILEntityDefinition 
-                        cenv 
-                        (TypeDefinitionHandle.op_Explicit(parentHandle))
-                else
-                    failwith "Expected type definition"
+            let ctorHandle = MethodDefinitionHandle.op_Explicit(ctorHandle)
+            let meth = reader.GetMethodDefinition(ctorHandle)
+
+            let olyEntHandle, fullTyParCount = 
+                importTypeDefinitionAsOlyILEntityDefinition
+                    cenv
+                    (meth.GetDeclaringType())
 
             let olyEnt = olyAsm.GetEntityDefinition(olyEntHandle)
 
@@ -1150,25 +1149,22 @@ module internal rec Helpers =
                     cenv
                     olyEntHandle
                     olyEnt.Kind
-                    olyEnt.FullTypeParameterCount
+                    fullTyParCount
                     ImmutableDictionary.Empty
-                    (MethodDefinitionHandle.op_Explicit(ctorHandle))
+                    ctorHandle
             match olyFuncDefHandleOpt with
             | ValueSome(olyFuncDefHandle) ->
-                let olyFuncSpecHandle =
-                    olyAsm.GetFunctionDefinition(olyFuncDefHandle).SpecificationHandle
+                OlyAssert.Equal(0, olyEnt.FullTypeParameterCount)
                 Some(
                     OlyILAttribute.Constructor(
-                        OlyILFunctionInstance(
+                        OlyILFunctionInstance.Definition(
                             OlyILEnclosing.Entity(
                                 OlyILEntityInstance(
                                     olyEntHandle,
                                     ImArray.empty
                                 )
                             ),
-                            olyFuncSpecHandle,
-                            ImArray.empty,
-                            ImArray.empty
+                            olyFuncDefHandle
                         ),
                         ImArray.empty,
                         ImArray.empty
@@ -1353,6 +1349,7 @@ module internal rec Helpers =
 
         let olyAttrs =
             lazy
+                System.Diagnostics.Debug.WriteLine(name)
                 tyDef.GetCustomAttributes().ToImmutableArray() 
                 |> ImArray.choose (tryEntityImportAttributeAsOlyILAttribute cenv)
         cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
