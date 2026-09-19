@@ -3781,7 +3781,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     entFlags <- entFlags ||| RuntimeEntityFlags.Intrinsic
 
                 let attrs =
-                    ilEntDef.Attributes
+                    ilEntDef.Attributes.Value
                     |> ImArray.choose (fun x -> 
                         this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty)
                     )

@@ -1303,7 +1303,7 @@ and GenEntityDefinitionNoCache cenv env (ent: EntitySymbol) =
             OlyILEntityDefinition(
                 ilEntKind,
                 ilEntFlags,
-                ilAttrs,
+                Lazy<_>.CreateFromValue(ilAttrs),
                 ilEnclosing,
                 ilName,
                 ilTyPars,

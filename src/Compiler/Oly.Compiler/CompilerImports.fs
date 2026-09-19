@@ -1298,9 +1298,11 @@ let private importAttribute cenv (ilAttr: OlyILAttribute) =
     | OlyILAttribute.Constructor(funcInst, args, namedArgs) ->
         // TODO: 
         match funcInst with
-        | OlyILFunctionInstance(enclosing, specHandle, tyArgs, witnesses) ->
-            match enclosing with
-            | OlyILEnclosing.Entity(entInst) ->   
+        | OlyILFunctionInstance(ilEnclosing, ilFuncSpecHandle, ilTyArgs, ilWitnesses) ->
+            match ilEnclosing with
+            | OlyILEnclosing.Entity(ilEntInst) ->   
+                let enclosingEnt = importEntitySymbolFromDefinition cenv ilEntInst.DefinitionOrReferenceHandle
+                let enclosing = enclosingEnt.AsEnclosing
                 failwith "Importing attribute constructor not implemented yet."
              //   let funcRef = OlyILFunctionReference(entInst.AsType, specHandle)
              //   let olyFunc = importFunctionFromReference cenv ImArray.empty funcRef
@@ -2012,7 +2014,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
         if lazyAttrs.IsDefault then
             lazyAttrs <-
                 let attrs =
-                    ilEntDef.Attributes
+                    ilEntDef.Attributes.Value
                     |> ImArray.map (importAttribute cenv)
                 match ilEntDef with
                 | OlyILEntityDefinition(intrinsicTyOpt = Some intrinsicNameHandle) ->

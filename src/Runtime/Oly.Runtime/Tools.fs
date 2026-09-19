@@ -99,7 +99,7 @@ let addEntity (ilAsm: OlyILAssembly) (ilEntDefHandle: OlyILEntityDefinitionHandl
         OlyILEntityDefinition(
             ilKind,
             OlyILEntityFlags.Public,
-            ImArray.empty,
+            Lazy<_>.CreateFromValue(ImArray.empty),
             OlyILEnclosing.Namespace(ImArray.empty, ilAsm.Identity),
             ilAsm.AddString(name),
             tyPars,

@@ -256,7 +256,7 @@ type OlyILEntityDefinition =
     | OlyILEntityDefinition of 
         kind: OlyILEntityKind * 
         flags: OlyILEntityFlags *
-        attrs: OlyILAttribute imarray *
+        attrs: Lazy<OlyILAttribute imarray> *
         enclosing: OlyILEnclosing * 
         name: OlyILStringHandle * 
         tyPars: OlyILTypeParameter imarray *

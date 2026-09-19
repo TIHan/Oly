@@ -189,7 +189,7 @@ module internal rec Helpers =
         OlyILTypeInvalid(importRawString cenv msg)
 
     [<Sealed>]
-    type internal OlySignatureTypeProvider (cenv: cenv) =
+    type internal OlySignatureTypeProvider (cenv: CompilerEnvironment) =
 
         let tryGetNamespaceAndName(olyEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
             if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
@@ -420,7 +420,7 @@ module internal rec Helpers =
                 let ilCallConv = importCallingConvention methSig.Header.CallingConvention
                 OlyILTypeNativeFunctionPtr(ilCallConv, olyArgTys, olyReturnTy)
 
-    type cenv =
+    type CompilerEnvironment =
         {
             olyAsm: OlyILAssembly
             reader: MetadataReader
@@ -434,6 +434,7 @@ module internal rec Helpers =
             exportedTyToOlyEntRefCache: Dictionary<ExportedTypeHandle, OlyILEntityReferenceHandle>
             methDefToOlyFuncDefCache: Dictionary<MethodDefinitionHandle, OlyILEntityDefinitionHandle>
             olyEntDefToNameCache: Dictionary<int, string>
+            postEvalQueue: Queue<unit -> unit>
         }
 
     let unmangleName (name: string) =
@@ -441,7 +442,7 @@ module internal rec Helpers =
         | -1 -> name
         | index -> name.Substring(0, index)
 
-    let importString (cenv: cenv) (strHandle: StringHandle) =
+    let importString (cenv: CompilerEnvironment) (strHandle: StringHandle) =
         match cenv.stringToOlyStringCache.TryGetValue strHandle with
         | true, olyStrHandle -> olyStrHandle
         | _ ->
@@ -458,7 +459,7 @@ module internal rec Helpers =
                 cenv.stringCache[str] <- olyStrHandle
                 olyStrHandle
 
-    let importRawString (cenv: cenv) (str: string) =
+    let importRawString (cenv: CompilerEnvironment) (str: string) =
         match cenv.stringCache.TryGetValue str with
         | true, olyStrHandle ->
             olyStrHandle
@@ -467,7 +468,7 @@ module internal rec Helpers =
             cenv.stringCache[str] <- olyStrHandle
             olyStrHandle
 
-    let importTypeSpecificationAsOlyILType (cenv: cenv) (tySpecHandle: TypeSpecificationHandle) =
+    let importTypeSpecificationAsOlyILType (cenv: CompilerEnvironment) (tySpecHandle: TypeSpecificationHandle) =
         match cenv.tySpecToOlyTypeCache.TryGetValue tySpecHandle with
         | true, olyTy -> olyTy
         | _ ->
@@ -478,7 +479,7 @@ module internal rec Helpers =
             cenv.tySpecToOlyTypeCache.[tySpecHandle] <- olyTy
             olyTy
 
-    let importAsOlyILType (cenv: cenv) (entHandle: EntityHandle) =
+    let importAsOlyILType (cenv: CompilerEnvironment) (entHandle: EntityHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -495,7 +496,7 @@ module internal rec Helpers =
         | _ ->
             failwith "Invalid handle kind."
 
-    let importConstraintAsOlyILConstraints (cenv: cenv) (constrHandle: GenericParameterConstraintHandle) : OlyILConstraint imarray =
+    let importConstraintAsOlyILConstraints (cenv: CompilerEnvironment) (constrHandle: GenericParameterConstraintHandle) : OlyILConstraint imarray =
         let reader = cenv.reader
 
         let constr = reader.GetGenericParameterConstraint(constrHandle)
@@ -519,7 +520,7 @@ module internal rec Helpers =
                 OlyILConstraint.SubtypeOf(olyTy)
                 |> ImArray.createOne
 
-    let importGenericParametersAsOlyILTypeParameters (cenv: cenv) (genericParHandles: GenericParameterHandleCollection) =
+    let importGenericParametersAsOlyILTypeParameters (cenv: CompilerEnvironment) (genericParHandles: GenericParameterHandleCollection) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -557,7 +558,7 @@ module internal rec Helpers =
         }
         |> ImArray.ofSeq
 
-    let importMethodDefinitionAsOlyILFunctionSpecification (cenv: cenv) (name: string) tyParOffset (methDefHandle: MethodDefinitionHandle) =
+    let importMethodDefinitionAsOlyILFunctionSpecification (cenv: CompilerEnvironment) (name: string) tyParOffset (methDefHandle: MethodDefinitionHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -601,7 +602,7 @@ module internal rec Helpers =
             |> olyAsm.AddFunctionSpecification
         res
 
-    let getEnclosingInfo (cenv: cenv) (path: string imarray) (entHandle: EntityHandle) =
+    let getEnclosingInfo (cenv: CompilerEnvironment) (path: string imarray) (entHandle: EntityHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -629,7 +630,7 @@ module internal rec Helpers =
             else
                 failwith "Invalid type reference."
 
-    let importExportedTypeAsOlyILEntityReference (cenv: cenv) (exportedTyHandle: ExportedTypeHandle) =
+    let importExportedTypeAsOlyILEntityReference (cenv: CompilerEnvironment) (exportedTyHandle: ExportedTypeHandle) =
         match cenv.exportedTyToOlyEntRefCache.TryGetValue exportedTyHandle with
         | true, x -> x
         | _ ->
@@ -671,7 +672,7 @@ module internal rec Helpers =
             cenv.exportedTyToOlyEntRefCache.[exportedTyHandle] <- olyEntRefHandle
             olyEntRefHandle
 
-    let importTypeReferenceAsOlyILEntityReference (cenv: cenv) (tyRefHandle: TypeReferenceHandle) =
+    let importTypeReferenceAsOlyILEntityReference (cenv: CompilerEnvironment) (tyRefHandle: TypeReferenceHandle) =
         match cenv.tyRefToOlyEntRefCache.TryGetValue tyRefHandle with
         | true, x -> x
         | _ ->
@@ -713,7 +714,7 @@ module internal rec Helpers =
             cenv.tyRefToOlyEntRefCache.[tyRefHandle] <- olyEntRefHandle
             olyEntRefHandle
 
-    let private getFullTypeParameterCount (cenv: cenv) (tyDefHandle: TypeDefinitionHandle) =
+    let private getFullTypeParameterCount (cenv: CompilerEnvironment) (tyDefHandle: TypeDefinitionHandle) =
         cenv.reader.GetTypeDefinition(tyDefHandle).GetGenericParameters().Count
 
     let hasReadOnlyAttribute cenv (handles: CustomAttributeHandleCollection) =
@@ -810,7 +811,7 @@ module internal rec Helpers =
                 false
         )
 
-    let tryImportFieldDefinitionAsOlyILFieldDefinition (cenv: cenv) (fieldDefHandle: FieldDefinitionHandle) =
+    let tryImportFieldDefinitionAsOlyILFieldDefinition (cenv: CompilerEnvironment) (fieldDefHandle: FieldDefinitionHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -942,7 +943,7 @@ module internal rec Helpers =
         olyAsm.AddFieldDefinition(olyFieldDef)
         |> Some
 
-    let importMemberReferenceAsOlyILFunctionReference (cenv: cenv) (memRefHandle: MemberReferenceHandle) : OlyILFunctionReference =
+    let importMemberReferenceAsOlyILFunctionReference (cenv: CompilerEnvironment) (memRefHandle: MemberReferenceHandle) : OlyILFunctionReference =
         // TODO: Caching
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
@@ -986,7 +987,7 @@ module internal rec Helpers =
 
         OlyILFunctionReference(olyEnclosing, olyFuncSpecHandle)
 
-    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: cenv) olyEntDefHandle olyEntKind tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
+    let importMethodDefinitionAsOlyILFunctionDefinition (cenv: CompilerEnvironment) olyEntDefHandle olyEntKind tyParOffset (methOverrides: ImmutableDictionary<EntityHandle, OlyILFunctionReference>) (methDefHandle: MethodDefinitionHandle) : OlyILFunctionDefinitionHandle voption =
         match cenv.methDefToOlyFuncDefCache.TryGetValue methDefHandle with
         | true, res -> ValueSome res
         | _ ->
@@ -1114,7 +1115,7 @@ module internal rec Helpers =
         cenv.methDefToOlyFuncDefCache.[methDefHandle] <- res
         ValueSome res
 
-    let tryImportAttributeAsOlyILAttribute (cenv: cenv) (attrHandle: CustomAttributeHandle) =
+    let tryImportAttributeAsOlyILAttribute (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
         // TODO: Implement.
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
@@ -1123,7 +1124,63 @@ module internal rec Helpers =
 
         None
 
-    let importTypeDefinitionAsOlyILEntityDefinition (cenv: cenv) (tyDefHandle: TypeDefinitionHandle) : OlyILEntityDefinitionHandle * int =
+    let tryEntityImportAttributeAsOlyILAttribute (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
+        // TODO: Implement.
+        let olyAsm = cenv.olyAsm
+        let reader = cenv.reader
+
+        let attr = reader.GetCustomAttribute(attrHandle)
+
+        let ctorHandle = attr.Constructor
+        let parentHandle = attr.Parent
+
+        if ctorHandle.Kind = HandleKind.MethodDefinition then
+            let olyEntHandle, _ = 
+                if parentHandle.Kind = HandleKind.TypeDefinition then
+                    importTypeDefinitionAsOlyILEntityDefinition 
+                        cenv 
+                        (TypeDefinitionHandle.op_Explicit(parentHandle))
+                else
+                    failwith "Expected type definition"
+
+            let olyEnt = olyAsm.GetEntityDefinition(olyEntHandle)
+
+            let olyFuncDefHandleOpt = 
+                importMethodDefinitionAsOlyILFunctionDefinition
+                    cenv
+                    olyEntHandle
+                    olyEnt.Kind
+                    olyEnt.FullTypeParameterCount
+                    ImmutableDictionary.Empty
+                    (MethodDefinitionHandle.op_Explicit(ctorHandle))
+            match olyFuncDefHandleOpt with
+            | ValueSome(olyFuncDefHandle) ->
+                let olyFuncSpecHandle =
+                    olyAsm.GetFunctionDefinition(olyFuncDefHandle).SpecificationHandle
+                Some(
+                    OlyILAttribute.Constructor(
+                        OlyILFunctionInstance(
+                            OlyILEnclosing.Entity(
+                                OlyILEntityInstance(
+                                    olyEntHandle,
+                                    ImArray.empty
+                                )
+                            ),
+                            olyFuncSpecHandle,
+                            ImArray.empty,
+                            ImArray.empty
+                        ),
+                        ImArray.empty,
+                        ImArray.empty
+                    )
+                )
+            | _ -> 
+                None
+        else
+            let ctor = reader.GetMemberReference(MemberReferenceHandle.op_Explicit(ctorHandle))
+            None
+
+    let importTypeDefinitionAsOlyILEntityDefinition (cenv: CompilerEnvironment) (tyDefHandle: TypeDefinitionHandle) : OlyILEntityDefinitionHandle * int =
         match cenv.tyDefToOlyEntDefCache.TryGetValue tyDefHandle with
         | true, result -> result
         | _ ->
@@ -1295,10 +1352,10 @@ module internal rec Helpers =
         let asmName = reader.GetAssemblyDefinition().GetAssemblyName()
 
         let olyAttrs =
-            seq {
-                yield! tyDef.GetCustomAttributes().ToImmutableArray() |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
-            }
-            |> ImArray.ofSeq
+            lazy
+                tyDef.GetCustomAttributes().ToImmutableArray() 
+                |> ImArray.choose (tryEntityImportAttributeAsOlyILAttribute cenv)
+        cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
             
         let olyImportInfo =
             Some(OlyILImportOrExportInfo.Import(importRawString cenv ("CLR:" + asmName.FullName), path |> ImArray.map (importRawString cenv), importRawString cenv name))
@@ -1530,6 +1587,7 @@ type Importer private (name: string, peReader: PEReader) =
                 exportedTyToOlyEntRefCache = Dictionary()
                 methDefToOlyFuncDefCache = Dictionary()
                 olyEntDefToNameCache = Dictionary()
+                postEvalQueue = Queue()
             }
 
         let olyDefaultCtorConstr =
@@ -1564,7 +1622,7 @@ type Importer private (name: string, peReader: PEReader) =
                 OlyILEntityDefinition(
                     OlyILEntityKind.Shape,
                     OlyILEntityFlags.Abstract ||| OlyILEntityFlags.Anonymous,
-                    ImArray.empty,
+                    Lazy<_>.CreateFromValue(ImArray.empty),
                     OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity),
                     OlyILStringHandle.GetNil(OlyILTableKind.String),
                     ImArray.empty,
@@ -1594,6 +1652,10 @@ type Importer private (name: string, peReader: PEReader) =
         let exportedTys = reader.ExportedTypes.ToImmutableArray()
         for i = 0 to exportedTys.Length - 1 do
             importExportedTypeAsOlyILEntityReference cenv exportedTys.[i] |> ignore
+
+        let mutable postEval = Unchecked.defaultof<_>
+        while cenv.postEvalQueue.TryDequeue(&postEval) do
+            postEval()
 
         olyAsm
 
