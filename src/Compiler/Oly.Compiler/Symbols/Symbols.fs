@@ -2230,6 +2230,7 @@ type IFunctionSymbol =
 
     abstract AssociatedFormalProperty: IPropertySymbol option
 
+    /// Formal function overrides
     abstract Overrides : IFunctionSymbol option
 
 [<Sealed;DebuggerDisplay("{Name}")>]

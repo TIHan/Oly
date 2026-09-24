@@ -1138,38 +1138,66 @@ module internal rec Helpers =
             let ctorHandle = MethodDefinitionHandle.op_Explicit(ctorHandle)
             let meth = reader.GetMethodDefinition(ctorHandle)
 
-            let olyEntHandle, fullTyParCount = 
+            let olyEntDefHandle, fullTyParCount = 
                 importTypeDefinitionAsOlyILEntityDefinition
                     cenv
                     (meth.GetDeclaringType())
+            OlyAssert.Equal(0, fullTyParCount)
 
-            let olyEnt = olyAsm.GetEntityDefinition(olyEntHandle)
+            let olyEntDef = olyAsm.GetEntityDefinition(olyEntDefHandle)
 
             let olyFuncDefHandleOpt = 
                 importMethodDefinitionAsOlyILFunctionDefinition
                     cenv
-                    olyEntHandle
-                    olyEnt.Kind
+                    olyEntDefHandle
+                    olyEntDef.Kind
                     fullTyParCount
                     ImmutableDictionary.Empty
                     ctorHandle
             match olyFuncDefHandleOpt with
             | ValueSome(olyFuncDefHandle) ->
-                OlyAssert.Equal(0, olyEnt.FullTypeParameterCount)
-                Some(
-                    OlyILAttribute.Constructor(
-                        OlyILFunctionInstance.Definition(
-                            olyFuncDefHandle
+                OlyAssert.Equal(0, olyEntDef.FullTypeParameterCount)
+                let olyFuncDef = olyAsm.GetFunctionDefinition(olyFuncDefHandle)
+                let olyFuncInst =
+                    OlyILFunctionInstance.Signature(
+                        OlyILEnclosing.Entity(
+                            OlyILEntityInstance(olyEntDefHandle, ImArray.empty)
                         ),
+                        olyFuncDef.SpecificationHandle,
                         ImArray.empty,
                         ImArray.empty
                     )
+                Some(
+                    OlyILAttribute.Constructor(
+                        olyFuncInst,
+                        ImArray.empty, // TODO
+                        ImArray.empty // TODO
+                    )
                 )
             | _ -> 
+                failwith "failed to import attribute"
                 None
+        elif ctorHandle.Kind = HandleKind.MethodSpecification then
+            failwith "Importing attribute of method specification not supported (yet)"
         else
-            let ctor = reader.GetMemberReference(MemberReferenceHandle.op_Explicit(ctorHandle))
-            None
+            let ctor = importMemberReferenceAsOlyILFunctionReference cenv (MemberReferenceHandle.op_Explicit(ctorHandle))           
+
+            // TODO: Assert to make sure enclosing and function have no type parameters.
+
+            let olyFuncInst =
+                    OlyILFunctionInstance.Signature(
+                        ctor.Enclosing,
+                        ctor.SpecificationHandle,
+                        ImArray.empty,
+                        ImArray.empty
+                    )
+            Some(
+                OlyILAttribute.Constructor(
+                    olyFuncInst,
+                    ImArray.empty, // TODO
+                    ImArray.empty // TODO
+                )
+            )
 
     let importTypeDefinitionAsOlyILEntityDefinition (cenv: CompilerEnvironment) (tyDefHandle: TypeDefinitionHandle) : OlyILEntityDefinitionHandle * int =
         match cenv.tyDefToOlyEntDefCache.TryGetValue tyDefHandle with

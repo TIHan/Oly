@@ -1296,24 +1296,26 @@ let private importFieldFlags (ilFieldFlags: OlyILFieldFlags) =
 let private importAttribute cenv (ilAttr: OlyILAttribute) =
     match ilAttr with
     | OlyILAttribute.Constructor(funcInst, args, namedArgs) ->
-        // TODO: 
         match funcInst with
-        | OlyILFunctionInstance.Definition(ilFuncDefHandle) ->
-            let ilEnclosingEntDefHandle = cenv.ilAsm.GetFunctionDefinition(ilFuncDefHandle).EnclosingEntityDefinitionHandle
-            let enclosingEnt = 
-                importEntitySymbolFromDefinition 
-                    cenv 
-                    ilEnclosingEntDefHandle
-            let func = 
-                importFunctionFromDefinition
-                    cenv
-                    enclosingEnt
-                    ilEnclosingEntDefHandle
-                    FunctionSemantic.NormalFunction
-                    ilFuncDefHandle
-            AttributeSymbol.Constructor(func, ImArray.empty, ImArray.empty, (* TODO *)AttributeFlags.AllowOnAll)
-        | OlyILFunctionInstance.Signature _ ->
-            failwith "Importing attribute of a function signature is invalid"
+        | OlyILFunctionInstance.Signature(
+                    OlyILEnclosing.Entity(OlyILEntityInstance(ilEnclosingEntDefOrRefHandle, ilEnclosingTyArgs)), 
+                    ilFuncSpecHandle, ilFuncTyArgs, ilWitnesses
+                ) ->
+
+            let func =
+                ImportedFunctionInstanceSymbol(
+                    cenv.ilAsm,
+                    cenv.imports,
+                    ilEnclosingEntDefOrRefHandle,
+                    ilEnclosingTyArgs,
+                    ilFuncSpecHandle,
+                    ilFuncTyArgs,
+                    ilWitnesses
+                )
+
+            AttributeSymbol.Constructor(func, ImArray.empty (* TODO *), ImArray.empty (* TODO *), AttributeFlags.AllowOnAll)
+        | _ ->
+            failwith "Invalid attribute"
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]
@@ -1582,6 +1584,166 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         member _.WellKnownFunction = evalWellKnownFunc()
         member _.AssociatedFormalPattern = patOpt
         member _.AssociatedFormalProperty = propOpt
+
+[<Sealed>]
+[<DebuggerDisplay("{DebugName}")>]
+type ImportedFunctionInstanceSymbol (
+        ilAsm: OlyILReadOnlyAssembly, 
+        imports: Imports,
+        ilEnclosingEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle, 
+        ilEnclosingTyArgs: OlyILType imarray, 
+        ilFuncSpecHandle: OlyILFunctionSpecificationHandle, 
+        ilFuncTyArgs: OlyILType imarray, 
+        ilWitnesses: OlyILWitness imarray) as this =
+
+    let cenv = { ilAsm = ilAsm; imports = imports; namespaceEnv = imports.namespaceEnv }
+
+    do
+        OlyAssert.True(ilWitnesses.IsEmpty)
+
+    let enclosingFormalEnt =
+        if ilEnclosingEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+            importEntitySymbolFromDefinition cenv ilEnclosingEntDefOrRefHandle
+        else
+            importEntitySymbolFromReference cenv ilEnclosingEntDefOrRefHandle
+
+    let enclosingTyPars = enclosingFormalEnt.TypeParameters
+    let ilFuncSpec = cenv.ilAsm.GetFunctionSpecification(ilFuncSpecHandle)
+
+    let mutable lazyEnclosing = Unchecked.defaultof<_>
+    let evalEnclosing() =
+        if obj.ReferenceEquals(lazyEnclosing, null) then
+            lazyEnclosing <-
+                EnclosingSymbol.Entity(
+                    enclosingFormalEnt.Apply(
+                        ilEnclosingTyArgs 
+                        |> ImArray.map (importTypeSymbol cenv enclosingTyPars ImArray.empty)
+                    )
+                )
+        lazyEnclosing
+
+    let mutable lazyName = Unchecked.defaultof<_>
+    let evalName() =
+        if obj.ReferenceEquals(lazyName, null) then
+            lazyName <- cenv.ilAsm.GetStringOrEmpty(ilFuncSpec.NameHandle)
+        lazyName
+
+    let mutable lazyFormalFunc = Unchecked.defaultof<_>
+    let evalFormalFunc() =
+        if obj.ReferenceEquals(lazyFormalFunc, null) then
+            let funcName = evalName()
+            let funcTyPars =
+                ilFuncSpec.TypeParameters
+                |> importTypeParameterSymbols cenv enclosingTyPars true
+            let formalFuncPars =
+                ilFuncSpec.Parameters
+                |> ImArray.map (importParameter cenv enclosingTyPars funcTyPars)
+            let formalFuncReturnTy =
+                ilFuncSpec.ReturnType
+                |> importTypeSymbol cenv enclosingTyPars funcTyPars
+            let isInstance = ilFuncSpec.IsInstance
+            lazyFormalFunc <-
+                enclosingFormalEnt.Functions
+                |> ImArray.tryFind (fun x ->
+                    if x.Name = funcName && x.IsInstance = isInstance &&
+                        x.TypeParameters.Length = funcTyPars.Length && 
+                        x.LogicalParameterCount = formalFuncPars.Length && 
+                        (if x.IsInstanceConstructor then areTypesEqual TypeSymbol.Unit formalFuncReturnTy else areTypesEqual x.ReturnType formalFuncReturnTy) then
+                        (x.LogicalParameters, formalFuncPars |> ROMem.ofImArray)
+                        ||> ROMem.forall2 (fun x y -> areTypesEqual x.Type y.Type)
+                    else
+                        false
+                )
+                |> Option.defaultWith (fun () -> 
+                    cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError($"Unable to import function instance '{enclosingFormalEnt.Name}.{funcName}'.", 10))
+                    invalidFunction()
+                )
+        lazyFormalFunc
+
+    let mutable lazyTyArgs = Unchecked.defaultof<_ imarray>
+    let evalTyArgs() =
+        if lazyTyArgs.IsDefault then
+            let funcTyPars = evalFormalFunc().TypeParameters
+            lazyTyArgs <-
+                ilFuncTyArgs
+                |> ImArray.map (importTypeSymbol cenv enclosingTyPars funcTyPars)
+        lazyTyArgs
+
+    let mutable lazyPars = Unchecked.defaultof<_ imarray>
+    let evalPars() =
+        if lazyPars.IsDefault then
+            lazyPars <-
+                let tyArgs = evalEnclosing().TypeArguments.AddRange(evalTyArgs())
+                evalFormalFunc().Parameters
+                |> ImArray.map (actualParameter tyArgs)
+        lazyPars
+
+    let mutable lazyReturnTy = Unchecked.defaultof<_>
+    let evalReturnTy() =
+        if obj.ReferenceEquals(lazyReturnTy, null) then
+            lazyReturnTy <-
+                let tyArgs = evalEnclosing().TypeArguments.AddRange(evalTyArgs())
+                evalFormalFunc().ReturnType
+                |> actualType tyArgs
+        lazyReturnTy
+
+    let mutable lazyTy = Unchecked.defaultof<TypeSymbol>
+    let evalTy() =
+        if obj.ReferenceEquals(lazyTy, null) then
+            let pars = (this :> IFunctionSymbol).Parameters
+            let tyPars = (this :> IFunctionSymbol).TypeParameters
+            let returnTy = (this :> IFunctionSymbol).ReturnType
+            let ty =
+                if this.IsInstanceNotConstructor && pars.IsEmpty then
+                    failwith "Expected full parameters."
+                TypeSymbol.CreateFunction(tyPars, pars |> ImArray.map (fun x -> x.Type), returnTy, FunctionKind.Normal)
+            lazyTy <- ty
+        lazyTy
+
+    let id = newId()
+
+    interface IFunctionSymbol with
+
+        member _.Enclosing = evalEnclosing()
+
+        member _.Id = id
+
+        member _.Name = evalName()
+
+        member _.Formal = evalFormalFunc() :> IValueSymbol
+
+        member _.TypeParameters = evalFormalFunc().TypeParameters
+
+        member _.TypeArguments = evalTyArgs()
+
+        member _.Attributes = evalFormalFunc().Attributes
+
+        member _.Parameters = evalPars()
+
+        member _.ReturnType = evalReturnTy()
+        member _.IsField = false
+        member _.FunctionFlags = evalFormalFunc().FunctionFlags
+        member _.MemberFlags = evalFormalFunc().MemberFlags
+        member _.IsFunction = true
+        member _.IsFunctionGroup = false
+        member _.ValueFlags = evalFormalFunc().ValueFlags
+
+        member _.Type = evalTy()
+
+        member _.Overrides = evalFormalFunc().Overrides
+
+        member _.IsProperty = false
+        member _.IsPattern = false
+        member _.IsParameter = false
+
+        member _.IsThis = false
+        member _.IsBase = false
+
+        member _.Semantic = evalFormalFunc().Semantic
+
+        member _.WellKnownFunction = evalFormalFunc().WellKnownFunction
+        member _.AssociatedFormalPattern = evalFormalFunc().AssociatedFormalPattern
+        member _.AssociatedFormalProperty = evalFormalFunc().AssociatedFormalProperty
 
 [<Sealed>]
 [<DebuggerDisplay("{DebugName}")>]

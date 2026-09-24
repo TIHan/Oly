@@ -1618,7 +1618,11 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
             this
         else
 
-        let genericContext = GenericContext.CreateFromEnclosingType(enclosingTy, this.TypeArguments)
+        let genericContext = 
+            if this.TypeArguments.IsEmpty then
+                GenericContext.CreateFromEnclosingType(enclosingTy, this.TypeParameters |> ImArray.mapi (fun i _ -> RuntimeType.Variable(i, OlyILTypeVariableKind.Function)))
+            else
+                GenericContext.CreateFromEnclosingType(enclosingTy, this.TypeArguments)
 
         { state with
             Enclosing = RuntimeEnclosing.Type(enclosingTy)
@@ -1711,6 +1715,9 @@ type RuntimeFunction internal (state: RuntimeFunctionState) =
 
     [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>]
     member private this.VerifyConstraintsCore(tyPars: RuntimeTypeParameter imarray, tyArgs: RuntimeType imarray) =
+        if tyArgs.IsEmpty then ()
+        else
+
         OlyAssert.Equal(tyPars.Length, tyArgs.Length)
 
         let failVerification (constrKind: string) =

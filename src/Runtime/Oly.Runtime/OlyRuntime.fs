@@ -405,7 +405,7 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             RuntimeFunctionState.Enclosing = enclosing
             RuntimeFunctionState.Name = name
                            
-            RuntimeFunctionState.TypeArguments = tyArgs
+            RuntimeFunctionState.TypeArguments = ImArray.empty
             RuntimeFunctionState.TypeParameters = tyPars
                            
             RuntimeFunctionState.Parameters = pars
@@ -1844,12 +1844,19 @@ let importFunctionBody
         enclosingTy.Apply(tyArgs)
 
     let funcTyArgs =
-        func.TypeArguments
-        |> ImArray.map (fun x -> 
-            x.Substitute(genericContext)
-        )
+        if genericContext.IsErasingFunction then
+            func.TypeParameters
+            |> ImArray.mapi (fun i x -> 
+                RuntimeType.Variable(i, OlyILTypeVariableKind.Function).Substitute(genericContext)
+            )
+        else
+            ImArray.empty
 
-    let func = func.MakeInstance(enclosingTy, funcTyArgs)
+    let func = 
+        if funcTyArgs.IsEmpty then
+            func.MakeReference(enclosingTy)
+        else
+            func.MakeInstance(enclosingTy, funcTyArgs)
     let filteredWitnesses = vm.FilterFunctionWitnesses(func, genericContext.PassedWitnesses, genericContext)
     let func = func.SetWitnesses(filteredWitnesses)
     let enclosingTy = enclosingTy.StripExtension()
@@ -2123,7 +2130,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     ilFuncSpec2.Parameters.Length = targetFunc.Parameters.Length &&
                     ilFuncSpec2.IsInstance = targetFunc.Flags.IsInstance then
                         let formalFunc = this.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle2)
-                        let func = formalFunc.MakeInstance(ty, targetFunc.TypeArguments)
+                        let func = 
+                            if targetFunc.TypeArguments.IsEmpty then
+                                formalFunc.MakeReference(ty)
+                            else
+                                formalFunc.MakeInstance(ty, targetFunc.TypeArguments)
 
                         let areParameterTysEqual =
                             (targetFunc.Parameters, func.Parameters)
@@ -2145,7 +2156,12 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         let funcs = findImmediateFormalFunctionsByTypeAndFunctionSignature targetTy targetFunc
         if not funcs.IsEmpty then
             funcs
-            |> ImArray.map (fun func -> func.MakeInstance(targetTy, targetFunc.TypeArguments))
+            |> ImArray.map (fun func -> 
+                if targetFunc.TypeArguments.IsEmpty then
+                    func.MakeReference(targetTy)
+                else
+                    func.MakeInstance(targetTy, targetFunc.TypeArguments)
+            )
         else
             // REVIEW: This behavior is reliant on the order of types in the 'getAllDistinctInheritsAndImplements' list.
             //         Figure out rules for this.
@@ -2718,6 +2734,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     failwith "Unexpected type constructor."
             )
 #endif
+            OlyAssert.False(fullTyArgs.IsEmpty)
             let formalTy = emitType false ty.Formal
             let emittedFullTyArgs = fullTyArgs |> ImArray.map (fun x -> this.EmitTypeArgument(x))
             let res = this.Emitter.EmitTypeGenericInstance(formalTy, emittedFullTyArgs)
@@ -3364,8 +3381,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let filteredWitnesses = vm.FilterFunctionWitnesses(func, passedAndFilteredWitnesses, genericContext)
             func.SetWitnesses(filteredWitnesses)
-        | OlyILFunctionInstance.Definition(ilFuncDefHandle) ->
-            vm.ResolveFunctionDefinition(ilAsm, ilFuncDefHandle)
 
     member _.ResolveFunction(ilAsm, ilFuncSpec, enclosing, funcTyArgs, genericContext) =
         resolveFunction ilAsm ilFuncSpec enclosing funcTyArgs genericContext
@@ -3569,7 +3584,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             formalFuncs
                             |> ImArray.map (fun formalFunc ->
                                 let enclosingTy = formalFunc.EnclosingType
-                                formalFunc.MakeInstance(enclosingTy.Apply(x.TypeExtension.TypeArguments), abstractFunc.TypeArguments)
+                                if abstractFunc.TypeArguments.IsEmpty then
+                                    formalFunc.MakeReference(enclosingTy.Apply(x.TypeExtension.TypeArguments))
+                                else
+                                    formalFunc.MakeInstance(enclosingTy.Apply(x.TypeExtension.TypeArguments), abstractFunc.TypeArguments)
                             )
                             |> Some
                         else
@@ -4423,9 +4441,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                     let func = 
                         if isErasingFunc then
                             let funcTyArgs =
-                                x.TypeArguments
-                                |> ImArray.map (fun x -> 
-                                    x.Substitute(genericContext)
+                                x.TypeParameters
+                                |> ImArray.mapi (fun i _ -> 
+                                    RuntimeType.Variable(i, OlyILTypeVariableKind.Function).Substitute(genericContext)
                                 )
                             x.Formal.MakeInstance(enclosingTy, funcTyArgs)
                         else
@@ -4598,7 +4616,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         // This is only needed for imported and exported functions.
         // TODO: What about the trait constraints?
         // TODO: This handles function type parameters, but what about entity/type type parameters?
-        if (func.IsExternal || func.IsExported) && (not func.TypeParameters.IsEmpty || not func.EnclosingType.TypeParameters.IsEmpty) then
+        if (func.IsExternal || func.IsExported) && (not func.TypeArguments.IsEmpty || not func.EnclosingType.TypeParameters.IsEmpty) then
+            if func.TypeArguments.IsEmpty then ()
+            else
+
             (func.TypeParameters, func.TypeArguments)
             ||> ImArray.iter2 (fun tyPar tyArg ->
                 if not tyArg.IsTypeVariable then
@@ -4675,8 +4696,10 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                             | RuntimeFunctionKind.Formal -> failwith "Unexpected formal function."
                             | RuntimeFunctionKind.Instance ->
                                 let funcTyArgs = func.TypeArguments |> ImArray.map (fun x -> this.EmitTypeArgument(x))
+                                OlyAssert.False(funcTyArgs.IsEmpty)
                                 this.Emitter.EmitFunctionInstance(this.EmitType(func.EnclosingType), emittedFuncDef, funcTyArgs)
                             | RuntimeFunctionKind.Reference ->
+                                OlyAssert.True(func.TypeArguments.IsEmpty)
                                 this.Emitter.EmitFunctionReference(this.EmitType(func.EnclosingType), emittedFuncDef)
 
                     emitted.[key] <- emittedFunc

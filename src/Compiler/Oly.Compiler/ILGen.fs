@@ -221,23 +221,18 @@ and GenFunctionAsILFunctionInstance cenv env (witnessArgs: WitnessSolution imarr
     // TODO: Do not do this for OlyILFunctionInstance.Definition.
     let ilEnclosing: OlyILEnclosing = emitILEnclosingForMember cenv env func
 
-    if func.IsFormal && ilEnclosing.IsFormalEntityDefinition then
-        OlyAssert.True(witnessArgs.IsEmpty)
-        OlyAssert.Equal(0, func.AllTypeParameterCount)
-        OlyILFunctionInstance.Definition(GenFunctionAsILFunctionDefinition cenv env func)
-    else
-        let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func
-        let ilTyInst, ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env func witnessArgs
+    let ilFuncSpecHandle = GenFunctionAsILFunctionSpecification cenv env func
+    let ilTyInst, ilWitnesses = GenValueTypeArgumentsAndWitnessArguments cenv env func witnessArgs
 
 #if DEBUG || CHECKED
-        ilTyInst
-        |> ImArray.iter (fun x ->
-            match x with
-            | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
-            | _ -> ()
-        )
+    ilTyInst
+    |> ImArray.iter (fun x ->
+        match x with
+        | OlyILTypeVoid -> OlyAssert.Fail("Unexpected void")
+        | _ -> ()
+    )
 #endif
-        OlyILFunctionInstance.Signature(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
+    OlyILFunctionInstance.Signature(ilEnclosing, ilFuncSpecHandle, ilTyInst, ilWitnesses)
 
 and GenFunctionAsILFunctionReference cenv env (func: IFunctionSymbol) : OlyILFunctionReference =
     //OlyAssert.False(func.Enclosing.IsTypeConstructor)

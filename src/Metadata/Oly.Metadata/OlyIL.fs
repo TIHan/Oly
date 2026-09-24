@@ -562,12 +562,10 @@ type OlyILFunctionDefinition =
 [<RequireQualifiedAccess;NoEquality;NoComparison>]
 type OlyILFunctionInstance =
     | Signature of enclosing: OlyILEnclosing * specHandle: OlyILFunctionSpecificationHandle * tyArgs: OlyILType imarray * witnesses: OlyILWitness imarray
-    | Definition of funcDefHandle: OlyILFunctionDefinitionHandle
 
     member this.TypeArguments =
         match this with
         | Signature(tyArgs=tyArgs) -> tyArgs
-        | Definition _ -> ImArray.empty
 
 [<NoEquality;NoComparison>]
 type OlyILFunctionReference =
