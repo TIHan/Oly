@@ -1011,8 +1011,10 @@ and GenImportAttribute cenv env platform (path: string imarray) name =
     OlyILImportOrExportInfo.Import(platform, path, name)
 
 and GenAttributes cenv env (attrs: AttributeSymbol imarray) =
-    attrs
-    |> ImArray.choose (GenAttribute cenv env)
+    Lazy<_>.CreateFromValue(
+        attrs
+        |> ImArray.choose (GenAttribute cenv env)
+    )
 
 and GenEntityAttributes cenv env (attrs: AttributeSymbol imarray) =
     let mutable ilImportOrExportInfo = None
@@ -1058,7 +1060,7 @@ and GenFunctionAttributes cenv env (attrs: AttributeSymbol imarray) =
             | Some attr -> ilAttrs.Add(attr)
             | _ -> ()
     )
-    ilAttrs.ToImmutable(), ilImportOrExportInfo, ilIntrinsicName
+    Lazy<_>.CreateFromValue(ilAttrs.ToImmutable()), ilImportOrExportInfo, ilIntrinsicName
 
 and GenFieldAttributes cenv env (attrs: AttributeSymbol imarray) =
     let mutable ilImportOrExportInfo = None
@@ -1077,7 +1079,7 @@ and GenFieldAttributes cenv env (attrs: AttributeSymbol imarray) =
             | Some attr -> ilAttrs.Add(attr)
             | _ -> ()
     )
-    ilAttrs.ToImmutable(), ilImportOrExportInfo
+    Lazy<_>.CreateFromValue(ilAttrs.ToImmutable()), ilImportOrExportInfo
     
 and GenImportInfo cenv env (attrs: AttributeSymbol imarray) =
     attrs

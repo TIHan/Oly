@@ -288,7 +288,7 @@ type RuntimeTypeParameter =
 [<NoComparison;CustomEquality;RequireQualifiedAccess>]
 type RuntimeParameter =
     {
-        Attributes: RuntimeAttribute imarray
+        Attributes: Lazy<RuntimeAttribute imarray>
         Name: string
         Type: RuntimeType
     }
@@ -1447,7 +1447,7 @@ type internal RuntimeFunctionState =
         Parameters: RuntimeParameter imarray
         ReturnType: RuntimeType
         Flags: OlyIRFunctionFlags
-        Attributes: RuntimeAttribute imarray
+        Attributes: Lazy<RuntimeAttribute imarray>
 
         Overrides : RuntimeFunction option
         Witnesses : RuntimeWitness imarray
@@ -1844,7 +1844,7 @@ type RuntimeField =
         Name: string
         Flags: OlyIRFieldFlags
         Type: RuntimeType
-        Attributes: RuntimeAttribute imarray
+        Attributes: Lazy<RuntimeAttribute imarray>
         Index: int
 
         ILConstant: OlyILConstant option
@@ -1856,13 +1856,6 @@ type RuntimeField =
         obj.ReferenceEquals(this, this.Formal)
 
     member this.AssemblyIdentity = this.ILAssembly.Identity
-
-    member this.IsExternal =
-        let ilFieldDef = this.ILAssembly.GetFieldDefinition(this.ILFieldDefinitionHandle)
-        match ilFieldDef with
-        | OlyILFieldDefinition.OlyILFieldDefinition(attrs=ilAttrs) -> ilAttrs
-        | _ ->
-            ImArray.empty
 
     member this.IsStatic =
         not this.Flags.IsInstance

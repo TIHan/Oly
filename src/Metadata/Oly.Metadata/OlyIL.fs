@@ -379,7 +379,7 @@ type OlyILEntityInstance =
 
 [<NoEquality;NoComparison>]
 type OlyILParameter =
-    | OlyILParameter of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
+    | OlyILParameter of attrs: Lazy<OlyILAttribute imarray> * name: OlyILStringHandle * ty: OlyILType * canInlineClosure: bool
 
     member this.Attributes =
         match this with
@@ -494,7 +494,7 @@ type OlyILFunctionSpecification =
 type OlyILFunctionDefinition =
     | OlyILFunctionDefinition of 
         flags: OlyILFunctionFlags * 
-        attrs: OlyILAttribute imarray * 
+        attrs: Lazy<OlyILAttribute imarray> * 
         enclosingEntDefHandle: OlyILEntityDefinitionHandle *
         specHandle: OlyILFunctionSpecificationHandle * 
         overrides: OlyILFunctionReference option *
@@ -631,7 +631,7 @@ type OlyILConstant =
 
 [<NoEquality;NoComparison>]
 type OlyILFieldDefinition =
-    | OlyILFieldDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * importOrExportInfo: OlyILImportOrExportInfo option
+    | OlyILFieldDefinition of attrs: Lazy<OlyILAttribute imarray> * name: OlyILStringHandle * ty: OlyILType * flags: OlyILFieldFlags * importOrExportInfo: OlyILImportOrExportInfo option
     | OlyILFieldConstant of name: OlyILStringHandle * ty: OlyILType * constant: OlyILConstant
 
     member this.IsConstant =
@@ -660,7 +660,7 @@ type OlyILFieldDefinition =
     member this.Attributes =
         match this with
         | OlyILFieldDefinition(attrs=attrs) -> attrs
-        | _ -> ImArray.empty
+        | _ -> LazyImArray.Empty
 
     member this.IsExternal =
         match this with
@@ -669,7 +669,7 @@ type OlyILFieldDefinition =
 
 [<NoEquality;NoComparison>]
 type OlyILPropertyDefinition =
-    | OlyILPropertyDefinition of attrs: OlyILAttribute imarray * nameHandle: OlyILStringHandle * ty: OlyILType * getterHandleOpt: OlyILFunctionDefinitionHandle * setterHandleOpt: OlyILFunctionDefinitionHandle
+    | OlyILPropertyDefinition of attrs: Lazy<OlyILAttribute imarray> * nameHandle: OlyILStringHandle * ty: OlyILType * getterHandleOpt: OlyILFunctionDefinitionHandle * setterHandleOpt: OlyILFunctionDefinitionHandle
 
     member this.Attributes =
         match this with
@@ -693,7 +693,7 @@ type OlyILPropertyDefinition =
 
 [<NoEquality;NoComparison>]
 type OlyILPatternDefinition =
-    | OlyILPatternDefinition of attrs: OlyILAttribute imarray * name: OlyILStringHandle * funcDefHandle: OlyILFunctionDefinitionHandle * guardDefHandleOpt: OlyILFunctionDefinitionHandle
+    | OlyILPatternDefinition of attrs: Lazy<OlyILAttribute imarray> * name: OlyILStringHandle * funcDefHandle: OlyILFunctionDefinitionHandle * guardDefHandleOpt: OlyILFunctionDefinitionHandle
 
     member this.NameHandle =
         match this with

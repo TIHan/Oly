@@ -82,7 +82,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetPattern currentAsmIdent importer enclosing func.AssociatedFormalPattern.Value
                 |> Some
         else
-            Lazy<_>.CreateFromValue(None)
+            LazyOption.None
 
     let lazyAssociatedFormalPropOpt =
         if func.AssociatedFormalProperty.IsSome then
@@ -90,7 +90,7 @@ type RetargetedFunctionSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetProperty currentAsmIdent importer enclosing func.AssociatedFormalProperty.Value
                 |> Some
         else
-            Lazy<_>.CreateFromValue(None)
+            LazyOption.None
 
     do
         OlyAssert.True(func.IsFormal)
@@ -148,7 +148,7 @@ type RetargetedFieldSymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: Imp
                 retargetConstant currentAsmIdent importer constant
                 |> ValueSome
         | _ ->
-            Lazy<_>.CreateFromValue(ValueNone)
+            LazyValueOption.None
 
     member this.Original = field
     
@@ -192,7 +192,7 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetField currentAsmIdent importer enclosing field
                 |> Some
         | _ ->
-            Lazy<_>.CreateFromValue(None)
+            LazyOption.None
 
     let lazyGetter =
         match prop.Getter with
@@ -201,7 +201,7 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetFunction currentAsmIdent importer enclosing getter
                 |> Some
         | _ ->
-            Lazy<_>.CreateFromValue(None)
+            LazyOption.None
 
     let lazySetter =
         match prop.Setter with
@@ -210,7 +210,7 @@ type RetargetedPropertySymbol(currentAsmIdent: OlyILAssemblyIdentity, importer: 
                 retargetFunction currentAsmIdent importer enclosing setter
                 |> Some
         | _ ->
-            Lazy<_>.CreateFromValue(None)
+            LazyOption.None
 
     member this.Original = prop
     
@@ -1206,7 +1206,7 @@ let private importParameter (cenv: cenv) (enclosingTyPars: TypeParameterSymbol i
     let name = cenv.ilAsm.GetStringOrEmpty(ilPar.NameHandle)
     let ty = importTypeSymbol cenv enclosingTyPars funcTyPars ilPar.Type
     let isThis = false // TODO:
-    let attrs = ilPar.Attributes |> ImArray.map (importAttribute cenv)
+    let attrs = ilPar.Attributes.Value |> ImArray.map (importAttribute cenv)
     LocalParameterSymbol(attrs, name, ty, isThis, (* isBase *) false, (* isMutable: *) false) :> ILocalParameterSymbol
 
 let private importMemberFlagsFromFunction (ilFuncFlags: OlyILFunctionFlags) =
@@ -1432,7 +1432,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                                     OlyILTypeByRef(ilEnclosingTy, OlyILByRefKind.ReadWrite)
                             else
                                 ilEnclosingTy
-                        ImArray.createOne(OlyILParameter(ImArray.empty, OlyILTableIndex.CreateString(-1), ilEnclosingTy, false)).AddRange(ilPars)
+                        ImArray.createOne(OlyILParameter(LazyImArray.Empty, OlyILTableIndex.CreateString(-1), ilEnclosingTy, false)).AddRange(ilPars)
                     else
                         ilPars
 
@@ -1456,7 +1456,7 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
         if lazyAttrs.IsDefault then
             lazyAttrs <-
                 let attrs =
-                    ilFuncDef.Attributes
+                    ilFuncDef.Attributes.Value
                     |> ImArray.map (importAttribute cenv)
                 let attrs =
                     if ilCallConv.HasFlag(OlyILCallingConvention.Blittable) then
@@ -1531,6 +1531,14 @@ type ImportedFunctionDefinitionSymbol(ilAsm: OlyILReadOnlyAssembly, imports: Imp
                 |> Option.defaultValue WellKnownFunction.None
             lazyWellKnownFunc <- ValueSome(wellKnownFunc)
             wellKnownFunc
+
+#if CHECKED || DEBUG
+    do
+        if evalName() = OlySpecialNames.Constructor then
+            OlyAssert.True(memberFlags.HasFlag(MemberFlags.Instance))
+        elif evalName() = OlySpecialNames.StaticConstructor then
+            OlyAssert.False(memberFlags.HasFlag(MemberFlags.Instance))
+#endif
 
     member this.DebugName = evalName()
 
@@ -1814,7 +1822,7 @@ type ImportedFieldDefinitionSymbol (enclosing: EnclosingSymbol, ilAsm: OlyILRead
     let evalAttrs() =
         if lazyAttrs.IsDefault then
             lazyAttrs <-
-                ilFieldDef.Attributes
+                ilFieldDef.Attributes.Value
                 |> ImArray.map (importAttribute cenv)
         lazyAttrs
 
@@ -1967,7 +1975,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                         |> ImArray.choose (fun ilPropDefHandle ->
                             let ilPropDef = ilAsm.GetPropertyDefinition(ilPropDefHandle)
                             let name = ilPropDef.NameHandle |> ilAsm.GetStringOrEmpty
-                            let attrs = ilPropDef.Attributes |> ImArray.map (importAttribute cenv)
+                            let attrs = ilPropDef.Attributes.Value |> ImArray.map (importAttribute cenv)
                             let propTy = importTypeSymbol cenv (evalTyPars()) ImArray.empty ilPropDef.Type
 
                             let valueFlags = ValueFlags.None
@@ -2069,7 +2077,7 @@ type ImportedEntityDefinitionSymbol private (ilAsm: OlyILReadOnlyAssembly, impor
                         |> ImArray.choose (fun ilPatDefHandle ->
                             let ilPatDef = ilAsm.GetPatternDefinition(ilPatDefHandle)
                             let name = ilPatDef.NameHandle |> ilAsm.GetStringOrEmpty
-                            let attrs = ilPatDef.Attributes |> ImArray.map (importAttribute cenv)
+                            let attrs = ilPatDef.Attributes.Value |> ImArray.map (importAttribute cenv)
 
                             let valueFlags = ValueFlags.None
 

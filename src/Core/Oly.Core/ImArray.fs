@@ -694,4 +694,8 @@ module ROMem =
     let inline ofImArray (arr: 'T imarray) =
         arr.AsMemory()
 
+[<AbstractClass; Sealed; RequireQualifiedAccess>]
+type LazyImArray<'T> =
+
+    static member val Empty = Lazy<_>.CreateFromValue(ImmutableArray<'T>.Empty)
 

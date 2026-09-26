@@ -140,7 +140,7 @@ let addFunction
     let ilFuncDef =
         OlyILFunctionDefinition(
             ilFlags,
-            ImArray.empty,
+            LazyImArray.Empty,
             ilEnclosingEntDefHandle,
             ilFuncSpecHandle,
             None,
@@ -244,7 +244,7 @@ type DummyAssemblyBuilder(isDebuggable: bool) =
                 ilFlags: OlyILFieldFlags
             ): OlyILFieldDefinitionHandle =
         let ilFieldDef =
-            OlyILFieldDefinition(ImArray.empty, ilAsm.AddString(name), ilTy, ilFlags, None)
+            OlyILFieldDefinition(LazyImArray.Empty, ilAsm.AddString(name), ilTy, ilFlags, None)
 
         ilAsm.AddFieldDefinition(ilFieldDef)
 

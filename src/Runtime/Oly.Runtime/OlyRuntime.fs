@@ -348,17 +348,14 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
             } : RuntimeTypeParameter
         )
 
-    let tyArgs =
-        tyPars
-        |> ImArray.mapi (fun i _ ->
-            RuntimeType.Variable(i, OlyILTypeVariableKind.Function)
-        )
-
     let pars =
         ilFuncSpec.Parameters
         |> ImArray.map (fun ilPar ->
             { 
-                Attributes = ilPar.Attributes |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+                Attributes = 
+                    lazy 
+                        ilPar.Attributes.Value 
+                        |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 Name = ilAsm.GetStringOrEmpty(ilPar.NameHandle)
                 Type = runtime.ResolveType(ilAsm, ilPar.Type, genericContext)
             } : RuntimeParameter
@@ -371,8 +368,9 @@ let createFunctionDefinition<'Type, 'Function, 'Field> (runtime: OlyRuntime<'Typ
         )
 
     let attrs =
-        ilFuncDef.Attributes
-        |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+        lazy
+            ilFuncDef.Attributes.Value
+            |> ImArray.choose (fun x -> runtime.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
 
     let flags =
         if not enclosing.AsType.IsExported && not enclosing.AsType.IsExternal && checkFunctionInlineability ilAsm ilFuncDef then
@@ -2315,7 +2313,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match emitted.TryGetValue enclosingTy.TypeArguments with
         | ValueSome res -> res
         | _ ->
-            let irAttrs = emitAttributes asm.ilAsm field.Attributes
+            let irAttrs = emitAttributes asm.ilAsm field.Attributes.Value
 
             let constantOpt =
                 field.ILConstantValueOption
@@ -2641,7 +2639,7 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                                 |> Some
 
                     let irAttrs =
-                        ilPropDef.Attributes
+                        ilPropDef.Attributes.Value
                         |> ImArray.choose (fun ilAttr ->
                             this.TryResolveConstructorAttribute(ilAsm, ilAttr, GenericContext.Default, ImArray.empty)
                         )
@@ -3002,8 +3000,6 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 RuntimeAttribute.NamedArguments = ilNamedArgs
             }
             |> Some
-        | _ ->
-            None
 
     member this.InitializeEmitter() =
         let s = System.Diagnostics.Stopwatch.StartNew()
@@ -3190,8 +3186,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 failwith "Fields on a closure cannot be mutable."
 
             let attrs =
-                ilFieldDef.Attributes
-                |> ImArray.choose (fun x -> this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
+                lazy
+                    ilFieldDef.Attributes.Value
+                    |> ImArray.choose (fun x -> this.TryResolveConstructorAttribute(ilAsm, x, GenericContext.Default, ImArray.empty))
                 
             let ilConstOpt =
                 match ilFieldDef with
@@ -4424,11 +4421,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 func.Parameters 
                 |> ImArray.map (fun par -> 
                     let attrs =
-                        if par.Attributes.IsEmpty then
-                            Lazy<_>.CreateFromValue(ImArray.empty)
+                        if par.Attributes.Value.IsEmpty then
+                            LazyImArray.Empty
                         else
                             lazy
-                                emitAttributes ilAsm par.Attributes
+                                emitAttributes ilAsm par.Attributes.Value
                     OlyIRParameter(attrs, par.Name, this.EmitType(par.Type), true)
                 )
 
@@ -4482,7 +4479,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
 
             let sigKey = func.ComputeSignatureKey()
 
-            let irAttrs = emitAttributes ilAsm func.Attributes
+            let irAttrs = 
+                if func.IsExternal then
+                    ImArray.empty
+                else
+                    emitAttributes ilAsm func.Attributes.Value
 
             pars
             |> ImArray.iter (fun par ->
