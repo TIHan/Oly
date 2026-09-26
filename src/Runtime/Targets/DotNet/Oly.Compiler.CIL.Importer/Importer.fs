@@ -14,6 +14,41 @@ open Oly.Metadata
 [<AutoOpen>]
 module internal rec Helpers =
 
+    type SerializedTypeFlags =
+        | None    = 0b000uy
+        | Array   = 0b001uy
+        | Pointer = 0b010uy
+
+
+
+    let parseSerializedTypeName (serializedTypeName: string) =
+        let flags =
+            if serializedTypeName.EndsWith("[]") then
+                SerializedTypeFlags.Array
+            elif serializedTypeName.EndsWith("*") then
+                SerializedTypeFlags.Pointer
+            else
+                SerializedTypeFlags.None
+
+        let serializedTypeName = serializedTypeName.Replace("[]", "").Replace("*", "")
+        let types = serializedTypeName.Split('+')
+        let lastDot = types[0].LastIndexOf('.')
+        let namespce = types[0].Substring(0, lastDot)
+        let topLevelType = types[0].Substring(lastDot + 1)
+
+        let types =
+            Array.append [|topLevelType|] types[1..] 
+            |> Array.map (fun x -> 
+                let split = x.Split('`')
+                if split.Length = 2 then
+                    (split[0], Int32.Parse(split[1]))
+                else
+                    (split[0], 0)
+            )
+
+        (namespce, types, flags)
+
+
     let importCallingConvention (callConv: SignatureCallingConvention) =
         let ilCallConv =
             if callConv.HasFlag(SignatureCallingConvention.Unmanaged) then
@@ -440,7 +475,7 @@ module internal rec Helpers =
             //    | _ ->
             //        failwith "Invalid oly type to primitive type code"
                 
-            | _ -> failwith "Invalid oly type to primitive type code"
+            | _ -> PrimitiveTypeCode.Object
 
         interface ICustomAttributeTypeProvider<OlyILType> with
 
@@ -477,80 +512,152 @@ module internal rec Helpers =
             member _.GetTypeFromSerializedName(name: string): OlyILType = 
                 let split = name.Split(", ")
                 let name = split[0]
-                let split = 
-                    name.Split('.')
-                    |> Array.map (fun x -> 
-                        x.Split('+')
-                        |> Array.map (fun y ->
-                            let split = y.Split('`')
-                            if split.Length = 2 then
-                                split[0], Int32.Parse(split[1])
-                            else
-                                split[0], 0
-                        )
-                    )
-                    |> Array.reduce Array.append
-                    |> Array.rev
+                let namespce, types, flags = parseSerializedTypeName(name)
 
-                let olyEntDefHandle =
-                    let mutable i = 0
-                    split
-                    |> Array.pick (fun (name, tyParCount) ->
-                        let handles = cenv.olyAsm.FindEntityDefinitions(name)
-                        let res =
-                            handles
-                            |> ImArray.tryFind (fun x -> 
-                                cenv.olyAsm.GetEntityDefinition(x).FullTypeParameterCount = tyParCount
-                            )
-                        match res with
-                        | Some(olyEntDefHandle) ->
-                            let rec loop olyEnclosing j =
-                                if j >= split.Length then true
+                let principalTypeName, principalTyParCount = types[0]
+                let handles = cenv.olyAsm.FindEntityDefinitions(principalTypeName)
+                let res =
+                    handles
+                    |> ImArray.tryFind (fun x -> 
+                        cenv.olyAsm.GetEntityDefinition(x).TypeParameters.Length = principalTyParCount
+                    )
+
+                match res with
+                | Some(res) ->
+                    let isValid =
+                        let entDef = cenv.olyAsm.GetEntityDefinition(res)
+                        let rec loop enclosing i =
+                            match enclosing with
+                            | OlyILEnclosing.Namespace(path, _) ->
+                                let namespce2 = String.Join('.', path |> ImArray.map cenv.olyAsm.GetStringOrEmpty)
+                                namespce = namespce2
+                            | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(olyParentEntDefOrRefHandle, _)) ->
+                                let parentTypeName, parentTyParCount = types[i]
+                                let nameHandle, actualTyParCount, enclosing = 
+                                    if olyParentEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                                        let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyParentEntDefOrRefHandle)
+                                        olyEntDef.NameHandle, olyEntDef.FullTypeParameterCount, olyEntDef.Enclosing
+                                    else
+                                        let olyEntRef = cenv.olyAsm.GetEntityReference(olyParentEntDefOrRefHandle)
+                                        olyEntRef.NameHandle, olyEntRef.FullTypeParameterCount, olyEntRef.Enclosing
+                                if cenv.olyAsm.GetStringOrEmpty(nameHandle) = parentTypeName && actualTyParCount = parentTyParCount then
+                                    loop enclosing (i + 1)
                                 else
+                                    false
+                            | _ ->
+                                failwith "Invalid enclosing"
+                        loop entDef.Enclosing 1
+                    if isValid then
+                        OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(res, ImArray.empty))
+                    else
+                        failwith "failed"
+                | _ ->
+                    OlyILTypeBaseObject
+                //let res =
+                //    if res.IsNone then
+                //        let handles = cenv.olyAsm.FindEntityReferences(principalTypeName)
+                //        handles
+                //        |> ImArray.tryFind (fun x -> 
+                //            cenv.olyAsm.GetEntityReference(x).TypeParameterCount = principalTyParCount
+                //        )
+                //    else
+                //        res
 
-                                let name, tyParCount = split[j]
-                                match olyEnclosing with
-                                | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(olyParentEntDefOrRefHandle, _)) ->
-                                    let nameHandle, actualTyParCount, enclosing = 
-                                        if olyParentEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                                            let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyParentEntDefOrRefHandle)
-                                            olyEntDef.NameHandle, olyEntDef.FullTypeParameterCount, olyEntDef.Enclosing
-                                        else
-                                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyParentEntDefOrRefHandle)
-                                            olyEntRef.NameHandle, olyEntRef.FullTypeParameterCount, olyEntRef.Enclosing
-                                    if cenv.olyAsm.GetStringOrEmpty(nameHandle) = name && actualTyParCount = tyParCount then
-                                        loop enclosing (j + 1)
-                                    else
-                                        false
-                                | OlyILEnclosing.Namespace(path, _) ->
-                                    if path.Length = split.Length - j then
-                                        path
-                                        |> ImArray.foralli (fun i part ->
-                                            cenv.olyAsm.GetStringOrEmpty(part) = fst split[split.Length - 1 - i]
-                                        )
-                                    else
-                                        false
-                                | _ ->
-                                    failwith "invalid enclosing"
+                //let split = name.Split(", ")
+                //let name = split[0]
+                //let split = 
+                //    name.Split('.')
+                //    |> Array.map (fun x -> 
+                //        x.Split('+')
+                //        |> Array.map (fun y ->
+                //            let split = y.Split('`')
+                //            if split.Length = 2 then
+                //                split[0], Int32.Parse(split[1])
+                //            else
+                //                split[0], 0
+                //        )
+                //    )
+                //    |> Array.reduce Array.append
+                //    |> Array.rev
 
-                            i <- i + 1
-                            if loop (cenv.olyAsm.GetEntityDefinition(olyEntDefHandle).Enclosing) i then
-                                Some(olyEntDefHandle)
-                            else
-                                None
-                        | _ -> 
-                            let handles = cenv.olyAsm.FindEntityReferences(name)
-                            let res =
-                                handles
-                                |> ImArray.tryFind (fun x -> 
-                                    cenv.olyAsm.GetEntityReference(x).FullTypeParameterCount = tyParCount
-                                )
-                            i <- i + 1
-                            None
-                    )
+                //Oly.Metadata
+
+                //let isArray = (fst split[0]).EndsWith("[]")
+                //split[0] <- ((fst split[0]).Replace("[]", ""), snd split[0])
+
+                //let isPointer = (fst split[0]).EndsWith("*")
+                //split[0] <- ((fst split[0]).Replace("*", ""), snd split[0])
+
+                //let olyEntDefHandle =
+                //    let mutable i = 0
+                //    split
+                //    |> Array.pick (fun (name, tyParCount) ->
+                //        let handles = cenv.olyAsm.FindEntityDefinitions(name)
+                //        let res =
+                //            handles
+                //            |> ImArray.tryFind (fun x -> 
+                //                cenv.olyAsm.GetEntityDefinition(x).TypeParameters.Length = tyParCount
+                //            )
+                //        let res =
+                //            if res.IsNone then
+                //                let handles = cenv.olyAsm.FindEntityReferences(name)
+                //                handles
+                //                |> ImArray.tryFind (fun x -> 
+                //                    cenv.olyAsm.GetEntityReference(x).TypeParameterCount = tyParCount
+                //                )
+                //            else
+                //                res
+                //        match res with
+                //        | Some(olyEntDefOrRefHandle) ->
+                //            let rec loop olyEnclosing j =
+                //                if j >= split.Length then true
+                //                else
+
+                //                let name, tyParCount = split[j]
+                //                match olyEnclosing with
+                //                | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(olyParentEntDefOrRefHandle, _)) ->
+                //                    let nameHandle, actualTyParCount, enclosing = 
+                //                        if olyParentEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                //                            let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyParentEntDefOrRefHandle)
+                //                            olyEntDef.NameHandle, olyEntDef.FullTypeParameterCount, olyEntDef.Enclosing
+                //                        else
+                //                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyParentEntDefOrRefHandle)
+                //                            olyEntRef.NameHandle, olyEntRef.FullTypeParameterCount, olyEntRef.Enclosing
+                //                    if cenv.olyAsm.GetStringOrEmpty(nameHandle) = name && actualTyParCount = tyParCount then
+                //                        loop enclosing (j + 1)
+                //                    else
+                //                        false
+                //                | OlyILEnclosing.Namespace(path, _) ->
+                //                    if path.Length = split.Length - j then
+                //                        path
+                //                        |> ImArray.foralli (fun i part ->
+                //                            cenv.olyAsm.GetStringOrEmpty(part) = fst split[split.Length - 1 - i]
+                //                        )
+                //                    else
+                //                        false
+                //                | _ ->
+                //                    failwith "invalid enclosing"
+
+                //            i <- i + 1
+                //            let enclosing = 
+                //                if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                //                    let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                //                    olyEntDef.Enclosing
+                //                else
+                //                    let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                //                    olyEntRef.Enclosing
+                //            if loop enclosing i then
+                //                Some(olyEntDefOrRefHandle)
+                //            else
+                //                None
+                //        | _ -> 
+                //            i <- i + 1
+                //            None
+                //    )
 
                 // This is effectively a constructor.
-                OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefHandle, ImArray.empty))
+             //   OlyILTypeBaseObject
+               // OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefHandle, ImArray.empty))
 
             member _.GetUnderlyingEnumType(ty: OlyILType): PrimitiveTypeCode = 
                 match ty with
@@ -769,9 +876,12 @@ module internal rec Helpers =
                         match pars |> ImArray.tryFind (fun x -> x.SequenceNumber = i + 1) with
                         | Some par ->
                             let olyAttrs =
-                                lazy
-                                    par.GetCustomAttributes().ToImmutableArray()
-                                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+                                if meth.Attributes &&& MethodAttributes.MemberAccessMask = MethodAttributes.Private then
+                                    LazyImArray.Empty
+                                else
+                                    lazy
+                                        par.GetCustomAttributes().ToImmutableArray()
+                                        |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
                             cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
 
                             if par.Name.IsNil then olyAttrs, OlyILTableIndex(OlyILTableKind.String, -1)
@@ -1099,9 +1209,12 @@ module internal rec Helpers =
         else
 
         let olyAttrs =
-            lazy
-                fieldDef.GetCustomAttributes().ToImmutableArray() 
-                |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+            if fieldDef.Attributes &&& FieldAttributes.FieldAccessMask = FieldAttributes.Private then
+                LazyImArray.Empty
+            else
+                lazy
+                    fieldDef.GetCustomAttributes().ToImmutableArray() 
+                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
         cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
             
         let olyImportInfo =
@@ -1297,9 +1410,12 @@ module internal rec Helpers =
                 olyFuncFlags
 
         let olyAttrs =
-            lazy
-                attrs.ToImmutableArray() 
-                |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+            if meth.Attributes &&& MethodAttributes.MemberAccessMask <> MethodAttributes.Public then
+                LazyImArray.Empty
+            else
+                lazy
+                    attrs.ToImmutableArray() 
+                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
         cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
             
         let olyImportInfo =
@@ -1337,7 +1453,7 @@ module internal rec Helpers =
 
         let ctorHandle = attr.Constructor
 
-      //  let decoded = attr.DecodeValue(OlyAttributeTypeProvider(cenv))
+     //   let decoded = attr.DecodeValue(OlyAttributeTypeProvider(cenv))
 
         if ctorHandle.Kind = HandleKind.MethodDefinition then
             let ctorHandle = MethodDefinitionHandle.op_Explicit(ctorHandle)
@@ -1587,9 +1703,12 @@ module internal rec Helpers =
         let asmName = reader.GetAssemblyDefinition().GetAssemblyName()
 
         let olyAttrs =
-            lazy
-                tyDef.GetCustomAttributes().ToImmutableArray() 
-                |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
+            if tyDef.Attributes &&& TypeAttributes.VisibilityMask <> TypeAttributes.Public then
+                LazyImArray.Empty
+            else
+                lazy
+                    tyDef.GetCustomAttributes().ToImmutableArray() 
+                    |> ImArray.choose (tryImportAttributeAsOlyILAttribute cenv)
         cenv.postEvalQueue.Enqueue(olyAttrs.Force >> ignore)
             
         let olyImportInfo =
