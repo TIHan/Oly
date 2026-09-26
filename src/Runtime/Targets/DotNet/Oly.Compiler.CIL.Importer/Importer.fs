@@ -386,6 +386,231 @@ module internal rec Helpers =
                 let ilCallConv = importCallingConvention methSig.Header.CallingConvention
                 OlyILTypeNativeFunctionPtr(ilCallConv, olyArgTys, olyReturnTy)
 
+    [<Sealed>]
+    type OlyAttributeTypeProvider(cenv: CompilerEnvironment) =
+        let tryGetNamespaceAndName(olyEntDefOrRefHandle: OlyILEntityDefinitionOrReferenceHandle) =
+            if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityReference then
+                let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                match olyEntRef.Enclosing with
+                | OlyILEnclosing.Namespace(olyPath, _) ->
+                    Some(olyPath, olyEntRef.NameHandle)
+                | _ ->
+                    None
+            else
+                let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                match olyEntDef.Enclosing with
+                | OlyILEnclosing.Namespace(olyPath, _) ->
+                    Some(olyPath, olyEntDef.NameHandle)
+                | _ ->
+                    None
+
+        let provider = OlySignatureTypeProvider(cenv): ISignatureTypeProvider<OlyILType, int>
+
+        let olyTypeToPrimitiveTypeCode olyTy =
+            match olyTy with
+            | OlyILTypeUInt8 -> PrimitiveTypeCode.Byte
+            | OlyILTypeInt8 -> PrimitiveTypeCode.SByte
+            | OlyILTypeUInt16 -> PrimitiveTypeCode.UInt16
+            | OlyILTypeInt16 -> PrimitiveTypeCode.Int16
+            | OlyILTypeUInt32 -> PrimitiveTypeCode.UInt32
+            | OlyILTypeInt32 -> PrimitiveTypeCode.Int32
+            | OlyILTypeUInt64 -> PrimitiveTypeCode.UInt64
+            | OlyILTypeInt64 -> PrimitiveTypeCode.Int64
+            | OlyILTypeFloat32 -> PrimitiveTypeCode.Single
+            | OlyILTypeFloat64 -> PrimitiveTypeCode.Double
+            | OlyILTypeString16 -> PrimitiveTypeCode.String
+            | OlyILTypeChar16 -> PrimitiveTypeCode.Char
+            //| OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs)) when olyTyArgs.IsEmpty ->
+            //    match tryGetNamespaceAndName olyEntDefOrRefHandle with
+            //    | Some(path, name) when path.Length = 1 && cenv.olyAsm.GetStringOrEmpty(path[0]) = "System" ->
+            //        match cenv.olyAsm.GetStringOrEmpty(name) with
+            //        | "Byte" -> PrimitiveTypeCode.Byte
+            //        | "SByte" -> PrimitiveTypeCode.SByte
+            //        | "UInt16" -> PrimitiveTypeCode.UInt16
+            //        | "Int16" -> PrimitiveTypeCode.Int16
+            //        | "UInt32" -> PrimitiveTypeCode.UInt32
+            //        | "Int32" -> PrimitiveTypeCode.Int32
+            //        | "UInt64" -> PrimitiveTypeCode.UInt64
+            //        | "Int64" -> PrimitiveTypeCode.Int64
+            //        | "Single" -> PrimitiveTypeCode.Single
+            //        | "Double" -> PrimitiveTypeCode.Double
+            //        | "String" -> PrimitiveTypeCode.String
+            //        | "Char" -> PrimitiveTypeCode.Char
+            //        | _ -> failwith "Invalid oly type to primitive type code"
+            //    | _ ->
+            //        failwith "Invalid oly type to primitive type code"
+                
+            | _ -> failwith "Invalid oly type to primitive type code"
+
+        interface ICustomAttributeTypeProvider<OlyILType> with
+
+            member _.GetSystemType(): OlyILType = 
+                let handles = cenv.olyAsm.FindEntityDefinitions("Type")
+                let res =
+                    handles
+                    |> ImArray.tryFind (fun x -> 
+                        let olyEntDef = cenv.olyAsm.GetEntityDefinition(x)
+                        match olyEntDef.Enclosing with
+                        | OlyILEnclosing.Namespace(path, _) when path.Length = 1 && cenv.olyAsm.GetStringOrEmpty(path[0]) = "System" ->
+                            olyEntDef.FullTypeParameterCount = 0
+                        | _ ->
+                            false
+                    )
+                match res with
+                | Some(res) ->
+                    OlyILTypeEntity(OlyILEntityInstance(res, ImArray.empty))
+                | _ ->
+                    failwith "Unable to find System.Type"
+
+            member _.GetPrimitiveType(typeCode) =
+                provider.GetPrimitiveType(typeCode)
+
+            member _.GetSZArrayType(elementType: OlyILType): OlyILType = 
+                provider.GetSZArrayType(elementType)
+
+            member _.GetTypeFromDefinition(reader: MetadataReader, handle: TypeDefinitionHandle, rawTypeKind: byte): OlyILType = 
+                provider.GetTypeFromDefinition(reader, handle, rawTypeKind)
+
+            member _.GetTypeFromReference(reader: MetadataReader, handle: TypeReferenceHandle, rawTypeKind: byte): OlyILType = 
+                provider.GetTypeFromReference(reader, handle, rawTypeKind)
+                
+            member _.GetTypeFromSerializedName(name: string): OlyILType = 
+                let split = name.Split(", ")
+                let name = split[0]
+                let split = 
+                    name.Split('.')
+                    |> Array.map (fun x -> 
+                        x.Split('+')
+                        |> Array.map (fun y ->
+                            let split = y.Split('`')
+                            if split.Length = 2 then
+                                split[0], Int32.Parse(split[1])
+                            else
+                                split[0], 0
+                        )
+                    )
+                    |> Array.reduce Array.append
+                    |> Array.rev
+
+                let olyEntDefHandle =
+                    let mutable i = 0
+                    split
+                    |> Array.pick (fun (name, tyParCount) ->
+                        let handles = cenv.olyAsm.FindEntityDefinitions(name)
+                        let res =
+                            handles
+                            |> ImArray.tryFind (fun x -> 
+                                cenv.olyAsm.GetEntityDefinition(x).FullTypeParameterCount = tyParCount
+                            )
+                        match res with
+                        | Some(olyEntDefHandle) ->
+                            let rec loop olyEnclosing j =
+                                if j >= split.Length then true
+                                else
+
+                                let name, tyParCount = split[j]
+                                match olyEnclosing with
+                                | OlyILEnclosing.Entity(OlyILEntityInstance.OlyILEntityInstance(olyParentEntDefOrRefHandle, _)) ->
+                                    let nameHandle, actualTyParCount, enclosing = 
+                                        if olyParentEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                                            let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyParentEntDefOrRefHandle)
+                                            olyEntDef.NameHandle, olyEntDef.FullTypeParameterCount, olyEntDef.Enclosing
+                                        else
+                                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyParentEntDefOrRefHandle)
+                                            olyEntRef.NameHandle, olyEntRef.FullTypeParameterCount, olyEntRef.Enclosing
+                                    if cenv.olyAsm.GetStringOrEmpty(nameHandle) = name && actualTyParCount = tyParCount then
+                                        loop enclosing (j + 1)
+                                    else
+                                        false
+                                | OlyILEnclosing.Namespace(path, _) ->
+                                    if path.Length = split.Length - j then
+                                        path
+                                        |> ImArray.foralli (fun i part ->
+                                            cenv.olyAsm.GetStringOrEmpty(part) = fst split[split.Length - 1 - i]
+                                        )
+                                    else
+                                        false
+                                | _ ->
+                                    failwith "invalid enclosing"
+
+                            i <- i + 1
+                            if loop (cenv.olyAsm.GetEntityDefinition(olyEntDefHandle).Enclosing) i then
+                                Some(olyEntDefHandle)
+                            else
+                                None
+                        | _ -> 
+                            let handles = cenv.olyAsm.FindEntityReferences(name)
+                            let res =
+                                handles
+                                |> ImArray.tryFind (fun x -> 
+                                    cenv.olyAsm.GetEntityReference(x).FullTypeParameterCount = tyParCount
+                                )
+                            i <- i + 1
+                            None
+                    )
+
+                // This is effectively a constructor.
+                OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefHandle, ImArray.empty))
+
+            member _.GetUnderlyingEnumType(ty: OlyILType): PrimitiveTypeCode = 
+                match ty with
+                | OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs)) when olyTyArgs.IsEmpty ->
+                    if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                        let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                        if olyEntDef.Kind = OlyILEntityKind.Enum then
+                            let olyUnderlyingTy =
+                                olyEntDef.FieldDefinitionHandles
+                                |> ImArray.pick (fun x -> 
+                                    match cenv.olyAsm.GetFieldDefinition(x) with
+                                    | OlyILFieldDefinition.OlyILFieldDefinition(ty = ty) ->
+                                        Some ty
+                                    | _ ->
+                                        None
+                                )
+
+                            olyTypeToPrimitiveTypeCode olyUnderlyingTy
+                        else
+                            failwith "Invalid enum type"
+                    else
+                        let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                        let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+
+                        PrimitiveTypeCode.Int32
+                     //   failwith "Invalid enum type"
+
+                | _ ->
+                    olyTypeToPrimitiveTypeCode ty
+
+            member _.IsSystemType(ty: OlyILType): bool = 
+                match ty with
+                | OlyILTypeEntity(OlyILEntityInstance.OlyILEntityInstance(olyEntDefOrRefHandle, olyTyArgs)) when olyTyArgs.IsEmpty ->
+                    if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                        let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                        let name = cenv.olyAsm.GetStringOrEmpty(olyEntDef.NameHandle)
+                        if name = "Type" then
+                            match olyEntDef.Enclosing with
+                            | OlyILEnclosing.Namespace(path, _) when path.Length = 1 ->
+                                let part = cenv.olyAsm.GetStringOrEmpty(path[0])
+                                part = "System"
+                            | _ ->
+                                false
+                        else
+                            false
+                    else
+                        let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                        let name = cenv.olyAsm.GetStringOrEmpty(olyEntRef.NameHandle)
+                        if name = "Type" then
+                            match olyEntRef.Enclosing with
+                            | OlyILEnclosing.Namespace(path, _) when path.Length = 1 ->
+                                let part = cenv.olyAsm.GetStringOrEmpty(path[0])
+                                part = "System"
+                            | _ ->
+                                false
+                        else
+                            false
+                | _ ->
+                    false
+
     type CompilerEnvironment =
         {
             olyAsm: OlyILAssembly
@@ -593,6 +818,8 @@ module internal rec Helpers =
                     let olyEnclosingEntRef = olyAsm.GetEntityReference(olyEnclosingEntRefHandle)
                     let olyTyArgs = ImArray.init olyEnclosingEntRef.FullTypeParameterCount (fun i -> OlyILTypeVariable(i, OlyILTypeVariableKind.Type))
                     OlyILEnclosing.Entity(OlyILEntityInstance(olyEnclosingEntRefHandle, olyTyArgs))
+                | HandleKind.ModuleDefinition ->
+                    OlyILEnclosing.Namespace(ImArray.empty, olyAsm.Identity)
                 | _ ->
                     failwithf "Handle kind '%A' not handled." entHandle.Kind
             else
@@ -1110,6 +1337,8 @@ module internal rec Helpers =
 
         let ctorHandle = attr.Constructor
 
+      //  let decoded = attr.DecodeValue(OlyAttributeTypeProvider(cenv))
+
         if ctorHandle.Kind = HandleKind.MethodDefinition then
             let ctorHandle = MethodDefinitionHandle.op_Explicit(ctorHandle)
             let meth = reader.GetMethodDefinition(ctorHandle)
@@ -1344,6 +1573,17 @@ module internal rec Helpers =
             else
                 olyEntFlags
 
+        let olyEntFlags =
+            if tyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.Public then
+                olyEntFlags ||| OlyILEntityFlags.Public
+            elif tyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.NestedPublic then
+                olyEntFlags ||| OlyILEntityFlags.Public
+            elif tyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.NestedAssembly then
+                olyEntFlags ||| OlyILEntityFlags.Internal
+            elif tyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.NestedFamORAssem then
+                olyEntFlags ||| OlyILEntityFlags.Internal
+            else    
+                olyEntFlags ||| OlyILEntityFlags.Private
         let asmName = reader.GetAssemblyDefinition().GetAssemblyName()
 
         let olyAttrs =
@@ -1409,7 +1649,7 @@ module internal rec Helpers =
             tyDef.GetNestedTypes()
             |> ImArray.choose (fun tyDefHandle ->
                 let nestedTyDef = reader.GetTypeDefinition(tyDefHandle)
-                if nestedTyDef.IsNested && (nestedTyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.NestedPublic) then
+                if nestedTyDef.IsNested then
                     let result, _ = importTypeDefinitionAsOlyILEntityDefinition cenv tyDefHandle
                     Some(result)
                 else
@@ -1643,7 +1883,7 @@ type Importer private (name: string, peReader: PEReader) =
         reader.TypeDefinitions
         |> Seq.iter (fun x ->
             let tyDef = reader.GetTypeDefinition(x)
-            if not tyDef.IsNested && (tyDef.Attributes &&& TypeAttributes.VisibilityMask = TypeAttributes.Public) then
+            if not tyDef.IsNested then
                 importTypeDefinitionAsOlyILEntityDefinition cenv x |> ignore
         )
         

@@ -744,8 +744,6 @@ type internal LocalCache =
 [<NoEquality;NoComparison>]
 type Imports =
     internal {
-        // TODO: We should get rid of the diagnostics. Instead we should just return invalid types, functions, fields, etc and let analysis pick it up.
-        diagnostics: ResizeArray<OlyDiagnostic>
         namespaceEnv: NamespaceEnvironment
         localCaches: ConcurrentDictionary<string, LocalCache>
         localCacheOpt: LocalCache option
@@ -799,9 +797,8 @@ type Imports =
                     )
             localCache.entFromEntDef.GetOrAdd(ilEntDefHandle, eval).GetValue(CancellationToken.None)
 
-    static member Create(diagnostics, namespaceEnv, sharedCache: SharedImportCache) =
+    static member Create(namespaceEnv, sharedCache: SharedImportCache) =
         {
-            diagnostics = diagnostics
             namespaceEnv = namespaceEnv
             sharedCache = sharedCache
             localCacheOpt = None
@@ -930,6 +927,15 @@ let private importEntityFlags (ilEntFlags: OlyILEntityFlags) =
             flags ||| EntityFlags.Anonymous
         else
             flags
+
+    let flags =
+        let masked = ilEntFlags &&& OlyILEntityFlags.AccessorMask
+        if masked = OlyILEntityFlags.Private then
+            flags ||| EntityFlags.Private
+        elif masked = OlyILEntityFlags.Internal then
+            flags ||| EntityFlags.Internal
+        else
+            flags ||| EntityFlags.Public
 
     flags
 
@@ -1075,13 +1081,13 @@ let private findEntityDefinition cenv (qualName: QualifiedName) (ilEntRef: OlyIL
             | _ ->
                 let found2Opt = tryFindEntityReference qualName ilOtherAsm
                 match found2Opt with
-                | Some(ilEntRefHandle2, ilEntRef2) when obj.ReferenceEquals(ilEntRef, ilEntRef2) |> not ->
+                | Some(_ilEntRefHandle2, ilEntRef2) when obj.ReferenceEquals(ilEntRef, ilEntRef2) |> not ->
                     findEntityDefinition cenv qualName ilEntRef2
                 | _ ->
-                    cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName, 400))
+                    Debug.WriteLine(sprintf "Unable to find '%s'." qualName)
                     invalidEntity
         | _ ->
-            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find assembly: %s::%s." asmIdentity.Name asmIdentity.Key, 401))
+            Debug.WriteLine(sprintf "Unable to find assembly: %s::%s.")
             invalidEntity
 
 let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILEntityReferenceHandle) =
@@ -1099,7 +1105,7 @@ let private importEntitySymbolFromReference (cenv: cenv) (ilEntRefHandle: OlyILE
             localCache.entFromEntRef.[ilEntRefHandle] <- ent
             cenv.imports.sharedCache.AddEntity(ent)
         else
-            cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError(sprintf "Unable to find '%s'." qualName, 400))
+            Debug.WriteLine(sprintf "Unable to find '%s'." qualName)
         ent
 
 let private importEntitySymbol (cenv: cenv) (enclosingTyPars: TypeParameterSymbol imarray) (funcTyPars: TypeParameterSymbol imarray) (ilEntRef: OlyILEntityInstance) =
@@ -1663,7 +1669,7 @@ type ImportedFunctionInstanceSymbol (
                         false
                 )
                 |> Option.defaultWith (fun () -> 
-                    cenv.imports.diagnostics.Add(OlyDiagnostic.CreateError($"Unable to import function instance '{enclosingFormalEnt.Name}.{funcName}'.", 10))
+                    Debug.WriteLine($"Unable to import function instance '{enclosingFormalEnt.Name}.{funcName}'.")
                     invalidFunction()
                 )
         lazyFormalFunc
@@ -2294,10 +2300,12 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
         entities.TryGetValue(qualName, &rent)
 
     member this.SetEntity(qualName, ent: EntitySymbol) =
-        OlyAssert.NotEqual(ent.Name, AnonymousEntityName)
-        // sanity
-        if ent.Name <> AnonymousEntityName then
-            entities[qualName] <- ent
+        if ent.IsInvalid then ()
+        else
+            OlyAssert.NotEqual(ent.Name, AnonymousEntityName)
+            // sanity
+            if ent.Name <> AnonymousEntityName then
+                entities[qualName] <- ent
 
     member this.RetargetEntity(currentAsmIdent: OlyILAssemblyIdentity, ent: EntitySymbol) =
         match entities.TryGetValue(ent.QualifiedName) with
@@ -2326,7 +2334,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
             | _ ->
                 OlyAssert.Fail("Importing an entity must not have an enclosing that is not a namespace.")
 
-    member this.ForEachEntity(diagnostics, ct: CancellationToken, f, forEachPrimTy) =
+    member this.ForEachEntity(ct: CancellationToken, f, forEachPrimTy) =
         ct.ThrowIfCancellationRequested()
 
         sharedCache.importedAsms.Values
@@ -2338,7 +2346,7 @@ type Importer(currentAsmIdent: OlyILAssemblyIdentity, importedNamespaceEnv: Name
                     {
                         namespaceEnv = importedNamespaceEnv
                         ilAsm = ilAsm
-                        imports = Imports.Create(diagnostics, importedNamespaceEnv, sharedCache)
+                        imports = Imports.Create(importedNamespaceEnv, sharedCache)
                     }
                 ilAsm.EntityDefinitions
                 |> Seq.iter (fun (ilEntDefHandle, _) ->

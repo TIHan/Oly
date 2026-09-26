@@ -72,7 +72,7 @@ type BinderPrePass =
 
 val CreateDefaultBinderEnvironment: OlyILAssemblyIdentity -> BinderEnvironment
 
-val computePrologEnvironment: CompilerImports -> OlyDiagnosticLogger -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment
+val computePrologEnvironment: CompilerImports -> BinderEnvironment -> BoundDeclarationTable -> OpenContent -> CancellationToken -> BinderEnvironment
 
 val bindSyntaxTree: AssemblySymbol -> BinderEnvironment -> BinderConfiguration -> syntaxTree: OlySyntaxTree -> BinderPrePass
 

@@ -339,17 +339,13 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
 
     importCompilations ilAsmIdent importer comps ct
 
-    let importDiagnostics = OlyDiagnosticLogger.Create()
     let env = 
         computePrologEnvironment
             imports
-            importDiagnostics
             { CreateDefaultBinderEnvironment ilAsmIdent with isExecutable = options.Executable }
             (BoundDeclarationTable())
             OpenContent.All
             ct
-
-    let importDiags = importDiags.ToImmutable()
 
     let implicitExtendsForStructOpt =
         options.ImplicitExtendsForStruct
@@ -378,7 +374,7 @@ let private createInitialState (options: OlyCompilationOptions) (ilAsmIdent: Oly
 
     {
         sharedImportCache = sharedImportCache
-        importDiags = importDiags.AddRange(importDiagnostics.GetDiagnostics())
+        importDiags = importDiags.ToImmutable()
         env = env
     }
 

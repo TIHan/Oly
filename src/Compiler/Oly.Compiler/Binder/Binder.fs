@@ -23,8 +23,7 @@ open Oly.Compiler.Internal.Binder.EarlyAttributes
 let importReferences (importer: Importer) (env: BinderEnvironment) (ct: CancellationToken) callback =
     let mutable env = env
 
-    let diagnostics = ResizeArray()
-    importer.ForEachEntity(diagnostics, ct, (fun ent ->
+    importer.ForEachEntity(ct, (fun ent ->
         ct.ThrowIfCancellationRequested()
         match ent.Enclosing with
         | EnclosingSymbol.RootNamespace ->
@@ -36,38 +35,32 @@ let importReferences (importer: Importer) (env: BinderEnvironment) (ct: Cancella
         env <- env.SetIntrinsicType(ty, ent)
     )
 
-    env, diagnostics.ToImmutableArray()
+    env
 
-let computePrologEnvironment (imports: CompilerImports) (diagnostics: OlyDiagnosticLogger) env (declTable: BoundDeclarationTable) openContent ct =
-    let env, importDiags = 
-        importReferences imports.Importer env ct
-            (fun env ent ->
-                let env =
-                    if ent.IsNamespace then
-                        env.AddNamespace(ent)
-                    else
-                        env
-                match ent.Enclosing with
-                | EnclosingSymbol.RootNamespace ->
-                    if ent.IsPrivate && not (declTable.EntityDeclarations.ContainsKey(ent.Formal)) then
-                        env
-                    else
-                        let env = scopeInEntity env ent
-                        if ent.IsAutoOpenable then
-                            openContentsOfEntity declTable env openContent ent
-                        else
-                            env
-                | _ ->
-                    if ent.IsPreludeNamespace then
+let computePrologEnvironment (imports: CompilerImports) env (declTable: BoundDeclarationTable) openContent ct =
+    importReferences imports.Importer env ct
+        (fun env ent ->
+            let env =
+                if ent.IsNamespace then
+                    env.AddNamespace(ent)
+                else
+                    env
+            match ent.Enclosing with
+            | EnclosingSymbol.RootNamespace ->
+                if ent.IsPrivate && not (declTable.EntityDeclarations.ContainsKey(ent.Formal)) then
+                    env
+                else
+                    let env = scopeInEntity env ent
+                    if ent.IsAutoOpenable then
                         openContentsOfEntity declTable env openContent ent
                     else
                         env
-            )
-
-    importDiags
-    |> ImArray.iter diagnostics.AddDiagnostic
-
-    env
+            | _ ->
+                if ent.IsPreludeNamespace then
+                    openContentsOfEntity declTable env openContent ent
+                else
+                    env
+        )
 
 let bindNamespaceOrModuleDefinitionPass0 (cenv: cenv) (env: BinderEnvironment) syntaxNode (entBuilder: EntitySymbolBuilder) syntaxTyDefBody =
     if not entBuilder.Entity.IsNamespaceOrModule then failwith "Expected namespace or module."
@@ -448,16 +441,15 @@ type BinderPass2(state: PassState) =
 type BinderPass1(state: PassState) =
 
     let compute imports ct =
-        let diagLogger = OlyDiagnosticLogger.Create()
-
         let env2 = 
             computePrologEnvironment
                 imports
-                diagLogger
                 state.env
                 state.declTable
                 OpenContent.Entities
                 ct
+
+        let diagLogger = OlyDiagnosticLogger.Create()
 
         let cenv =
             {
