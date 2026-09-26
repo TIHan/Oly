@@ -2313,7 +2313,11 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
         match emitted.TryGetValue enclosingTy.TypeArguments with
         | ValueSome res -> res
         | _ ->
-            let irAttrs = emitAttributes asm.ilAsm field.Attributes.Value
+            let irAttrs = 
+                if field.EnclosingType.IsExternal then
+                    ImArray.empty
+                else
+                    emitAttributes asm.ilAsm field.Attributes.Value
 
             let constantOpt =
                 field.ILConstantValueOption
@@ -4421,7 +4425,9 @@ type OlyRuntime<'Type, 'Function, 'Field>(emitter: IOlyRuntimeEmitter<'Type, 'Fu
                 func.Parameters 
                 |> ImArray.map (fun par -> 
                     let attrs =
-                        if par.Attributes.Value.IsEmpty then
+                        if func.IsExternal then
+                            LazyImArray.Empty
+                        elif par.Attributes.Value.IsEmpty then
                             LazyImArray.Empty
                         else
                             lazy
