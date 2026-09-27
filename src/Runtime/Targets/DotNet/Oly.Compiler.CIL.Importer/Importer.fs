@@ -1325,6 +1325,92 @@ module internal rec Helpers =
         cenv.methDefToOlyFuncDefCache.[methDefHandle] <- res
         ValueSome res
 
+    let rec decodeTypedArgs (cenv: CompilerEnvironment) (provider: ICustomAttributeTypeProvider<OlyILType>) (args: CustomAttributeTypedArgument<OlyILType> imarray) =
+        args
+        |> ImArray.map (fun x ->
+            decodeTypedArg cenv provider x
+        )
+
+    and decodeTypedArg (cenv: CompilerEnvironment) (provider: ICustomAttributeTypeProvider<OlyILType>) (arg: CustomAttributeTypedArgument<OlyILType>) =
+        let olyAsm = cenv.olyAsm
+
+        match arg.Type with
+        | OlyILTypeUInt8 -> OlyILConstant.UInt8(arg.Value :?> _)
+        | OlyILTypeInt8 -> OlyILConstant.Int8(arg.Value :?> _)
+        | OlyILTypeUInt16 -> OlyILConstant.UInt16(arg.Value :?> _)
+        | OlyILTypeInt16 -> OlyILConstant.Int16(arg.Value :?> _)
+        | OlyILTypeUInt32 -> OlyILConstant.UInt32(arg.Value :?> _)
+        | OlyILTypeInt32 -> OlyILConstant.Int32(arg.Value :?> _)
+        | OlyILTypeUInt64 -> OlyILConstant.UInt64(arg.Value :?> _)
+        | OlyILTypeInt64 -> OlyILConstant.Int64(arg.Value :?> _)
+        | OlyILTypeFloat32 -> OlyILConstant.Float32(arg.Value :?> _)
+        | OlyILTypeFloat64 -> OlyILConstant.Float64(arg.Value :?> _)
+        | OlyILTypeChar16 -> OlyILConstant.Char16(arg.Value :?> _)
+        | OlyILTypeString16 -> OlyILConstant.String16(arg.Value :?> _)
+        | OlyILTypeBool ->
+            if arg.Value :?> bool then
+                OlyILConstant.True
+            else
+                OlyILConstant.False
+        | OlyILTypeArray(inner, 1, OlyILArrayKind.Mutable) ->
+            let values = 
+                arg.Value :?> CustomAttributeTypedArgument<OlyILType> imarray
+                |> decodeTypedArgs cenv provider
+            OlyILConstant.Array(inner, values)
+        | OlyILTypeEntity(OlyILEntityInstance(olyEntDefOrRefHandle, _)) as olyTy ->
+            let kind, name = 
+                if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
+                    let olyEntDef = olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
+                    olyEntDef.Kind, olyEntDef.NameHandle |> olyAsm.GetStringOrEmpty
+                else
+                    let olyEntRef = olyAsm.GetEntityReference(olyEntDefOrRefHandle)
+                    OlyILEntityKind.Class, olyEntRef.NameHandle |> olyAsm.GetStringOrEmpty
+            if kind = OlyILEntityKind.Enum then
+                match provider.GetUnderlyingEnumType(olyTy) with
+                | PrimitiveTypeCode.Byte -> OlyILConstant.UInt8(arg.Value :?> _)
+                | PrimitiveTypeCode.SByte -> OlyILConstant.Int8(arg.Value :?> _)
+                | PrimitiveTypeCode.UInt16 -> OlyILConstant.UInt16(arg.Value :?> _)
+                | PrimitiveTypeCode.Int16 -> OlyILConstant.Int16(arg.Value :?> _)
+                | PrimitiveTypeCode.UInt32 -> OlyILConstant.UInt32(arg.Value :?> _)
+                | PrimitiveTypeCode.Int32 -> OlyILConstant.Int32(arg.Value :?> _)
+                | PrimitiveTypeCode.UInt64 -> OlyILConstant.UInt64(arg.Value :?> _)
+                | PrimitiveTypeCode.Int64 -> OlyILConstant.Int64(arg.Value :?> _)
+                | PrimitiveTypeCode.Single -> OlyILConstant.Float32(arg.Value :?> _)
+                | PrimitiveTypeCode.Double -> OlyILConstant.Float64(arg.Value :?> _)
+                | PrimitiveTypeCode.Char -> OlyILConstant.Char16(arg.Value :?> _)
+                | ty -> failwith $"Not valid underyling ty {ty}"
+            else
+                if name = "Type" then
+                    let olyTyArg = arg.Value :?> OlyILType
+                    let olyFuncInst =
+                        OlyILFunctionInstance.Signature(
+                            cenv.TypeOf.Enclosing,
+                            cenv.TypeOf.SpecificationHandle,
+                            ImArray.createOne olyTyArg,
+                            ImArray.empty
+                        )
+                    OlyILConstant.External(olyFuncInst, olyTyArg)
+                else
+                    OlyAssert.Equal(typeof<int32>, arg.Value.GetType())
+                    OlyILConstant.Int32(arg.Value :?> _)
+        | olyTy ->
+            failwith $"Not valid {olyTy}"
+
+    let rec decodeNamedArgs (cenv: CompilerEnvironment) (provider: ICustomAttributeTypeProvider<OlyILType>) (args: CustomAttributeNamedArgument<OlyILType> imarray) =
+        args
+        |> ImArray.map (fun x ->
+            let constant = decodeTypedArg cenv provider (CustomAttributeTypedArgument<_>(x.Type, x.Value))
+            {
+                OlyILAttributeNamedArgument.Kind =
+                    if x.Kind = CustomAttributeNamedArgumentKind.Field then
+                        OlyILAttributeNamedArgumentKind.Field
+                    else
+                        OlyILAttributeNamedArgumentKind.Property
+                OlyILAttributeNamedArgument.NameHandle = cenv.olyAsm.AddString x.Name
+                OlyILAttributeNamedArgument.Constant = constant
+            }
+        )
+
     let tryImportAttributeAsOlyILAttribute (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
@@ -1341,148 +1427,9 @@ module internal rec Helpers =
             | _ ->
                 CustomAttributeValue(ImArray.empty, ImArray.empty), false
 
-        let rec decodeTypedArgs (args: CustomAttributeTypedArgument<OlyILType> imarray) =
-            args
-            |> ImArray.map (fun x ->
-                match x.Type with
-                | OlyILTypeUInt8 -> OlyILConstant.UInt8(x.Value :?> _)
-                | OlyILTypeInt8 -> OlyILConstant.Int8(x.Value :?> _)
-                | OlyILTypeUInt16 -> OlyILConstant.UInt16(x.Value :?> _)
-                | OlyILTypeInt16 -> OlyILConstant.Int16(x.Value :?> _)
-                | OlyILTypeUInt32 -> OlyILConstant.UInt32(x.Value :?> _)
-                | OlyILTypeInt32 -> OlyILConstant.Int32(x.Value :?> _)
-                | OlyILTypeUInt64 -> OlyILConstant.UInt64(x.Value :?> _)
-                | OlyILTypeInt64 -> OlyILConstant.Int64(x.Value :?> _)
-                | OlyILTypeFloat32 -> OlyILConstant.Float32(x.Value :?> _)
-                | OlyILTypeFloat64 -> OlyILConstant.Float64(x.Value :?> _)
-                | OlyILTypeChar16 -> OlyILConstant.Char16(x.Value :?> _)
-                | OlyILTypeString16 -> OlyILConstant.String16(x.Value :?> _)
-                | OlyILTypeBool ->
-                    if x.Value :?> bool then
-                        OlyILConstant.True
-                    else
-                        OlyILConstant.False
-                | OlyILTypeArray(inner, 1, OlyILArrayKind.Mutable) ->
-                    let values = 
-                        x.Value :?> CustomAttributeTypedArgument<OlyILType> imarray
-                        |> decodeTypedArgs
-                    OlyILConstant.Array(inner, values)
-                | OlyILTypeEntity(OlyILEntityInstance(olyEntDefOrRefHandle, _)) as olyTy ->
-                    let kind, name = 
-                        if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                            let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
-                            olyEntDef.Kind, olyEntDef.NameHandle |> olyAsm.GetStringOrEmpty
-                        else
-                            let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
-                            OlyILEntityKind.Class, olyEntRef.NameHandle |> olyAsm.GetStringOrEmpty
-                    if kind = OlyILEntityKind.Enum then
-                        match provider.GetUnderlyingEnumType(olyTy) with
-                        | PrimitiveTypeCode.Byte -> OlyILConstant.UInt8(x.Value :?> _)
-                        | PrimitiveTypeCode.SByte -> OlyILConstant.Int8(x.Value :?> _)
-                        | PrimitiveTypeCode.UInt16 -> OlyILConstant.UInt16(x.Value :?> _)
-                        | PrimitiveTypeCode.Int16 -> OlyILConstant.Int16(x.Value :?> _)
-                        | PrimitiveTypeCode.UInt32 -> OlyILConstant.UInt32(x.Value :?> _)
-                        | PrimitiveTypeCode.Int32 -> OlyILConstant.Int32(x.Value :?> _)
-                        | PrimitiveTypeCode.UInt64 -> OlyILConstant.UInt64(x.Value :?> _)
-                        | PrimitiveTypeCode.Int64 -> OlyILConstant.Int64(x.Value :?> _)
-                        | PrimitiveTypeCode.Single -> OlyILConstant.Float32(x.Value :?> _)
-                        | PrimitiveTypeCode.Double -> OlyILConstant.Float64(x.Value :?> _)
-                        | PrimitiveTypeCode.Char -> OlyILConstant.Char16(x.Value :?> _)
-                        | ty -> failwith $"Not valid underyling ty {ty}"
-                    else
-                        if name = "Type" then
-                            let olyTyArg = x.Value :?> OlyILType
-                            let olyFuncInst =
-                                OlyILFunctionInstance.Signature(
-                                    cenv.TypeOf.Enclosing,
-                                    cenv.TypeOf.SpecificationHandle,
-                                    ImArray.createOne olyTyArg,
-                                    ImArray.empty
-                                )
-                            OlyILConstant.External(olyFuncInst, olyTyArg)
-                        else
-                            OlyILConstant.Int32(x.Value :?> _)
-                | olyTy ->
-                    failwith $"Not valid {olyTy}"
-            )
-        let args = decodeTypedArgs decoded.FixedArguments
+        let args = decodeTypedArgs cenv provider decoded.FixedArguments
 
-        let namedArgs =
-            let rec decodeNamedArgs (args: CustomAttributeNamedArgument<OlyILType> imarray) =
-                args
-                |> ImArray.map (fun x ->
-                    let constant =
-                        match x.Type with
-                        | OlyILTypeUInt8 -> OlyILConstant.UInt8(x.Value :?> _)
-                        | OlyILTypeInt8 -> OlyILConstant.Int8(x.Value :?> _)
-                        | OlyILTypeUInt16 -> OlyILConstant.UInt16(x.Value :?> _)
-                        | OlyILTypeInt16 -> OlyILConstant.Int16(x.Value :?> _)
-                        | OlyILTypeUInt32 -> OlyILConstant.UInt32(x.Value :?> _)
-                        | OlyILTypeInt32 -> OlyILConstant.Int32(x.Value :?> _)
-                        | OlyILTypeUInt64 -> OlyILConstant.UInt64(x.Value :?> _)
-                        | OlyILTypeInt64 -> OlyILConstant.Int64(x.Value :?> _)
-                        | OlyILTypeFloat32 -> OlyILConstant.Float32(x.Value :?> _)
-                        | OlyILTypeFloat64 -> OlyILConstant.Float64(x.Value :?> _)
-                        | OlyILTypeChar16 -> OlyILConstant.Char16(x.Value :?> _)
-                        | OlyILTypeString16 -> OlyILConstant.String16(x.Value :?> _)
-                        | OlyILTypeBool ->
-                            if x.Value :?> bool then
-                                OlyILConstant.True
-                            else
-                                OlyILConstant.False
-                        | OlyILTypeArray(inner, 1, OlyILArrayKind.Mutable) ->
-                            let values = 
-                                x.Value :?> CustomAttributeTypedArgument<OlyILType> imarray
-                                |> decodeTypedArgs
-                            OlyILConstant.Array(inner, values)
-                        | OlyILTypeEntity(OlyILEntityInstance(olyEntDefOrRefHandle, _)) as olyTy ->
-                            let kind, name = 
-                                if olyEntDefOrRefHandle.Kind = OlyILTableKind.EntityDefinition then
-                                    let olyEntDef = cenv.olyAsm.GetEntityDefinition(olyEntDefOrRefHandle)
-                                    olyEntDef.Kind, olyEntDef.NameHandle |> olyAsm.GetStringOrEmpty
-                                else
-                                    let olyEntRef = cenv.olyAsm.GetEntityReference(olyEntDefOrRefHandle)
-                                    OlyILEntityKind.Class, olyEntRef.NameHandle |> olyAsm.GetStringOrEmpty
-                            if kind = OlyILEntityKind.Enum then
-                                match provider.GetUnderlyingEnumType(olyTy) with
-                                | PrimitiveTypeCode.Byte -> OlyILConstant.UInt8(x.Value :?> _)
-                                | PrimitiveTypeCode.SByte -> OlyILConstant.Int8(x.Value :?> _)
-                                | PrimitiveTypeCode.UInt16 -> OlyILConstant.UInt16(x.Value :?> _)
-                                | PrimitiveTypeCode.Int16 -> OlyILConstant.Int16(x.Value :?> _)
-                                | PrimitiveTypeCode.UInt32 -> OlyILConstant.UInt32(x.Value :?> _)
-                                | PrimitiveTypeCode.Int32 -> OlyILConstant.Int32(x.Value :?> _)
-                                | PrimitiveTypeCode.UInt64 -> OlyILConstant.UInt64(x.Value :?> _)
-                                | PrimitiveTypeCode.Int64 -> OlyILConstant.Int64(x.Value :?> _)
-                                | PrimitiveTypeCode.Single -> OlyILConstant.Float32(x.Value :?> _)
-                                | PrimitiveTypeCode.Double -> OlyILConstant.Float64(x.Value :?> _)
-                                | PrimitiveTypeCode.Char -> OlyILConstant.Char16(x.Value :?> _)
-                                | ty -> failwith $"Not valid underyling ty {ty}"
-                            else
-                                if name = "Type" then
-                                    let olyTyArg = x.Value :?> OlyILType
-                                    let olyFuncInst =
-                                        OlyILFunctionInstance.Signature(
-                                            cenv.TypeOf.Enclosing,
-                                            cenv.TypeOf.SpecificationHandle,
-                                            ImArray.createOne olyTyArg,
-                                            ImArray.empty
-                                        )
-                                    OlyILConstant.External(olyFuncInst, olyTyArg)
-                                else
-                                    OlyILConstant.Int32(x.Value :?> _)
-                        | olyTy ->
-                            failwith $"Not valid {olyTy}"
-                    {
-                        OlyILAttributeNamedArgument.Kind =
-                            if x.Kind = CustomAttributeNamedArgumentKind.Field then
-                                OlyILAttributeNamedArgumentKind.Field
-                            else
-                                OlyILAttributeNamedArgumentKind.Property
-                        OlyILAttributeNamedArgument.NameHandle = olyAsm.AddString x.Name
-                        OlyILAttributeNamedArgument.Constant = constant
-                    }
-                )
-            decodeNamedArgs decoded.NamedArguments
+        let namedArgs = decodeNamedArgs cenv provider decoded.NamedArguments
 
         if ctorHandle.Kind = HandleKind.MethodDefinition then
             let ctorHandle = MethodDefinitionHandle.op_Explicit(ctorHandle)
