@@ -31,6 +31,18 @@ module internal rec Helpers =
         let serializedTypeName = serializedTypeName.Replace("[]", "").Replace("*", "")
         let types = serializedTypeName.Split('+')
         let lastDot = types[0].LastIndexOf('.')
+        if lastDot = -1 then
+            let types =
+                types
+                |> Array.map (fun x -> 
+                    let split = x.Split('`')
+                    if split.Length = 2 then
+                        (split[0], Int32.Parse(split[1]))
+                    else
+                        (split[0], 0)
+                )
+            ("", types, flags)
+        else
         let namespce = types[0].Substring(0, lastDot)
         let topLevelType = types[0].Substring(lastDot + 1)
 
@@ -1313,15 +1325,7 @@ module internal rec Helpers =
         cenv.methDefToOlyFuncDefCache.[methDefHandle] <- res
         ValueSome res
 
-    let rec tryImportAttributeAsOlyILAttribute (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
-        try
-            tryImportAttributeAsOlyILAttributeCore cenv attrHandle
-        with
-        | ex ->
-            OlyTrace.LogWarning (ex.ToString())
-            None
-
-    and tryImportAttributeAsOlyILAttributeCore (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
+    let tryImportAttributeAsOlyILAttribute (cenv: CompilerEnvironment) (attrHandle: CustomAttributeHandle) =
         let olyAsm = cenv.olyAsm
         let reader = cenv.reader
 
@@ -1330,7 +1334,12 @@ module internal rec Helpers =
         let ctorHandle = attr.Constructor
 
         let provider = OlyAttributeTypeProvider(cenv): ICustomAttributeTypeProvider<OlyILType>
-        let decoded = attr.DecodeValue(provider)
+        let decoded, passed = 
+            try
+                attr.DecodeValue(provider), true
+            with
+            | _ ->
+                CustomAttributeValue(ImArray.empty, ImArray.empty), false
 
         let rec decodeTypedArgs (args: CustomAttributeTypedArgument<OlyILType> imarray) =
             args
@@ -1487,6 +1496,10 @@ module internal rec Helpers =
 
             let olyEntDef = olyAsm.GetEntityDefinition(olyEntDefHandle)
 
+            if not passed then
+                let name = olyEntDef.NameHandle |> olyAsm.GetStringOrEmpty
+                OlyTrace.LogWarning $"DotNet Importer: Unable to decode attribute arguments for '{name}'"
+
             let olyFuncDefHandleOpt = 
                 importMethodDefinitionAsOlyILFunctionDefinition
                     cenv
@@ -1522,6 +1535,15 @@ module internal rec Helpers =
             failwith "Importing attribute of method specification not supported (yet)"
         else
             let ctor = importMemberReferenceAsOlyILFunctionReference cenv (MemberReferenceHandle.op_Explicit(ctorHandle))           
+
+            if not passed then
+                match ctor.Enclosing with
+                | OlyILEnclosing.Entity(OlyILEntityInstance(olyEntRefHandle, _)) ->
+                    let olyEntRef = olyAsm.GetEntityReference(olyEntRefHandle)
+                    let name = olyEntRef.NameHandle |> olyAsm.GetStringOrEmpty
+                    OlyTrace.LogWarning $"DotNet Importer: Unable to decode attribute arguments for '{name}'"
+                | _ ->
+                    failwith "Expected entity instance"
 
             // TODO: Assert to make sure enclosing and function have no type parameters.
 
